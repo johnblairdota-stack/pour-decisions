@@ -94,7 +94,9 @@ func setup(i: int, color: Color) -> void:
 	prompt = F.label3d("", 30, Color.WHITE)
 	prompt.position = Vector3(0, 2.0, 0)
 	add_child(prompt)
-	for k in 2:
+	# Three glyph slots: two from cue(), plus a third a station can add by hand
+	# (the truck bay's B: send it back)
+	for k in 3:
 		var n := Node3D.new()
 		var quad := MeshInstance3D.new()
 		var qm := QuadMesh.new()
@@ -473,7 +475,7 @@ static func is_gold(cu: Array) -> bool:
 		return true
 	return cu.size() > 6 and cu[6] and bool(Settings.value("gold_assist"))
 
-var _was_gold := [false, false]
+var _was_gold := [false, false, false]
 
 ## A short status line under the head (a height, a count), not an action.
 func say(text: String) -> void:

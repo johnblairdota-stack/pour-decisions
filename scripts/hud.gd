@@ -42,6 +42,9 @@ var hopper_pct: Label
 var hopper_fill: ColorRect
 var trucks_label: Label
 var line_label: Label
+var gauge: Gauge
+var _pause_hint: Label
+var _bottom := -1.0
 # wind
 var wind_panel: PanelContainer
 var wind_label: Label
@@ -64,6 +67,10 @@ const BOLT_W := 320.0
 # cards
 var card: PanelContainer
 var _card_t := 0.0
+var _card_hold := false      # the slab report waits for someone to press A
+var _card_age := 0.0
+var _card_hint: HBoxContainer
+var _brief_hint: HBoxContainer
 var _card_title: Label
 var _card_head: Label
 var _card_quality: Label
@@ -175,6 +182,11 @@ func _ready() -> void:
 	pv.add_child(trucks_label)
 	line_label = UI.label("", 15, UI.MUTED, 0)
 	pv.add_child(line_label)
+	# The pump operator's gauge: the needle jumps into the red on a spike
+	gauge = Gauge.new()
+	gauge.custom_minimum_size = Vector2(190, 74)
+	gauge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	pv.add_child(gauge)
 	pump_panel.visible = false
 
 	# --- Wind, only while it matters
@@ -284,6 +296,7 @@ func _ready() -> void:
 	var ph2 := UI.label("Pause: Esc · Start · the Pause button on a phone", 14, Color(1, 1, 1, 0.45), 3)
 	_root.add_child(ph2)
 	UI.place(ph2, Vector2(0, 1), Vector2(16, -12))
+	_pause_hint = ph2
 
 	# --- Slab report
 	card = UI.panel(UI.GLASS_SOLID, 16, UI.YELLOW, 2, Vector4(24, 18, 24, 18))
@@ -325,6 +338,9 @@ func _ready() -> void:
 	_card_cols = HBoxContainer.new()
 	_card_cols.add_theme_constant_override("separation", 30)
 	cv.add_child(_card_cols)
+	_card_hint = UI.hint("A", "next level", 18)
+	_card_hint.alignment = BoxContainer.ALIGNMENT_END
+	cv.add_child(_card_hint)
 	card.visible = false
 
 	# --- Pre-pour briefing
@@ -340,6 +356,9 @@ func _ready() -> void:
 	_brief_lines = VBoxContainer.new()
 	_brief_lines.add_theme_constant_override("separation", 6)
 	bv2.add_child(_brief_lines)
+	_brief_hint = UI.hint("A", "ready: let's pour", 18)
+	_brief_hint.alignment = BoxContainer.ALIGNMENT_END
+	bv2.add_child(_brief_hint)
 	brief.visible = false
 
 	# --- Top out
@@ -368,7 +387,13 @@ func _process(delta: float) -> void:
 	if _alert != "":
 		toast_panel.visible = true
 		toast_panel.modulate.a = 1.0
-	if _card_t > 0.0:
+	_card_age += delta
+	if _card_hold:
+		card.visible = true
+		card.modulate.a = 1.0
+		# (a gentle pulse on the A, so it's clear what moves things on)
+		_card_hint.modulate.a = 0.65 + 0.35 * sin(_card_age * 4.0)
+	elif _card_t > 0.0:
 		_card_t -= delta
 		card.visible = _card_t > 0.0
 		card.modulate.a = clampf(_card_t * 2.0, 0.0, 1.0)
@@ -406,6 +431,24 @@ func set_stats(timer_text: String, pressure: float, warn := false) -> void:
 	clock_label.text = timer_text
 	line_label.text = "LINE  %d bar" % int(pressure)
 	line_label.add_theme_color_override("font_color", UI.RED if warn else UI.MUTED)
+	gauge.bar = pressure
+
+## Lifts everything along the bottom of the screen clear of the street band
+## (the split view's strip along the bottom), `h` pixels tall.
+func set_bottom_inset(h: float) -> void:
+	h = roundf(h)
+	if h == _bottom:
+		return
+	_bottom = h
+	UI.place(signal_panel, Vector2(0.5, 1), Vector2(0, -36 - h))
+	UI.place(bolt_panel, Vector2(0.5, 1), Vector2(0, -110 - h))
+	UI.place(_pause_hint, Vector2(0, 1), Vector2(16, -12 - h))
+	if facts != null:
+		UI.place(facts, Vector2(0.5, 1), Vector2(0, -60 - h))
+
+func set_gauge(spike: bool, tripped: bool) -> void:
+	gauge.spike = spike
+	gauge.tripped = tripped
 
 func set_floor(done: int, total: int) -> void:
 	level_label.text = "L%d/%d" % [mini(done + 1, total), total]
@@ -594,8 +637,23 @@ func show_report(title: String, headline: String, quality_text: String, gains: A
 			right.add_child(_row(r, Color("ff9a9a")))
 	card.visible = true
 	card.modulate.a = 1.0
-	_card_t = seconds
+	# seconds < 0: it stays up till someone presses A (dismiss_card)
+	_card_hold = seconds < 0.0
+	_card_t = maxf(0.0, seconds)
+	_card_age = 0.0
+	_card_hint.visible = _card_hold
 	_refit_card()
+
+func card_waiting() -> bool:
+	return _card_hold
+
+func card_age() -> float:
+	return _card_age
+
+func dismiss_card() -> void:
+	if _card_hold:
+		_card_hold = false
+		_card_t = 0.4
 
 ## The truck's docket after a slump test, for the pump operator to read:
 ## the measured slump against the mix's spec, how long since it was batched
@@ -680,6 +738,42 @@ func show_docket(d: Dictionary) -> void:
 			hint.modulate = Color(1, 1, 1, 0.35)
 		_dk_hints.add_child(hint)
 
+## The line pressure gauge: a half dial, green to red, with the needle. On a
+## spike the dial flashes red and the needle shakes in the red.
+class Gauge extends Control:
+	const MAX_BAR := 250.0
+	var bar := 0.0
+	var spike := false
+	var tripped := false
+	var _t := 0.0
+	func _process(delta: float) -> void:
+		_t += delta
+		queue_redraw()
+	func _draw() -> void:
+		var c := Vector2(size.x * 0.5, size.y - 6.0)
+		var r := minf(size.x * 0.5 - 6.0, size.y - 12.0)
+		if spike and fmod(_t, 0.3) < 0.15:
+			draw_rect(Rect2(Vector2.ZERO, size), Color(1.0, 0.2, 0.2, 0.35))
+		# green to 120 bar, amber to 180, red above
+		var bands := [[0.0, 120.0, Color("7cd992")], [120.0, 180.0, Color("ffc72c")], [180.0, MAX_BAR, Color("ff4d4d")]]
+		for b in bands:
+			var a0 := PI + PI * float(b[0]) / MAX_BAR
+			var a1 := PI + PI * float(b[1]) / MAX_BAR
+			draw_arc(c, r, a0, a1, 24, b[2], 7.0, true)
+		var v := clampf(bar / MAX_BAR, 0.0, 1.0)
+		if spike:
+			v = clampf(v + 0.015 * sin(_t * 70.0), 0.0, 1.0)
+		var ang := PI + PI * v
+		var tip := c + Vector2(cos(ang), sin(ang)) * (r - 4.0)
+		draw_line(c, tip, Color.WHITE, 3.5, true)
+		draw_circle(c, 5.0, Color.WHITE)
+		var font := get_theme_default_font()
+		var txt := "SPIKE!  Y: KILL IT" if spike else ("TRIPPED · RESTART" if tripped else "%d bar" % int(bar))
+		var col := Color("ff6b6b") if spike else (Color("ffc72c") if tripped else Color("9fb0c6"))
+		var fs := 15
+		var tw := font.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+		draw_string(font, Vector2(c.x - tw * 0.5, c.y - r * 0.35), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, col)
+
 ## A docket gauge: the scale, the accepted band in green, and a marker.
 class DocketBar extends Control:
 	var lo := 0.0
@@ -733,10 +827,12 @@ func _row(text: String, col: Color) -> HBoxContainer:
 	return h
 
 ## Pre-pour briefing: a title line, then one row per point.
-func show_brief(on: bool, text := "") -> void:
+## `wait`: it shows "A: ready" and the engineer waits for it (see main).
+func show_brief(on: bool, text := "", wait := false) -> void:
 	brief.visible = on
 	if not on:
 		return
+	_brief_hint.visible = wait
 	var lines := Array(text.split("\n"))
 	_brief_title.text = lines[0] if not lines.is_empty() else ""
 	for c in _brief_lines.get_children():

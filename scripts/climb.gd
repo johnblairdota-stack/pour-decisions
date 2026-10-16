@@ -128,6 +128,8 @@ var sparks: CPUParticles3D
 var _podger_t := -1.0
 var _strike_t := 0.0
 var _clip_t := 0.0
+var _clip_hold := 0.0
+const CLIP_T := 0.7      # s holding A to push an R-clip through
 var rig_npc: Node3D
 var _rigger = null
 var _ram_queued := false
@@ -784,7 +786,8 @@ func _operate(delta: float) -> Vector2:
 			_op_vert = 0.0
 		if _wind_over_t > WIND_GRACE and not _op_dog and not _wind_noted and stage == "guide":
 			_wind_noted = true
-			game.hud.toast("Gusting over the limit: the crane's holding till it eases", 2.2)
+			wind_misses += 1
+			game.hud.toast("Gusting over the limit with no \"dog everything\" call: the crane's holding, and it's noted", 2.4)
 	else:
 		_wind_over_t = 0.0
 		_wind_noted = false
@@ -1943,10 +1946,18 @@ func handle_player(p, delta: float, near: String, act: String, alt: String, leav
 						var in_zone: bool = winding and power >= SWEET and power <= SWEET + SWEET_W
 						p.cue("action", "let go!" if in_zone else ("hold to swing" if not winding else "wait for gold…"), power if winding else 0.0, in_zone, Vector2(SWEET, SWEET + SWEET_W))
 					"clip":
-						p.cue("action", "R-clip", -1.0, true)
-						if p.action_pressed() or p.alt_pressed():
+						# The R-clip takes a moment (hold A or X); Y skips it to
+						# get the frame up sooner, and the inspector notes it
+						_clip_hold = minf(1.0, _clip_hold + get_process_delta_time() / CLIP_T) if (p.action_held() or p.alt_held()) else maxf(0.0, _clip_hold - get_process_delta_time())
+						p.cue("action", "R-clip on (hold)", _clip_hold, true)
+						p.cue("slow", "skip the clip")
+						if _clip_hold >= 1.0:
+							_clip_hold = 0.0
 							_clip(true)
 							p.bounce()
+						elif p.slow_pressed():
+							_clip_hold = 0.0
+							_clip(false)
 				_pose_rigger(p)
 			_:
 				p.set_arms(-0.3, -0.3)

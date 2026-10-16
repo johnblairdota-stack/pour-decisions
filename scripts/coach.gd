@@ -148,10 +148,10 @@ func _tip(p) -> String:
 							"drive":
 								return "Hold A to wind the hammer back, let go in the gold. Three clean blows."
 							"clip":
-								return "A: the R-clip back on through the pin."
+								return "Hold A: the R-clip back on through the pin."
 		return ""
 	if g.phase == "inspect":
-		if p.role == "pump":
+		if p.role == "line":
 			return "Head to the TRUCK BAY: the first truck's already backed on."
 		return ""
 	if g.phase != "pour":
@@ -199,18 +199,26 @@ func _tip(p) -> String:
 		"screed":
 			return "Hold A to bring the board down, then walk backwards over the gold. The board pulls the surplus along into the low spots."
 		"pump":
+			if line.spike_on:
+				return "SPIKE! Y now, wherever you are: kill the pump. The faster, the more it's worth."
+			if line.tripped:
+				return "Pump's off and the pressure's easing. Hold A at the PUMP PANEL to restart it."
+			if line.fix_i >= 0 and line._step_name() == "depress":
+				return "The truck hand needs the pressure off: hold Y (your belt remote), wherever you are."
+			if line.live and line.idle_t > line.SET_TIME * 0.5 and not line.line_down():
+				return "The line's standing still. A at the PUMP PANEL strokes it so it doesn't go off."
+			return "Watch the gauge. The moment the needle jumps into the red, Y kills the pump."
+		"line":
+			if line.fix_i >= 0 or (line.blocked and not line.block_found) or (line.fail_i >= 0 and line.burst):
+				return "The riser needs you: grab the part (CLAMP KITS or PIPES), up the LADDER, and fix it. Trucks wait till you're back."
 			var chk = line.needs_check()
 			if chk != null:
 				if not chk["checked"]:
-					return "Truck in: slump test at the TRUCK BAY. Hold A for each step: sample, fill each layer to the mark, rod it 25 times, strike off, lift the cone steady (don't let go), and press A when the tape touches the top."
+					return "Truck in: slump test at the TRUCK BAY. Scoop and fill each layer (hold A to the mark), hold A to rod and let go on 25, strike off, lift steady, then A when the tape touches. The truck keeps feeding while you test."
 				return "Your reading against the order, 100 mm ±20: in it, A uses the load. Under 80 (stiff), X adds the water the plant held back, then test again. Over 120, or batched over 90 minutes ago, B sends it back."
 			if line.can_wave_in():
 				return "Wave the next truck back onto the hopper (A at the TRUCK BAY)."
-			if line.fix_i >= 0 and line._step_name() == "depress":
-				return "The line hand needs the pressure off: hold Y (your belt remote), wherever you are."
-			return "Keep an eye on the hopper. Two trucks on the go means it never runs dry."
-		"line":
-			if line.fail_i >= 0 or line.fix_i >= 0:
-				return "A clamp's weeping. Up the LADDER to it; the pump operator takes the pressure off on the belt remote, then swap the clamp."
-			return "Watch the riser. If a clamp starts weeping, it's yours to swap."
+			if line.fail_i >= 0:
+				return "A clamp's weeping. Grab a CLAMP KIT and up the LADDER to swap it before it bursts."
+			return "Keep the trucks coming. Two on the go means the hopper never runs dry."
 	return ""

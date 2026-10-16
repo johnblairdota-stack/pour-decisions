@@ -16,7 +16,8 @@ var _pk_target := Vector3(INF, 0, 0)
 var _pk_urgent := false
 const URGENT_PK := 0.55   # how close to going off before the poker bot drops what it's doing
 const PACE := [0.75, 0.88, 1.0]   # bronze, silver, gold
-const READ_T := [2.4, 1.4, 0.6]   # s to read a docket
+const READ_T := [2.4, 1.4, 0.6]   # s to make the call on a tested load
+const REACT_T := [1.3, 0.8, 0.45] # s to kill the pump on a pressure spike
 
 func setup(owner_game) -> void:
 	game = owner_game
@@ -481,12 +482,9 @@ func _line(p, delta: float) -> void:
 		job = ""
 	var part := part_needed() if job == "fix" else ""
 	var coming: bool = part != "" and line.part_coming(part, p)
-	# With a bot on the pump, the line hand goes straight to the joint and the
-	# pump operator runs the part over: the repair happens in parallel
-	var spares_at: Vector3 = g.GROUND_STATIONS["spares" if part == "clamp" else "rack"]["pos"]
-	var handy: bool = p.zone == "ground" and Vector2(p.position.x - spares_at.x, p.position.z - spares_at.z).length() < 6.0
-	var runner: bool = g.crew.is_bot("pump") and not handy
-	var need_fetch: bool = part != "" and p.held_kind != part and not coming and not runner
+	# The truck hand grabs their own part on the way to the joint (anyone can
+	# still send one up the haul rope for them)
+	var need_fetch: bool = part != "" and p.held_kind != part and not coming
 	var target_j: int = line.fix_i if line.fix_i >= 0 else line.fail_i
 	if job == "fix":
 		_bark_once(p, "job%d" % line.stats.get("jobs", 0), "On it!")
@@ -517,8 +515,11 @@ func _line(p, delta: float) -> void:
 						_fix(p)
 			elif p.held != null:
 				p.ai_leave = _tap()
+			elif g.phase == "pour":
+				# Nothing broken: run the truck bay
+				_bay(p, false)
 			else:
-				walk(p, _gnd("ladder_g") + Vector3(0.2, 0, 1.5) if g.kit == "tower" else _gnd("spares") + Vector3(2.0, 0, -2.0), 0.6)
+				walk(p, _gnd("bay") + Vector3(0.7, 0, 0.8), 0.6)
 		"ladder":
 			var want_y := 0.0
 			if job == "fix" and need_fetch:
@@ -560,7 +561,7 @@ func _fix(p) -> void:
 		"clean", "kit", "pipe":
 			p.ai_action = _tap()
 		"pin":
-			p.ai_action = _tap()
+			p.ai_action = true
 
 ## Rigger on climb days: through the same buttons, jack, roll in, line up the
 ## holes, podger, hammer the pins home, R-clips on.
@@ -593,7 +594,7 @@ func _rigger(p) -> void:
 					else:
 						p.ai_action = not prev and c.cool <= 0.0
 				"clip":
-					p.ai_action = not prev
+					p.ai_action = true
 
 # ------------------------------------------------------------------ pump operator
 
@@ -630,31 +631,34 @@ func _pump(p, _delta: float) -> void:
 					p.ai_action = true
 				return
 		return
-	if g.phase != "pour":
-		if p.held != null:
-			p.ai_leave = _tap()
-		walk(p, _gnd("bay") + Vector3(0.7, 0, 0.8), 0.6)
-		return
 	var panel: Vector3 = g.GROUND_STATIONS["panel"]["pos"]
-	# The line hand's waiting on the pressure: the belt remote (Y), on the move
+	if p.held != null:
+		p.ai_leave = _tap()
+		return
+	if g.phase != "pour":
+		walk(p, panel + Vector3(0.6, 0, 0.9), 0.6)
+		return
+	# Eyes on the gauge. A spike: kill it, as quick as this tier of bot reacts
+	if line.spike_on:
+		if line.spike_t >= REACT_T[g.score.bot_tier]:
+			p.ai_slow = _tap()
+		return
+	# Tripped: back to the panel and hold A to restart
+	if line.tripped:
+		if walk(p, panel, 0.6):
+			p.ai_action = true
+		return
+	# The truck hand's waiting on the pressure: the belt remote (Y), on the move
 	if line.fix_i >= 0 and line._step_name() == "depress":
 		p.ai_slow = true
 		if line.pressure <= line.SAFE_BAR + 4.0:
 			_bark_once(p, "off%d" % line.stats.get("jobs", 0), "Pressure's off!")
-	# Trucks wanting a decision come first
-	if _bay(p, true):
-		return
-	# Run a part to the line hand
-	if _help_parts(p):
-		return
-	if p.held != null:
-		p.ai_leave = _tap()
 		return
 	if line.live and line.idle_t > line.SET_TIME * 0.5 and not line.line_down():
 		if walk(p, panel, 0.6):
 			p.ai_action = fmod(g.phase_t, 0.3) < 0.1
 		return
-	_bay(p, false)
+	walk(p, panel + Vector3(0.6, 0, 0.9), 0.6)
 
 ## The truck bay. With `urgent_only`, only acts if a truck needs something now.
 func _bay(p, urgent_only: bool) -> bool:
@@ -685,47 +689,6 @@ func _bay(p, urgent_only: bool) -> bool:
 	if urgent_only:
 		return false
 	walk(p, bay, 0.8)
-	return true
-
-## Fetches the part the line hand will need and sends it up the haul rope (or
-## carries it to them on a truck pump), so the repair runs in parallel.
-func _help_parts(p) -> bool:
-	var g = game
-	var line = g.line
-	var part := part_needed()
-	if part == "":
-		return false
-	var lh = g.crew.crew["line"]
-	if lh.held_kind == part:
-		return false
-	if p.held_kind != part and line.part_coming(part, p):
-		return false
-	var spares: Vector3 = g.GROUND_STATIONS["spares" if part == "clamp" else "rack"]["pos"]
-	if p.held_kind != part:
-		# A line hand standing by the spares will grab it themselves
-		if lh.zone == "ground" and Vector2(lh.position.x - spares.x, lh.position.z - spares.z).length() < 6.0:
-			return false
-		if p.held != null:
-			p.ai_leave = _tap()
-			return true
-		if walk(p, spares, 0.5):
-			p.ai_action = _tap()
-		return true
-	# Got it. A line hand at the foot of the tower gets it straight into their
-	# hands; otherwise it goes up the haul rope (waiting there if the hook's busy)
-	var lh_low: bool = lh.zone == "ground" or (lh.zone == "ladder" and lh.position.y < 2.4)
-	if lh_low and lh.held == null and Vector2(lh.position.x - p.position.x, lh.position.z - p.position.z).length() < 9.0:
-		if walk(p, Vector3(lh.position.x, 0.0, lh.position.z), 1.2):
-			p.ai_action = _tap()
-		return true
-	_bark_once(p, "part%d" % line.stats.get("jobs", 0), "Clamp coming up!" if part == "clamp" else "Pipe coming up!")
-	if g.kit == "tower":
-		if walk(p, g.GROUND_STATIONS["haul"]["pos"], 0.5):
-			p.ai_action = _tap()
-	else:
-		var at: Vector3 = lh.position
-		if lh.zone == "ground" and walk(p, at, 1.0):
-			p.ai_action = _tap()
 	return true
 
 # ------------------------------------------------------------------ poker hand

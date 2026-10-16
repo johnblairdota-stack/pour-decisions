@@ -1,9 +1,12 @@
 ## The concrete line, street to boom, run the way a pour day runs:
-##   - Agitator trucks queue on the road. The pump operator waves one back to
-##     the hopper, checks the docket, does a slump test, adds the allowed water
-##     to a stiff load or rejects an old or wet one, then lets it discharge.
+##   - Agitator trucks queue on the road. The truck hand waves one back to
+##     the hopper, does a slump test (the chute keeps running on trust while
+##     they test), adds the allowed water to a stiff load or rejects an old or
+##     wet one, then lets it discharge.
+##   - The pump operator watches the gauge: when the pressure spikes they kill
+##     the pump (points for how fast), then restart it.
 ##   - The pump pushes concrete up a steel riser of 3 m pipe sections with a
-##     quick-release clamp at every joint, bracketed to the tower. The line
+##     quick-release clamp at every joint, bracketed to the tower. The truck
 ##     hand climbs the tower ladder to reach them.
 ##   - A worn clamp weeps grout and knocks on every stroke. Swap it before it
 ##     bursts: fetch a clamp kit from the spares bin, stop the pump, reverse the
@@ -66,6 +69,11 @@ const WATER_HELD := 10.0                 # L/m³ the plant held back
 const SLUMP_PER_L := 4.5                 # mm of slump each L/m³ of water adds
 const SlumpScript := preload("res://scripts/slump.gd")
 const TEST_EVERY := 3                    # a slump test on the first load, then every 3rd
+# Once the sample's taken the driver keeps the chute running on trust, slowly,
+# while the test's done: the pour keeps moving. Only so much goes in before
+# the call, and a bad load caught has put that much in already.
+const TRUST_Q := 0.6                     # m³/s into the hopper while the test runs
+const TRUST_M3 := 2.0                    # m³ at most before the driver holds the chute
 var _backed_in := 0
 var slump: Node
 const AGE_RATE := 0.75                   # docket minutes per game second
@@ -76,6 +84,16 @@ const DEPRESS_AUTO := 14.0   # then the line hand bleeds it off at the pump them
 const FIND_AUTO := 30.0      # s a blockage hides before the line hand hears it
 const JOB_MAX := 80.0        # s a repair can drag before the leading hand helps finish it
 const CLAMP_R := 0.25
+const PIN_T := 0.9           # s holding A to push a safety pin home
+# Pressure spikes: the line starts to pack (a stone bridge, a dry patch) and
+# the needle jumps. The pump operator kills the pump on the belt remote; the
+# faster they react, the more it's worth. Too slow and it packs solid.
+const SPIKE_LIMIT := 3.0     # s of pumping into a spike before it blocks
+const SPIKE_BAR := 232.0     # where the needle goes
+const RESTART_HOLD := 0.8    # s holding A at the panel to restart
+const RESTART_AUTO := 16.0   # s tripped before the leading hand restarts it
+## [reaction under s, points, label]
+const SPIKE_PAY := [[0.5, 40, "Lightning stop"], [1.0, 25, "Quick stop"], [1.8, 15, "Pump stopped"], [99.0, 5, "Pump stopped, just"]]
 
 const STEP_INFO := {
 	"depress": "pressure off",
@@ -106,6 +124,13 @@ var _prime_t := 0.0
 var bad_volume := 0.0        # m³ of a bad load still in the hopper
 var bad_kind := ""
 var _bad_pumped := 0.0
+var wet_q := 0.0             # m³ of a wet load out of the hose this frame: a weak patch where it lands
+var spike_on := false
+var spike_t := 0.0           # s the current spike has run (while pumping)
+var tripped := false         # killed on a spike: off until the pump operator restarts it
+var _spike_in := 14.0        # s of pumping till the next spike
+var _restart_t := 0.0
+var _tripped_t := 0.0
 
 # Joints (each a clamp) and the pipe sections between them
 var clamps: Array = []       # {pos, node, ha, hb, pin, crust, gasket, label, mat, pinned, present, open, crust_amt}
@@ -638,13 +663,17 @@ func start_pour(need: float, cfg: Dictionary) -> void:
 	bad_volume = 0.0
 	bad_kind = ""
 	_bad_pumped = 0.0
+	spike_on = false
+	spike_t = 0.0
+	tripped = false
+	_spike_in = _spike_gap(true)
 	fail_i = -1
 	wear = 0.0
 	burst = false
 	blocked = false
 	block_found = false
 	_clear_job()
-	stats = {"bursts": 0, "whips": 0, "blocks": 0, "bad_loads": 0, "rejected": 0, "unpinned": 0, "jobs": 0}
+	stats = {"bursts": 0, "whips": 0, "blocks": 0, "bad_loads": 0, "rejected": 0, "unpinned": 0, "jobs": 0, "spikes": 0, "spike_best": -1.0, "spike_missed": 0}
 	for t in trucks:
 		(t["node"] as Node).queue_free()
 	trucks.clear()
@@ -671,6 +700,8 @@ func start_pour(need: float, cfg: Dictionary) -> void:
 func end_pour() -> void:
 	pumping = false
 	reversing = false
+	spike_on = false
+	tripped = false
 	live = false
 	fail_i = -1
 	burst = false
@@ -698,6 +729,74 @@ func end_pour() -> void:
 func line_down() -> bool:
 	return burst or job_kind != ""
 
+## Seconds of pumping between spikes, by the Incidents setting.
+func _spike_gap(first := false) -> float:
+	var lvl: int = game.incident_level() if game and game.has_method("incident_level") else 1
+	var gap: Vector2 = [Vector2(40, 60), Vector2(22, 34), Vector2(16, 26), Vector2(11, 19)][clampi(lvl, 0, 3)]
+	if game and game.tutorial:
+		gap = Vector2(26, 34)
+	return randf_range(gap.x, gap.y) * (0.6 if first else 1.0)
+
+## While pumping: count down to the next spike, and run the one that's on.
+func _spikes(delta: float) -> void:
+	if spike_on:
+		spike_t += delta
+		if fmod(spike_t, 0.35) < delta:
+			game.sfx.hit("knock")
+		if spike_t > SPIKE_LIMIT:
+			# Nobody killed it: it's packed solid
+			spike_on = false
+			stats["spike_missed"] += 1
+			game.hud.toast("Nobody killed the pump: the spike's packed the line!", 2.4)
+			if not blocked:
+				_block(false)
+		return
+	# Spikes only in steady pumping, with the line sound
+	if not live or blocked or fail_i >= 0 or hopper < 0.4 or (game.ops and game.ops.busy()):
+		return
+	_spike_in -= delta
+	if _spike_in <= 0.0:
+		spike_on = true
+		spike_t = 0.0
+		stats["spikes"] += 1
+		game.sfx.hit("hiss")
+		game.hud.toast("PRESSURE SPIKE!", 1.2)
+		var op = game.crew.crew.get("pump") if game.crew else null
+		if op != null:
+			game.haptic(op, "80,40,80")
+
+## The pump operator kills the pump on a spike. Points for how fast.
+func kill_pump(p) -> void:
+	if not spike_on:
+		return
+	var react := spike_t
+	spike_on = false
+	tripped = true
+	_tripped_t = 0.0
+	_restart_t = 0.0
+	if float(stats.get("spike_best", -1.0)) < 0.0 or react < float(stats["spike_best"]):
+		stats["spike_best"] = react
+	for row in SPIKE_PAY:
+		if react < float(row[0]):
+			var at: Vector3 = PUMP_POS + Vector3(0, 3.2, 0)
+			game.score.award(p, int(row[1]), "Spikes killed", at)
+			game.pop("%s · %.2f s" % [row[2], react], at + Vector3(0, 0.8, 0), Color("7cd992") if react < 1.0 else Color("ffc72c"))
+			break
+	game.sfx.hit("thunk")
+	p.bounce()
+
+## Back on after a spike: a stroke in reverse eases it, then forward again.
+func restart(p) -> void:
+	if not tripped:
+		return
+	tripped = false
+	_restart_t = 0.0
+	_spike_in = _spike_gap()
+	game.sfx.hit("thunk")
+	if p != null:
+		game.score.award(p, 5, "Pump restarted")
+		p.bounce()
+
 func _clear_job() -> void:
 	job_kind = ""
 	job_steps = []
@@ -710,9 +809,16 @@ func _clear_job() -> void:
 ## Runs the pump for one frame. `want` is the boom remote's pump button.
 ## Returns m³ delivered at the hose this frame.
 func run(delta: float, want: bool) -> float:
-	pumping = want and not line_down() and not reversing
+	pumping = want and not line_down() and not reversing and not tripped
+	wet_q = 0.0
+	if tripped:
+		_tripped_t += delta
+		if _tripped_t > RESTART_AUTO:
+			game.hud.toast("The leading hand's restarted the pump", 1.8)
+			restart(null)
 	var q := 0.0
 	if pumping:
+		_spikes(delta)
 		var rate := PUMP_Q * (1.0 if speed_high else LOW)
 		if blocked:
 			_over_t += delta
@@ -749,6 +855,8 @@ func run(delta: float, want: bool) -> float:
 					var take := minf(bad_volume, rate * delta)
 					bad_volume -= take
 					_bad_pumped += take
+					if bad_kind == "wet":
+						wet_q = minf(take, q)
 					if _bad_pumped > 1.4 and bad_kind in ["old", "stiff"] and not blocked:
 						_block(true)
 						_bad_pumped = 0.0
@@ -764,7 +872,8 @@ func run(delta: float, want: bool) -> float:
 						game.score.award(null, -30, "Hose whip", game.hose_end.global_position)
 						whip.emit()
 		if fail_i >= 0 and not burst:
-			wear += delta / WEAR_TIME * (1.0 if speed_high else 0.45)
+			# (a clamp left without its safety pin works loose faster)
+			wear += delta / WEAR_TIME * (1.0 if speed_high else 0.45) * (1.0 if clamps[fail_i]["pinned"] else 1.6)
 			if wear >= 1.0:
 				_burst()
 	else:
@@ -923,7 +1032,7 @@ func _watchdog(delta: float) -> void:
 		_blocked_t += delta
 		if _blocked_t > FIND_AUTO:
 			block_found = true
-			game.hud.toast("The line hand heard the plug: above C%d" % (block_s + 1), 2.2)
+			game.hud.toast("The truck hand heard the plug: above C%d" % (block_s + 1), 2.2)
 			_start_job("block", block_s)
 	if job_kind == "":
 		return
@@ -945,7 +1054,7 @@ func _watchdog(delta: float) -> void:
 			reversing = true
 			if not _bled:
 				_bled = true
-				game.hud.toast("Nobody took the pressure off: the line hand's bleeding it at the pump", 2.4)
+				game.hud.toast("Nobody took the pressure off: the truck hand's bleeding it at the pump", 2.4)
 				game.score.award(op, -20, "Pressure left on")
 	elif _job_t > JOB_MAX:
 		game.hud.toast("The leading hand jumps in to finish the joint", 2.2)
@@ -996,12 +1105,16 @@ func _spawn_truck(waiting: bool, top_up := false) -> void:
 	var load := TRUCK_LOAD if top_up else minf(TRUCK_LOAD, needed_m3 * 1.12 - ordered + 0.5)
 	ordered += load
 	var r := randf()
-	var slump := randf_range(SPEC_SLUMP - 14.0, SPEC_SLUMP + 14.0)
+	var slump := randf_range(SPEC_SLUMP - 17.0, SPEC_SLUMP + 17.0)
 	var age := randf_range(22.0, 45.0)
-	if r < 0.12:
-		slump = randf_range(58.0, 72.0)        # stiff: the water held back brings it up
-	elif r < 0.16:
-		slump = randf_range(140.0, 180.0)      # too wet: send it back
+	if r < 0.09:
+		slump = randf_range(52.0, 70.0)        # stiff: the water held back brings it up
+	elif r < 0.14:
+		slump = randf_range(70.0, 77.0)        # only just stiff: read the tape carefully
+	elif r < 0.17:
+		slump = randf_range(135.0, 180.0)      # too wet: send it back
+	elif r < 0.21:
+		slump = randf_range(123.0, 130.0)      # only just wet
 	if late_extra > 0.0 and randf() < 0.4:
 		age += late_extra                       # stuck in traffic
 	var node := _truck_mesh()
@@ -1128,6 +1241,7 @@ func _update_trucks(delta: float) -> void:
 	for t in trucks:
 		if t["state"] == "pour":
 			pouring = t
+	_trust_feed = null
 	for t in trucks:
 		var node: Node3D = t["node"]
 		t["t"] += delta
@@ -1157,8 +1271,8 @@ func _update_trucks(delta: float) -> void:
 				if st == "arrive" and absf(node.position.x - want_x) < 0.05:
 					_set_truck(t, "queue")
 				if st in ["queue", "called"]:
-					# (queued trucks' ages only show to the pump operator nearby)
-					var pop = game.crew.crew.get("pump")
+					# (queued trucks' ages only show to the truck hand nearby)
+					var pop = game.crew.crew.get("line")
 					if pop != null and pop.zone == "ground" and pop.position.distance_to(node.position) < 9.0:
 						lab.text = "%d min" % int(t["age"])
 					lab.modulate = Color("ff4d4d") if t["age"] > MAX_AGE else Color.WHITE
@@ -1210,11 +1324,15 @@ func _update_trucks(delta: float) -> void:
 			"bay", "check", "water", "ready":
 				if st in ["bay", "check"] and game.phase_t - float(t.get("touched", game.phase_t - t["t"])) > DRIVER_T:
 					_driver_test(t)
+				if st in ["bay", "check"] and pouring == null and _trust_feed == null:
+					_on_trust(t, delta)
 				if st == "water" and t["t"] > 3.0:
 					# The driver's added the water held back and mixed it in
 					# (30 turns of the drum): now it gets tested again
+					# (it doesn't always land on the order: a very stiff load can
+					# stay stiff even with all of it in, so test it again)
 					var need: float = clampf((SPEC_SLUMP - float(t["slump"])) / SLUMP_PER_L, 0.0, WATER_HELD)
-					t["slump"] = float(t["slump"]) + need * SLUMP_PER_L + randf_range(-6.0, 6.0)
+					t["slump"] = float(t["slump"]) + need * SLUMP_PER_L * randf_range(0.6, 1.35)
 					t["watered"] = true
 					t["checked"] = false
 					t.erase("measured")
@@ -1283,7 +1401,7 @@ func _update_trucks(delta: float) -> void:
 	for t in at_pump:
 		if t != bay_truck:
 			staged = t
-	var feeding = null
+	var feeding = _trust_feed
 	for t in trucks:
 		if t["state"] == "pour":
 			feeding = t
@@ -1296,6 +1414,26 @@ func _update_trucks(delta: float) -> void:
 		var side := _chute_side(feeding)
 		var mouth: Vector3 = (feeding["node"] as Node3D).global_transform * (Vector3(-5.4, 1.35, 1.55 * side) if side != 0.0 else Vector3(-4.5, 1.6, 0))
 		_line(chute_stream, mouth, HOPPER + Vector3(0.0, 1.2, 0), 0.14)
+
+## The chute running on trust while the slump test's done (from the moment
+## the sample's in the barrow until the call, up to TRUST_M3).
+var _trust_feed = null
+func _on_trust(t: Dictionary, delta: float) -> void:
+	if t["checked"] or not t.has("sl") or slump.step_of(t) == "sample":
+		return
+	var room := TRUST_M3 - float(t.get("trust_m3", 0.0))
+	var flow := minf(TRUST_Q * delta, minf(minf(t["load"], room), HOPPER_CAP - hopper))
+	if flow <= 0.0:
+		return
+	_trust_feed = t
+	t["load"] -= flow
+	t["trust_m3"] = float(t.get("trust_m3", 0.0)) + flow
+	hopper += flow
+	var v := _verdict(t)
+	if v != "ok":
+		# (mixed in with good concrete in the hopper: it does half the harm)
+		bad_volume += flow * 0.5
+		bad_kind = v
 
 ## Concrete on its way: in the hopper, at the bay and on the road.
 func coming() -> float:
@@ -1329,11 +1467,9 @@ func _wants_test(t: Dictionary) -> bool:
 		t["why"] = "first load" if _backed_in == 1 else "due a test"
 		return true
 	match _verdict(t):
-		"stiff":
-			t["why"] = "looks stiff at the chute"
-			return true
-		"wet":
-			t["why"] = "looks wet at the chute"
+		"stiff", "wet":
+			# (the driver can see it's off, not which way: that's the test)
+			t["why"] = "looks off at the chute"
 			return true
 		"old":
 			t["why"] = "docket says it's old"
@@ -1342,7 +1478,7 @@ func _wants_test(t: Dictionary) -> bool:
 
 ## Nobody's come to test or call this load: the driver does it (agitator
 ## drivers often do the slump test), and makes the call by the book. It
-## costs the crew: the pump operator's job went undone.
+## costs the crew: the truck hand's job went undone.
 const DRIVER_T := 20.0
 func _driver_test(t: Dictionary) -> void:
 	t["touched"] = game.phase_t
@@ -1352,7 +1488,7 @@ func _driver_test(t: Dictionary) -> void:
 		t["state"] = "bay"
 		game.pop("Driver did the slump test", (t["node"] as Node3D).position + Vector3(0, 3.5, 0), Color("ffc72c"))
 		return
-	var who = game.crew.crew.get("pump") if game.crew else null
+	var who = game.crew.crew.get("line") if game.crew else null
 	if who != null:
 		game.score.award(who, -10, "Driver had to make the call")
 	t["tester"] = null
@@ -1414,7 +1550,11 @@ func reject(t: Dictionary) -> void:
 	if who != null:
 		game.score.award(who, 15 if _verdict(t) != "ok" else -20, "Bad loads turned away" if _verdict(t) != "ok" else "Good load rejected")
 	stats["rejected"] += 1
-	game.hud.toast("Load rejected. Truck sent back to the plant.", 1.6)
+	var in_already: float = t.get("trust_m3", 0.0)
+	if in_already > 0.3 and _verdict(t) != "ok":
+		game.hud.toast("Chute stopped. %.1f m³ went in before the call. Truck sent back." % in_already, 2.0)
+	else:
+		game.hud.toast("Load rejected. Truck sent back to the plant.", 1.6)
 	ordered -= t["load"]
 	_set_truck(t, "leave_wait")
 	# Order a replacement straight away
@@ -1435,6 +1575,10 @@ func update(delta: float, in_pour: bool) -> void:
 	var target := pressure
 	if burst:
 		target = 0.0
+	elif tripped:
+		target = minf(pressure, static_p)
+	elif spike_on:
+		target = SPIKE_BAR
 	elif pumping and blocked:
 		target = 240.0
 	elif pumping:
@@ -1447,7 +1591,7 @@ func update(delta: float, in_pour: bool) -> void:
 		target = minf(pressure, static_p + 8.0)
 	else:
 		target = 0.0
-	pressure = lerpf(pressure, target, minf(1.0, delta * (3.0 if reversing or pumping else 1.2)))
+	pressure = lerpf(pressure, target, minf(1.0, delta * (7.0 if spike_on else (3.0 if reversing or pumping or tripped else 1.2))))
 	if reversing and pressure > SAFE_BAR and fmod(_knock_phase, 0.5) < delta:
 		game.sfx.hit("hiss")
 	reversing = false   # held each frame by whoever is on the panel
@@ -1457,7 +1601,7 @@ func update(delta: float, in_pour: bool) -> void:
 	if _step_name() == "depress" and pressure <= SAFE_BAR:
 		game.sfx.hit("hiss")
 		if _reverser != null:
-			game.score.award(_reverser, 15, "Pressure off for the line hand")
+			game.score.award(_reverser, 15, "Pressure off for a repair")
 		_advance()
 	if not reversing:
 		_reverser = null
@@ -1609,7 +1753,14 @@ func handle_player(p, delta: float, near: String) -> bool:
 	if p.zone == "ladder":
 		_ladder(p, delta)
 		return true
-	# The pump operator's belt remote: when the line hand needs the pressure
+	# A pressure spike: the pump operator kills it on the belt remote (Y),
+	# wherever they are on the street. Every tenth of a second counts.
+	if p.zone == "ground" and p.role == "pump" and spike_on:
+		p.cue("slow", "KILL THE PUMP", -1.0, true, Vector2(-1, -1), true)
+		if p.slow_pressed():
+			kill_pump(p)
+		return true
+	# The pump operator's belt remote: when the truck hand needs the pressure
 	# off, hold Y anywhere on the street to reverse it off (real stationary
 	# pumps run off a radio remote with start/stop and direction control)
 	if p.zone == "ground" and p.role == "pump" and (_step_name() == "depress" or pressure > SAFE_BAR and fix_i >= 0):
@@ -2128,15 +2279,27 @@ func _joint_work(p, j: int, delta: float) -> bool:
 					p.bounce()
 					_advance()
 		"pin":
-			p.cue("action", "safety pin", -1.0, true)
+			# The safety pin takes a moment (hold A or X). B skips it to get the
+			# line back sooner: that clamp's the next to let go, and it's a
+			# safety mark on the report.
 			var pin: Node3D = c["pin"]
-			if p.action_pressed() or p.alt_pressed():
+			var pin_held: bool = p.action_held() or p.alt_held()
+			fix_prog = minf(1.0, fix_prog + delta / PIN_T) if pin_held else maxf(0.0, fix_prog - delta)
+			p.cue("action", "safety pin in (hold)", fix_prog, true)
+			p.cue("leave", "skip the pin")
+			if fix_prog >= 1.0:
 				c["pinned"] = true
 				pin.visible = true
 				pin.position.y = 0.0
 				game.sfx.hit("tink")
 				game.score.award(p, 10, "Safety pins in", c["pos"] + Vector3(0, 0.8, 0))
 				p.bounce()
+				(c["gasket"] as Node3D).visible = false
+				_advance()
+			elif p.leave_pressed():
+				c["pinned"] = false
+				stats["unpinned"] += 1
+				game.pop("No safety pin!", c["pos"] + Vector3(0, 0.8, 0), Color("ff4d4d"))
 				(c["gasket"] as Node3D).visible = false
 				_advance()
 
@@ -2265,6 +2428,15 @@ func _panel(p, delta: float) -> void:
 	p.face(PUMP_POS)
 	# Starting the pump, the slurry and the washout water come first
 	if p.role == "pump" and game.ops.panel(p, delta):
+		return
+	if tripped:
+		# Killed on a spike: hold A to ease it back and start it again
+		_restart_t = _restart_t + delta if p.action_held() else maxf(0.0, _restart_t - delta * 2.0)
+		p.cue("action", "restart the pump", _restart_t / RESTART_HOLD, true)
+		p.gold(not p.bot)
+		p.say("%d bar" % int(pressure))
+		if _restart_t >= RESTART_HOLD:
+			restart(p)
 		return
 	var need := _step_name() == "depress" or pressure > SAFE_BAR and fix_i >= 0
 	var want_stroke: bool = not need and live and idle_t > SET_TIME * 0.4 and not line_down()
@@ -2417,7 +2589,7 @@ func hud_info() -> Dictionary:
 		if t["state"] in ["queue", "arrive"]:
 			q += 1
 			ages.append(t["age"])
-	var names := {"called": "pulling up", "approach": "pulling up", "back": "backing in", "bay": "needs a slump test", "check": "slump test", "water": "adding water", "pour": "discharging", "leave_wait": "pulling out", "leave": "pulling out", "ready": "tested, ready"}
+	var names := {"called": "pulling up", "approach": "pulling up", "back": "backing in", "bay": "needs a slump test", "check": "slump test, feeding", "water": "adding water", "pour": "discharging", "leave_wait": "pulling out", "leave": "pulling out", "ready": "tested, ready"}
 	var bay := ""
 	if bay_truck != null:
 		bay = names.get(bay_truck["state"], "")

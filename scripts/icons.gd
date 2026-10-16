@@ -2,8 +2,8 @@
 ## (hard hats, hand signs, the job list, close-up tabs, menus, the phone), so a
 ## job is never told apart by colour alone.
 ##   boom    the placing boom: two arm sections and a hanging hose
-##   line    a pipe clamp: a ring with two lugs and a pin
-##   pump    a concrete truck: cab, drum, wheels
+##   line    a concrete truck: cab, drum, wheels (the truck hand)
+##   pump    a pressure gauge: dial, ticks and a needle up in the red
 ##   poker   a poker: a rod with vibration waves either side
 ##   screed  a screed board: a long bar with two handles
 ##   hose    the rubber end hose: a curving hose, its nozzle and drops
@@ -67,19 +67,24 @@ static func _sdf(role: String, p: Vector2) -> float:
 			d = minf(d, _box(p, Vector2(22, 112), Vector2(16, 6), 3.0))        # base
 			return d
 		"line":
-			var r := (p - Vector2(64, 64)).length()
-			var d := absf(r - 32.0) - 9.0                                     # the ring
-			d = minf(d, _box(p, Vector2(64, 20), Vector2(14, 10), 3.0))        # lugs
-			d = minf(d, _box(p, Vector2(64, 108), Vector2(14, 10), 3.0))
-			d = minf(d, _seg(p, Vector2(64, 8), Vector2(64, 120), 3.5))        # the pin through them
-			return maxf(d, -((p - Vector2(64, 64)).length() - 18.0))
-		"pump":
 			var d := _box(p, Vector2(24, 66), Vector2(16, 18), 5.0)            # cab
 			var dr := (p - Vector2(78, 58)) / Vector2(38, 24)
 			d = minf(d, (dr.length() - 1.0) * 24.0)                            # drum
 			d = minf(d, _box(p, Vector2(66, 84), Vector2(56, 5), 2.0))         # chassis
 			for wx in [26, 74, 100]:
 				d = minf(d, (p - Vector2(wx, 98)).length() - 10.0)             # wheels
+			return d
+		"pump":
+			var c := Vector2(64, 68)
+			var r := (p - c).length()
+			var d := absf(r - 46.0) - 6.5                                     # the dial
+			for k in 5:
+				var a := PI * (1.15 - 0.075 * k * 4.0)
+				var dir := Vector2(cos(a), -sin(a))
+				d = minf(d, _seg(p, c + dir * 28.0, c + dir * 36.0, 3.5))      # ticks
+			d = minf(d, _seg(p, c, c + Vector2(26, -22), 5.0))                 # the needle, up in the red
+			d = minf(d, r - 9.0)                                              # hub
+			d = minf(d, _box(p, Vector2(64, 120), Vector2(18, 5), 2.0))        # stem
 			return d
 		"poker":
 			var d := _seg(p, Vector2(64, 10), Vector2(64, 100), 7.0)           # the rod

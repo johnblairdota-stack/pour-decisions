@@ -5,7 +5,8 @@
 ##   2. FILL      the cone (300 mm tall, 200 mm base, 100 mm top) in three
 ##                layers of about equal volume: about 70 mm, 160 mm, then
 ##                heaped over the top (hold A, let go on the mark)
-##   3. ROD       each layer 25 times with the 16 mm rod (hold A, let go on 25)
+##   3. ROD       each layer 25 times with the 16 mm rod (hold A, let go on 25:
+##                gold on the count earns a bonus)
 ##   4. STRIKE    off the top, rolling the rod across it (hold A)
 ##   5. LIFT      the cone straight up, steady, in about 3 to 5 seconds (hold A:
 ##                let go part way and it jerks, the concrete shears, and the
@@ -17,6 +18,11 @@
 ## Then the call: use it, add the water the plant held back (then mix and test
 ## again), or send it back. Everything's shown in the close-up: no docket on
 ## screen.
+##
+## Keeping pace: once the sample's in the barrow the driver keeps the chute
+## running into the hopper on trust (up to line.TRUST_M3), so the pour doesn't
+## stop for the test. A quick, clean test means less concrete goes in before
+## the call; a bad load caught late has already put some in.
 extends Node
 
 const F := preload("res://scripts/factory.gd")
@@ -27,13 +33,16 @@ const R_BASE := 0.1          # half of the 200 mm base
 const R_TOP := 0.05          # half of the 100 mm top
 const MARKS := [0.07, 0.16, 0.315]   # fill heights for the three layers (the last heaped)
 const MARK_TOL := 0.02      # m either side of a mark that counts as on it
-const FILL_RATE := 0.2      # m a second while A's held
+const FILL_RATE := 0.3      # m a second while A's held
 const RODS := 25
-const ROD_RATE := 20.0      # strokes a second (five a tap)       # strokes a second
+const ROD_RATE := 22.0      # strokes a second while A's held
+const ROD_SCALE := 30.0     # the hold ring runs to 30 strokes, so 25 sits short of the end
+const ROD_GOLD := Vector2(23.5, 26.5)   # let go in here: on the count
+const ROD_MIN := 22.0       # let go before this and it's not done: keep going
 const STRIKE_T := 0.45
 const SAMPLE_T := 0.45
-const LIFT_T := 2.5          # s: steady, straight up (3 to 5 s on site; the game runs quick)
-const TAPE_RATE := 0.15      # m a second the tape runs down
+const LIFT_T := 1.6          # s: steady, straight up (3 to 5 s on site; the game runs quick)
+const TAPE_RATE := 0.24      # m a second the tape runs down
 const TEST_X := -0.17        # where the cone stands on the plate (local)
 const FLIP_X := 0.25         # where the upturned cone goes
 
@@ -205,28 +214,31 @@ func work(p, t: Dictionary, delta: float) -> bool:
 				st["step"] = "rod"
 				st["rods"] = 0.0
 		"rod":
-			# Each tap of A is five strokes of the rod, evenly over the layer;
-			# the button's gold when the last five are in and it's ready again
-			var shown: float = st["rods"]
-			var goal: float = st.get("goal", 0.0)
-			var ready := shown >= goal - 0.01
-			p.cue("action", "rod it: %d of %d (tap)" % [int(goal), RODS], goal / float(RODS), true)
-			p.gold(not p.bot and ready)
-			if pressed and ready and goal < RODS:
-				st["goal"] = goal + 5.0
-				game.haptic(p, "12")
-			if shown < goal:
-				var before := int(shown)
-				st["rods"] = minf(goal, shown + ROD_RATE * delta)
+			# Hold A to rod; let go on 25. On the count is gold.
+			var rods: float = st["rods"]
+			p.cue("action", "rod it, let go on 25: %d" % int(rods), rods / ROD_SCALE, true, Vector2(ROD_GOLD.x / ROD_SCALE, ROD_GOLD.y / ROD_SCALE))
+			if held:
+				var before := int(rods)
+				st["rods"] = minf(ROD_SCALE, rods + ROD_RATE * delta)
 				if int(st["rods"]) != before:
 					game.sfx.hit("tink")
-			var ph := fmod(float(st["rods"]), 1.0)
-			if shown < goal:
+				var ph := fmod(float(st["rods"]), 1.0)
 				p.pose_arms(Vector3(-1.5 + 0.5 * sin(ph * TAU), 0, -0.1), Vector3(-1.5 + 0.5 * sin(ph * TAU), 0, 0.1))
-			if float(st["rods"]) >= RODS:
+			var finished := false
+			if not held and rods >= ROD_MIN:
+				finished = true
+				if rods >= ROD_GOLD.x and rods <= ROD_GOLD.y:
+					game.score.award(p, 2, "Slump tests")
+					game.haptic(p, "12")
+				elif rods > ROD_GOLD.y:
+					game.pop("over-rodded", root.global_position + Vector3(0, 1.4, 0), Color("ffc72c"))
+			elif float(st["rods"]) >= ROD_SCALE:
+				finished = true
+				game.pop("over-rodded", root.global_position + Vector3(0, 1.4, 0), Color("ffc72c"))
+				game.score.award(p, -1, "Slump tests")
+			if finished:
 				st["layer"] += 1
 				st["rods"] = 0.0
-				st["goal"] = 0.0
 				if st["layer"] >= 3:
 					st["step"] = "strike"
 					st["u"] = 0.0
@@ -300,14 +312,14 @@ func _bot_hold(st: Dictionary) -> bool:
 	match st["step"]:
 		"fill":
 			return float(st["level"]) < float(MARKS[st["layer"]])
+		"rod":
+			return float(st["rods"]) < float(RODS)
 		"sheared", "measure", "done":
 			return false
 	return true
 
 func _bot_press(t: Dictionary, st: Dictionary) -> bool:
 	match st["step"]:
-		"rod":
-			return float(st["rods"]) >= float(st.get("goal", 0.0)) - 0.01
 		"measure":
 			return absf(float(st["tape"]) - _true(t) / 1000.0) < 0.003
 		"sheared":

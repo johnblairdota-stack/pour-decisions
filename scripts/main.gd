@@ -667,8 +667,8 @@ func _build_site() -> void:
 
 ## Which job works at each station: its spot and name are in that job's colour.
 const STATION_ROLE := {"boom": "boom", "dogman": "boom", "screed": "screed", "poker": "poker", "tag": "poker",
-	"rigger": "line", "ladder": "line", "ladder_g": "line", "pinsets": "line", "bay": "pump", "panel": "pump",
-	"spares": "pump", "haul": "pump", "rack": "pump", "rig0": "pump", "rig1": "pump", "rig2": "pump",
+	"rigger": "line", "ladder": "line", "ladder_g": "line", "pinsets": "line", "bay": "line", "panel": "pump",
+	"spares": "line", "haul": "pump", "rack": "line", "rig0": "pump", "rig1": "pump", "rig2": "pump",
 	"rig3": "pump", "pins": "pump", "sling": "pump", "bin": "boom", "hose": "hose", "valve": "line"}
 
 func _make_station(key: String, def: Dictionary, parent: Node3D, zone: String) -> void:
@@ -1098,6 +1098,8 @@ func _update_band(delta: float, down: Array, mid: Array, split_e: float) -> void
 	band_box.visible = h > 2.0
 	band_box.offset_top = -h
 	_band_h = h
+	# (the bottom of the HUD sits above the band, not under it)
+	hud.set_bottom_inset(h if band_box.visible else 0.0)
 	if band_box.visible:
 		var bw := int(vs.x)
 		var bh := int(maxf(8.0, vs.y * BAND_FRAC))
@@ -1453,10 +1455,14 @@ func _start_inspect() -> void:
 		defect.visible = true
 	engineer.visible = true
 	engineer.position = Vector3(-6.0, work_y, -4.0)
-	hud.show_brief(true, _brief_text())
+	# A crew with people in it reads the brief and says when they're ready
+	_brief_ok = crew.humans().is_empty() or autotest
+	hud.show_brief(true, _brief_text(), not _brief_ok)
 	_set_phase("inspect")
 
 var _incidents: Array = []   # [{at: fill fraction, kind: "clamp"/"block"}]
+var _brief_ok := true        # someone's pressed A on the pre-pour brief
+var _human_a := false        # a person pressed A this frame (for the brief and the slab report)
 
 func incident_level() -> int:
 	for arg in OS.get_cmdline_user_args():
@@ -1556,7 +1562,7 @@ func _grade() -> void:
 	pen.call("Cold joints: %.1f%% of the slab" % (d["cold"] * 100.0), minf(30.0, d["cold"] * 300.0))
 	pen.call("Not vibrated (honeycomb): %d%%" % int(d["voids"] * 100.0), minf(20.0, maxf(0.0, d["voids"] * 100.0 - 10.0) * 0.8))
 	if d["bleed"] > 0.0:
-		pen.call("Over-vibrated (bleed water): %.1f%%" % (d["bleed"] * 100.0), minf(10.0, d["bleed"] * 200.0))
+		pen.call("Bleed water (over-vibrated or a wet load): %.1f%%" % (d["bleed"] * 100.0), minf(10.0, d["bleed"] * 200.0))
 	var rough: float = pour.rough_share()
 	pen.call("Went off before it was screeded: %d%%" % int(rough * 100.0), minf(15.0, maxf(0.0, rough * 100.0 - 10.0) * 0.5))
 	pen.call("Concrete used: %.2fx the slab" % ratio, minf(25.0, maxf(0.0, ratio - 1.4) * 60.0))
@@ -1605,7 +1611,7 @@ func _grade() -> void:
 	var note := "poured in %s  ·  silver: %d%% in %s  ·  gold: %d%% in %s" % [_mmss(pour_clock), int(score.SILVER_Q), _mmss(tg.x), int(score.GOLD_Q), _mmss(tg.y)]
 	if score.bot_tier != was_tier:
 		note += "\nThe bots are working at %s pace now" % score.MEDALS[score.bot_tier].to_lower()
-	hud.show_report("LEVEL %d · SLAB REPORT" % (k + 1), "+%s" % hud._thousands(score.level), "quality %d%%  ·  %s" % [int(quality), verdict], score.report_rows(), rows, 6.0)
+	hud.show_report("LEVEL %d · SLAB REPORT" % (k + 1), "+%s" % hud._thousands(score.level), "quality %d%%  ·  %s" % [int(quality), verdict], score.report_rows(), rows, 6.0 if crew.humans().is_empty() or autotest else -1.0)
 	hud.show_medal(medal, note)
 	if autotest:
 			print("[autotest]   level %d: +%d pts (total %d, %s), quality %.0f, medal %s in %.1fs (bots %s) | %s | %s" % [k + 1, score.level, score.total, score.rank_name(), quality, score.MEDALS[medal], pour_clock, score.MEDALS[was_tier], " | ".join(score.report_rows()), " | ".join(rows)])
@@ -1726,6 +1732,7 @@ func _process(delta: float) -> void:
 		return
 
 	pumping = false
+	_human_a = false
 	for p in players:
 		if p.zone == "deck" and p.busy != "rigger":
 			p.position.y = work_y
@@ -1753,6 +1760,8 @@ func _process(delta: float) -> void:
 			p.position.z = wq.y
 		_footprints(p)
 		_cover(p, delta)
+		if not p.bot and not p.covering and p.action_pressed():
+			_human_a = true
 		_handle_player(p, delta)
 		p.end_frame()
 	if autotest and phase == "columns" and k == 0 and OS.get_cmdline_user_args().has("--skip") and kit == "tower":
@@ -1832,7 +1841,10 @@ func _process(delta: float) -> void:
 				var fac := floor_nodes[k - 1].get_node_or_null("Facade") as Node3D
 				if fac:
 					fac.scale.y = maxf(0.01, clampf(phase_t / 0.8, 0.0, 1.0))
-			if phase_t > 1.4:
+			# The slab report stays up till someone presses A
+			if hud.card_waiting() and ((_human_a and hud.card_age() > 1.0) or hud.card_age() > 45.0):
+				hud.dismiss_card()
+			if phase_t > 1.4 and not hud.card_waiting():
 				k += 1
 				if k >= floors():
 					_top_out()
@@ -1943,7 +1955,10 @@ func _update_inspect(delta: float) -> void:
 	engineer.get_node("LegR").rotation.x = -sin(t * 8.0) * 0.5
 	if not defect_fixed:
 		defect.rotation.y += delta
-	if defect_fixed and phase_t > 3.0 and not signed:
+	if not _brief_ok and ((_human_a and phase_t > 0.8) or phase_t > 45.0):
+		_brief_ok = true
+		hud.show_brief(false)
+	if defect_fixed and phase_t > 3.0 and _brief_ok and not signed:
 		signed = true
 		sfx.hit("ding")
 		hud.toast("Engineer's signed off the steel. Pour away.", 1.8)
@@ -2031,6 +2046,9 @@ func _update_pour(delta: float) -> void:
 	var hose_local := _pour_local(discharge())
 	if q > 0.0:
 		pour.deposit(hose_local, q)
+		# A wet load bleeds where it lands: a weak, watery patch in the slab
+		if line.wet_q > 0.0:
+			pour.mark_bleed(hose_local, 0.9)
 		# Points for concrete placed where the pour plan wants it
 		if pour.bay_of_x(hose_local.x) <= pour.cur_bay and absf(hose_local.x) < BW * 0.5 and absf(hose_local.z) < BD * 0.5:
 			score.trickle(op, q * 5.0, "Concrete placed")
@@ -2331,7 +2349,7 @@ func _handle_player(p, delta: float) -> void:
 		p.face(hose_end.global_position)
 		# Radio remote on its belly strap, thumbs on the sticks
 		p.pose_arms(Vector3(-1.05 + 0.04 * sin(phase_t * 7.0), 0, 0.42), Vector3(-1.05 - 0.04 * sin(phase_t * 6.0), 0, -0.42))
-		var blocked_now: bool = climb.wind_gust >= BOOM_WIND or line.line_down()
+		var blocked_now: bool = climb.wind_gust >= BOOM_WIND or line.line_down() or line.tripped
 		# A clamp weeping or a pipe blocked: the button itself tells you to stop
 		var trouble: bool = line.fail_i >= 0 or line.blocked or line.line_down()
 		if ops.wants_bin():
@@ -2643,15 +2661,20 @@ func _jobs() -> Array:
 	var hop: float = line.hopper / line.HOPPER_CAP
 	if t != null:
 		var tl := 2 if t["age"] > 80.0 or (t == line.bay_truck and hop < 0.2) else 1
-		add.call("bay", (t["node"] as Node3D).position + Vector3(-2.0, 4.2, 0), tl, "pump", "SLUMP TEST" if not t["checked"] else "READ THE DOCKET")
+		add.call("bay", (t["node"] as Node3D).position + Vector3(-2.0, 4.2, 0), tl, "line", "SLUMP TEST" if not t["checked"] else "MAKE THE CALL")
 	elif line.can_wave_in() and (line.bay_truck == null or line.staged == null and hop < 0.6):
-		add.call("bay", st_pos.call("bay") + up, 1 if hop < 0.3 else 0, "pump", "WAVE TRUCK IN")
-	if line.fix_i >= 0 and line._step_name() == "depress" and line.pressure > line.SAFE_BAR:
+		add.call("bay", st_pos.call("bay") + up, 1 if hop < 0.3 else 0, "line", "WAVE TRUCK IN")
+	var pop = crew.crew["pump"]
+	var ykey := ""
+	if not pop.bot and not pop.ai and pop.KEYS.has(pop.prefix) and bool(on_keys.get(pop.prefix, pop.prefix == "p1_")):
+		ykey = " [%s]" % pop.KEYS[pop.prefix]["Y"]
+	if line.spike_on:
+		# A pressure spike: the pump operator kills it from anywhere on the street
+		add.call("panel", (pop.global_position if pop.zone == "ground" else st_pos.call("panel")) + up + Vector3(0, 0.6, 0), 2, "pump", "Y%s: KILL THE PUMP" % ykey)
+	elif line.tripped:
+		add.call("panel", st_pos.call("panel") + up, 1, "pump", "RESTART THE PUMP")
+	elif line.fix_i >= 0 and line._step_name() == "depress" and line.pressure > line.SAFE_BAR:
 		# (the pump operator's belt remote does it from anywhere)
-		var pop = crew.crew["pump"]
-		var ykey := ""
-		if not pop.bot and not pop.ai and pop.KEYS.has(pop.prefix) and bool(on_keys.get(pop.prefix, pop.prefix == "p1_")):
-			ykey = " [%s]" % pop.KEYS[pop.prefix]["Y"]
 		add.call("panel", (pop.global_position if pop.zone == "ground" else st_pos.call("panel")) + up + Vector3(0, 0.6, 0), 2, "pump", "Y%s: PRESSURE OFF" % ykey)
 	elif line.live and line.idle_t > line.SET_TIME * 0.5 and not line.line_down():
 		add.call("panel", st_pos.call("panel") + up, 2 if line.idle_t > line.SET_TIME * 0.75 else 1, "pump", "STROKE THE PUMP")
@@ -2668,7 +2691,7 @@ func _jobs() -> Array:
 	var part: String = bots.part_needed()
 	if part != "" and lh.held_kind != part and not line.part_coming(part, lh):
 		var key := "spares" if part == "clamp" else "rack"
-		add.call(key, st_pos.call(key) + up, 1, "pump" if lh.zone == "ladder" else "line")
+		add.call(key, st_pos.call(key) + up, 1, "line")
 	if line.hook["state"] == "up":
 		add.call("hook", line.hook_node.global_position + Vector3(0.5, 0.6, 0.0), 0, "line")
 	return out
@@ -3202,19 +3225,23 @@ func _tickets() -> Array:
 	# Pump and trucks
 	if line.hopper < line.HOPPER_CAP * 0.1 and line.live:
 		out.append({"icon": "H", "text": "Hopper running dry", "frac": line.hopper / line.HOPPER_CAP, "color": UI.ROLE["pump"], "role": "pump", "urgent": true})
+	if line.spike_on:
+		out.append({"icon": "P", "text": "PRESSURE SPIKE · kill the pump!", "frac": 1.0 - line.spike_t / line.SPIKE_LIMIT, "color": Color("ff5a5f"), "role": "pump", "urgent": true})
+	elif line.tripped:
+		out.append({"icon": "P", "text": "Pump tripped · restart at the panel", "frac": 0.5, "color": UI.ROLE["pump"], "role": "pump", "urgent": false})
 	if line.live and line.idle_t > line.SET_TIME * 0.4:
 		out.append({"icon": "P", "text": "Line standing still", "frac": 1.0 - line.idle_t / line.SET_TIME, "color": UI.ROLE["pump"], "role": "pump", "urgent": true})
 	var chk = line.needs_check()
 	if chk != null:
-		var what := "Slump test the truck" if not chk["checked"] else "Read the docket: use, water or send back?"
-		out.append({"icon": "T", "text": what, "frac": 1.0 - float(chk["age"]) / line.MAX_AGE, "color": UI.ROLE["pump"], "role": "pump", "urgent": true})
+		var what := "Slump test the truck" if not chk["checked"] else "Make the call: use, water or send back?"
+		out.append({"icon": "T", "text": what, "frac": 1.0 - float(chk["age"]) / line.MAX_AGE, "color": UI.ROLE["line"], "role": "line", "urgent": true})
 	elif line.can_wave_in():
 		var nq = line._next_queued()
 		var standby: bool = line.bay_truck != null   # one's already discharging: not urgent
-		out.append({"icon": "T", "text": "Wave the next truck in", "frac": 1.0 - float(nq["age"]) / line.MAX_AGE, "color": UI.ROLE["pump"], "role": "pump", "urgent": not standby})
+		out.append({"icon": "T", "text": "Wave the next truck in", "frac": 1.0 - float(nq["age"]) / line.MAX_AGE, "color": UI.ROLE["line"], "role": "line", "urgent": not standby})
 	for t in line.trucks:
 		if t["state"] == "queue" and t != line._next_queued():
-			out.append({"icon": "T", "text": "Truck queued · %d min old" % int(t["age"]), "frac": 1.0 - float(t["age"]) / line.MAX_AGE, "color": UI.ROLE["pump"], "role": "pump", "urgent": t["age"] > 75.0})
+			out.append({"icon": "T", "text": "Truck queued · %d min old" % int(t["age"]), "frac": 1.0 - float(t["age"]) / line.MAX_AGE, "color": UI.ROLE["line"], "role": "line", "urgent": t["age"] > 75.0})
 	if pour.raining:
 		out.append({"icon": "R", "text": "Heavy rain: hold the pump", "frac": 0.5, "color": Color("4fa3ff"), "urgent": true})
 	if climb.wind_gust >= BOOM_WIND:
@@ -3283,6 +3310,8 @@ func _update_hud() -> void:
 			hud.set_progress(1.0)
 	var in_pour := phase == "pour"
 	hud.set_pump(in_pour, line.hud_info() if in_pour else {})
+	if in_pour:
+		hud.set_gauge(line.spike_on, line.tripped)
 	if in_pour:
 		hud.set_stats("%d:%02d" % [int(pour_clock) / 60, int(pour_clock) % 60], line.pressure, line.fail_i >= 0 or line.blocked)
 	else:
