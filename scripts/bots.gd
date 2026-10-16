@@ -71,6 +71,10 @@ func _plan_slips() -> void:
 func _slipping(p, role: String, delta: float) -> bool:
 	if game.phase != "pour" or not game.ops.primed or p.covering:
 		return false
+	# A pressure spike snaps the pump operator out of it: the alarm's loud
+	if role == "pump" and game.line.spike_on:
+		_slip_t[role] = 0.0
+		return false
 	var left: float = _slip_t.get(role, 0.0)
 	if left > 0.0:
 		_slip_t[role] = left - delta
