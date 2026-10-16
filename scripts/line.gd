@@ -860,6 +860,8 @@ func run(delta: float, want: bool) -> float:
 					if _bad_pumped > 1.4 and bad_kind in ["old", "stiff"] and not blocked:
 						_block(true)
 						_bad_pumped = 0.0
+					if bad_volume <= 0.0:
+						_bad_pumped = 0.0   # (that load's through)
 				if air > 0.45 and air_travel < 0.0:
 					air_travel = 0.0
 					game.hud.toast("Hopper ran dry: air in the line!", 1.8)
@@ -1429,11 +1431,12 @@ func _on_trust(t: Dictionary, delta: float) -> void:
 	t["load"] -= flow
 	t["trust_m3"] = float(t.get("trust_m3", 0.0)) + flow
 	hopper += flow
-	var v := _verdict(t)
-	if v != "ok":
-		# (mixed in with good concrete in the hopper: it does half the harm)
+	# A wet load bleeds where it lands (half the harm, mixed with good concrete
+	# in the hopper). A stiff or old one caught in time is diluted enough not
+	# to pack the line: it costs points at the call instead (reject).
+	if _verdict(t) == "wet":
 		bad_volume += flow * 0.5
-		bad_kind = v
+		bad_kind = "wet"
 
 ## Concrete on its way: in the hopper, at the bay and on the road.
 func coming() -> float:
@@ -1552,6 +1555,8 @@ func reject(t: Dictionary) -> void:
 	stats["rejected"] += 1
 	var in_already: float = t.get("trust_m3", 0.0)
 	if in_already > 0.3 and _verdict(t) != "ok":
+		if who != null:
+			game.score.award(who, -int(roundf(in_already * 4.0)), "Bad concrete in before the call")
 		game.hud.toast("Chute stopped. %.1f m³ went in before the call. Truck sent back." % in_already, 2.0)
 	else:
 		game.hud.toast("Load rejected. Truck sent back to the plant.", 1.6)
