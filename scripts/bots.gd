@@ -493,11 +493,6 @@ func _line(p, delta: float) -> void:
 				return
 		walk(p, _gnd("sling") + Vector3(1.2, 0, 0.8), 0.6)
 		return
-	# Washout: open the release valve and blow the water back
-	if g.phase == "pour" and g.ops.stage == "valve":
-		if go(p, "ground", _gnd("valve"), 0.5):
-			p.ai_action = true
-		return
 	if p.zone != "ground":
 		go(p, "ground", _gnd("bay") + Vector3(0.7, 0, 0.8))
 		return
@@ -508,8 +503,9 @@ func _line(p, delta: float) -> void:
 	else:
 		walk(p, _gnd("bay") + Vector3(0.7, 0, 0.8), 0.6)
 
-## The pump operator up the riser: grab the part, climb to the joint, take the
-## pressure off on the belt remote and fix it. True while there's a repair.
+## The pump operator up the riser: grab the part, climb to the joint and fix
+## it (the spike they killed has already taken the pressure off). True while
+## there's a repair.
 func _repair(p, delta: float) -> bool:
 	var g = game
 	var line = g.line
@@ -523,9 +519,6 @@ func _repair(p, delta: float) -> bool:
 	# one up the haul rope)
 	var need_fetch: bool = part != "" and p.held_kind != part and not coming
 	var target_j: int = line.fix_i if line.fix_i >= 0 else line.fail_i
-	var depress: bool = line.fix_i >= 0 and line._step_name() == "depress"
-	if depress:
-		p.ai_slow = true   # belt remote: pressure off, on the way
 	_bark_once(p, "job%d" % line.stats.get("jobs", 0), "On it!")
 	match p.zone:
 		"deck":
@@ -549,7 +542,7 @@ func _repair(p, delta: float) -> bool:
 				if line.blocked and not line.block_found and line.fix_i < 0:
 					target_j = int(g.phase_t / 1.5) % line.clamps.size()
 				var jp: Vector3 = line.clamps[maxi(0, target_j)]["pos"]
-				if walk(p, Vector3(jp.x, 0, jp.z - 1.5), 0.4) and not depress:
+				if walk(p, Vector3(jp.x, 0, jp.z - 1.5), 0.4):
 					_fix(p)
 		"ladder":
 			var want_y := 0.0
@@ -573,7 +566,7 @@ func _repair(p, delta: float) -> bool:
 			var dy: float = want_y - p.position.y
 			if absf(dy) > 0.06:
 				p.ai_move = Vector2(0, -signf(dy) * clampf(absf(dy) * 4.0, 0.3, 1.0))
-			elif not need_fetch and line.joint_near(p) >= 0 and not depress:
+			elif not need_fetch and line.joint_near(p) >= 0:
 				_fix(p)
 			elif need_fetch:
 				p.ai_leave = _tap()
@@ -630,9 +623,10 @@ func _rigger(p) -> void:
 func _pump(p, delta: float) -> void:
 	var g = game
 	var line = g.line
-	# Start-up and washout jobs at the panel come first
+	# Start-up and washout jobs at the panel come first, and the release
+	# valve to blow the washout water back
 	if g.phase == "pour" and g.ops.role() == "pump":
-		if go(p, "ground", _gnd("panel"), 0.5):
+		if go(p, "ground", _gnd("valve" if g.ops.stage == "valve" else "panel"), 0.5):
 			p.ai_action = true
 		return
 	# Climb days: rigger on the climbing frame

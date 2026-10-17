@@ -79,8 +79,6 @@ var slump: Node
 const AGE_RATE := 0.75                   # docket minutes per game second
 const SAFE_BAR := 6.0                    # below this the line can be opened
 # Nobody gets stuck: a TV room can't sit watching a line that never comes back.
-const DEPRESS_NAG := 5.0     # s waiting on "pressure off" before the call goes out loud
-const DEPRESS_AUTO := 14.0   # then the line hand bleeds it off at the pump themselves (slowly)
 const FIND_AUTO := 30.0      # s a blockage hides before the line hand hears it
 const JOB_MAX := 80.0        # s a repair can drag before the leading hand helps finish it
 const CLAMP_R := 0.25
@@ -176,6 +174,8 @@ var gauge_needle: Node3D
 var gauge_label: Label3D      # the reading over the gauge, sized for the TV (main scales it)
 var gauge_face: Node3D        # the dial, for the gauge close-up camera to look at
 var spike_warn := false       # a spike's half a second off: the gauge close-up pops up
+var _spike_cause := ""        # "clamp" or "block": what set this spike off ("" a random one)
+var _pending_cause := ""      # a failure's spike, half a second away
 var _kill_show_t := 0.0       # s the close-up stays up after a kill, to see it drop
 var hopper_fill: MeshInstance3D
 var hopper_label: Label3D
@@ -765,46 +765,89 @@ func _spike_gap(first := false) -> float:
 		gap = Vector2(26, 34)
 	return randf_range(gap.x, gap.y) * (0.6 if first else 1.0)
 
-## While pumping: count down to the next spike, and run the one that's on.
+## Every frame of the pour: run the spike that's on, count down to one a
+## failure has set off (a clamp letting go, a plug forming), and, while the
+## line's pumping steadily, to the next random one.
 func _spikes(delta: float) -> void:
 	if spike_on:
 		spike_t += delta
 		if fmod(spike_t, 0.35) < delta:
 			game.sfx.hit("knock")
 		if spike_t > SPIKE_LIMIT:
-			# Nobody killed it: it's packed solid
-			spike_on = false
-			_kill_show_t = 0.9
-			stats["spike_missed"] += 1
-			# It either packs the line solid, or the hammer blows a joint's
-			# gasket and that clamp starts weeping
-			if stats["spike_missed"] % 2 == 1 and not blocked:
-				game.hud.toast("Nobody killed the pump: the spike's packed the line!", 2.4)
-				_block(false)
-			elif fail_i < 0 and not blocked:
-				game.hud.toast("Nobody killed the pump: the spike's cracked a joint!", 2.4)
-				start_failure()
-				wear = 0.4
-			elif not blocked:
-				_block(false)
+			_missed_spike()
 		return
-	# Spikes only in steady pumping, with the line sound
-	if not live or blocked or fail_i >= 0 or hopper < 0.4 or (game.ops and game.ops.busy()):
+	if _pending_cause != "":
+		_spike_in -= delta
+		spike_warn = true   # (the close-up's already up: something's going)
+		if _spike_in <= 0.0:
+			_start_spike(_pending_cause)
+			_pending_cause = ""
+		return
+	# Random spikes only in steady pumping, with the line sound
+	if not pumping or not live or tripped or blocked or fail_i >= 0 or hopper < 0.4 or (game.ops and game.ops.busy()):
 		spike_warn = false
 		return
 	_spike_in -= delta
 	# Half a second before, the gauge close-up pops up: eyes on the needle
 	spike_warn = _spike_in <= SPIKE_WARN
 	if _spike_in <= 0.0:
-		spike_on = true
-		spike_warn = false
-		spike_t = 0.0
-		stats["spikes"] += 1
-		game.sfx.hit("hiss")
-		game.hud.toast("PRESSURE SPIKE!", 1.2)
-		var op = game.crew.crew.get("pump") if game.crew else null
-		if op != null:
-			game.haptic(op, "80,40,80")
+		_start_spike("")
+
+func _start_spike(cause: String) -> void:
+	spike_on = true
+	spike_warn = false
+	spike_t = 0.0
+	_spike_cause = cause
+	stats["spikes"] += 1
+	game.sfx.hit("hiss")
+	game.hud.toast("PRESSURE SPIKE!", 1.2)
+	var op = game.crew.crew.get("pump") if game.crew else null
+	if op != null:
+		game.haptic(op, "80,40,80")
+
+## Something's gone on the line (a clamp starts to let go, a plug forms): the
+## needle jumps half a second later, and killing the pump is the first step
+## of the repair. (Nothing to see if the pump's already off.)
+func _herald(cause: String) -> void:
+	if tripped or spike_on or _pending_cause != "" or game.phase != "pour":
+		return
+	_pending_cause = cause
+	_spike_in = SPIKE_WARN
+
+## Nobody killed it in time.
+func _missed_spike() -> void:
+	spike_on = false
+	_kill_show_t = 0.9
+	stats["spike_missed"] += 1
+	_spike_in = _spike_gap()
+	var cause := _spike_cause
+	_spike_cause = ""
+	match cause:
+		"clamp":
+			# Pumping on into a clamp that's letting go: it blows
+			if fail_i >= 0 and not burst and job_kind == "" and not game.tutorial:
+				game.hud.toast("Nobody killed the pump: the clamp's blown!", 2.4)
+				_burst()
+		"block":
+			game.hud.toast("Nobody killed the pump: it's rammed the plug in hard!", 2.4)
+			game.score.award(game.crew.crew.get("pump") if game.crew else null, -15, "Pumped into a blockage")
+		_:
+			# It either packs the line solid, or the hammer blows a joint's
+			# gasket and that clamp starts weeping (no warning spike for
+			# those: this was it)
+			if stats["spike_missed"] % 2 == 1 and not blocked:
+				game.hud.toast("Nobody killed the pump: the spike's packed the line!", 2.4)
+				_block(false, true)
+			elif fail_i < 0 and not blocked:
+				game.hud.toast("Nobody killed the pump: the spike's cracked a joint!", 2.4)
+				start_failure(true)
+				wear = 0.4
+			elif not blocked:
+				_block(false, true)
+
+## True while a repair is still owed: the pump can't be restarted into it.
+func repair_pending() -> bool:
+	return blocked or burst or fail_i >= 0 or job_kind != ""
 
 ## The pump operator kills the pump on a spike. Points for how fast.
 func kill_pump(p) -> void:
@@ -812,6 +855,8 @@ func kill_pump(p) -> void:
 		return
 	var react := spike_t
 	spike_on = false
+	_spike_cause = ""
+	_spike_in = _spike_gap()
 	_kill_show_t = 0.9
 	tripped = true
 	_tripped_t = 0.0
@@ -829,7 +874,7 @@ func kill_pump(p) -> void:
 
 ## Back on after a spike: a stroke in reverse eases it, then forward again.
 func restart(p) -> void:
-	if not tripped:
+	if not tripped or repair_pending():
 		return
 	tripped = false
 	_restart_t = 0.0
@@ -853,19 +898,18 @@ func _clear_job() -> void:
 func run(delta: float, want: bool) -> float:
 	pumping = want and not line_down() and not reversing and not tripped
 	wet_q = 0.0
-	if tripped:
+	if tripped and not repair_pending():
 		_tripped_t += delta
 		if _tripped_t > RESTART_AUTO:
 			game.hud.toast("The leading hand's restarted the pump", 1.8)
 			restart(null)
 	var q := 0.0
-	if not pumping:
-		spike_warn = false
 	if pumping:
-		_spikes(delta)
 		var rate := PUMP_Q * (1.0 if speed_high else LOW)
 		if blocked:
-			_over_t += delta
+			# (not while the spike it set off is still the pump operator's to
+			# catch: they get their full chance before anything blows)
+			_over_t += 0.0 if spike_on or _pending_cause != "" else delta
 			if _over_t > 2.6 and _block_burst:
 				# It's already blown a joint once: the pump's relief valve
 				# cuts in at full pressure and it just stalls
@@ -935,9 +979,11 @@ func run(delta: float, want: bool) -> float:
 	return q
 
 ## A section between two joints packs solid.
-func _block(from_bad: bool) -> void:
+func _block(from_bad: bool, heralded := false) -> void:
 	if clamps.size() < 2:
 		return
+	if not heralded:
+		_herald("block")
 	blocked = true
 	block_found = false
 	_block_burst = false
@@ -970,9 +1016,11 @@ func _block(from_bad: bool) -> void:
 		game.hud.toast("The line sat too long and went off. Blockage!", 2.2)
 	game.sfx.hit("thunk")
 
-func start_failure() -> void:
+func start_failure(heralded := false) -> void:
 	if clamps.is_empty() or fail_i >= 0 or burst or blocked or job_kind != "":
 		return
+	if not heralded:
+		_herald("clamp")
 	# A clamp left without its safety pin goes first
 	var pick := -1
 	for i in clamps.size():
@@ -1036,12 +1084,12 @@ func _start_job(kind: String, j: int) -> void:
 	_bled = false
 	match kind:
 		"burst":
-			job_steps = [["depress", j], ["clean", j], ["kit", j], ["close", j], ["pin", j]]
+			job_steps = [["clean", j], ["kit", j], ["close", j], ["pin", j]]
 		"clamp":
-			job_steps = [["depress", j], ["open", j], ["clean", j], ["kit", j], ["close", j], ["pin", j]]
+			job_steps = [["open", j], ["clean", j], ["kit", j], ["close", j], ["pin", j]]
 		"block":
 			var u := j + 1
-			job_steps = [["depress", j], ["open", j], ["open", u], ["lower", u], ["pipe", u], ["close", u], ["pin", u], ["close", j], ["pin", j]]
+			job_steps = [["open", j], ["open", u], ["lower", u], ["pipe", u], ["close", u], ["pin", u], ["close", j], ["pin", j]]
 	fix_i = j
 
 ## The operation the current repair step needs ("" if no job).
@@ -1100,24 +1148,6 @@ func _watchdog(delta: float) -> void:
 		return
 	_step_t += delta
 	_job_t += delta
-	if _step_name() == "depress":
-		var op = game.crew.crew.get("pump")
-		if _step_t > DEPRESS_NAG and not _nagged:
-			_nagged = true
-			var key := ""
-			if op != null and not op.bot and not op.ai and op.KEYS.has(op.prefix):
-				key = " (%s on the keyboard)" % op.KEYS[op.prefix]["Y"]
-			game.hud.toast("PUMP OPERATOR: hold Y%s for pressure off!" % key, 3.0)
-			if op != null:
-				op.bark("Pressure off? Y!", 1.6)
-		if _step_t > DEPRESS_AUTO:
-			# The line hand comes down and cracks the dump valve: it bleeds off,
-			# slowly, and the line's losing time the whole way
-			reversing = true
-			if not _bled:
-				_bled = true
-				game.hud.toast("Nobody took the pressure off: the leading hand's bleeding it at the pump", 2.4)
-				game.score.award(op, -20, "Pressure left on")
 	if _job_t > JOB_MAX:
 		game.hud.toast("The leading hand jumps in to finish the joint", 2.2)
 		_force_finish()
@@ -1636,6 +1666,11 @@ func update(delta: float, in_pour: bool) -> void:
 	_update_trucks(delta)
 	if in_pour:
 		_watchdog(delta)
+		_spikes(delta)
+	elif spike_on or spike_warn or _pending_cause != "":
+		spike_on = false
+		spike_warn = false
+		_pending_cause = ""
 	var static_p := 12.0 + riser_top * 0.3
 	var target := pressure
 	if burst:
@@ -1644,8 +1679,9 @@ func update(delta: float, in_pour: bool) -> void:
 		# (reversing bleeds it off even with the pump tripped, so a repair
 		# never waits on a restart)
 		target = 0.0
-	elif tripped:
-		target = minf(pressure, static_p)
+	elif tripped or job_kind != "":
+		# Killed (or a joint's being worked on): the line bleeds off to nothing
+		target = 0.0
 	elif spike_on:
 		target = SPIKE_BAR
 	elif pumping and blocked:
@@ -1675,12 +1711,6 @@ func update(delta: float, in_pour: bool) -> void:
 			gauge_label.text = "%d bar" % int(pressure)
 			gauge_label.modulate = Color("ff5a5f") if pressure > 180.0 else Color.WHITE
 
-	# Repairs that don't need hands: the pressure dropping off
-	if _step_name() == "depress" and pressure <= SAFE_BAR:
-		game.sfx.hit("hiss")
-		if _reverser != null:
-			game.score.award(_reverser, 15, "Pressure off for a repair")
-		_advance()
 	if not reversing:
 		_reverser = null
 
@@ -1836,19 +1866,6 @@ func handle_player(p, delta: float, near: String) -> bool:
 		if p.action_pressed():
 			kill_pump(p)
 		return true
-	# The pump operator's belt remote: before they open up a joint, hold Y
-	# anywhere to reverse the pressure off (real stationary pumps run off a
-	# radio remote with start/stop and direction control)
-	if p.role == "pump" and p.busy == "" and (_step_name() == "depress" or pressure > SAFE_BAR and fix_i >= 0):
-		p.cue("slow", "pressure off", -1.0, true)
-		p.gold(_step_name() == "depress" and not p.bot)
-		if p.slow_held():
-			reversing = true
-			reversing_seen = true
-			_reverser = p
-			p.say("%d bar" % int(pressure))
-			if fmod(_knock_phase, 0.4) < get_process_delta_time():
-				game.haptic(p, "40")
 	if p.zone == "ladder":
 		_ladder(p, delta)
 		return true
@@ -2510,6 +2527,11 @@ func _panel(p, delta: float) -> void:
 	# Starting the pump, the slurry and the washout water come first
 	if p.role == "pump" and game.ops.panel(p, delta):
 		return
+	if tripped and repair_pending():
+		# Killed on a spike that something on the line set off: fix it first
+		p.cue("action", "fix the line first", -1.0, false)
+		p.say("%d bar" % int(pressure))
+		return
 	if tripped:
 		# Killed on a spike: hold A to ease it back and start it again
 		_restart_t = _restart_t + delta if p.action_held() else maxf(0.0, _restart_t - delta * 2.0)
@@ -2519,8 +2541,7 @@ func _panel(p, delta: float) -> void:
 		if _restart_t >= RESTART_HOLD:
 			restart(p)
 		return
-	var need := _step_name() == "depress" or pressure > SAFE_BAR and fix_i >= 0
-	var want_stroke: bool = not need and live and idle_t > SET_TIME * 0.4 and not line_down()
+	var want_stroke: bool = live and idle_t > SET_TIME * 0.4 and not line_down()
 	if want_stroke:
 		# Nothing to drop the pressure for: A strokes the pump instead
 		p.cue("action", "stroke", -1.0, true)
@@ -2531,14 +2552,6 @@ func _panel(p, delta: float) -> void:
 			p.bounce()
 		p.say("%d bar" % int(pressure))
 		return
-	p.cue("action", "reverse", -1.0, need)
-	p.gold(need and not p.bot)
-	if p.action_held():
-		reversing = true
-		_reverser = p
-		p.pose_arms(Vector3(-1.2, 0, -0.2), Vector3(-1.3 + 0.2 * sin(_knock_phase * 10.0), 0, 0.2))
-		if fmod(_knock_phase, 0.4) < get_process_delta_time():
-			game.haptic(p, "40")
 	if p.alt_pressed():
 		if idle_t > SET_TIME * 0.4:
 			game.score.award(p, 5, "Strokes to keep the line moving")

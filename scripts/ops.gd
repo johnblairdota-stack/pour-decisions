@@ -23,7 +23,7 @@
 ##   2. INTO THE BIN       the water pushes the last of the concrete out: the
 ##                         boom puts the hose over the BIN and pumps it out,
 ##                         concrete then water, into the bin
-##   3. BLOW IT BACK       line hand opens the RELEASE VALVE at the pump (hold
+##   3. BLOW IT BACK       pump operator opens the RELEASE VALVE at the pump (hold
 ##                         A): the water runs back into the settling tank
 ##
 ## Every step has one person and one place, a hand sign and a ticket. Nobody
@@ -58,7 +58,7 @@ const STEPS := {
 	"concrete": ["Concrete's on?", "hose", "hose", "RADIO: CONCRETE'S ON"],
 	"water_in": ["Clean the hopper, water in", "pump", "panel", "WATER IN"],
 	"push": ["The last of it into the bin", "boom", "bin", "WASHOUT INTO THE BIN"],
-	"valve": ["Blow the water back", "line", "valve", "OPEN THE VALVE"],
+	"valve": ["Blow the water back", "pump", "valve", "OPEN THE VALVE"],
 }
 const PRIME_ORDER := ["start", "air", "slurry_in", "slurry_go", "slurry_out", "concrete"]
 const WASH_ORDER := ["water_in", "push", "valve"]
@@ -284,7 +284,7 @@ func showing_sign() -> bool:
 		return step_t >= SIGNAL_CONC and step_t < SIGNAL_CONC + 1.8
 	return false
 
-## The line hand at the release valve.
+## The pump operator at the release valve.
 func valve(p, delta: float) -> bool:
 	if stage != "valve":
 		return false

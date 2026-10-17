@@ -203,12 +203,10 @@ func _tip(p) -> String:
 		"pump":
 			if line.spike_on:
 				return "SPIKE! A now, wherever you are: kill the pump. The faster, the more it's worth."
-			if line.fix_i >= 0 and line._step_name() == "depress":
-				return "Pressure off before you open the joint: hold Y (your belt remote), wherever you are."
 			if line.fix_i >= 0 or (line.blocked and not line.block_found) or (line.fail_i >= 0 and line.burst):
 				return "The riser needs you: grab the part (CLAMP KITS or PIPES), up the LADDER, and fix it."
 			if line.fail_i >= 0:
-				return "A clamp's weeping. Grab a CLAMP KIT and up the LADDER to swap it before it bursts."
+				return "A clamp's weeping. The pump's off: grab a CLAMP KIT and up the LADDER to swap it, then restart."
 			if line.tripped:
 				return "Pump's off and the pressure's easing. Hold A at the PUMP PANEL to restart it."
 			if line.live and line.idle_t > line.SET_TIME * 0.5 and not line.line_down():
