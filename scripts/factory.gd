@@ -24,17 +24,28 @@ const COLORS := {
 	"ply": Color("c48d55"),
 	"wet": Color("8f949b"),
 	"wet_full": Color("e9ecef"),
-	"grass": Color("4f6b4a"),
+	"grass": Color("6a8a4c"),
 	"road": Color("3c4048"),
-	"river": Color("2f5f8f"),
+	"river": Color("4f6660"),
 	"tree": Color("4f8a4a"),
 	"trunk": Color("7a5a3a"),
-	"bridge": Color("2f3b52"),
+	"bridge": Color("c4c3bc"),
 	"podium": Color("7d848e"),
 	"red": Color("ff4d4d"),
 	"green": Color("7cd992"),
 	"blue": Color("4fa3ff"),
 	"rope": Color("d9c27a"),
+	# The surroundings (scripts/surrounds.gd)
+	"rock": Color("6b665c"),
+	"palm": Color("5f8f3e"),
+	"palm_trunk": Color("8a7a63"),
+	"shed": Color("c9c6bd"),
+	"shed_roof": Color("a9adb0"),
+	"dry_grass": Color("a39a68"),
+	"fairway": Color("7fae58"),
+	"green_cut": Color("8cc063"),
+	"sand": Color("e6d7aa"),
+	"citycat_blue": Color("1f4f8f"),
 }
 
 static var _cache := {}
@@ -64,10 +75,11 @@ static func color_mat(c: Color, outlined := false, emission := Color.BLACK) -> S
 		m.next_pass = o
 	return m
 
-static func window_mat(frame: Color, lit_ratio: float, glow := 1.2) -> ShaderMaterial:
+static func window_mat(frame: Color, lit_ratio: float, glow := 1.2, glass := Color(0.20, 0.30, 0.46)) -> ShaderMaterial:
 	var m := ShaderMaterial.new()
 	m.shader = WINDOWS
 	m.set_shader_parameter("frame_color", frame)
+	m.set_shader_parameter("glass_color", glass)
 	m.set_shader_parameter("lit_ratio", lit_ratio)
 	m.set_shader_parameter("glow", glow)
 	return m
