@@ -18,6 +18,7 @@ const CoachScript := preload("res://scripts/coach.gd")
 const Icons := preload("res://scripts/icons.gd")
 const Settings := preload("res://scripts/settings.gd")
 const CueBadge := preload("res://scripts/cue_badge.gd")
+const SlumpGuide := preload("res://scripts/slump_guide.gd")
 const F := preload("res://scripts/factory.gd")
 const PlayerScript := preload("res://scripts/player.gd")
 const HudScript := preload("res://scripts/hud.gd")
@@ -90,7 +91,7 @@ const GROUND_STATIONS := {
 	"rig3": {"pos": Vector3(21.4, 0, 8.4), "label": "OUTRIGGER", "color": Color("ff7a1a")},
 	"pins": {"pos": Vector3(12.2, 0, 6.4), "label": "PIN BAGS", "color": Color("ff7a1a")},
 	"sling": {"pos": Vector3(1.0, 0, 8.6), "label": "LAYDOWN", "color": Color("ff7a1a")},
-	"valve": {"pos": Vector3(16.8, 0, 3.9), "label": "RELEASE VALVE", "color": Color("ff7a1a")},
+	"valve": {"pos": Vector3(16.4, 0, 10.0), "label": "RELEASE VALVE", "color": Color("ff7a1a")},
 }
 const PLAYER_COLORS := [Color("4fa3ff"), Color("7cd992"), Color("ff7ad9"), Color("c49bff")]
 const ACTION_NAMES := ["Space", "Enter", "A", "A"]
@@ -1163,7 +1164,7 @@ func _build_insets() -> void:
 	for i in 2:
 		var box := SubViewportContainer.new()
 		box.stretch = true
-		box.custom_minimum_size = INSET
+		box.custom_minimum_size = Vector2(64, 40)   # (sized each frame to the screen)
 		box.size = INSET
 		box.anchor_left = 1.0
 		box.anchor_right = 1.0
@@ -1226,7 +1227,11 @@ func _build_insets() -> void:
 		badge.position = Vector2(6, INSET.y - 76)
 		badge.visible = false
 		box.add_child(badge)
-		insets.append({"box": box, "view": view, "cam": cam, "label": lab, "badge": badge, "frame": fsb, "chip": csb, "icon": chip_icon})
+		# The slump test's step guide, just above its close-up
+		var guide := SlumpGuide.new()
+		guide.visible = false
+		layer.add_child(guide)
+		insets.append({"box": box, "view": view, "cam": cam, "label": lab, "badge": badge, "frame": fsb, "chip": csb, "icon": chip_icon, "chip_node": chip, "guide": guide})
 	_build_gauge_pop(layer)
 
 ## The gauge close-up: a small camera on the pump's pressure gauge that pops
@@ -1286,6 +1291,52 @@ func _build_gauge_pop(layer: CanvasLayer) -> void:
 	_gauge_badge.position = Vector2(6, GAUGE_POP.y - 76)
 	gauge_pop.add_child(_gauge_badge)
 
+## Where a spot in the world is on the screen, and the view it's in: the
+## street band when the screen's split and it's down on the street, else the
+## deck view. {pt, region, seen}: seen is false when it's off the screen (pt
+## is then pulled inside the region).
+func _pop_spot(world: Vector3, street: bool) -> Dictionary:
+	var vs: Vector2 = get_viewport().get_visible_rect().size
+	var split_on: bool = band_box != null and band_box.visible and _band_h > 120.0
+	var use_band := split_on and street
+	var band_h := _band_h if band_box != null and band_box.visible else 0.0
+	var region := Rect2(16, 96, vs.x - 32, vs.y - 112 - band_h)
+	if use_band:
+		region = Rect2(16, vs.y - _band_h + 10, vs.x - 32, _band_h - 20)
+	var cam: Camera3D = band_cam if use_band else camera
+	var pt := Vector2(region.get_center().x, region.end.y)
+	var seen := false
+	if cam != null and not cam.is_position_behind(world):
+		pt = cam.unproject_position(world)
+		if use_band:
+			var bv := Vector2(band_view.size)
+			pt = Vector2(pt.x * vs.x / maxf(1.0, bv.x), vs.y - _band_h + pt.y * _band_h / maxf(1.0, bv.y))
+		seen = region.has_point(pt)
+	pt = pt.clamp(region.position, region.end)
+	return {"pt": pt, "region": region, "seen": seen}
+
+## A box of `sz` near `pt` (above it, beside it, then below), inside `region`,
+## picked to cover as little as it can of the spot itself and of `taken`.
+func _place_pop(pt: Vector2, sz: Vector2, region: Rect2, taken: Array) -> Rect2:
+	var gap := 28.0
+	var tries := [Vector2(pt.x - sz.x * 0.5, pt.y - gap - sz.y), Vector2(pt.x + gap, pt.y - sz.y * 0.5),
+			Vector2(pt.x - gap - sz.x, pt.y - sz.y * 0.5), Vector2(pt.x - sz.x * 0.5, pt.y + gap)]
+	var at_pt := Rect2(pt - Vector2(30, 30), Vector2(60, 60))
+	var best := Rect2(tries[0], sz)
+	var best_cost := INF
+	for i in tries.size():
+		var c: Vector2 = tries[i]
+		c.x = clampf(c.x, region.position.x, maxf(region.position.x, region.end.x - sz.x))
+		c.y = clampf(c.y, region.position.y, maxf(region.position.y, region.end.y - sz.y))
+		var r := Rect2(c, sz)
+		var cost := float(i) * 50.0 + r.intersection(at_pt).get_area() * 4.0
+		for o in taken:
+			cost += r.intersection((o as Rect2).grow(10.0)).get_area()
+		if cost < best_cost:
+			best_cost = cost
+			best = r
+	return best
+
 func _update_gauge_pop() -> void:
 	if gauge_pop == null:
 		return
@@ -1322,6 +1373,9 @@ func _update_gauge_pop() -> void:
 		if not b.visible:
 			continue
 		var other := b.get_global_rect().grow(10.0)
+		var gd: Control = inset["guide"]
+		if gd.visible:
+			other = other.merge(gd.get_global_rect().grow(10.0))
 		if r.intersects(other):
 			var left_x := other.position.x - sz.x
 			var right_x := other.end.x
@@ -1980,7 +2034,13 @@ func _process(delta: float) -> void:
 	coach.update(delta)
 	_update_camera(delta)
 	shake = maxf(0.0, shake - delta * 1.6)
-	if autotest and _frames > 60 * 60 * 40:
+	# A hang shows up as one phase that never ends; the whole run's budget is
+	# only a backstop (a full tower runs 30 to 40 minutes, give or take the
+	# trucks)
+	if autotest and phase_t > 8.0 * 60.0:
+		push_error("[autotest] stuck in phase %s at level %d (%.0fs)" % [phase, k + 1, phase_t])
+		get_tree().quit(1)
+	if autotest and _frames > 60 * 60 * 60:
 		push_error("[autotest] timed out in phase %s at level %d" % [phase, k + 1])
 		get_tree().quit(1)
 
@@ -2365,6 +2425,8 @@ func _scale_world_labels() -> void:
 		var l: Label3D = stations[key]["label"]
 		if l and l.is_inside_tree():
 			l.scale = Vector3.ONE * _label_k(l.global_position) * wt
+	if ops and ops.tank_label:
+		ops.tank_label.scale = Vector3.ONE * _label_k(ops.tank_label.global_position) * wt
 	# The pressure reading over the pump's gauge: by the street band's camera
 	# while the screen is split, a touch bigger than a station name
 	if line and line.gauge_label:
@@ -3517,17 +3579,27 @@ func _update_camera(delta: float) -> void:
 			away.remove_at(0)
 	var focus := Vector3(0, work_y + 3.0, 0)
 	var spread := 0.0
-	if main_follow.size() > 0:
+	# What the deck view has to keep in: the people up there, and the bin
+	# while the boom's putting slurry or washout in it
+	var pts: Array = []
+	for p in main_follow:
+		pts.append(p.position)
+	if phase == "pour" and ops != null and ops.wants_bin() and not main_follow.is_empty() and main_follow[0].zone == "deck":
+		pts.append(ops.bin_world())
+	if pts.size() > 0:
 		var avg := Vector3.ZERO
-		for p in main_follow:
-			avg += p.position
-		avg /= main_follow.size()
-		for p in main_follow:
-			spread = maxf(spread, (p.position - avg).length())
+		for q in pts:
+			avg += q
+		avg /= pts.size()
+		for q in pts:
+			spread = maxf(spread, (q - avg).length())
 		focus = focus.lerp(avg + Vector3(0, 2.5, 0), 0.72 if main_follow[0].zone == "deck" else 1.0)
 	# Closer in on the people playing: one person gets a tighter shot, a few
 	# get pulled back just enough to keep them all in
-	var dist := maxf(cam_dist * 0.82, spread * 1.6 + 10.0) if main_follow.size() > 1 else cam_dist * 0.82
+	var dist := maxf(cam_dist * 0.82, spread * 1.6 + 10.0) if pts.size() > 1 else cam_dist * 0.82
+	# (split, the deck view's only the top two-thirds of the screen: back off
+	# a little so its near edge isn't lost behind the street band)
+	dist *= 1.0 + 0.22 * ease(_split, -1.8)
 	# (never so far out that the crew are specks on a TV)
 	dist = minf(dist, maxf(DIST_MAX if split_on else 70.0, cam_dist * 0.82))   # (the mouse wheel can still pull back)
 	if climb.active:
@@ -3585,12 +3657,10 @@ func _update_camera(delta: float) -> void:
 		# (the street band already has the street close: no pop-up needed)
 		if f.x != INF and not (_split > 0.5 and _height_group(p) == "street" and _slump_of(p) == null):
 			views.append({"p": p, "focus": f, "close": true})
-	if climb.active and climb.stage == "pin" and (climb._rigger == null or (climb._rigger.bot and not humans().has(climb._rigger))):
-		var fp: Vector3 = climb.work_focus(null)
-		if fp.x != INF:
-			views.append({"p": climb._rigger, "focus": fp, "close": true})
-	# A failing clamp or a blocked pipe halfway up the tower gets its own view
-	if phase == "pour" and line != null:
+	# A failing clamp or a blocked pipe halfway up the tower gets its own view,
+	# when it's a person who has to go and fix it (a bot's work gets none)
+	var pump_op = crew.crew.get("pump")
+	if phase == "pour" and line != null and pump_op != null and not pump_op.bot:
 		var j: int = line.fix_i if line.fix_i >= 0 else line.fail_i
 		var spot := Vector3.INF
 		var what := ""
@@ -3616,37 +3686,66 @@ func _update_camera(delta: float) -> void:
 				already = true
 		if not already:
 			views.append({"p": p, "focus": p.position + Vector3(0, 1.2, 0), "close": false})
-	var right_x := -16.0
+	# Each close-up is a zoom-in that pops up over the spot where the work is,
+	# in whichever view shows it (the deck view, or the street band when
+	# split), sized to the screen, kept inside that view and clear of the
+	# others and of the pump. Anyone off the screen gets a small view in the
+	# deck view's bottom right corner instead.
+	var vs: Vector2 = get_viewport().get_visible_rect().size
+	var ph := clampf(vs.y * 0.2, 120.0, 230.0)
+	var taken: Array = []
+	var pump_spot := _pop_spot(line.PUMP_POS + Vector3(0, 1.5, 0), true) if line != null else {}
+	if not pump_spot.is_empty() and pump_spot["seen"]:
+		taken.append(Rect2(pump_spot["pt"] - Vector2(110, 90), Vector2(220, 170)))
+	var corner_x := vs.x - 16.0
 	for i in insets.size():
 		var inset: Dictionary = insets[i]
 		var box: SubViewportContainer = inset["box"]
 		box.visible = i < views.size() and not skyline
+		var guide = inset["guide"]
+		guide.visible = false
 		if not box.visible:
 			inset["key"] = null
 			continue
 		var v: Dictionary = views[i]
-		# Sits just above the street band when it's open. A slump test gets a
-		# bigger box: the cone, the rod and the tape need reading
 		var slump_view: bool = v["close"] and _slump_of(v["p"]) != null
-		var sz := INSET * (1.6 if slump_view else 1.0)
-		if slump_view:
-			# The slump close-up goes in the bottom left corner of the screen
-			# (over the street band's road end, not over the deck)
-			box.anchor_left = 0.0
-			box.anchor_right = 0.0
-			box.offset_bottom = -34.0
-			box.offset_top = box.offset_bottom - sz.y
-			box.offset_left = 16.0
-			box.offset_right = 16.0 + sz.x
+		var sz := Vector2(ph * 1.6, ph) * (1.2 if slump_view else 1.0)
+		var r := Rect2()
+		if v["close"]:
+			var street: bool = (v["focus"] as Vector3).y < 2.5 if v["p"] == null else _height_group(v["p"]) == "street"
+			var spot := _pop_spot(v["focus"], street)
+			var region: Rect2 = spot["region"]
+			var gh := 0.0
+			if slump_view:
+				var sl = _slump_of(v["p"])
+				guide.steps = line.slump.GUIDE.map(func(g): return g[1])
+				guide.at = line.slump.guide_index(sl)
+				guide.text = line.slump.guide_text(sl)
+				guide.accent = UI.ROLE.get(v["p"].role, Color.WHITE)
+			# (a short view: the zoom-in shrinks to fit inside it)
+			for pass_i in 2:
+				gh = guide.fit(sz.x) if slump_view else 0.0
+				var k := minf(1.0, minf(region.size.y / (sz.y + gh), region.size.x / sz.x))
+				if k >= 0.999:
+					break
+				sz *= k
+			var whole := _place_pop(spot["pt"], Vector2(sz.x, sz.y + gh), region, taken)
+			taken.append(whole)
+			r = Rect2(whole.position + Vector2(0, gh), sz)
+			if slump_view:
+				guide.position = whole.position
+				guide.visible = true
 		else:
-			box.anchor_left = 1.0
-			box.anchor_right = 1.0
-			box.offset_bottom = -16 - _band_h
-			box.offset_top = box.offset_bottom - sz.y
-			box.offset_right = right_x
-			box.offset_left = right_x - sz.x
-			right_x -= sz.x + 14.0
+			sz = Vector2(ph * 1.3, ph * 0.8)
+			var bottom := vs.y - 16.0 - _band_h
+			r = Rect2(Vector2(corner_x - sz.x, bottom - sz.y), sz)
+			corner_x -= sz.x + 14.0
+			taken.append(r)
+		box.set_anchors_preset(Control.PRESET_TOP_LEFT)
+		box.position = r.position
+		box.size = r.size
 		(inset["badge"] as Control).position = Vector2(6, sz.y - 76)
+		inset["badge"].max_w = sz.x - 12.0
 		var p = v["p"]
 		var cam: Camera3D = inset["cam"]
 		var target: Vector3 = v["focus"]
@@ -3683,6 +3782,18 @@ func _update_camera(delta: float) -> void:
 				eye = target + Vector3(6.5, 1.0, 5.5)
 			var where := {"ladder": "  ·  %d m up" % int(p.position.y), "hoist": "  ·  %d m" % int(p.position.y)}
 			lab.text = _who(p) + where.get(p.zone, "")
+		# The name chip wraps rather than running off the side of the box
+		var cap_w := sz.x - 44.0
+		var cap_font: Font = lab.get_theme_font("font")
+		if cap_font.get_string_size(lab.text, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x > cap_w:
+			lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			lab.custom_minimum_size.x = cap_w
+		else:
+			lab.autowrap_mode = TextServer.AUTOWRAP_OFF
+			lab.custom_minimum_size.x = 0.0
+		(inset["chip_node"] as Control).reset_size()
+		# (the slump test's guide strip on top says it all: no name chip)
+		(inset["chip_node"] as Control).visible = not slump_view
 		# Framed in the colour of the job it's watching (the pump operator's colour, who fixes it, for a
 		# failing clamp or pipe)
 		var role_col: Color = UI.ROLE.get(p.role, Color.WHITE) if p != null else UI.ROLE["pump"]
@@ -3740,6 +3851,8 @@ func _maybe_shot() -> void:
 		key = "startup"
 	elif "washout" in _shot_only and ops != null and ops.stage == "push" and ops.left < ops.WATER * 0.8 and not _shots_taken.has("washout"):
 		key = "washout"
+	elif "tank" in _shot_only and ops != null and ops.stage == "valve" and ops.hold > 0.4 and not _shots_taken.has("tank"):
+		key = "tank"
 	elif "hose" in _shot_only and phase == "pour" and hose_holder != null and line.pumping and _filled_ratio() > 0.3 and not _shots_taken.has("hose"):
 		key = "hose"
 	elif "pinbag" in _shot_only and line != null and line.hook["kind"] == "pins" and line.hook["y"] > 4.0 and not _shots_taken.has("pinbag"):

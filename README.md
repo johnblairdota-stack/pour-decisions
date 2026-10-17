@@ -72,7 +72,7 @@ The screen stays clear: most of what you need is in the world (the hand signs, t
 - **Top right:** level, points and rank. Under it while pouring, the pump: hopper level and whether it's on HIGH or LOW, trucks at the pump and on the road, and the line pressure. The wind shows only on climb days or when it's gusting.
 - **Left:** the live jobs, most urgent first, each with a countdown bar and the icon of the job it's for, in that job's colour. Urgent ones get a coloured border and pulse. The boom operator's one is their progress: "Bay 2 of 4 · 64% · edge fresh", its bar filling with the bay and coloured by the wet edge (green fresh, amber ageing, red going off).
 - **Centre:** one-line call-outs that fade.
-- **Bottom right:** close-up cameras. Anyone at the pump or up the ladder gets a picture-in-picture view, and hands-on work (a clamp, a pin, a slump test) gets a close-up, framed in the colour of the job it's watching, with your button cue in the corner. The slump test's bigger close-up sits in the bottom left corner instead, so it never covers the deck view.
+- **Close-up zoom-ins:** hands-on work a person's doing (a clamp, a pin, a slump test) pops up a zoom-in right beside the spot where it's happening, in whichever view shows it (the deck view, or the street band when the screen's split), framed in the colour of the job, with your button cue in the corner. It's sized to the screen, stays inside its own view, and keeps clear of the other pop-ups and of the pump. A failing clamp gets one when the pump operator's a person. Bots' work gets no pop-up. Anyone off the screen gets a small view in the deck view's bottom right corner.
 
 Station names on the ground only show when that station is wanted or you're standing near it.
 
@@ -113,7 +113,7 @@ Every job's button lights up **gold** at the moment, or in the spot, where press
 | Poker | **Plunge:** you're over a good patch of purple. (When it's done there, or won't reach further, the button goes red and shakes instead: let go.) |
 | Screeder | Board down over vibrated, unscreeded concrete, and "keep pulling" while the board's finishing as it goes |
 | Pump | Kill the pump the moment it spikes (flashes red); restart after a spike (once the line's fixed); stroke the pump before the line goes off; tapping at the blocked pipe; swap a weeping clamp |
-| Truck hand | Wave the next truck in now; each slump test step (the fill on its mark, the rod on 25, a steady lift, the tape on the concrete); the right call on a load (with Load call help on) |
+| Truck hand | Wave the next truck in now; each slump test step (the fill at the ring, the rod on 25, the tape on the concrete); the right call on a load (with Load call help on) |
 | Pipe guy | Radio the moment the hose puffs or the colour changes |
 | Climb day | Pump the ram, podger in when the holes line up, sling when the hook's down, lower when the load's over the ghost, let go in the hammer's gold band |
 
@@ -141,7 +141,7 @@ Every work spot on the ground and the deck (BOOM REMOTE, DOGMAN, TAG LINE, RIGGE
 
 ![Hand signs over the jobs](docs/screenshots/signs.png)
 
-Anything that needs a worker gets a small orange marker with a hand on it and the icon of the job it's for, floating over the spot: the poker's drive unit when nobody's holding it, a truck waiting on its slump test, the pump panel when it's ready to restart, a clamp weeping up the riser. When it gets urgent it turns red, and when it's critical it shakes and throws sparks. Bots run for their red signs. Bots also call out what they're doing in little speech balloons that float up off their heads and pop ("Clamp coming up!", "On it!"). A sign for your job that's off the edge of the screen (or behind the street band) gets an arrow on the screen's edge in your job's colour, pointing to it.
+Anything that needs a worker gets a small orange marker with a hand on it and the icon of the job it's for, floating over the spot: the poker's drive unit when nobody's holding it, a truck waiting on its slump test, the pump panel when it's ready to restart, a clamp weeping up the riser. When it gets urgent it turns red, and when it's critical it shakes and throws sparks. Bots run for their red signs. Bots also call out what they're doing in little speech balloons that float up off their heads and pop ("Clamp coming up!", "On it!"). A balloon is sized to its words, with a tail down to whoever said it: a long line wraps onto two or three lines rather than running wide, and newer balloons push older ones up so they never overlap. A sign for your job that's off the edge of the screen (or behind the street band) gets an arrow on the screen's edge in your job's colour, pointing to it.
 
 ### Points and ranks
 
@@ -193,16 +193,18 @@ The tutorial starts with the shaft already up. The crew pumps the round tank flo
 
 There's no docket on the screen. The slump test is done by hand at the truck bay, the way it's done on an Australian site (AS 1012.3.1, with the load judged against the order under AS 1379), in a close-up that pops up (bigger than the other close-ups) with you in it:
 
+Every step is a hold of A that stops itself at the right point, so anyone can do the test the first time. A guide sits just above the close-up: the six steps in a row, ticked off as they're done with the one you're on lit gold, and a line under them saying what you're doing and why.
+
 1. **Sample** off the chute into the barrow (hold A).
-2. **Fill** the cone (300 mm tall, 200 mm base, 100 mm top) in **three layers** of about equal volume. Hold A and let go when the concrete reaches the yellow mark: about 70 mm, then 160 mm, then heaped over the top. The button's gold on the mark.
-3. **Rod** each layer **25 times** with the 16 mm rod: hold A and let go on 25. On the count is gold (a bonus); let go early and it isn't done, run over and it's over-rodded.
+2. **Fill** the cone (300 mm tall, 200 mm base, 100 mm top) in **three layers** of about equal volume. Hold A: the concrete slows as it nears the yellow ring and stops on it (about 70 mm, then 160 mm, then heaped over the top). Let go and that layer's in.
+3. **Rod** each layer **25 times** with the 16 mm rod, to push the air out. Hold A: it counts the strokes and stops on 25. Let go and the next layer's ready.
 4. **Strike off** the top, rolling the rod across it (hold A).
-5. **Lift** the cone straight up, steady. Let go of A after the strike-off, then press and hold A again for the lift (the strike-off's hold never runs into it). Let go part way and it jerks: one side shears off, a shear slump isn't a test, so scoop it back and do it again.
-6. **Measure**: the cone goes upside down beside it with the rod across the top, and the tape runs down from the rod to the centre of the slumped concrete. Press A when it touches (gold). That's your reading, to the nearest 5 mm. The reading then shows the way, going on what you read: gold and bold with a tick when it's in spec (A glows gold), blue with water pouring over the cone when it's stiff (X turns water-blue), red when it goes back (B flashes red). Misread the tape and it points the wrong way.
+5. **Lift** the cone straight up, steady (hold A). Each step needs a fresh press, so one hold never runs into the next. Stop part way and you get a moment's grace; stop longer than that and it jerks: one side shears off, a shear slump isn't a test, so scoop it back and do it again. A lift with no stop at all is a bonus.
+6. **Measure**: the cone goes upside down beside it with the rod across the top. Hold A to run the tape down from the rod: it slows near the concrete and stops when it touches. Press A to read it off, to the nearest 5 mm. The reading then shows the way: gold and bold with a tick when it's in spec (A glows gold), blue with water pouring over the cone when it's stiff (X turns water-blue), red when it goes back (B flashes red).
 
-The close-up's caption then gives you everything the docket would: your reading against the order (a 100 mm pump mix, ±20 mm), how long since it was batched (90 minutes is the limit), and the water the plant held back (10 L/m³) that may be added on site. Add it and the driver mixes it in, and the load gets tested again. Read the tape wrong and you'll make the wrong call.
+The guide then says what the reading means: how far it dropped against the order (a 100 mm pump mix, ±20 mm), and whether to use it, add the water the plant held back (10 L/m³, then the driver mixes it in and the load gets tested again), or send it back (out of spec, or batched over 90 minutes ago). The caption on the close-up keeps the reading and the load's age.
 
-**The pour doesn't stop for the test.** Once the sample's in the barrow, the driver keeps the chute running into the hopper on trust, slowly (up to 2 m³), while you test. A quick, clean test means the call comes before much has gone in; a bad load caught late has already put some in the hopper (half as harmful, mixed with good concrete, but a wet load still leaves a weak patch where it lands). The test itself runs about 8 seconds when it's done well.
+**The pour doesn't stop for the test.** Once the sample's in the barrow, the driver keeps the chute running into the hopper on trust, slowly (up to 2 m³), while you test. A quick, clean test means the call comes before much has gone in; a bad load caught late has already put some in the hopper (half as harmful, mixed with good concrete, but a wet load still leaves a weak patch where it lands). The test itself runs about 12 seconds.
 
 Watering doesn't always land on the order: the driver adds what the plant held back, and a very stiff load can still be stiff after it, so the retest matters. The label on the truck only says a load "looks off at the chute", never which way: that's what the test is for. Some loads sit just outside the limits, so read the tape carefully.
 
@@ -307,7 +309,7 @@ Every pour starts by priming the line and ends by washing it out, the way a pump
 
 1. **Water in.** Pump operator, hold A at the panel: the hopper's cleaned out and filled with water.
 2. **The last of it into the bin.** The boom puts the hose back over the BIN and pumps: the stream comes out grey (the last of the concrete), then blue (the water). Miss the bin and it lands on the finished slab.
-3. **Blow it back.** Pump operator, hold A at the RELEASE VALVE by the pump: the water runs back down into the SETTLING TANK.
+3. **Blow it back.** Pump operator, hold A at the RELEASE VALVE by the pump: the water runs down the blue hose into the SETTLING TANK beside it. The tank stands on a big blue ring on the ground (seen through trucks and people), with its name over it, and an arrow bobs over it while the water's to go back. Its water rises as it fills.
 
 Nobody gets stuck on any of it. A step nobody's doing gets a loud call after 7 seconds (and crewmates cover a quiet person after 15), the radio calls are made by a bot pipe guy on their own, and after 30 seconds the crew does the step themselves, for a points cost.
 

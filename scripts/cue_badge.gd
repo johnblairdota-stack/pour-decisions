@@ -14,6 +14,7 @@ var _flash := 0.0
 var _sparks: Array = []    # {pos, vel, life}
 var _was_in := false
 var _font: Font
+var max_w := 0.0           # the width it has to fit in (its close-up's); 0: any
 
 func _ready() -> void:
 	custom_minimum_size = Vector2(190, 70)
@@ -93,8 +94,40 @@ func _draw() -> void:
 		var p: Vector2 = s["pos"]
 		var v: Vector2 = s["vel"]
 		draw_line(p, p - v.normalized() * 6.0, Color(1.0, 0.85, 0.3, clampf(s["life"] * 3.0, 0.0, 1.0)), 2.0)
-	# The word
+	# The word, on a dark tag sized to it: shrunk a little, then wrapped onto
+	# a second line, so it always fits inside the close-up
 	if verb != "":
 		var txt := verb.to_upper() if in_zone else verb
-		draw_string_outline(_font, Vector2(70, 42), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, 6, Color(0.03, 0.05, 0.09))
-		draw_string(_font, Vector2(70, 42), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, GOLD if in_zone else Color.WHITE)
+		var room := (max_w - 70.0 - 8.0) if max_w > 0.0 else 9999.0
+		var fs := 18
+		var w := _font.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+		while w > room and fs > 14:
+			fs -= 1
+			w = _font.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+		var lines := [txt]
+		if w > room:
+			lines = _wrap(txt, fs, room)
+			w = 0.0
+			for ln in lines:
+				w = maxf(w, _font.get_string_size(ln, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x)
+		var lh := fs + 4.0
+		var top := 35.0 - lh * lines.size() * 0.5
+		draw_rect(Rect2(62, top - 4, w + 16, lh * lines.size() + 8), Color(0.03, 0.05, 0.09, 0.72))
+		for i in lines.size():
+			var at := Vector2(70, top + lh * i + fs * 0.85)
+			draw_string(_font, at, lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, fs, GOLD if in_zone else Color.WHITE)
+
+## Splits a line into words that fit `room` px at size `fs`.
+func _wrap(txt: String, fs: int, room: float) -> Array:
+	var out: Array = []
+	var cur := ""
+	for word in txt.split(" "):
+		var tryit := word if cur == "" else cur + " " + word
+		if cur != "" and _font.get_string_size(tryit, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x > room:
+			out.append(cur)
+			cur = word
+		else:
+			cur = tryit
+	if cur != "":
+		out.append(cur)
+	return out

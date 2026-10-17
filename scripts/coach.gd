@@ -216,7 +216,7 @@ func _tip(p) -> String:
 			var chk = line.needs_check()
 			if chk != null:
 				if not chk["checked"]:
-					return "Truck in: slump test at the TRUCK BAY. Scoop and fill each layer (hold A to the mark), hold A to rod and let go on 25, strike off, lift steady, then A when the tape touches. The truck keeps feeding while you test."
+					return "Truck in: slump test at the TRUCK BAY. Every step is a hold of A that stops itself: scoop, fill to the ring, rod to 25, strike off, lift steady, lower the tape, then press A to read it. The guide over the close-up shows each step. The truck keeps feeding while you test."
 				return "Your reading against the order, 100 mm ±20: in it, A uses the load. Under 80 (stiff), X adds the water the plant held back, then test again. Over 120, or batched over 90 minutes ago, B sends it back."
 			if line.can_wave_in():
 				return "Wave the next truck back onto the hopper (A at the TRUCK BAY)."

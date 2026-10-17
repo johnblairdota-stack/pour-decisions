@@ -12,6 +12,9 @@ const CrewInfo := preload("res://scripts/roster.gd")
 const F := preload("res://scripts/factory.gd")
 const Icons := preload("res://scripts/icons.gd")
 const CUE := preload("res://shaders/cue.gdshader")
+const BALLOON := preload("res://shaders/balloon.gdshader")
+const BARK_SIZE := 30
+const BARK_WRAP := 330.0    # px of text before a spoken line wraps
 const Settings := preload("res://scripts/settings.gd")
 const GOLD := Color("ffd23f")
 
@@ -171,16 +174,10 @@ func setup(i: int, color: Color) -> void:
 	bubble.render_priority = 20
 	var bg := MeshInstance3D.new()
 	bg.name = "BubbleBg"
-	var qm2 := QuadMesh.new()
-	qm2.size = Vector2(2.4, 0.42)
-	bg.mesh = qm2
-	var bgm := StandardMaterial3D.new()
-	bgm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	bgm.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
-	bgm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	bgm.albedo_color = Color(1, 1, 1, 0.92)
+	bg.mesh = QuadMesh.new()
+	var bgm := ShaderMaterial.new()
+	bgm.shader = BALLOON
 	bgm.render_priority = 19
-	bgm.no_depth_test = true
 	bg.material_override = bgm
 	bg.layers = 2
 	bg.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -299,21 +296,45 @@ func bark(text: String, seconds := 1.8) -> void:
 		return
 	var b: Label3D = bubble.duplicate()
 	b.text = text
-	b.font_size = 28
+	b.font_size = BARK_SIZE
+	# The balloon fits the line: one line when it's short, wrapped onto two
+	# or three when it's long, never wider than BARK_WRAP
+	var font: Font = b.font if b.font else ThemeDB.fallback_font
+	var one := font.get_string_size(text, HORIZONTAL_ALIGNMENT_CENTER, -1, BARK_SIZE)
+	var px := one
+	if one.x > BARK_WRAP:
+		b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		b.width = BARK_WRAP
+		px = font.get_multiline_string_size(text, HORIZONTAL_ALIGNMENT_CENTER, BARK_WRAP, BARK_SIZE)
+	b.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var box := px * b.pixel_size + Vector2(0.36, 0.22)
+	var tail := 0.22
 	var bg: MeshInstance3D = b.get_node("BubbleBg")
 	var qm := QuadMesh.new()
-	qm.size = Vector2(0.18 + 0.14 * text.length(), 0.36)
+	qm.size = Vector2(box.x, box.y + tail)
 	bg.mesh = qm
+	bg.position = Vector3(0, -tail * 0.5, -0.01)
+	var mat: ShaderMaterial = (bg.material_override as ShaderMaterial).duplicate()
+	mat.set_shader_parameter("size", box)
+	mat.set_shader_parameter("tail", tail)
+	bg.material_override = mat
 	b.visible = true
 	world.add_child(b)
 	b.global_position = global_position + Vector3(0, 2.6, 0)
-	_balloons.append({"node": b, "t": 0.0, "life": seconds + 0.6, "base": b.global_position, "phase": randf() * TAU})
+	_balloons.append({"node": b, "mat": mat, "h": box.y + tail, "t": 0.0, "life": seconds + 0.6 + 0.04 * maxf(0.0, text.length() - 18.0), "base": b.global_position, "phase": randf() * TAU})
 	# (older balloons drift up out of the way)
 	while _balloons.size() > 3:
 		var old: Dictionary = _balloons.pop_front()
 		(old["node"] as Node).queue_free()
 
 func _update_balloons(delta: float, cam_pos: Vector3) -> void:
+	# Each balloon sits above the newer ones under it, however many lines
+	# they run to, so a long line never covers a short one
+	var stack := 0.0
+	for i in range(_balloons.size() - 1, -1, -1):
+		var en: Dictionary = _balloons[i]
+		en["stack"] = stack
+		stack += float(en.get("h", 0.6)) + 0.08
 	for e in _balloons.duplicate():
 		var b: Label3D = e["node"]
 		if not is_instance_valid(b):
@@ -326,7 +347,9 @@ func _update_balloons(delta: float, cam_pos: Vector3) -> void:
 		# Floats up with a little bob, the way a balloon does, following its owner
 		var base: Vector3 = global_position + Vector3(0, 2.4 + 0.25 * bk, 0)
 		var sway := Vector3(0.12 * sin(t * 2.2 + float(e["phase"])), 0, 0)
-		b.global_position = base + Vector3(0, 0.55 * t, 0) * bk + sway * bk
+		var rise := maxf(minf(0.55 * t, 0.5), float(e.get("stack", 0.0)))
+		e["rise"] = lerpf(float(e.get("rise", rise)), rise, minf(1.0, delta * 10.0))
+		b.global_position = base + Vector3(0, float(e["rise"]) + float(e.get("h", 0.6)) * 0.5, 0) * bk + sway * bk
 		var grow := minf(1.0, t * 7.0)
 		var k := bk * (0.5 + 0.5 * grow)
 		if t > life - 0.14:
@@ -334,6 +357,7 @@ func _update_balloons(delta: float, cam_pos: Vector3) -> void:
 			var u := (t - (life - 0.14)) / 0.14
 			k *= 1.0 + 0.6 * u
 			b.modulate.a = 1.0 - u
+			(e["mat"] as ShaderMaterial).set_shader_parameter("alpha", 1.0 - u)
 			if not e.has("popped"):
 				e["popped"] = true
 				_pop_burst(b.global_position)
