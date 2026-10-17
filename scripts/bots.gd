@@ -649,16 +649,17 @@ func _pump(p, _delta: float) -> void:
 		if line.spike_t >= REACT_T[g.score.bot_tier]:
 			p.ai_slow = _tap()
 		return
-	# Tripped: back to the panel and hold A to restart
-	if line.tripped:
-		if walk(p, panel, 0.6):
-			p.ai_action = true
-		return
 	# The truck hand's waiting on the pressure: the belt remote (Y), on the move
+	# (before any restart: no point restarting into a repair)
 	if line.fix_i >= 0 and line._step_name() == "depress":
 		p.ai_slow = true
 		if line.pressure <= line.SAFE_BAR + 4.0:
 			_bark_once(p, "off%d" % line.stats.get("jobs", 0), "Pressure's off!")
+		return
+	# Tripped: back to the panel and hold A to restart
+	if line.tripped:
+		if walk(p, panel, 0.6):
+			p.ai_action = true
 		return
 	if line.live and line.idle_t > line.SET_TIME * 0.5 and not line.line_down():
 		if walk(p, panel, 0.6):

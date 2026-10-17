@@ -1043,6 +1043,9 @@ func _finish_job() -> void:
 ## Keeps a missed button from stalling the pour: the call goes out loud, then
 ## the crew get round it themselves (slower, and it costs points).
 func _watchdog(delta: float) -> void:
+	# Found but no repair under way (it was found mid another job): start it
+	if blocked and block_found and job_kind == "" and block_s >= 0:
+		_start_job("block", block_s)
 	if blocked and not block_found and job_kind == "":
 		_blocked_t += delta
 		if _blocked_t > FIND_AUTO:
@@ -1071,7 +1074,7 @@ func _watchdog(delta: float) -> void:
 				_bled = true
 				game.hud.toast("Nobody took the pressure off: the truck hand's bleeding it at the pump", 2.4)
 				game.score.award(op, -20, "Pressure left on")
-	elif _job_t > JOB_MAX:
+	if _job_t > JOB_MAX:
 		game.hud.toast("The leading hand jumps in to finish the joint", 2.2)
 		_force_finish()
 
@@ -1593,6 +1596,10 @@ func update(delta: float, in_pour: bool) -> void:
 	var target := pressure
 	if burst:
 		target = 0.0
+	elif reversing:
+		# (reversing bleeds it off even with the pump tripped, so a repair
+		# never waits on a restart)
+		target = 0.0
 	elif tripped:
 		target = minf(pressure, static_p)
 	elif spike_on:
@@ -1603,8 +1610,6 @@ func update(delta: float, in_pour: bool) -> void:
 		target = (55.0 + riser_top * 1.1) * (1.0 if speed_high else 0.72)
 		if fail_i >= 0:
 			target += 55.0 * wear
-	elif reversing:
-		target = 0.0
 	elif live:
 		target = minf(pressure, static_p + 8.0)
 	else:
