@@ -3865,6 +3865,10 @@ func _maybe_shot() -> void:
 		key = "align"
 	elif climb.active and climb.stage == "jack" and k == 9 and climb.lifted > 2.0:
 		key = "jack"
+	elif phase == "topout" and phase_t > 1.5 and "vista" in _shot_only and not _shots_taken.has("vista"):
+		key = "vista"
+	elif phase == "topout" and phase_t > 1.5 and "vista2" in _shot_only and not _shots_taken.has("vista2"):
+		key = "vista2"
 	elif phase == "topout" and phase_t > 0.6:
 		key = "topout"
 	if key != "" and not _shot_only.is_empty() and not (key in _shot_only):
@@ -3906,6 +3910,12 @@ func _maybe_shot() -> void:
 		_shot_cam = [crew.crew["poker"].global_position + Vector3(0, 1.0, 0), 6.0]
 	if key in ["pin", "strike", "align"] and climb._rigger != null and OS.get_cmdline_user_args().has("--closeshots"):
 		_shot_cam = [climb._rigger.global_position + Vector3(0, 0.9, 0), 5.0]
+	if key in ["vista", "vista2"]:
+		# Out over the river from the top: downstream to the Gateway Bridge,
+		# then upstream to the city
+		cam_yaw = 1.4 if key == "vista" else -0.99
+		cam_pitch = 0.08
+		_shot_cam = [Vector3(0, 30, 0), 60.0]
 	if key == "pause":
 		pause_menu.visible = true
 		pause_menu._side = "job"

@@ -31,7 +31,7 @@ static func build(root: Node3D) -> void:
 	ground.material_override = F.mat("grass")
 	root.add_child(ground)
 	root.add_child(F.box(Vector3(8000, 0.05, 9), F.mat("road"), Vector3(0, 0.03, 16), false))
-	root.add_child(F.box(Vector3(8000, 0.05, RIVER_W), F.mat("river"), Vector3(0, 0.04, RIVER_N - RIVER_W * 0.5), false))
+	root.add_child(F.box(Vector3(8000, 0.05, RIVER_W), _water(), Vector3(0, 0.04, RIVER_N - RIVER_W * 0.5), false))
 	# Rock revetment along both banks, and the RiverWalk path on the near one
 	root.add_child(F.box(Vector3(8000, 0.3, 2.0), F.mat("rock"), Vector3(0, 0.05, RIVER_N - 0.6), false))
 	root.add_child(F.box(Vector3(8000, 0.3, 2.0), F.mat("rock"), Vector3(0, 0.05, RIVER_S + 0.6), false))
@@ -76,7 +76,7 @@ static func _palm(root: Node3D, at: Vector3, rng: RandomNumberGenerator) -> void
 static func _fig(root: Node3D, at: Vector3, r: float) -> void:
 	root.add_child(F.cylinder(0.6, 3.2, F.mat("trunk"), at + Vector3(0, 1.6, 0), 8))
 	var crown := F.sphere(r, F.mat("tree"), at + Vector3(0, 3.0 + r * 0.45, 0))
-	crown.scale = Vector3(1.0, 0.55, 1.0)
+	crown.scale = Vector3(1.0, 0.8, 1.0)
 	root.add_child(crown)
 
 ## Hamilton Reach's other buildings: lower than Riverlight ("it rises above the
@@ -138,8 +138,8 @@ static func _golf(root: Node3D, rng: RandomNumberGenerator) -> void:
 			bunker.scale = Vector3(1.6, 1, 0.8)
 			root.add_child(bunker)
 		for i in 26:
-			var along := rng.randf_range(-0.5, 0.5) * f[2]
-			var across := (f[3] * 0.5 + rng.randf_range(6, 16)) * (1.0 if i % 2 == 0 else -1.0)
+			var along: float = rng.randf_range(-0.5, 0.5) * f[2]
+			var across: float = (f[3] * 0.5 + rng.randf_range(6, 16)) * (1.0 if i % 2 == 0 else -1.0)
 			var b := Basis(Vector3.UP, f[4])
 			trees.append(Vector3(f[0], 0, f[1]) + b * Vector3(along, 0, across))
 	_tree_field(root, trees, rng)
@@ -220,6 +220,15 @@ static func _add_multi(root: Node3D, mm: MultiMesh) -> void:
 	mi.material_override = _tinted()
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	root.add_child(mi)
+
+## The river: the Brisbane River's olive-brown, glossy enough to pick up the
+## sky so it reads as water from up high.
+static func _water() -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.albedo_color = F.COLORS["river"]
+	m.roughness = 0.12
+	m.metallic_specular = 0.8
+	return m
 
 static var _tint: StandardMaterial3D
 

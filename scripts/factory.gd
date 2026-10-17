@@ -26,7 +26,7 @@ const COLORS := {
 	"wet_full": Color("e9ecef"),
 	"grass": Color("6a8a4c"),
 	"road": Color("3c4048"),
-	"river": Color("66705a"),
+	"river": Color("4f6660"),
 	"tree": Color("4f8a4a"),
 	"trunk": Color("7a5a3a"),
 	"bridge": Color("c4c3bc"),
