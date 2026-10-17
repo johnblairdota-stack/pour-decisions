@@ -3718,7 +3718,7 @@ func _update_camera(delta: float) -> void:
 				guide.accent = UI.ROLE.get(v["p"].role, Color.WHITE)
 			# (a short view: the zoom-in shrinks to fit inside it)
 			for pass_i in 2:
-				gh = (guide.fit(sz.x) + 6.0) if slump_view else 0.0
+				gh = guide.fit(sz.x) if slump_view else 0.0
 				var k := minf(1.0, minf(region.size.y / (sz.y + gh), region.size.x / sz.x))
 				if k >= 0.999:
 					break
@@ -3786,6 +3786,8 @@ func _update_camera(delta: float) -> void:
 			lab.autowrap_mode = TextServer.AUTOWRAP_OFF
 			lab.custom_minimum_size.x = 0.0
 		(inset["chip_node"] as Control).reset_size()
+		# (the slump test's guide strip on top says it all: no name chip)
+		(inset["chip_node"] as Control).visible = not slump_view
 		# Framed in the colour of the job it's watching (the pump operator's colour, who fixes it, for a
 		# failing clamp or pipe)
 		var role_col: Color = UI.ROLE.get(p.role, Color.WHITE) if p != null else UI.ROLE["pump"]
