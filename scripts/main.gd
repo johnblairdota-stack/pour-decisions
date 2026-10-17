@@ -3518,12 +3518,25 @@ func _update_camera(delta: float) -> void:
 		var v: Dictionary = views[i]
 		# Sits just above the street band when it's open. A slump test gets a
 		# bigger box: the cone, the rod and the tape need reading
-		var sz := INSET * (1.6 if v["close"] and _slump_of(v["p"]) != null else 1.0)
-		box.offset_bottom = -16 - _band_h
-		box.offset_top = box.offset_bottom - sz.y
-		box.offset_right = right_x
-		box.offset_left = right_x - sz.x
-		right_x -= sz.x + 14.0
+		var slump_view: bool = v["close"] and _slump_of(v["p"]) != null
+		var sz := INSET * (1.6 if slump_view else 1.0)
+		if slump_view:
+			# The slump close-up goes in the bottom left corner of the screen
+			# (over the street band's road end, not over the deck)
+			box.anchor_left = 0.0
+			box.anchor_right = 0.0
+			box.offset_bottom = -34.0
+			box.offset_top = box.offset_bottom - sz.y
+			box.offset_left = 16.0
+			box.offset_right = 16.0 + sz.x
+		else:
+			box.anchor_left = 1.0
+			box.anchor_right = 1.0
+			box.offset_bottom = -16 - _band_h
+			box.offset_top = box.offset_bottom - sz.y
+			box.offset_right = right_x
+			box.offset_left = right_x - sz.x
+			right_x -= sz.x + 14.0
 		(inset["badge"] as Control).position = Vector2(6, sz.y - 76)
 		var p = v["p"]
 		var cam: Camera3D = inset["cam"]
