@@ -520,7 +520,7 @@ func _make_load() -> void:
 	add_child(load)
 	_hand_off = Vector2(randf_range(-2.6, 2.6), randf_range(-0.5, 2.0))
 	# Every section is picked off the laydown on the street: the crane drops
-	# its hook over it and waits for the slinger (the pump operator on climb
+	# its hook over it and waits for the slinger (the truck hand on climb
 	# days) to sling it before it lifts
 	_crane_ahead = false
 	load_state = "laydown"

@@ -1,7 +1,7 @@
 ## Crew bots: they work whichever jobs no person has taken, through the same
 ## stick and buttons a person uses. Each looks after its own job first, runs
 ## when its hand sign goes red, and helps out where a real crew would (the
-## pump operator runs parts up to the line hand when the line's down).
+## pump operator kills the pump on a spike and climbs up to fix the line).
 extends Node
 
 var game
@@ -452,9 +452,9 @@ func _hose_spot(anchor: Vector3) -> Vector3:
 			out = q
 	return out
 
-# ------------------------------------------------------------------ line hand
+# ------------------------------------------------------------------ truck hand and repairs
 
-## What part the line hand needs in hand for the repair ahead, or "".
+## What part the pump operator needs in hand for the repair ahead, or "".
 func part_needed() -> String:
 	var line = game.line
 	if game.phase != "pour":
@@ -471,88 +471,113 @@ func part_needed() -> String:
 func _line(p, delta: float) -> void:
 	var g = game
 	var line = g.line
+	# Climb days: sling the next section on the laydown for the crane (unless
+	# the rigger's stood waiting on pins: they go up first), and send the pins up
 	if g.climb.active:
-		_rigger(p)
+		if p.zone != "ground":
+			go(p, "ground", _gnd("sling"))
+			return
+		var pins_first: bool = g.climb.needs_pins() and g.climb.stage in ["roll", "pin"] and (p.held_kind == "pins" or not g.climb.pins_coming())
+		if g.climb.needs_sling() and not pins_first:
+			if walk(p, _gnd("sling"), 0.5):
+				p.ai_action = g.climb.hook_ready()
+			return
+		if g.climb.needs_pins():
+			if p.held_kind == "pins":
+				if walk(p, _gnd("haul"), 0.5):
+					p.ai_action = _tap()
+				return
+			if not g.climb.pins_coming() and p.held == null:
+				if walk(p, _gnd("pins"), 0.5):
+					p.ai_action = _tap()
+				return
+		walk(p, _gnd("sling") + Vector3(1.2, 0, 0.8), 0.6)
 		return
 	# Washout: open the release valve and blow the water back
 	if g.phase == "pour" and g.ops.stage == "valve":
 		if go(p, "ground", _gnd("valve"), 0.5):
 			p.ai_action = true
 		return
-	var job := ""
-	if g.phase == "pour" and (line.fail_i >= 0 or line.fix_i >= 0 or (line.blocked and not line.block_found)):
-		job = "fix"
+	if p.zone != "ground":
+		go(p, "ground", _gnd("bay") + Vector3(0.7, 0, 0.8))
+		return
+	if p.held != null:
+		p.ai_leave = _tap()
+	elif g.phase == "pour":
+		_bay(p, false)
+	else:
+		walk(p, _gnd("bay") + Vector3(0.7, 0, 0.8), 0.6)
+
+## The pump operator up the riser: grab the part, climb to the joint, take the
+## pressure off on the belt remote and fix it. True while there's a repair.
+func _repair(p, delta: float) -> bool:
+	var g = game
+	var line = g.line
+	if g.phase != "pour" or not (line.fail_i >= 0 or line.fix_i >= 0 or (line.blocked and not line.block_found)):
+		return false
 	if g.let_burst and line.fail_i >= 0 and not line.burst:
-		job = ""
-	var part := part_needed() if job == "fix" else ""
+		return false
+	var part := part_needed()
 	var coming: bool = part != "" and line.part_coming(part, p)
-	# The truck hand grabs their own part on the way to the joint (anyone can
-	# still send one up the haul rope for them)
+	# They grab their own part on the way to the joint (anyone can still send
+	# one up the haul rope)
 	var need_fetch: bool = part != "" and p.held_kind != part and not coming
 	var target_j: int = line.fix_i if line.fix_i >= 0 else line.fail_i
-	if job == "fix":
-		_bark_once(p, "job%d" % line.stats.get("jobs", 0), "On it!")
+	var depress: bool = line.fix_i >= 0 and line._step_name() == "depress"
+	if depress:
+		p.ai_slow = true   # belt remote: pressure off, on the way
+	_bark_once(p, "job%d" % line.stats.get("jobs", 0), "On it!")
 	match p.zone:
 		"deck":
-			if job == "fix" and g.kit == "tower" and not need_fetch:
+			if g.kit == "tower" and not need_fetch:
 				if walk(p, _deck("ladder"), 0.5):
 					p.ai_action = _tap()
 			else:
 				go(p, "ground", _gnd("ladder_g") + Vector3(0.2, 0, 1.5))
 		"ground":
-			if job == "fix" and need_fetch:
+			if need_fetch:
 				if p.held != null:
 					p.ai_leave = _tap()
-					return
+					return true
 				var st: Vector3 = g.GROUND_STATIONS["spares" if part == "clamp" else "rack"]["pos"]
 				if walk(p, st, 0.5):
 					p.ai_action = _tap()
-			elif job == "fix":
-				if g.kit == "tower":
-					if walk(p, _gnd("ladder_g"), 0.5):
-						p.ai_action = _tap()
-				else:
-					if line.blocked and not line.block_found and line.fix_i < 0:
-						target_j = int(g.phase_t / 1.5) % line.clamps.size()
-					var jp: Vector3 = line.clamps[maxi(0, target_j)]["pos"]
-					if walk(p, Vector3(jp.x, 0, jp.z - 1.5), 0.4):
-						_fix(p)
-			elif p.held != null:
-				p.ai_leave = _tap()
-			elif g.phase == "pour":
-				# Nothing broken: run the truck bay
-				_bay(p, false)
+			elif g.kit == "tower":
+				if walk(p, _gnd("ladder_g"), 0.5):
+					p.ai_action = _tap()
 			else:
-				walk(p, _gnd("bay") + Vector3(0.7, 0, 0.8), 0.6)
+				if line.blocked and not line.block_found and line.fix_i < 0:
+					target_j = int(g.phase_t / 1.5) % line.clamps.size()
+				var jp: Vector3 = line.clamps[maxi(0, target_j)]["pos"]
+				if walk(p, Vector3(jp.x, 0, jp.z - 1.5), 0.4) and not depress:
+					_fix(p)
 		"ladder":
 			var want_y := 0.0
-			if job == "fix" and need_fetch:
+			if need_fetch:
 				want_y = 0.0
-			elif job == "fix":
-				if line.blocked and not line.block_found and line.job_kind == "":
-					# Tap the riser every metre and a half, top down
-					if _tap_y < 0.0:
-						_tap_y = line.riser_top - 2.0
-					want_y = _tap_y - 1.0
-					if absf(p.position.y - clampf(want_y, 0.0, maxf(0.0, line.riser_top - 1.6))) < 0.1:
-						p.ai_action = fmod(g.phase_t, 0.4) < 0.1
-						if fmod(g.phase_t, 0.4) < delta:
-							_tap_y -= 1.5
-							if _tap_y < 0.5:
-								_tap_y = line.riser_top - 2.0
-				else:
-					_tap_y = -1.0
-					want_y = line.clamps[maxi(0, target_j)]["pos"].y - 1.0
+			elif line.blocked and not line.block_found and line.job_kind == "":
+				# Tap the riser every metre and a half, top down
+				if _tap_y < 0.0:
+					_tap_y = line.riser_top - 2.0
+				want_y = _tap_y - 1.0
+				if absf(p.position.y - clampf(want_y, 0.0, maxf(0.0, line.riser_top - 1.6))) < 0.1:
+					p.ai_action = fmod(g.phase_t, 0.4) < 0.1
+					if fmod(g.phase_t, 0.4) < delta:
+						_tap_y -= 1.5
+						if _tap_y < 0.5:
+							_tap_y = line.riser_top - 2.0
+			else:
+				_tap_y = -1.0
+				want_y = line.clamps[maxi(0, target_j)]["pos"].y - 1.0
 			want_y = clampf(want_y, 0.0, maxf(0.0, line.riser_top - 1.6))
 			var dy: float = want_y - p.position.y
 			if absf(dy) > 0.06:
 				p.ai_move = Vector2(0, -signf(dy) * clampf(absf(dy) * 4.0, 0.3, 1.0))
-			elif job == "fix" and not need_fetch and line.joint_near(p) >= 0:
-				if line._step_name() == "depress":
-					_bark_once(p, "dep%d" % line.stats.get("jobs", 0), "Drop the pressure!")
+			elif not need_fetch and line.joint_near(p) >= 0 and not depress:
 				_fix(p)
-			elif job != "fix" or need_fetch:
+			elif need_fetch:
 				p.ai_leave = _tap()
+	return true
 
 func _fix(p) -> void:
 	var line = game.line
@@ -602,7 +627,7 @@ func _rigger(p) -> void:
 
 # ------------------------------------------------------------------ pump operator
 
-func _pump(p, _delta: float) -> void:
+func _pump(p, delta: float) -> void:
 	var g = game
 	var line = g.line
 	# Start-up and washout jobs at the panel come first
@@ -610,26 +635,23 @@ func _pump(p, _delta: float) -> void:
 		if go(p, "ground", _gnd("panel"), 0.5):
 			p.ai_action = true
 		return
+	# Climb days: rigger on the climbing frame
+	if g.climb.active:
+		_rigger(p)
+		return
+	# Eyes on the gauge. A spike: kill it (A), as quick as this tier of bot
+	# reacts, wherever they are
+	if g.phase == "pour" and line.spike_on:
+		if line.spike_t >= REACT_T[g.score.bot_tier]:
+			p.ai_action = _tap()
+		return
+	# Something broken on the line: up the riser to fix it
+	if _repair(p, delta):
+		return
+	_tap_y = -1.0
 	if p.zone != "ground":
 		go(p, "ground", _gnd("panel") + Vector3(-4.6, 0, 0.7))
 		return
-	# Climb days: sling the next section on the laydown for the crane (unless
-	# the rigger's stood waiting on pins: they go up first)
-	var pins_first: bool = g.climb.needs_pins() and g.climb.stage in ["roll", "pin"] and (p.held_kind == "pins" or not g.climb.pins_coming())
-	if g.climb.needs_sling() and not pins_first:
-		if walk(p, _gnd("sling"), 0.5):
-			p.ai_action = g.climb.hook_ready()
-		return
-	# ...and send a bag of pins up the haul rope to the rigger
-	if g.climb.needs_pins():
-		if p.held_kind == "pins":
-			if walk(p, _gnd("haul"), 0.5):
-				p.ai_action = _tap()
-			return
-		if not g.climb.pins_coming() and p.held == null:
-			if walk(p, _gnd("pins"), 0.5):
-				p.ai_action = _tap()
-			return
 	if g.phase == "setup":
 		for i in 4:
 			if g.outriggers[i] < 1.0:
@@ -643,18 +665,6 @@ func _pump(p, _delta: float) -> void:
 		return
 	if g.phase != "pour":
 		walk(p, panel + Vector3(0.6, 0, 0.9), 0.6)
-		return
-	# Eyes on the gauge. A spike: kill it, as quick as this tier of bot reacts
-	if line.spike_on:
-		if line.spike_t >= REACT_T[g.score.bot_tier]:
-			p.ai_slow = _tap()
-		return
-	# The truck hand's waiting on the pressure: the belt remote (Y), on the move
-	# (before any restart: no point restarting into a repair)
-	if line.fix_i >= 0 and line._step_name() == "depress":
-		p.ai_slow = true
-		if line.pressure <= line.SAFE_BAR + 4.0:
-			_bark_once(p, "off%d" % line.stats.get("jobs", 0), "Pressure's off!")
 		return
 	# Tripped: back to the panel and hold A to restart
 	if line.tripped:

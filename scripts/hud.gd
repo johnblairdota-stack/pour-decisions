@@ -22,6 +22,7 @@ const MUTED := UI.MUTED
 const RED := UI.RED
 
 var _root: Control
+var _top: Control          # the report and the briefing, above the street band
 # task
 var task_box: PanelContainer
 var task_chip: Label
@@ -98,6 +99,15 @@ func _ready() -> void:
 	_root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_root)
+	# The slab report and the briefing sit on their own layer, above the
+	# street band and the pop-up cameras, so a split screen never hides them
+	var top_layer := CanvasLayer.new()
+	top_layer.layer = 5
+	add_child(top_layer)
+	_top = Control.new()
+	_top.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_top.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	top_layer.add_child(_top)
 
 	# --- What's happening now, top centre
 	task_box = UI.panel(UI.GLASS, 12, UI.EDGE, 1, Vector4(14, 8, 14, 10))
@@ -301,7 +311,7 @@ func _ready() -> void:
 	# --- Slab report
 	card = UI.panel(UI.GLASS_SOLID, 16, UI.YELLOW, 2, Vector4(24, 18, 24, 18))
 	card.custom_minimum_size = Vector2(620, 0)
-	_root.add_child(card)
+	_top.add_child(card)
 	UI.place(card, Vector2(0.5, 0.5), Vector2(0, 30))
 	var cv := VBoxContainer.new()
 	cv.add_theme_constant_override("separation", 8)
@@ -346,7 +356,7 @@ func _ready() -> void:
 	# --- Pre-pour briefing
 	brief = UI.panel(UI.GLASS_SOLID, 16, UI.EDGE, 2, Vector4(22, 16, 22, 18))
 	brief.custom_minimum_size = Vector2(520, 0)
-	_root.add_child(brief)
+	_top.add_child(brief)
 	UI.place(brief, Vector2(0.5, 0.5), Vector2(0, 40))
 	var bv2 := VBoxContainer.new()
 	bv2.add_theme_constant_override("separation", 8)
@@ -655,7 +665,7 @@ func dismiss_card() -> void:
 		_card_hold = false
 		_card_t = 0.4
 
-## The truck's docket after a slump test, for the pump operator to read:
+## The truck's docket after a slump test, for the truck hand to read:
 ## the measured slump against the mix's spec, how long since it was batched
 ## against the 90 minute limit, and the water the plant held back that may be
 ## added on site. `d` is {slump, age, help, right}; empty hides it.
@@ -768,7 +778,7 @@ class Gauge extends Control:
 		draw_line(c, tip, Color.WHITE, 3.5, true)
 		draw_circle(c, 5.0, Color.WHITE)
 		var font := get_theme_default_font()
-		var txt := "SPIKE!  Y: KILL IT" if spike else ("TRIPPED · RESTART" if tripped else "%d bar" % int(bar))
+		var txt := "SPIKE!  A: KILL IT" if spike else ("TRIPPED · RESTART" if tripped else "%d bar" % int(bar))
 		var col := Color("ff6b6b") if spike else (Color("ffc72c") if tripped else Color("9fb0c6"))
 		var fs := 15
 		var tw := font.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
