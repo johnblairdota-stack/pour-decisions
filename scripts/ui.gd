@@ -32,7 +32,7 @@ const ROLE_HOW := {
 		"climb": [["stick", "whistle the crane toward the ghost"], ["A", "hold to lower it in"], ["X", "hoist"], ["Y", "\"slowly\" (twice: stop)"]],
 	},
 	"line": {
-		"pour": [["A", "wave a truck back"], ["A", "slump test: scoop, fill 3 layers, hold to rod and let go on 25, strike off, lift steady, read the tape"], ["A", "use the load"], ["X", "add the water held back (then test again)"], ["B", "send it back"]],
+		"pour": [["A", "wave a truck back"], ["A", "slump test: hold for each step (it stops itself), lift steady, then press to read the tape"], ["A", "use the load"], ["X", "add the water held back (then test again)"], ["B", "send it back"]],
 		"climb": [["A", "hold at the LAYDOWN to sling the next section"], ["A", "a PIN BAG from the base, up the HAUL ROPE"]],
 	},
 	"pump": {

@@ -77,6 +77,12 @@ var _bin_fill: MeshInstance3D
 var steam: CPUParticles3D
 var water_fx: CPUParticles3D
 var tank: Node3D
+var tank_label: Label3D
+var _tank_water: MeshInstance3D
+var _tank_ring: MeshInstance3D
+var _tank_ring_mat: StandardMaterial3D
+var _tank_arrow: Label3D
+var _tank_t := 0.0
 var _spill_t := 0.0
 
 func setup(owner_game) -> void:
@@ -115,15 +121,73 @@ func setup(owner_game) -> void:
 	sm.material = stm
 	steam.mesh = sm
 	game.add_child(steam)
-	# The settling tank by the pump, where the washout water runs back to
+	# The settling tank by the pump, where the washout water runs back to:
+	# a bright blue tank on a big blue ground ring (seen through trucks and
+	# crowds, like a station spot), a hose from the release valve into it,
+	# and a name over it that's scaled like a station's
 	tank = Node3D.new()
-	tank.add_child(F.box(Vector3(1.8, 1.1, 1.1), F.mat("navy"), Vector3(0, 0.55, 0)))
-	tank.add_child(F.box(Vector3(1.6, 0.06, 0.9), F.color_mat(Color("5aa6d6")), Vector3(0, 1.0, 0)))
-	var tl := F.label3d("SETTLING TANK", 26, Color("9fc6e6"))
-	tl.position = Vector3(0, 1.6, 0)
-	tank.add_child(tl)
+	var blue := Color("3fa7ff")
+	tank.add_child(F.box(Vector3(1.9, 1.2, 1.2), F.color_mat(Color("d9dde2")), Vector3(0, 0.6, 0)))
+	tank.add_child(F.box(Vector3(1.94, 0.22, 1.24), F.color_mat(blue), Vector3(0, 0.95, 0)))
+	_tank_water = F.box(Vector3(1.7, 0.06, 1.0), F.color_mat(Color("5aa6d6"), false, Color("2d6fa8")), Vector3(0, 0.75, 0))
+	tank.add_child(_tank_water)
+	_tank_ring = MeshInstance3D.new()
+	var tr := TorusMesh.new()
+	tr.inner_radius = 1.45
+	tr.outer_radius = 1.75
+	tr.rings = 32
+	tr.ring_segments = 4
+	_tank_ring.mesh = tr
+	_tank_ring_mat = StandardMaterial3D.new()
+	_tank_ring_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_tank_ring_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_tank_ring_mat.albedo_color = Color(blue, 0.7)
+	_tank_ring.material_override = _tank_ring_mat
+	_tank_ring.scale = Vector3(1, 0.1, 1)
+	_tank_ring.position.y = 0.05
+	_tank_ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_tank_ring.layers = 4
+	var xr := MeshInstance3D.new()
+	xr.mesh = tr
+	var xm := StandardMaterial3D.new()
+	xm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	xm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	xm.no_depth_test = true
+	xm.render_priority = -1
+	xm.albedo_color = Color(blue, 0.25)
+	xr.material_override = xm
+	xr.layers = 4
+	xr.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_tank_ring.add_child(xr)
+	tank.add_child(_tank_ring)
+	# A bobbing arrow over it while the water's to be blown back
+	_tank_arrow = F.label3d("▼", 72, blue)
+	_tank_arrow.layers = 2
+	_tank_arrow.position = Vector3(0, 2.9, 0)
+	_tank_arrow.visible = false
+	tank.add_child(_tank_arrow)
 	tank.position = game.GROUND_STATIONS["valve"]["pos"] + Vector3(1.9, 0, -0.5)
 	game.add_child(tank)
+	tank_label = F.label3d("SETTLING TANK", 34, Color("6cc3ff"))
+	tank_label.layers = 2
+	tank_label.render_priority = 9
+	tank_label.position = tank.position + Vector3(0, 1.9, 0)
+	game.add_child(tank_label)
+	# The hose from the release valve over the tank's lip
+	var vp: Vector3 = game.GROUND_STATIONS["valve"]["pos"] + Vector3(0.3, 0.55, 0)
+	var lip := tank.position + Vector3(-0.7, 1.25, 0.1)
+	var hose := MeshInstance3D.new()
+	var hm := CylinderMesh.new()
+	hm.top_radius = 0.07
+	hm.bottom_radius = 0.07
+	hm.height = vp.distance_to(lip)
+	hm.radial_segments = 8
+	hose.mesh = hm
+	hose.material_override = F.color_mat(blue)
+	game.add_child(hose)
+	hose.position = (vp + lip) * 0.5
+	hose.look_at(lip + Vector3(0, 0.0001, 0), Vector3.UP)
+	hose.rotate_object_local(Vector3.RIGHT, PI * 0.5)
 	water_fx = CPUParticles3D.new()
 	water_fx.amount = 40
 	water_fx.lifetime = 0.6
@@ -339,6 +403,15 @@ func update(delta: float) -> void:
 		steam.global_position = game.discharge()
 	if stage != "valve":
 		water_fx.emitting = false
+	# The tank calls out while the washout water's to be blown back into it
+	_tank_t += delta
+	var call := stage == "valve"
+	_tank_arrow.visible = call
+	_tank_arrow.position.y = 2.9 + 0.25 * sin(_tank_t * 5.0)
+	_tank_ring_mat.albedo_color.a = (0.55 + 0.4 * sin(_tank_t * 6.0)) if call else 0.7
+	# (the water in it rises as the washout comes back)
+	var lvl := 1.0 if washed else (hold if call else 0.0)
+	_tank_water.position.y = 0.75 + 0.35 * lvl
 	if not busy():
 		return
 	step_t += delta

@@ -18,6 +18,7 @@ const CoachScript := preload("res://scripts/coach.gd")
 const Icons := preload("res://scripts/icons.gd")
 const Settings := preload("res://scripts/settings.gd")
 const CueBadge := preload("res://scripts/cue_badge.gd")
+const SlumpGuide := preload("res://scripts/slump_guide.gd")
 const F := preload("res://scripts/factory.gd")
 const PlayerScript := preload("res://scripts/player.gd")
 const HudScript := preload("res://scripts/hud.gd")
@@ -1226,7 +1227,11 @@ func _build_insets() -> void:
 		badge.position = Vector2(6, INSET.y - 76)
 		badge.visible = false
 		box.add_child(badge)
-		insets.append({"box": box, "view": view, "cam": cam, "label": lab, "badge": badge, "frame": fsb, "chip": csb, "icon": chip_icon})
+		# The slump test's step guide, just above its close-up
+		var guide := SlumpGuide.new()
+		guide.visible = false
+		layer.add_child(guide)
+		insets.append({"box": box, "view": view, "cam": cam, "label": lab, "badge": badge, "frame": fsb, "chip": csb, "icon": chip_icon, "chip_node": chip, "guide": guide})
 	_build_gauge_pop(layer)
 
 ## The gauge close-up: a small camera on the pump's pressure gauge that pops
@@ -1322,6 +1327,9 @@ func _update_gauge_pop() -> void:
 		if not b.visible:
 			continue
 		var other := b.get_global_rect().grow(10.0)
+		var gd: Control = inset["guide"]
+		if gd.visible:
+			other = other.merge(gd.get_global_rect().grow(10.0))
 		if r.intersects(other):
 			var left_x := other.position.x - sz.x
 			var right_x := other.end.x
@@ -2365,6 +2373,8 @@ func _scale_world_labels() -> void:
 		var l: Label3D = stations[key]["label"]
 		if l and l.is_inside_tree():
 			l.scale = Vector3.ONE * _label_k(l.global_position) * wt
+	if ops and ops.tank_label:
+		ops.tank_label.scale = Vector3.ONE * _label_k(ops.tank_label.global_position) * wt
 	# The pressure reading over the pump's gauge: by the street band's camera
 	# while the screen is split, a touch bigger than a station name
 	if line and line.gauge_label:
@@ -3621,6 +3631,7 @@ func _update_camera(delta: float) -> void:
 		var inset: Dictionary = insets[i]
 		var box: SubViewportContainer = inset["box"]
 		box.visible = i < views.size() and not skyline
+		(inset["guide"] as Control).visible = false
 		if not box.visible:
 			inset["key"] = null
 			continue
@@ -3647,6 +3658,7 @@ func _update_camera(delta: float) -> void:
 			box.offset_left = right_x - sz.x
 			right_x -= sz.x + 14.0
 		(inset["badge"] as Control).position = Vector2(6, sz.y - 76)
+		inset["badge"].max_w = sz.x - 12.0
 		var p = v["p"]
 		var cam: Camera3D = inset["cam"]
 		var target: Vector3 = v["focus"]
@@ -3675,6 +3687,14 @@ func _update_camera(delta: float) -> void:
 			lab.text = v.get("label", _who(p) if p != null else "")
 			if sl != null:
 				lab.text = line.slump.caption(sl)
+				var guide = inset["guide"]
+				guide.steps = line.slump.GUIDE.map(func(g): return g[1])
+				guide.at = line.slump.guide_index(sl)
+				guide.text = line.slump.guide_text(sl)
+				guide.accent = UI.ROLE.get(p.role, Color.WHITE) if p != null else Color.WHITE
+				var gh: float = guide.fit(sz.x)
+				guide.position = Vector2(box.offset_left, get_viewport().get_visible_rect().size.y + box.offset_top - 6.0 - gh)
+				guide.visible = true
 		else:
 			eye = target + Vector3(-4.0, 8.5, -9.0)
 			if p.zone == "hoist":
@@ -3683,6 +3703,16 @@ func _update_camera(delta: float) -> void:
 				eye = target + Vector3(6.5, 1.0, 5.5)
 			var where := {"ladder": "  ·  %d m up" % int(p.position.y), "hoist": "  ·  %d m" % int(p.position.y)}
 			lab.text = _who(p) + where.get(p.zone, "")
+		# The name chip wraps rather than running off the side of the box
+		var cap_w := sz.x - 44.0
+		var cap_font: Font = lab.get_theme_font("font")
+		if cap_font.get_string_size(lab.text, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x > cap_w:
+			lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			lab.custom_minimum_size.x = cap_w
+		else:
+			lab.autowrap_mode = TextServer.AUTOWRAP_OFF
+			lab.custom_minimum_size.x = 0.0
+		(inset["chip_node"] as Control).reset_size()
 		# Framed in the colour of the job it's watching (the pump operator's colour, who fixes it, for a
 		# failing clamp or pipe)
 		var role_col: Color = UI.ROLE.get(p.role, Color.WHITE) if p != null else UI.ROLE["pump"]
@@ -3740,6 +3770,8 @@ func _maybe_shot() -> void:
 		key = "startup"
 	elif "washout" in _shot_only and ops != null and ops.stage == "push" and ops.left < ops.WATER * 0.8 and not _shots_taken.has("washout"):
 		key = "washout"
+	elif "tank" in _shot_only and ops != null and ops.stage == "valve" and ops.hold > 0.4 and not _shots_taken.has("tank"):
+		key = "tank"
 	elif "hose" in _shot_only and phase == "pour" and hose_holder != null and line.pumping and _filled_ratio() > 0.3 and not _shots_taken.has("hose"):
 		key = "hose"
 	elif "pinbag" in _shot_only and line != null and line.hook["kind"] == "pins" and line.hook["y"] > 4.0 and not _shots_taken.has("pinbag"):
