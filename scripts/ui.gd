@@ -41,7 +41,7 @@ const ROLE_HOW := {
 	},
 	"poker": {
 		"pour": [["A", "pick up the poker"], ["A", "hold in the purple until it's glossy"], ["Y", "call the boom over here"], ["B", "put it down"]],
-		"climb": [["A", "hold the tag line to stop the swing"], ["stick", "walk with the load"]],
+		"climb": [["A", "hold once the load is over the deck: grab the tag line and walk it back"], ["stick", "walk with the load"]],
 	},
 	"hose": {
 		"pour": [["A", "take the end hose (under the boom)"], ["stick", "walk it to where the concrete's wanted"], ["A", "hold: call the pump on (let go: off)"], ["A", "radio it the moment you see it: the dragon's breathing · concrete's on"], ["B", "let go of the hose"]],

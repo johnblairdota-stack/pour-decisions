@@ -703,9 +703,13 @@ func _poker(p, _delta: float) -> void:
 	var g = game
 	var wy: float = g.work_y
 	if g.climb.active:
-		# The tag line, from the tag spot on the walkway
+		# The tag line: wait at the tag spot, then hold A once the load's over
+		# the deck (the run out to the line and back is the job's own)
+		if p.busy == "tag":
+			p.ai_action = true
+			return
 		if go(p, "deck", _deck("tag"), 0.45):
-			p.ai_action = g.climb.stage in ["fly", "guide"]
+			p.ai_action = g.climb.tag_ready() and g.climb.tag_hand == null
 		return
 	if g.phase != "pour":
 		if p.busy == "":

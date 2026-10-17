@@ -44,6 +44,7 @@ var _sweat: CPUParticles3D
 var _phase := randf() * 6.0
 var _bounce := 0.0
 var _moving := false
+var run_to := Vector3.INF    # a job running this player somewhere on its own (set each frame)
 
 # Virtual input: the test bot and phone controllers drive these instead of
 # the keyboard, so every input source goes through the same code paths.
@@ -584,7 +585,12 @@ func walk(delta: float, walkable: Callable, cam_yaw: float) -> void:
 	if (busy != "" and busy != "hose") or zone == "ladder" or zone == "hoist":
 		v = Vector2.ZERO
 	var dir := Vector3(v.x, 0, v.y).rotated(Vector3.UP, cam_yaw)
-	var sp := speed * (0.7 if held_kind == "pipe" else 1.0) * (1.3 if hurry else 1.0) * (1.0 - 0.35 * weary) * pace
+	var run := run_to != Vector3.INF
+	if run:
+		var to := Vector3(run_to.x - position.x, 0, run_to.z - position.z)
+		dir = to.normalized() if to.length() > 0.15 else Vector3.ZERO
+	run_to = Vector3.INF
+	var sp := speed * (0.7 if held_kind == "pipe" else 1.0) * (1.3 if hurry or run else 1.0) * (1.0 - 0.35 * weary) * pace
 	if dir.length() > 0.05:
 		var step := dir * sp * delta
 		var p := position

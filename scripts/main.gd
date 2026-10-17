@@ -2614,7 +2614,7 @@ func _jobs() -> Array:
 			has[q.busy] = true
 		if climb.stage in ["fly", "guide"] and not has.has("dogman") and climb.dog_bot == null:
 			add.call("dogman", st_pos.call("dogman") + up, 1 if climb.stage == "guide" else 0, "boom")
-		if climb.stage == "guide" and climb._tagger == null:
+		if climb.tag_ready() and climb.tag_hand == null:
 			add.call("tag", st_pos.call("tag") + up, 0, "poker")
 		if climb.stage in ["jack", "roll", "pin"] and not has.has("rigger"):
 			add.call("rigger", st_pos.call("rigger") + up, 1, "line")

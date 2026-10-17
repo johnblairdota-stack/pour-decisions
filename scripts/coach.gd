@@ -128,7 +128,9 @@ func _tip(p) -> String:
 					return "Push the stick toward the green ghost: each push is a whistle to the crane. Hold A to lower it in. Y means \"slowly\"."
 			"poker":
 				if climb.stage in ["fly", "guide"]:
-					return "At TAG LINE, hold A to stop the load spinning."
+					if climb.tag_hand == p:
+						return "Keep holding A: you've got the tag line. Let go and you drop it."
+					return "Wait at TAG LINE. Once the load's up over the deck, hold A: you run out, grab the line and walk it back."
 			"line":
 				if p.busy != "rigger":
 					return "Go to RIGGER and press A to work the climbing frame."

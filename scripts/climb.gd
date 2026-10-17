@@ -148,6 +148,15 @@ var _wreck_landed := -1.0
 var align_arrow: Node3D
 var dog_bot = null          # a crew bot acting as dogman this frame
 var _tagger = null          # whoever held the tag line during this lift
+# The tag line: only once the crane has the load up over the deck. The hand
+# runs out to the dangling line, grabs it, and walks it back to the tag spot,
+# holding A all the while; let go and the line drops.
+const TAG_REACH := 7.0      # m from the tag spot the line has to hang before anyone runs for it
+const TAG_GRAB := 1.1       # m: close enough to grab the line
+var tag_hand = null         # who's on the tag line right now
+var _tag_sub := ""          # "fetch" running out to the line, "hold" walking it back or holding at the spot
+var _tag_best := INF        # closest they've got to the line so far
+var _tag_stuck := 0.0
 
 # Climb days for the street and the screeder: slinging the next section on the
 # laydown, and hauling up the pin sets (each pin with its R-clip on, one piece)
@@ -746,6 +755,8 @@ func update(delta: float) -> void:
 	_update_pins(delta)
 	if stage != "fly" and stage != "guide":
 		tagging = false
+	if tag_hand != null and (not is_instance_valid(tag_hand) or tag_hand.busy != "tag"):
+		tag_hand = null
 	# The tag line goes on before the lift and hangs off the load all the way
 	# up; the hand on the landing takes it as the load comes within reach
 	var flying: bool = load != null and crane_on and load_state != "laydown"
@@ -1859,6 +1870,26 @@ func work_focus(p) -> Vector3:
 
 # ------------------------------------------------------------------ players
 
+## The tag line's there to take: the crane has the load up higher than the deck
+## and near enough the tag spot to run out to.
+func tag_ready() -> bool:
+	if load == null or not (stage in ["fly", "guide"]) or load_state != "" or not crane_busy():
+		return false
+	if _load_bottom() < game.work_y + 0.5:
+		return false
+	var c := _tag_corner()
+	var spot: Vector3 = game.deck_pos("tag")
+	return Vector2(c.x - spot.x, c.z - spot.z).length() < TAG_REACH
+
+func _tag_corner() -> Vector3:
+	return load.global_transform * Vector3(LW * 0.5, 0.3, LW * 0.5)
+
+func _drop_tag(p) -> void:
+	p.busy = ""
+	if tag_hand == p:
+		tag_hand = null
+	_tag_sub = ""
+
 ## Which station the climb needs someone on right now ("" if none).
 func needed() -> Array:
 	var out := []
@@ -1876,6 +1907,7 @@ func needed() -> Array:
 	if stage == "guide":
 		if not has_dogman:
 			out.append("dogman")
+	if tag_ready() and tag_hand == null:
 		out.append("tag")
 	return out
 
@@ -1979,6 +2011,45 @@ func handle_player(p, delta: float, near: String, act: String, alt: String, leav
 				p.set_arms(-0.3, -0.3)
 		return true
 
+	if p.busy == "tag":
+		# Let go of A and the line drops: they're back in charge wherever they stand
+		if not active or load == null or not (stage in ["fly", "guide"]) or not p.action_held():
+			_drop_tag(p)
+			return false
+		tag_hand = p
+		var corner := _tag_corner()
+		if _tag_sub == "fetch":
+			p.run_to = Vector3(corner.x, p.position.y, corner.z)
+			p.face(corner)
+			p.cue("action", "running for the line", -1.0, true)
+			var d := Vector2(corner.x - p.position.x, corner.z - p.position.z).length()
+			if d < _tag_best - 0.05:
+				_tag_best = d
+				_tag_stuck = 0.0
+			else:
+				_tag_stuck += delta
+			# Grab it, or as near as the deck edge lets them get
+			if d < TAG_GRAB or _tag_stuck > 0.3:
+				_tag_sub = "hold"
+				p.bounce()
+				game.sfx.hit("tink")
+			return true
+		# Holding the line, walking it back to the tag spot
+		var spot: Vector3 = game.deck_pos("tag")
+		var home := Vector2(spot.x - p.position.x, spot.z - p.position.z).length() < 0.3
+		if not home:
+			p.run_to = Vector3(spot.x, p.position.y, spot.z)
+		else:
+			p.face(load.global_position)
+		tagging = true
+		tag_strength = 1.1 if home else 0.8
+		_tagger = p
+		tag_from = p.global_position + Vector3(0, 0.9, 0)
+		p.set_arms(-1.6, -1.6)
+		p.cue("action", "hold the tag line", 1.0, true)
+		p.gold(not p.bot and home)
+		return true
+
 	if p.busy == "dogman":
 		if not active or not (stage in ["fly", "guide"]) or p.leave_pressed():
 			p.busy = ""
@@ -2071,14 +2142,18 @@ func handle_player(p, delta: float, near: String, act: String, alt: String, leav
 			return true
 		"tag":
 			if stage in ["fly", "guide"] and load:
-				p.cue("action", "tag line", 1.0 if p.action_held() else -1.0, true)
-				if p.action_held():
-					tagging = true
-					tag_strength = 1.1
-					_tagger = p
-					tag_from = p.global_position + Vector3(0, 0.9, 0)
-					p.face(load.global_position)
-					p.set_arms(-1.6, -1.6)
+				if not tag_ready() or tag_hand != null:
+					p.cue("action", "tag line", -1.0, false)
+					p.say("wait till it's over the deck" if tag_hand == null else "%s has the line" % tag_hand.char_name)
+				else:
+					p.cue("action", "hold: grab the tag line", -1.0, true)
+					p.gold(not p.bot)
+					if p.action_held():
+						p.busy = "tag"
+						tag_hand = p
+						_tag_sub = "fetch"
+						_tag_best = INF
+						_tag_stuck = 0.0
 			return true
 	return false
 
