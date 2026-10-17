@@ -26,7 +26,7 @@ The phone becomes a controller: a stick on the left and **A B X Y** on the right
 
 **Full screen on the phone.** On Android the controller goes full screen on the first tap (and a corner button puts it back if you swipe out). An iPhone doesn't let a web page do that, so the join screen says how: tap Share, then **Add to Home Screen**, and open Pour Decisions from the home screen. It then opens like an app, sideways, with no browser bars, and joins the same way.
 
-On Windows the first run asks whether Godot may use the network: allow it on **private networks**, or the phones can't connect.
+On Windows the first run asks whether Godot may use the network: allow it on **private networks**, or the phones can't connect. If the page won't load on the phone: check the phone's on the same Wi-Fi (not mobile data), allow Godot through the Windows firewall for private networks, and try the other addresses the Join in card lists (a computer with VirtualBox, Hyper-V or a VPN has more than one, and the game picks the Wi-Fi or Ethernet one first). If something else on the computer has ports 8080 and 8081, the game moves to the next free pair and shows that address.
 
 ## Controls
 

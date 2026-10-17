@@ -397,9 +397,12 @@ func _pop_burst(at: Vector3) -> void:
 
 ## True while this person is touching their own keys or pad right now.
 func raw_active() -> bool:
-	if bot or covering:
+	if bot:
 		return false
 	if ai:
+		# (a phone that's being covered takes itself back: phones.gd)
+		if covering:
+			return false
 		# A phone: holding a button or the stick counts, even with no new
 		# messages coming in
 		return ai_action or ai_alt or ai_slow or ai_leave or ai_move.length() > 0.1

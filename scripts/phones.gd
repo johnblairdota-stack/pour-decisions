@@ -15,8 +15,8 @@
 ## "full". The token lets a phone that drops out reconnect to the same chibi.
 extends Node
 
-const HTTP_PORT := 8080
-const WS_PORT := 8081
+const PORTS := [[8080, 8081], [8090, 8091], [8180, 8181], [18080, 18081]]
+const VIRTUAL := ["virtualbox", "vmware", "vethernet", "hyper-v", "wsl", "docker", "loopback", "bluetooth", "tailscale", "zerotier", "hamachi", "vpn", "tap-", "tun"]
 const MIN_TAP_MS := 90         # a tap counts as held at least this long
 const PAGE := preload("res://scripts/controller_page.gd")
 const UI := preload("res://scripts/ui.gd")
@@ -28,32 +28,77 @@ var _http_conns: Array = []     # [StreamPeerTCP, buffer, age]
 var clients: Array = []         # {ws, token, player, last_cues}
 var tokens := {}                # token -> player
 var address := ""
+var addresses: Array = []       # every LAN address, best first
+var http_port := 8080
+var ws_port := 8081
 var running := false
 var _cue_t := 0.0
 
 func start(owner_game) -> void:
 	game = owner_game
-	var e1 := http.listen(HTTP_PORT)
-	var e2 := ws_server.listen(WS_PORT)
-	running = e1 == OK and e2 == OK
-	address = _lan_address()
+	# (if something else on the computer has the usual ports, try the next pair)
+	for pair in PORTS:
+		http = TCPServer.new()
+		ws_server = TCPServer.new()
+		var e1 := http.listen(pair[0])
+		var e2 := ws_server.listen(pair[1])
+		if e1 == OK and e2 == OK:
+			http_port = pair[0]
+			ws_port = pair[1]
+			running = true
+			break
+		http.stop()
+		ws_server.stop()
+	addresses = _lan_addresses()
+	address = addresses[0] if not addresses.is_empty() else ""
 	if game.autotest:
-		print("[phones] listening: %s (http %s, ws %s)" % [url(), e1 == OK, e2 == OK])
+		print("[phones] listening: %s (running %s, also %s)" % [url(), running, str(addresses.slice(1))])
 
 func url() -> String:
-	return "http://%s:%d" % [address, HTTP_PORT] if address != "" else ""
+	return "http://%s:%d" % [address, http_port] if address != "" else ""
 
-## The best guess at this computer's address on the local network.
-func _lan_address() -> String:
-	var best := ""
-	for a in IP.get_local_addresses():
-		if a.contains(":") or a.begins_with("127.") or a.begins_with("169.254."):
-			continue
-		if a.begins_with("192.168.") or a.begins_with("10."):
-			return a
-		if best == "":
-			best = a
-	return best if best != "" else "127.0.0.1"
+## The other addresses this computer has, for when the first doesn't load.
+func other_urls() -> Array:
+	var out: Array = []
+	for a in addresses.slice(1, 3):
+		out.append("http://%s:%d" % [a, http_port])
+	return out
+
+## This computer's addresses on the local network, best guess first: the
+## Wi-Fi or Ethernet adapter, not a virtual one (VirtualBox, Hyper-V, WSL,
+## VPNs), which a phone on the Wi-Fi can't reach.
+func _lan_addresses() -> Array:
+	var scored: Array = []
+	for itf in IP.get_local_interfaces():
+		var nm: String = (String(itf.get("friendly", "")) + " " + String(itf.get("name", ""))).to_lower()
+		var virtual := false
+		for word in VIRTUAL:
+			if nm.contains(word):
+				virtual = true
+		for a in itf.get("addresses", []):
+			var ip := String(a)
+			if ip.contains(":") or ip.begins_with("127.") or ip.begins_with("169.254."):
+				continue
+			var score := 0
+			if ip.begins_with("192.168."):
+				score += 30
+			elif ip.begins_with("10."):
+				score += 20
+			elif ip.begins_with("172."):
+				score += 10
+			if nm.contains("wi-fi") or nm.contains("wifi") or nm.contains("wlan") or nm.contains("wireless"):
+				score += 50
+			elif nm.contains("ethernet") or nm.begins_with("eth") or nm.begins_with("en"):
+				score += 40
+			if virtual:
+				score -= 100
+			scored.append([score, ip])
+	scored.sort_custom(func(x, y): return x[0] > y[0])
+	var out: Array = []
+	for e in scored:
+		if not out.has(e[1]):
+			out.append(e[1])
+	return out
 
 func _process(delta: float) -> void:
 	if not running:
@@ -92,7 +137,7 @@ func _serve_http(delta: float) -> void:
 			var status := "200 OK"
 			var ctype := "text/html; charset=utf-8"
 			if path == "/" or path.begins_with("/?") or path == "/index.html":
-				body = PAGE.html(WS_PORT).to_utf8_buffer()
+				body = PAGE.html(ws_port).to_utf8_buffer()
 			elif path == "/manifest.json":
 				# Add it to the home screen and it opens like an app: full
 				# screen, sideways, no browser bars
