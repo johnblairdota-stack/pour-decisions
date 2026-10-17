@@ -751,8 +751,7 @@ func lowest_point(bay := -1) -> Vector3:
 			var i := iz * NX + ix
 			if reach[i] == 0:
 				continue
-			# (concrete that's gone off only when it's clearly the lowest)
-			var v := h[i] + (SET_BIAS if set_h[i] >= 0.0 else 0.0)
+			var v := h[i]
 			if v < best:
 				best = v
 				bi = i
@@ -764,8 +763,6 @@ func lowest_point(bay := -1) -> Vector3:
 ## first strip that isn't full yet. Each new load goes against the last, the
 ## wet edge stays at the front of the pour, and nothing behind it is left to
 ## go off and be come back to.
-const SET_BIAS := 0.05     # m: how much lower a set patch has to be to be aimed at first
-
 func next_face_point(bay: int) -> Vector3:
 	bay = clampi(bay, 0, BAYS - 1)
 	var bc := bay_cols(bay)
@@ -778,8 +775,6 @@ func next_face_point(bay: int) -> Vector3:
 		var ok := 0
 		var best := 1e9
 		var bi := -1
-		var set_best := 1e9
-		var set_bi := -1
 		for ox in strip:
 			var ix := x0 + sidx + ox
 			if ix >= NX or ix >= bc.y:
@@ -792,23 +787,11 @@ func next_face_point(bay: int) -> Vector3:
 				if h[i] >= full:
 					ok += 1
 				# (a cell in from the forms: the concrete flows out to them)
-				if iz > 0 and iz < NZ - 1:
-					# Concrete that's gone off comes last: more on top never
-					# spreads, so it's only topped up once the rest is in
-					if set_h[i] >= 0.0:
-						if h[i] < set_best:
-							set_best = h[i]
-							set_bi = i
-					elif h[i] < best:
-						best = h[i]
-						bi = i
-		if n > 0 and float(ok) / n < 0.92:
-			# (workable concrete wins unless a patch that's gone off is
-			# clearly lower: then it's topped up, or the bay never fills)
-			if bi >= 0 and (set_bi < 0 or best <= set_best + SET_BIAS):
-				return cell_center(bi)
-			if set_bi >= 0:
-				return cell_center(set_bi)
+				if iz > 0 and iz < NZ - 1 and h[i] < best:
+					best = h[i]
+					bi = i
+		if n > 0 and float(ok) / n < 0.92 and bi >= 0:
+			return cell_center(bi)
 	return lowest_point(bay)
 
 ## First column of the leading strip of bay `b` (the strip a boom operator
