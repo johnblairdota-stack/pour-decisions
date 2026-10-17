@@ -1974,7 +1974,9 @@ func _process(delta: float) -> void:
 				else:
 					_start_floor()
 		"topout":
-			if autotest and phase_t > 1.0:
+			# (the vista shots wait for 1.5s, so hang on for them)
+			var vistas: bool = "vista" in _shot_only or "vista2" in _shot_only
+			if autotest and phase_t > (2.5 if vistas else 1.0):
 				print("[autotest] TOPPED OUT with %d points (%s) in %d frames (kit %s)" % [score.total, score.rank_name(), _frames, kit])
 				get_tree().quit(0)
 
