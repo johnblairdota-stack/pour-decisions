@@ -209,6 +209,16 @@ func _empty_card() -> PanelContainer:
 		var how := UI.label("Scan with your phone (same Wi-Fi)\nor press Enter / a pad's A", 15, UI.MUTED, 0)
 		how.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		v.add_child(how)
+		# A page that won't load: the other addresses, and the usual culprit
+		var others: Array = game.phones.other_urls() if game != null and game.phones != null else []
+		var help := "Not loading? Allow Godot through\nthe Windows firewall (private networks)"
+		if not others.is_empty():
+			help = "Not loading? Try " + " or ".join(others.map(func(o): return String(o).replace("http://", ""))) + "\nor allow Godot through the firewall"
+		var tip := UI.label(help, 13, UI.MUTED, 0)
+		tip.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		tip.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		tip.custom_minimum_size.x = 268
+		v.add_child(tip)
 	else:
 		var plus := UI.label("+", 64, UI.MUTED)
 		plus.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER

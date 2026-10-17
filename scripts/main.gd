@@ -2067,6 +2067,14 @@ func _join_text() -> String:
 	var t := ""
 	if phones.running and crew.humans().size() < 4:
 		t = "Scan to join on your phone\n(same Wi-Fi)\n%s" % phones.url()
+		# (a page that won't load is usually the firewall, or the wrong
+		# network adapter: say so, and give the other addresses to try)
+		var others: Array = phones.other_urls()
+		if not others.is_empty():
+			t += "\nNot loading? Try %s" % " or ".join(others)
+		t += "\nWindows: allow Godot through the firewall"
+	elif not phones.running and crew.humans().size() < 4:
+		t = "Phones can't join: the network ports are busy"
 	return t
 
 func _join_players() -> void:
