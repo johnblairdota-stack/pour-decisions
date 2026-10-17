@@ -749,7 +749,7 @@ func lowest_point(bay := -1) -> Vector3:
 			if bay >= 0 and bay_of_col(ix) != bay:
 				continue
 			var i := iz * NX + ix
-			if reach[i] == 0:
+			if reach[i] == 0 or set_h[i] >= 0.0:
 				continue
 			var v := h[i]
 			if v < best:
@@ -784,8 +784,11 @@ func next_face_point(bay: int) -> Vector3:
 				if reach[i] == 0:
 					continue
 				n += 1
-				if h[i] >= full:
+				# (concrete that's gone off is done with: more on top never
+				# spreads, it just piles up into a cold joint)
+				if h[i] >= full or set_h[i] >= 0.0:
 					ok += 1
+					continue
 				# (a cell in from the forms: the concrete flows out to them)
 				if iz > 0 and iz < NZ - 1 and h[i] < best:
 					best = h[i]
@@ -812,11 +815,19 @@ func leading_strip(b: int) -> Vector2i:
 				if reach[i] == 0:
 					continue
 				n += 1
-				if h[i] >= full:
+				if h[i] >= full or set_h[i] >= 0.0:
 					ok += 1
 		if n > 0 and float(ok) / n < 0.92:
 			return Vector2i(bc.x + sidx, mini(bc.x + sidx + strip, bc.y))
 	return bc
+
+## Whether the concrete at `local` has gone off (more on top won't spread).
+func set_at(local: Vector3) -> bool:
+	var ix := int((local.x + bw * 0.5) / dx)
+	var iz := int((local.z + bd * 0.5) / dx)
+	if ix < 0 or ix >= NX or iz < 0 or iz >= NZ:
+		return false
+	return set_h[iz * NX + ix] >= 0.0
 
 ## Gold for the boom operator: the hose is over concrete that's wanted now,
 ## in the leading strip of the bay being poured and not yet full.
@@ -826,7 +837,7 @@ func good_pour_spot(local: Vector3) -> bool:
 	if ix < 0 or ix >= NX or iz < 0 or iz >= NZ:
 		return false
 	var i := iz * NX + ix
-	if mask[i] == 0 or h[i] >= SLAB * 0.8:
+	if mask[i] == 0 or h[i] >= SLAB * 0.8 or set_h[i] >= 0.0:
 		return false
 	if bay_of_col(ix) != cur_bay:
 		return false

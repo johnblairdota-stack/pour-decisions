@@ -373,6 +373,10 @@ func _boom(p, delta: float) -> void:
 	var under: float = pour.height_at(dl)
 	if to.length() > 2.5 and under > pour.SLAB * 1.3:
 		ok = false
+	# ...and never onto concrete that's gone off (it only piles up into a
+	# cold joint), or into a heap that's already well over the slab
+	if pour.set_at(dl) or under > pour.SLAB * 2.2:
+		ok = false
 	# Never ahead of the bay being poured (swinging across from the bin, or
 	# the pipe guy still catching up)
 	# (a hose that's stopped moving is as far as the boom reaches: pump there)

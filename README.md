@@ -72,7 +72,7 @@ The screen stays clear: most of what you need is in the world (the hand signs, t
 - **Top right:** level, points and rank. Under it while pouring, the pump: hopper level and whether it's on HIGH or LOW, trucks at the pump and on the road, and the line pressure. The wind shows only on climb days or when it's gusting.
 - **Left:** the live jobs, most urgent first, each with a countdown bar and the icon of the job it's for, in that job's colour. Urgent ones get a coloured border and pulse. The boom operator's one is their progress: "Bay 2 of 4 · 64% · edge fresh", its bar filling with the bay and coloured by the wet edge (green fresh, amber ageing, red going off).
 - **Centre:** one-line call-outs that fade.
-- **Bottom right:** close-up cameras. Anyone at the pump or up the ladder gets a picture-in-picture view, and hands-on work (a clamp, a pin, a slump test) gets a close-up, framed in the colour of the job it's watching, with your button cue in the corner. The slump test's bigger close-up sits in the bottom left corner instead, so it never covers the deck view.
+- **Close-up zoom-ins:** hands-on work a person's doing (a clamp, a pin, a slump test) pops up a zoom-in right beside the spot where it's happening, in whichever view shows it (the deck view, or the street band when the screen's split), framed in the colour of the job, with your button cue in the corner. It's sized to the screen, stays inside its own view, and keeps clear of the other pop-ups and of the pump. A failing clamp gets one when the pump operator's a person. Bots' work gets no pop-up. Anyone off the screen gets a small view in the deck view's bottom right corner.
 
 Station names on the ground only show when that station is wanted or you're standing near it.
 
