@@ -749,9 +749,10 @@ func lowest_point(bay := -1) -> Vector3:
 			if bay >= 0 and bay_of_col(ix) != bay:
 				continue
 			var i := iz * NX + ix
-			if reach[i] == 0 or set_h[i] >= 0.0:
+			if reach[i] == 0:
 				continue
-			var v := h[i]
+			# (concrete that's gone off only once there's nothing else)
+			var v := h[i] + (1.0 if set_h[i] >= 0.0 else 0.0)
 			if v < best:
 				best = v
 				bi = i
@@ -775,6 +776,8 @@ func next_face_point(bay: int) -> Vector3:
 		var ok := 0
 		var best := 1e9
 		var bi := -1
+		var set_best := 1e9
+		var set_bi := -1
 		for ox in strip:
 			var ix := x0 + sidx + ox
 			if ix >= NX or ix >= bc.y:
@@ -784,17 +787,25 @@ func next_face_point(bay: int) -> Vector3:
 				if reach[i] == 0:
 					continue
 				n += 1
-				# (concrete that's gone off is done with: more on top never
-				# spreads, it just piles up into a cold joint)
-				if h[i] >= full or set_h[i] >= 0.0:
+				if h[i] >= full:
 					ok += 1
 					continue
 				# (a cell in from the forms: the concrete flows out to them)
-				if iz > 0 and iz < NZ - 1 and h[i] < best:
-					best = h[i]
-					bi = i
-		if n > 0 and float(ok) / n < 0.92 and bi >= 0:
-			return cell_center(bi)
+				if iz > 0 and iz < NZ - 1:
+					# Concrete that's gone off comes last: more on top never
+					# spreads, so it's only topped up once the rest is in
+					if set_h[i] >= 0.0:
+						if h[i] < set_best:
+							set_best = h[i]
+							set_bi = i
+					elif h[i] < best:
+						best = h[i]
+						bi = i
+		if n > 0 and float(ok) / n < 0.92:
+			if bi >= 0:
+				return cell_center(bi)
+			if set_bi >= 0:
+				return cell_center(set_bi)
 	return lowest_point(bay)
 
 ## First column of the leading strip of bay `b` (the strip a boom operator
@@ -815,7 +826,7 @@ func leading_strip(b: int) -> Vector2i:
 				if reach[i] == 0:
 					continue
 				n += 1
-				if h[i] >= full or set_h[i] >= 0.0:
+				if h[i] >= full:
 					ok += 1
 		if n > 0 and float(ok) / n < 0.92:
 			return Vector2i(bc.x + sidx, mini(bc.x + sidx + strip, bc.y))
