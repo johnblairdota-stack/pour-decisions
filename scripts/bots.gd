@@ -613,8 +613,10 @@ func _pump(p, _delta: float) -> void:
 	if p.zone != "ground":
 		go(p, "ground", _gnd("panel") + Vector3(-4.6, 0, 0.7))
 		return
-	# Climb days: sling the next section on the laydown for the crane
-	if g.climb.needs_sling():
+	# Climb days: sling the next section on the laydown for the crane (unless
+	# the rigger's stood waiting on pins: they go up first)
+	var pins_first: bool = g.climb.needs_pins() and g.climb.stage in ["roll", "pin"] and (p.held_kind == "pins" or not g.climb.pins_coming())
+	if g.climb.needs_sling() and not pins_first:
 		if walk(p, _gnd("sling"), 0.5):
 			p.ai_action = g.climb.hook_ready()
 		return

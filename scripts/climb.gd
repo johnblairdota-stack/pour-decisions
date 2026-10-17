@@ -137,6 +137,7 @@ var _stand_adj := Vector3.ZERO
 var _strike_from := 0.0
 var _theta := 0.45
 var _cam_side := Vector3.ZERO
+var _pinning: Node3D = null  # the section being pinned, off the hook (the crane's free for the next)
 var _crane_ahead := false   # the crane fetched the next section during the pinning
 var _early_fly := false     # the crane is already flying the next section in during the jacking
 var _fly_arrived := false
@@ -491,8 +492,10 @@ func _begin_section() -> void:
 	_set_stage("jack")
 	# The crane doesn't wait for the jacking: it rigs the next section and
 	# brings it over while the rigger lifts the boom, so it's hanging there
-	# ready the moment the gap opens
-	_make_load()
+	# ready the moment the gap opens. (It may have started already, during
+	# the last section's pinning.)
+	if load == null:
+		_make_load()
 	_early_fly = true
 
 func _start_fly() -> void:
@@ -563,7 +566,7 @@ func _to_guide() -> void:
 
 ## The crane has a load on the hook and is flying or being guided.
 func crane_busy() -> bool:
-	return load != null and (stage == "fly" or stage == "guide" or (stage == "jack" and _early_fly))
+	return load != null and (stage == "fly" or stage == "guide" or (stage in ["jack", "pin", "seat"] and _early_fly))
 
 func _land() -> void:
 	if game.autotest:
@@ -613,8 +616,9 @@ func _land() -> void:
 	_set_stage("roll")
 
 func _finish_section() -> void:
-	load.queue_free()
-	load = null
+	if _pinning:
+		_pinning.queue_free()
+		_pinning = null
 	for l in lugs:
 		for key in ["lower", "upper", "pin", "clip"]:
 			(l[key] as Node3D).visible = false
@@ -683,7 +687,17 @@ func update(delta: float) -> void:
 					game.score.award(_rigger, 10, "Rigging")
 				_start_pins()
 				_set_stage("pin")
+				# Slings off: that section's the rigger's now, and the crane
+				# goes straight back for the next one, so it's slung and on its
+				# way up while the pins go in
+				_pinning = load
+				load = null
+				if sections_left > 1:
+					_make_load()
+					_early_fly = true
 		"pin":
+			if _early_fly and load:
+				trolley_acc = _fly_step(delta)
 			if winding:
 				power += delta / 1.0
 				if power > 1.12:
@@ -698,6 +712,8 @@ func update(delta: float) -> void:
 				game.hud.toast("New section's on the hook. Try again, gently.", 2.0)
 				_start_fly()
 		"seat":
+			if _early_fly and load:
+				trolley_acc = _fly_step(delta)
 			var u := clampf(stage_t / 0.7, 0.0, 1.0)
 			game.head.position.y = lerpf(_seat_from, gap_bottom() + LS, u)
 			if u >= 1.0:
@@ -1637,8 +1653,8 @@ func _update_pins(delta: float) -> void:
 			var sd := dd.cross(Vector3.UP).normalized()
 			align_arrow.position = (lb["base"] as Vector3) + dd * 0.2 + sd * 0.5 + Vector3(0, 0.3 * (1.0 if hole_off < 0.0 else -1.0) + 0.06 * sin(_t * 6.0), 0)
 			_point(align_arrow, Vector3.UP if hole_off < 0.0 else Vector3.DOWN)
-	if load:
-		load.position.y = gap_bottom() + hole_off
+	if _pinning:
+		_pinning.position.y = gap_bottom() + hole_off
 	# Lining up: the podger's tip is in the holes and the rigger levers on it,
 	# drifting the new section's plate up or down until the holes line up
 	if pin_sub == "align" and _podger_t < 0.0 and pin_i < PINS:
