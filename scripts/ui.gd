@@ -36,7 +36,7 @@ const ROLE_HOW := {
 		"climb": [["A", "hold at the LAYDOWN to sling the next section"], ["A", "a PIN BAG from the base, up the HAUL ROPE"]],
 	},
 	"pump": {
-		"pour": [["A", "KILL THE PUMP the moment the gauge spikes (anywhere)"], ["A", "hold at the panel: restart it"], ["Y", "belt remote: pressure off before a repair (hold)"], ["A", "repairs: carry parts · open and close clamps (hold)"], ["A", "hold: safety pin in (B skips it: that clamp goes next)"]],
+		"pour": [["A", "KILL THE PUMP the moment the gauge spikes (anywhere): a spike's often a clamp or a plug going, so then go fix it"], ["A", "hold at the panel: restart it"], ["A", "repairs: carry parts · open and close clamps (hold)"], ["A", "hold: safety pin in (B skips it: that clamp goes next)"]],
 		"climb": [["A", "jack the frame · roll the section in"], ["stick", "line up the holes, A: podger"], ["A", "swing the hammer, let go in the gold"], ["A", "hold: R-clip back on (Y skips it: a safety note)"]],
 	},
 	"poker": {

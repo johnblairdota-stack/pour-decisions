@@ -21,7 +21,7 @@ const INFO := {
 	"line": {"name": "Truck hand", "hat": Color("7cd992"), "climb": "slinger",
 		"text": "Run the truck bay. Wave trucks in, slump-test the loads, then use it, add the water held back, or send it back.\n\nClimb days: sling the next section and send the pins up."},
 	"pump": {"name": "Pump operator", "hat": Color("ff7a1a"), "climb": "rigger",
-		"text": "Watch the pressure gauge. The moment it spikes, kill the pump (A): the faster you react, the more it's worth. When the riser weeps, bursts or blocks, take the pressure off, grab the parts, climb up and fix it.\n\nClimb days: rigger, pinning the new sections."},
+		"text": "Watch the pressure gauge. The moment it spikes, kill the pump (A): the faster you react, the more it's worth. A spike is often the line going (a clamp letting go, a plug forming): kill it, then grab the parts, climb up, fix it and restart the pump. You run the washout valve too.\n\nClimb days: rigger, pinning the new sections."},
 	"poker": {"name": "Poker hand", "hat": Color("c49bff"), "climb": "tag line",
 		"text": "Vibrate the concrete as it lands: plunge, feel it shudder, lift out when the bubbles stop, move on. Tow your drive unit along.\n\nClimb days: the tag line."},
 	"hose": {"name": "Pipe guy", "hat": Color("2fd3e8"), "climb": "",

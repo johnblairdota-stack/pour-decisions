@@ -90,7 +90,7 @@ const GROUND_STATIONS := {
 	"rig3": {"pos": Vector3(21.4, 0, 8.4), "label": "OUTRIGGER", "color": Color("ff7a1a")},
 	"pins": {"pos": Vector3(12.2, 0, 6.4), "label": "PIN BAGS", "color": Color("ff7a1a")},
 	"sling": {"pos": Vector3(1.0, 0, 8.6), "label": "LAYDOWN", "color": Color("ff7a1a")},
-	"valve": {"pos": Vector3(16.8, 0, 3.9), "label": "RELEASE VALVE", "color": Color("7cd992")},
+	"valve": {"pos": Vector3(16.8, 0, 3.9), "label": "RELEASE VALVE", "color": Color("ff7a1a")},
 }
 const PLAYER_COLORS := [Color("4fa3ff"), Color("7cd992"), Color("ff7ad9"), Color("c49bff")]
 const ACTION_NAMES := ["Space", "Enter", "A", "A"]
@@ -669,7 +669,7 @@ func _build_site() -> void:
 const STATION_ROLE := {"boom": "boom", "dogman": "boom", "screed": "screed", "poker": "poker", "tag": "poker",
 	"rigger": "pump", "ladder": "pump", "ladder_g": "pump", "pinsets": "line", "bay": "line", "panel": "pump",
 	"spares": "pump", "haul": "line", "rack": "pump", "rig0": "pump", "rig1": "pump", "rig2": "pump",
-	"rig3": "pump", "pins": "line", "sling": "line", "bin": "boom", "hose": "hose", "valve": "line"}
+	"rig3": "pump", "pins": "line", "sling": "line", "bin": "boom", "hose": "hose", "valve": "pump"}
 
 func _make_station(key: String, def: Dictionary, parent: Node3D, zone: String) -> void:
 	if STATION_ROLE.has(key):
@@ -2542,7 +2542,7 @@ func _handle_player(p, delta: float) -> void:
 					take_hose(p)
 				return
 		"valve":
-			if p.role == "line" and ops.valve(p, delta):
+			if p.role == "pump" and ops.valve(p, delta):
 				return
 
 	# Hand a part straight to whoever needs it
@@ -2779,19 +2779,14 @@ func _jobs() -> Array:
 	elif line.can_wave_in() and (line.bay_truck == null or line.staged == null and hop < 0.6):
 		add.call("bay", st_pos.call("bay") + up, 1 if hop < 0.3 else 0, "line", "WAVE TRUCK IN")
 	var pop = crew.crew["pump"]
-	var ykey := ""
 	var akey := ""
 	if not pop.bot and not pop.ai and pop.KEYS.has(pop.prefix) and bool(on_keys.get(pop.prefix, pop.prefix == "p1_")):
-		ykey = " [%s]" % pop.KEYS[pop.prefix]["Y"]
 		akey = " [%s]" % pop.KEYS[pop.prefix]["A"]
 	if line.spike_on:
 		# A pressure spike: the pump operator kills it from anywhere
 		add.call("panel", pop.global_position + up + Vector3(0, 0.6, 0), 2, "pump", "A%s: KILL THE PUMP" % akey)
-	elif line.tripped:
+	elif line.tripped and not line.repair_pending():
 		add.call("panel", st_pos.call("panel") + up, 1, "pump", "RESTART THE PUMP")
-	elif line.fix_i >= 0 and line._step_name() == "depress" and line.pressure > line.SAFE_BAR:
-		# (the pump operator's belt remote does it from anywhere)
-		add.call("panel", pop.global_position + up + Vector3(0, 0.6, 0), 2, "pump", "Y%s: PRESSURE OFF" % ykey)
 	elif line.live and line.idle_t > line.SET_TIME * 0.5 and not line.line_down():
 		add.call("panel", st_pos.call("panel") + up, 2 if line.idle_t > line.SET_TIME * 0.75 else 1, "pump", "STROKE THE PUMP")
 	# The line
@@ -3123,10 +3118,8 @@ func _update_stations() -> void:
 		var step: String = line._step_name()
 		if step == "kit" or (line.fail_i >= 0 and line.job_kind == ""):
 			needed.append("spares")
-		if step == "pipe" or (line.blocked and line.block_found and step in ["", "depress", "open", "lower"]):
+		if step == "pipe" or (line.blocked and line.block_found and step in ["", "open", "lower"]):
 			needed.append("rack")
-		if step == "depress":
-			needed.append("panel")
 		if line.bay_truck == null and line._next_queued() != null or line.bay_truck != null and line.bay_truck["state"] in ["bay", "check"]:
 			needed.append("bay")
 		if pour.at_risk > 0.01:
@@ -3344,7 +3337,7 @@ func _tickets() -> Array:
 	if line.spike_on:
 		out.append({"icon": "P", "text": "PRESSURE SPIKE · kill the pump!", "frac": 1.0 - line.spike_t / line.SPIKE_LIMIT, "color": Color("ff5a5f"), "role": "pump", "urgent": true})
 	elif line.tripped:
-		out.append({"icon": "P", "text": "Pump tripped · restart at the panel", "frac": 0.5, "color": UI.ROLE["pump"], "role": "pump", "urgent": false})
+		out.append({"icon": "P", "text": "Pump off · fix the line, then restart" if line.repair_pending() else "Pump off · restart at the panel", "frac": 0.5, "color": UI.ROLE["pump"], "role": "pump", "urgent": false})
 	if line.live and line.idle_t > line.SET_TIME * 0.4:
 		out.append({"icon": "P", "text": "Line standing still", "frac": 1.0 - line.idle_t / line.SET_TIME, "color": UI.ROLE["pump"], "role": "pump", "urgent": true})
 	var chk = line.needs_check()
