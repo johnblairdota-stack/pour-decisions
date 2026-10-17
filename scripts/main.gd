@@ -35,6 +35,7 @@ const ScoreScript := preload("res://scripts/score.gd")
 const SignsScript := preload("res://scripts/signs.gd")
 const ScreedScript := preload("res://scripts/screed.gd")
 const OpsScript := preload("res://scripts/ops.gd")
+const Surrounds := preload("res://scripts/surrounds.gd")
 
 # Riverlight: 11 levels; 10 lattice sections reached a 41.4 m free-stand.
 const FLOORS := 11
@@ -221,7 +222,7 @@ func _ready() -> void:
 	hud.visible = false   # (the front end comes first)
 	camera = Camera3D.new()
 	camera.fov = 50.0
-	camera.far = 900.0
+	camera.far = 3200.0   # the CBD and the Gateway Bridge are out in the haze
 	add_child(camera)
 	sfx = SfxScript.new()
 	add_child(sfx)
@@ -325,81 +326,40 @@ func _build_environment() -> void:
 	env.background_mode = Environment.BG_SKY
 	var sky := Sky.new()
 	var sm := ProceduralSkyMaterial.new()
-	sm.sky_top_color = Color("1f2f5c")
-	sm.sky_horizon_color = Color("f2a77a")
-	sm.ground_horizon_color = Color("e39a76")
-	sm.ground_bottom_color = Color("2a2f3a")
+	# A pour-day morning in Brisbane: clear sky, the haze over the river, a
+	# high, hard sun from the north-east
+	sm.sky_top_color = Color("3a78c9")
+	sm.sky_horizon_color = Color("cfdfe8")
+	sm.ground_horizon_color = Color("cfdfe8")
+	sm.ground_bottom_color = Color("cfdfe8")
 	sky.sky_material = sm
 	env.sky = sky
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	env.ambient_light_energy = 0.55
+	env.ambient_light_energy = 0.6
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	env.glow_enabled = true
-	env.glow_intensity = 0.35
+	env.glow_intensity = 0.3
 	env.fog_enabled = true
-	env.fog_density = 0.0012
-	env.fog_light_color = Color("c98f7c")
+	env.fog_density = 0.0008
+	env.fog_light_color = Color("cfdfe8")
 	env.fog_sky_affect = 0.0
 	var we := WorldEnvironment.new()
 	we.environment = env
 	add_child(we)
 	var sun := DirectionalLight3D.new()
-	sun.light_color = Color("ffd8b0")
-	sun.light_energy = 1.05
+	sun.light_color = Color("fff2df")
+	sun.light_energy = 1.2
 	sun.shadow_enabled = true
 	sun.directional_shadow_max_distance = 160.0
-	sun.rotation_degrees = Vector3(-30, -20, 0)
+	sun.rotation_degrees = Vector3(-42, -24, 0)
 	add_child(sun)
 
 func _build_world() -> void:
-	var ground := MeshInstance3D.new()
-	var pm := PlaneMesh.new()
-	pm.size = Vector2(900, 900)
-	ground.mesh = pm
-	ground.material_override = F.mat("grass")
-	add_child(ground)
-	add_child(F.box(Vector3(900, 0.05, 9), F.mat("road"), Vector3(0, 0.03, 16), false))
-	add_child(F.box(Vector3(900, 0.05, 48), F.mat("river"), Vector3(0, 0.04, -58), false))
-	add_child(F.box(Vector3(900, 0.06, 4), F.mat("podium"), Vector3(0, 0.05, -32), false))
+	# The real place: the river, the park, the neighbours, Bulimba over the
+	# water, the CBD and the Gateway Bridge (scripts/surrounds.gd)
+	Surrounds.build(self)
 	# Site hardstand around the pump and truck bay
 	add_child(F.box(Vector3(26.5, 0.06, 17.5), F.mat("podium"), Vector3(21.75, 0.03, 4.25), false))
-
-	# Story Bridge silhouette across the river
-	var bridge := Node3D.new()
-	bridge.position = Vector3(-70, 0, -58)
-	var steel := F.mat("bridge")
-	bridge.add_child(F.box(Vector3(5, 0.8, 140), steel, Vector3(0, 9, 0)))
-	var pts := [Vector3(0, 9, -70), Vector3(0, 26, -38), Vector3(0, 9, -6), Vector3(0, 9, 6), Vector3(0, 26, 38), Vector3(0, 9, 70)]
-	for x in [-2.2, 2.2]:
-		for i in pts.size() - 1:
-			if i == 2:
-				continue
-			var a: Vector3 = pts[i] + Vector3(x, 0, 0)
-			var b: Vector3 = pts[i + 1] + Vector3(x, 0, 0)
-			bridge.add_child(F.beam(a, b, 0.6, steel))
-		for z in [-38.0, 38.0]:
-			bridge.add_child(F.beam(Vector3(x, 0, z), Vector3(x, 26, z), 0.9, steel))
-	add_child(bridge)
-
-	# Skyline ring: Brisbane CBD to the south-west, lower suburbs elsewhere
-	var rng := RandomNumberGenerator.new()
-	rng.seed = 2018
-	var frames := [Color("1d2c4a"), Color("25365a"), Color("2b3b5e"), Color("33415f")]
-	for i in 90:
-		var ang := rng.randf() * TAU
-		var deg := rad_to_deg(ang)
-		if deg > 15.0 and deg < 115.0:
-			continue
-		var cbd := deg > 190.0 and deg < 250.0
-		var r := rng.randf_range(100.0, 190.0)
-		var h := rng.randf_range(10.0, 30.0)
-		if cbd:
-			h = rng.randf_range(35.0, 110.0)
-		var w := rng.randf_range(8.0, 16.0)
-		var d := rng.randf_range(8.0, 16.0)
-		var b := F.box(Vector3(w, h, d), F.window_mat(frames[i % 4], rng.randf_range(0.25, 0.6)), Vector3(cos(ang) * r, h * 0.5, sin(ang) * r), false)
-		b.rotation.y = rng.randf() * PI
-		add_child(b)
 
 	for tp in [Vector3(-14, 0, 9), Vector3(-10, 0, 11), Vector3(-15, 0, -8), Vector3(16, 0, -9), Vector3(-5, 0, 13.0), Vector3(6.8, 0, 14.4)]:
 		var t := Node3D.new()
@@ -1798,7 +1758,7 @@ func _lock_slab(level: int, instant := false) -> void:
 	var slab := F.box(Vector3(BW + 0.6, 0.3, BD + 0.6), F.color_mat(Color("b5b6b3")), Vector3(0, FH - 0.15, 0))
 	floor_nodes[level].add_child(slab)
 	if level >= 1:
-		var fac := F.box(Vector3(BW - 0.4, FH - 0.3, BD - 0.4), F.window_mat(Color("1d2c4a"), 0.55), Vector3(0, (FH - 0.3) * 0.5, 0))
+		var fac := F.box(Vector3(BW - 0.4, FH - 0.3, BD - 0.4), F.window_mat(Color("eef0ec"), 0.0, 0.0, Color("4e6878")), Vector3(0, (FH - 0.3) * 0.5, 0))
 		fac.name = "Facade"
 		fac.scale.y = 1.0 if instant else 0.01
 		floor_nodes[level - 1].add_child(fac)
