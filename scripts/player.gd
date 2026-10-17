@@ -44,6 +44,7 @@ var _sweat: CPUParticles3D
 var _phase := randf() * 6.0
 var _bounce := 0.0
 var _moving := false
+var run_to := Vector3.INF    # a job running this player somewhere on its own (set each frame)
 
 # Virtual input: the test bot and phone controllers drive these instead of
 # the keyboard, so every input source goes through the same code paths.
@@ -94,7 +95,9 @@ func setup(i: int, color: Color) -> void:
 	prompt = F.label3d("", 30, Color.WHITE)
 	prompt.position = Vector3(0, 2.0, 0)
 	add_child(prompt)
-	for k in 2:
+	# Three glyph slots: two from cue(), plus a third a station can add by hand
+	# (the truck bay's B: send it back)
+	for k in 3:
 		var n := Node3D.new()
 		var quad := MeshInstance3D.new()
 		var qm := QuadMesh.new()
@@ -466,6 +469,11 @@ func gold(on := true) -> void:
 	if on and _cue_added and not cues.is_empty():
 		cues[-1][6] = true
 
+## Colours the button just cued (the slump call's water-blue X).
+func tint(col: Color) -> void:
+	if _cue_added and not cues.is_empty():
+		cues[-1].append(col)
+
 ## Is this cue gold right now (in its hold band, or flagged by the assist)?
 static func is_gold(cu: Array) -> bool:
 	var zv: Vector2 = cu[4] if cu.size() > 4 else Vector2(-1, -1)
@@ -473,7 +481,7 @@ static func is_gold(cu: Array) -> bool:
 		return true
 	return cu.size() > 6 and cu[6] and bool(Settings.value("gold_assist"))
 
-var _was_gold := [false, false]
+var _was_gold := [false, false, false]
 
 ## A short status line under the head (a height, a count), not an action.
 func say(text: String) -> void:
@@ -510,7 +518,8 @@ func show_cues(cam_right: Vector3, t: float, cam_pos := Vector3.ZERO) -> void:
 			n.position += Vector3(sin(t * 57.0), sin(t * 49.0 + 1.0), 0) * 0.04 * gk
 		n.scale = Vector3.ONE * gk
 		var m: ShaderMaterial = c["mat"]
-		var col: Color = Color("ff2d2d") if alarm else BTN_COLORS.get(btn, Color.WHITE)
+		var tinted: bool = cu.size() > 7 and cu[7] is Color
+		var col: Color = Color("ff2d2d") if alarm else (cu[7] if tinted else BTN_COLORS.get(btn, Color.WHITE))
 		m.set_shader_parameter("color", col)
 		m.set_shader_parameter("progress", cu[2])
 		m.set_shader_parameter("zone", cu[4] if cu.size() > 4 else Vector2(-1, -1))
@@ -540,7 +549,7 @@ func show_cues(cam_right: Vector3, t: float, cam_pos := Vector3.ZERO) -> void:
 			verb.text = ("%s  [%s]" % [cu[1], key]) if cu[1] != "" else "[%s]" % key
 		verb.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 		verb.position = cam_right * 0.75
-		verb.modulate = Color("ff6b6b") if alarm else (Color("ffd23f") if in_zone else Color.WHITE)
+		verb.modulate = Color("ff6b6b") if alarm else (Color("ffd23f") if in_zone else (Color("9fd6ff") if tinted else Color.WHITE))
 
 # ------------------------------------------------------------------ carrying
 
@@ -576,7 +585,12 @@ func walk(delta: float, walkable: Callable, cam_yaw: float) -> void:
 	if (busy != "" and busy != "hose") or zone == "ladder" or zone == "hoist":
 		v = Vector2.ZERO
 	var dir := Vector3(v.x, 0, v.y).rotated(Vector3.UP, cam_yaw)
-	var sp := speed * (0.7 if held_kind == "pipe" else 1.0) * (1.3 if hurry else 1.0) * (1.0 - 0.35 * weary) * pace
+	var run := run_to != Vector3.INF
+	if run:
+		var to := Vector3(run_to.x - position.x, 0, run_to.z - position.z)
+		dir = to.normalized() if to.length() > 0.15 else Vector3.ZERO
+	run_to = Vector3.INF
+	var sp := speed * (0.7 if held_kind == "pipe" else 1.0) * (1.3 if hurry or run else 1.0) * (1.0 - 0.35 * weary) * pace
 	if dir.length() > 0.05:
 		var step := dir * sp * delta
 		var p := position

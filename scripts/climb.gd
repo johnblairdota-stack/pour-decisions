@@ -128,6 +128,8 @@ var sparks: CPUParticles3D
 var _podger_t := -1.0
 var _strike_t := 0.0
 var _clip_t := 0.0
+var _clip_hold := 0.0
+const CLIP_T := 0.7      # s holding A to push an R-clip through
 var rig_npc: Node3D
 var _rigger = null
 var _ram_queued := false
@@ -135,6 +137,7 @@ var _stand_adj := Vector3.ZERO
 var _strike_from := 0.0
 var _theta := 0.45
 var _cam_side := Vector3.ZERO
+var _pinning: Node3D = null  # the section being pinned, off the hook (the crane's free for the next)
 var _crane_ahead := false   # the crane fetched the next section during the pinning
 var _early_fly := false     # the crane is already flying the next section in during the jacking
 var _fly_arrived := false
@@ -145,6 +148,15 @@ var _wreck_landed := -1.0
 var align_arrow: Node3D
 var dog_bot = null          # a crew bot acting as dogman this frame
 var _tagger = null          # whoever held the tag line during this lift
+# The tag line: only once the crane has the load up over the deck. The hand
+# runs out to the dangling line, grabs it, and walks it back to the tag spot,
+# holding A all the while; let go and the line drops.
+const TAG_REACH := 7.0      # m from the tag spot the line has to hang before anyone runs for it
+const TAG_GRAB := 1.1       # m: close enough to grab the line
+var tag_hand = null         # who's on the tag line right now
+var _tag_sub := ""          # "fetch" running out to the line, "hold" walking it back or holding at the spot
+var _tag_best := INF        # closest they've got to the line so far
+var _tag_stuck := 0.0
 
 # Climb days for the street and the screeder: slinging the next section on the
 # laydown, and hauling up the pin sets (each pin with its R-clip on, one piece)
@@ -489,8 +501,10 @@ func _begin_section() -> void:
 	_set_stage("jack")
 	# The crane doesn't wait for the jacking: it rigs the next section and
 	# brings it over while the rigger lifts the boom, so it's hanging there
-	# ready the moment the gap opens
-	_make_load()
+	# ready the moment the gap opens. (It may have started already, during
+	# the last section's pinning.)
+	if load == null:
+		_make_load()
 	_early_fly = true
 
 func _start_fly() -> void:
@@ -561,7 +575,7 @@ func _to_guide() -> void:
 
 ## The crane has a load on the hook and is flying or being guided.
 func crane_busy() -> bool:
-	return load != null and (stage == "fly" or stage == "guide" or (stage == "jack" and _early_fly))
+	return load != null and (stage == "fly" or stage == "guide" or (stage in ["jack", "pin", "seat"] and _early_fly))
 
 func _land() -> void:
 	if game.autotest:
@@ -611,8 +625,9 @@ func _land() -> void:
 	_set_stage("roll")
 
 func _finish_section() -> void:
-	load.queue_free()
-	load = null
+	if _pinning:
+		_pinning.queue_free()
+		_pinning = null
 	for l in lugs:
 		for key in ["lower", "upper", "pin", "clip"]:
 			(l[key] as Node3D).visible = false
@@ -681,7 +696,17 @@ func update(delta: float) -> void:
 					game.score.award(_rigger, 10, "Rigging")
 				_start_pins()
 				_set_stage("pin")
+				# Slings off: that section's the rigger's now, and the crane
+				# goes straight back for the next one, so it's slung and on its
+				# way up while the pins go in
+				_pinning = load
+				load = null
+				if sections_left > 1:
+					_make_load()
+					_early_fly = true
 		"pin":
+			if _early_fly and load:
+				trolley_acc = _fly_step(delta)
 			if winding:
 				power += delta / 1.0
 				if power > 1.12:
@@ -696,6 +721,8 @@ func update(delta: float) -> void:
 				game.hud.toast("New section's on the hook. Try again, gently.", 2.0)
 				_start_fly()
 		"seat":
+			if _early_fly and load:
+				trolley_acc = _fly_step(delta)
 			var u := clampf(stage_t / 0.7, 0.0, 1.0)
 			game.head.position.y = lerpf(_seat_from, gap_bottom() + LS, u)
 			if u >= 1.0:
@@ -728,6 +755,8 @@ func update(delta: float) -> void:
 	_update_pins(delta)
 	if stage != "fly" and stage != "guide":
 		tagging = false
+	if tag_hand != null and (not is_instance_valid(tag_hand) or tag_hand.busy != "tag"):
+		tag_hand = null
 	# The tag line goes on before the lift and hangs off the load all the way
 	# up; the hand on the landing takes it as the load comes within reach
 	var flying: bool = load != null and crane_on and load_state != "laydown"
@@ -784,7 +813,8 @@ func _operate(delta: float) -> Vector2:
 			_op_vert = 0.0
 		if _wind_over_t > WIND_GRACE and not _op_dog and not _wind_noted and stage == "guide":
 			_wind_noted = true
-			game.hud.toast("Gusting over the limit: the crane's holding till it eases", 2.2)
+			wind_misses += 1
+			game.hud.toast("Gusting over the limit with no \"dog everything\" call: the crane's holding, and it's noted", 2.4)
 	else:
 		_wind_over_t = 0.0
 		_wind_noted = false
@@ -1634,8 +1664,8 @@ func _update_pins(delta: float) -> void:
 			var sd := dd.cross(Vector3.UP).normalized()
 			align_arrow.position = (lb["base"] as Vector3) + dd * 0.2 + sd * 0.5 + Vector3(0, 0.3 * (1.0 if hole_off < 0.0 else -1.0) + 0.06 * sin(_t * 6.0), 0)
 			_point(align_arrow, Vector3.UP if hole_off < 0.0 else Vector3.DOWN)
-	if load:
-		load.position.y = gap_bottom() + hole_off
+	if _pinning:
+		_pinning.position.y = gap_bottom() + hole_off
 	# Lining up: the podger's tip is in the holes and the rigger levers on it,
 	# drifting the new section's plate up or down until the holes line up
 	if pin_sub == "align" and _podger_t < 0.0 and pin_i < PINS:
@@ -1840,6 +1870,26 @@ func work_focus(p) -> Vector3:
 
 # ------------------------------------------------------------------ players
 
+## The tag line's there to take: the crane has the load up higher than the deck
+## and near enough the tag spot to run out to.
+func tag_ready() -> bool:
+	if load == null or not (stage in ["fly", "guide"]) or load_state != "" or not crane_busy():
+		return false
+	if _load_bottom() < game.work_y + 0.5:
+		return false
+	var c := _tag_corner()
+	var spot: Vector3 = game.deck_pos("tag")
+	return Vector2(c.x - spot.x, c.z - spot.z).length() < TAG_REACH
+
+func _tag_corner() -> Vector3:
+	return load.global_transform * Vector3(LW * 0.5, 0.3, LW * 0.5)
+
+func _drop_tag(p) -> void:
+	p.busy = ""
+	if tag_hand == p:
+		tag_hand = null
+	_tag_sub = ""
+
 ## Which station the climb needs someone on right now ("" if none).
 func needed() -> Array:
 	var out := []
@@ -1857,6 +1907,7 @@ func needed() -> Array:
 	if stage == "guide":
 		if not has_dogman:
 			out.append("dogman")
+	if tag_ready() and tag_hand == null:
 		out.append("tag")
 	return out
 
@@ -1943,13 +1994,60 @@ func handle_player(p, delta: float, near: String, act: String, alt: String, leav
 						var in_zone: bool = winding and power >= SWEET and power <= SWEET + SWEET_W
 						p.cue("action", "let go!" if in_zone else ("hold to swing" if not winding else "wait for gold…"), power if winding else 0.0, in_zone, Vector2(SWEET, SWEET + SWEET_W))
 					"clip":
-						p.cue("action", "R-clip", -1.0, true)
-						if p.action_pressed() or p.alt_pressed():
+						# The R-clip takes a moment (hold A or X); Y skips it to
+						# get the frame up sooner, and the inspector notes it
+						_clip_hold = minf(1.0, _clip_hold + get_process_delta_time() / CLIP_T) if (p.action_held() or p.alt_held()) else maxf(0.0, _clip_hold - get_process_delta_time())
+						p.cue("action", "R-clip on (hold)", _clip_hold, true)
+						p.cue("slow", "skip the clip")
+						if _clip_hold >= 1.0:
+							_clip_hold = 0.0
 							_clip(true)
 							p.bounce()
+						elif p.slow_pressed():
+							_clip_hold = 0.0
+							_clip(false)
 				_pose_rigger(p)
 			_:
 				p.set_arms(-0.3, -0.3)
+		return true
+
+	if p.busy == "tag":
+		# Let go of A and the line drops: they're back in charge wherever they stand
+		if not active or load == null or not (stage in ["fly", "guide"]) or not p.action_held():
+			_drop_tag(p)
+			return false
+		tag_hand = p
+		var corner := _tag_corner()
+		if _tag_sub == "fetch":
+			p.run_to = Vector3(corner.x, p.position.y, corner.z)
+			p.face(corner)
+			p.cue("action", "running for the line", -1.0, true)
+			var d := Vector2(corner.x - p.position.x, corner.z - p.position.z).length()
+			if d < _tag_best - 0.05:
+				_tag_best = d
+				_tag_stuck = 0.0
+			else:
+				_tag_stuck += delta
+			# Grab it, or as near as the deck edge lets them get
+			if d < TAG_GRAB or _tag_stuck > 0.3:
+				_tag_sub = "hold"
+				p.bounce()
+				game.sfx.hit("tink")
+			return true
+		# Holding the line, walking it back to the tag spot
+		var spot: Vector3 = game.deck_pos("tag")
+		var home := Vector2(spot.x - p.position.x, spot.z - p.position.z).length() < 0.3
+		if not home:
+			p.run_to = Vector3(spot.x, p.position.y, spot.z)
+		else:
+			p.face(load.global_position)
+		tagging = true
+		tag_strength = 1.1 if home else 0.8
+		_tagger = p
+		tag_from = p.global_position + Vector3(0, 0.9, 0)
+		p.set_arms(-1.6, -1.6)
+		p.cue("action", "hold the tag line", 1.0, true)
+		p.gold(not p.bot and home)
 		return true
 
 	if p.busy == "dogman":
@@ -2044,14 +2142,18 @@ func handle_player(p, delta: float, near: String, act: String, alt: String, leav
 			return true
 		"tag":
 			if stage in ["fly", "guide"] and load:
-				p.cue("action", "tag line", 1.0 if p.action_held() else -1.0, true)
-				if p.action_held():
-					tagging = true
-					tag_strength = 1.1
-					_tagger = p
-					tag_from = p.global_position + Vector3(0, 0.9, 0)
-					p.face(load.global_position)
-					p.set_arms(-1.6, -1.6)
+				if not tag_ready() or tag_hand != null:
+					p.cue("action", "tag line", -1.0, false)
+					p.say("wait till it's over the deck" if tag_hand == null else "%s has the line" % tag_hand.char_name)
+				else:
+					p.cue("action", "hold: grab the tag line", -1.0, true)
+					p.gold(not p.bot)
+					if p.action_held():
+						p.busy = "tag"
+						tag_hand = p
+						_tag_sub = "fetch"
+						_tag_best = INF
+						_tag_stuck = 0.0
 			return true
 	return false
 

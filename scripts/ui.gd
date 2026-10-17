@@ -14,11 +14,11 @@ const GREEN := Color("7cd992")
 const GLYPH := {"A": Color("3fe0c5"), "B": Color("ff5a5f"), "X": Color("9b6bff"), "Y": Color("ffc23d")}
 ## Job colours: the same as the hard hats, so a colour always means a job
 const ROLE := {"boom": Color("ffc72c"), "line": Color("7cd992"), "pump": Color("ff7a1a"), "poker": Color("c49bff"), "screed": Color("f4f7fa"), "hose": Color("2fd3e8")}
-const ROLE_NAME := {"boom": "Boom operator", "line": "Line hand", "pump": "Pump operator", "poker": "Poker hand", "screed": "Screeder", "hose": "Pipe guy"}
+const ROLE_NAME := {"boom": "Boom operator", "line": "Truck hand", "pump": "Pump operator", "poker": "Poker hand", "screed": "Screeder", "hose": "Pipe guy"}
 const ROLE_SHORT := {
 	"boom": "Steers the placing boom and pours, bay by bay.",
-	"line": "Keeps the riser sound: clamps, bursts, blockages.",
-	"pump": "Trucks, slump tests, the hopper and the pump.",
+	"line": "Trucks and slump tests, and fixes the riser when it goes.",
+	"pump": "Watches the gauge and kills the pump the moment it spikes.",
 	"poker": "Vibrates the concrete as it lands.",
 	"screed": "Strikes the slab flat behind the pokers.",
 	"hose": "On the end hose: puts the concrete exactly where it's wanted.",
@@ -32,8 +32,8 @@ const ROLE_HOW := {
 		"climb": [["stick", "whistle the crane toward the ghost"], ["A", "hold to lower it in"], ["X", "hoist"], ["Y", "\"slowly\" (twice: stop)"]],
 	},
 	"line": {
-		"pour": [["A", "carry parts · open and close clamps (hold)"], ["X", "safety pin"], ["B", "put it down · step off the ladder"], ["stick", "the ladder snaps to the joint"]],
-		"climb": [["A", "jack the frame · roll the section in"], ["stick", "line up the holes, A: podger"], ["A", "swing the hammer, let go in the gold"], ["A", "R-clip back on"]],
+		"pour": [["A", "wave a truck back"], ["A", "slump test: scoop, fill 3 layers, hold to rod and let go on 25, strike off, lift steady, read the tape"], ["A", "use the load"], ["X", "add the water held back (then test again)"], ["B", "send it back"], ["A", "repairs: carry parts · open and close clamps (hold)"], ["A", "hold: safety pin in (B skips it: that clamp goes next)"]],
+		"climb": [["A", "jack the frame · roll the section in"], ["stick", "line up the holes, A: podger"], ["A", "swing the hammer, let go in the gold"], ["A", "hold: R-clip back on (Y skips it: a safety note)"]],
 	},
 	"pump": {
 		"pour": [["A", "wave a truck back"], ["A", "slump test: sample, fill 3 layers to the mark, rod 25 each, strike off, lift steady, read the tape"], ["A", "use the load"], ["X", "add the water held back (then test again)"], ["B", "send it back"], ["Y", "belt remote: pressure off (hold)"]],
@@ -41,7 +41,7 @@ const ROLE_HOW := {
 	},
 	"poker": {
 		"pour": [["A", "pick up the poker"], ["A", "hold in the purple until it's glossy"], ["Y", "call the boom over here"], ["B", "put it down"]],
-		"climb": [["A", "hold the tag line to stop the swing"], ["stick", "walk with the load"]],
+		"climb": [["A", "hold once the load is over the deck: grab the tag line and walk it back"], ["stick", "walk with the load"]],
 	},
 	"hose": {
 		"pour": [["A", "take the end hose (under the boom)"], ["stick", "walk it to where the concrete's wanted"], ["A", "hold: call the pump on (let go: off)"], ["A", "radio it the moment you see it: the dragon's breathing · concrete's on"], ["B", "let go of the hose"]],

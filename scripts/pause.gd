@@ -256,7 +256,7 @@ func _note_for(action: String) -> String:
 		"incidents":
 			return ["Nothing goes wrong on the line. Just pour.",
 				"One clamp or blockage per pour, like a normal day.",
-				"Something per bay from level 3. Keep the line hand busy.",
+				"Something per bay from level 3. Keep the truck hand busy.",
 				"Something every bay, blockages too, from level 1."][int(Settings.value("incidents"))] + "  (from the next pour)"
 		"ui_scale":
 			return "Bigger HUD and menus, for a big TV across the room."
