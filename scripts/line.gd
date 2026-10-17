@@ -90,6 +90,7 @@ const PIN_T := 0.9           # s holding A to push a safety pin home
 # faster they react, the more it's worth. Too slow and it packs solid.
 const SPIKE_LIMIT := 3.0     # s of pumping into a spike before it blocks
 const SPIKE_BAR := 232.0     # where the needle goes
+const SPIKE_WARN := 0.5      # s of warning: the gauge close-up pops up just before
 const RESTART_HOLD := 0.8    # s holding A at the panel to restart
 const RESTART_AUTO := 16.0   # s tripped before the leading hand restarts it
 ## [reaction under s, points, label]
@@ -172,6 +173,10 @@ var ladder_rails: Array[MeshInstance3D] = []
 var ladder_rungs: MultiMeshInstance3D
 var pump_unit: Node3D
 var gauge_needle: Node3D
+var gauge_label: Label3D      # the reading over the gauge, sized for the TV (main scales it)
+var gauge_face: Node3D        # the dial, for the gauge close-up camera to look at
+var spike_warn := false       # a spike's half a second off: the gauge close-up pops up
+var _kill_show_t := 0.0       # s the close-up stays up after a kill, to see it drop
 var hopper_fill: MeshInstance3D
 var hopper_label: Label3D
 var drips: CPUParticles3D
@@ -454,20 +459,43 @@ func _build_pump() -> void:
 	var lbl := Label3D.new()
 	lbl.text = Settings.brand("pumper")
 	lbl.add_to_group("brand_pumper")
-	lbl.font_size = 96
+	lbl.font_size = 80
 	lbl.pixel_size = 0.008
 	lbl.modulate = Color("0f1b2d")
 	lbl.outline_size = 0
-	lbl.position = Vector3(0.2, 1.9, 1.02)
+	lbl.position = Vector3(0.85, 1.9, 1.02)   # (clear of the gauge)
 	pump_unit.add_child(lbl)
-	# Pressure gauge on the operator's side: a white dial with a red needle
-	var dial := F.cylinder(0.32, 0.05, F.mat("white"), Vector3(-0.6, 2.0, 1.03), 20)
+	# Pressure gauge on the operator's side: a big white dial in a black rim,
+	# a red band at the top of the scale and a red needle, with the reading
+	# floating over it in TV-sized type
+	gauge_face = Node3D.new()
+	gauge_face.position = Vector3(-1.0, 1.75, 1.03)
+	pump_unit.add_child(gauge_face)
+	var rim := F.cylinder(0.5, 0.05, F.mat("navy"), Vector3.ZERO, 24)
+	rim.rotation.x = PI * 0.5
+	gauge_face.add_child(rim)
+	var dial := F.cylinder(0.44, 0.05, F.mat("white"), Vector3(0, 0, 0.02), 24)
 	dial.rotation.x = PI * 0.5
-	pump_unit.add_child(dial)
+	gauge_face.add_child(dial)
+	for i in 9:
+		# Ticks round the scale, the last three in the red
+		var a := 2.2 - 4.4 * float(i) / 8.0
+		var tick := F.box(Vector3(0.035, 0.1 if i % 2 == 0 else 0.06, 0.02), F.mat("red") if i >= 6 else F.mat("navy"), Vector3(0, 0, 0.055))
+		var arm := Node3D.new()
+		arm.rotation.z = a
+		arm.add_child(tick)
+		tick.position = Vector3(0, 0.36, 0.055)
+		gauge_face.add_child(arm)
 	gauge_needle = Node3D.new()
-	gauge_needle.position = Vector3(-0.6, 2.0, 1.07)
-	pump_unit.add_child(gauge_needle)
-	gauge_needle.add_child(F.box(Vector3(0.03, 0.26, 0.02), F.mat("red"), Vector3(0, 0.12, 0)))
+	gauge_needle.position = Vector3(0, 0, 0.07)
+	gauge_face.add_child(gauge_needle)
+	gauge_needle.add_child(F.box(Vector3(0.045, 0.38, 0.02), F.mat("red"), Vector3(0, 0.17, 0)))
+	gauge_needle.add_child(F.cylinder(0.06, 0.03, F.mat("navy"), Vector3(0, 0, 0.01), 10))
+	(gauge_needle.get_child(1) as Node3D).rotation.x = PI * 0.5
+	gauge_label = F.label3d("0 bar", 64, Color.WHITE)
+	gauge_label.layers = 2   # (left out of the close-up cameras: the dial's right there)
+	gauge_label.position = PUMP_POS + Vector3(-1.0, 3.3, 1.0)
+	add_child(gauge_label)
 	# Hopper: an open steel box at the rear with a grille
 	var hop := Node3D.new()
 	hop.position = HOPPER - PUMP_POS
@@ -746,17 +774,30 @@ func _spikes(delta: float) -> void:
 		if spike_t > SPIKE_LIMIT:
 			# Nobody killed it: it's packed solid
 			spike_on = false
+			_kill_show_t = 0.9
 			stats["spike_missed"] += 1
-			game.hud.toast("Nobody killed the pump: the spike's packed the line!", 2.4)
-			if not blocked:
+			# It either packs the line solid, or the hammer blows a joint's
+			# gasket and that clamp starts weeping
+			if stats["spike_missed"] % 2 == 1 and not blocked:
+				game.hud.toast("Nobody killed the pump: the spike's packed the line!", 2.4)
+				_block(false)
+			elif fail_i < 0 and not blocked:
+				game.hud.toast("Nobody killed the pump: the spike's cracked a joint!", 2.4)
+				start_failure()
+				wear = 0.4
+			elif not blocked:
 				_block(false)
 		return
 	# Spikes only in steady pumping, with the line sound
 	if not live or blocked or fail_i >= 0 or hopper < 0.4 or (game.ops and game.ops.busy()):
+		spike_warn = false
 		return
 	_spike_in -= delta
+	# Half a second before, the gauge close-up pops up: eyes on the needle
+	spike_warn = _spike_in <= SPIKE_WARN
 	if _spike_in <= 0.0:
 		spike_on = true
+		spike_warn = false
 		spike_t = 0.0
 		stats["spikes"] += 1
 		game.sfx.hit("hiss")
@@ -771,6 +812,7 @@ func kill_pump(p) -> void:
 		return
 	var react := spike_t
 	spike_on = false
+	_kill_show_t = 0.9
 	tripped = true
 	_tripped_t = 0.0
 	_restart_t = 0.0
@@ -817,6 +859,8 @@ func run(delta: float, want: bool) -> float:
 			game.hud.toast("The leading hand's restarted the pump", 1.8)
 			restart(null)
 	var q := 0.0
+	if not pumping:
+		spike_warn = false
 	if pumping:
 		_spikes(delta)
 		var rate := PUMP_Q * (1.0 if speed_high else LOW)
@@ -1050,7 +1094,7 @@ func _watchdog(delta: float) -> void:
 		_blocked_t += delta
 		if _blocked_t > FIND_AUTO:
 			block_found = true
-			game.hud.toast("The truck hand heard the plug: above C%d" % (block_s + 1), 2.2)
+			game.hud.toast("The pump operator heard the plug: above C%d" % (block_s + 1), 2.2)
 			_start_job("block", block_s)
 	if job_kind == "":
 		return
@@ -1072,7 +1116,7 @@ func _watchdog(delta: float) -> void:
 			reversing = true
 			if not _bled:
 				_bled = true
-				game.hud.toast("Nobody took the pressure off: the truck hand's bleeding it at the pump", 2.4)
+				game.hud.toast("Nobody took the pressure off: the leading hand's bleeding it at the pump", 2.4)
 				game.score.award(op, -20, "Pressure left on")
 	if _job_t > JOB_MAX:
 		game.hud.toast("The leading hand jumps in to finish the joint", 2.2)
@@ -1619,6 +1663,17 @@ func update(delta: float, in_pour: bool) -> void:
 		game.sfx.hit("hiss")
 	reversing = false   # held each frame by whoever is on the panel
 	gauge_needle.rotation.z = 2.2 - 4.4 * clampf(pressure / 250.0, 0.0, 1.0)
+	_kill_show_t = maxf(0.0, _kill_show_t - delta)
+	if gauge_label:
+		if spike_on:
+			gauge_label.text = "SPIKE  %d bar" % int(pressure)
+			gauge_label.modulate = Color("ff5a5f") if fmod(_knock_phase, 0.3) < 0.18 else Color.WHITE
+		elif tripped:
+			gauge_label.text = "PUMP OFF  %d bar" % int(pressure)
+			gauge_label.modulate = Color("ffc23d")
+		else:
+			gauge_label.text = "%d bar" % int(pressure)
+			gauge_label.modulate = Color("ff5a5f") if pressure > 180.0 else Color.WHITE
 
 	# Repairs that don't need hands: the pressure dropping off
 	if _step_name() == "depress" and pressure <= SAFE_BAR:
@@ -1773,20 +1828,18 @@ func work_focus(p) -> Vector3:
 
 ## Ground stations, parts, the ladder and on-ladder work. Returns true if handled.
 func handle_player(p, delta: float, near: String) -> bool:
-	if p.zone == "ladder":
-		_ladder(p, delta)
-		return true
-	# A pressure spike: the pump operator kills it on the belt remote (Y),
-	# wherever they are on the street. Every tenth of a second counts.
-	if p.zone == "ground" and p.role == "pump" and spike_on:
-		p.cue("slow", "KILL THE PUMP", -1.0, true, Vector2(-1, -1), true)
-		if p.slow_pressed():
+	# A pressure spike: the pump operator kills it on the belt remote (A),
+	# wherever they are, street, deck or halfway up the riser. Every tenth
+	# of a second counts.
+	if p.role == "pump" and spike_on and p.busy in ["", "rigger"]:
+		p.cue("action", "KILL THE PUMP", -1.0, true, Vector2(-1, -1), true)
+		if p.action_pressed():
 			kill_pump(p)
 		return true
-	# The pump operator's belt remote: when the truck hand needs the pressure
-	# off, hold Y anywhere on the street to reverse it off (real stationary
-	# pumps run off a radio remote with start/stop and direction control)
-	if p.zone == "ground" and p.role == "pump" and (_step_name() == "depress" or pressure > SAFE_BAR and fix_i >= 0):
+	# The pump operator's belt remote: before they open up a joint, hold Y
+	# anywhere to reverse the pressure off (real stationary pumps run off a
+	# radio remote with start/stop and direction control)
+	if p.role == "pump" and p.busy == "" and (_step_name() == "depress" or pressure > SAFE_BAR and fix_i >= 0):
 		p.cue("slow", "pressure off", -1.0, true)
 		p.gold(_step_name() == "depress" and not p.bot)
 		if p.slow_held():
@@ -1796,6 +1849,9 @@ func handle_player(p, delta: float, near: String) -> bool:
 			p.say("%d bar" % int(pressure))
 			if fmod(_knock_phase, 0.4) < get_process_delta_time():
 				game.haptic(p, "40")
+	if p.zone == "ladder":
+		_ladder(p, delta)
+		return true
 	# Joints reachable from where they stand (the base bend, or the truck's deck pipe)
 	if p.zone == "ground" and p.busy == "":
 		var j := joint_near(p)
@@ -2626,3 +2682,15 @@ func hud_info() -> Dictionary:
 		if staged["state"] == "bay" and staged["checked"]:
 			stand = "waiting on a call"
 	return {"hopper": hopper / HOPPER_CAP, "high": speed_high, "queue": q, "bay": bay, "standby": stand, "next": maxf(0.0, _arrive_t), "ages": ages}
+
+## The gauge close-up wants to be on screen: just before a spike, through it,
+## and a moment after (to see the needle drop).
+func gauge_popup() -> bool:
+	return spike_warn or spike_on or _kill_show_t > 0.0
+
+## Where the gauge close-up camera looks, and from where.
+func gauge_target() -> Vector3:
+	return gauge_face.global_position
+
+func gauge_eye() -> Vector3:
+	return gauge_face.global_position + Vector3(0.15, 0.25, 1.9)

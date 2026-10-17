@@ -111,7 +111,7 @@ func _tip(p) -> String:
 	var climb = g.climb
 	if g.phase == "climb":
 		match p.role:
-			"pump":
+			"line":
 				if climb.needs_sling():
 					return "Street: the crane's hook is over the LAYDOWN. Go there and hold A to sling the section." if climb.hook_ready() or p.position.distance_to(climb.LAYDOWN) > 3.5 else "The hook's coming down. Hold A once it's there."
 				if climb.needs_pins():
@@ -131,7 +131,7 @@ func _tip(p) -> String:
 					if climb.tag_hand == p:
 						return "Keep holding A: you've got the tag line. Let go and you drop it."
 					return "Wait at TAG LINE. Once the load's up over the deck, hold A: you run out, grab the line and walk it back."
-			"line":
+			"pump":
 				if p.busy != "rigger":
 					return "Go to RIGGER and press A to work the climbing frame."
 				match climb.stage:
@@ -142,7 +142,7 @@ func _tip(p) -> String:
 					"pin":
 						match climb.pin_sub:
 							"wait":
-								return "Waiting for the pins: the pump operator sends them up the haul rope."
+								return "Waiting for the pins: the truck hand sends them up the haul rope."
 							"split":
 								return "Take a pin set and pull its R-clip off: press A."
 							"align":
@@ -202,17 +202,19 @@ func _tip(p) -> String:
 			return "Hold A to bring the board down, then walk backwards over the gold. The board pulls the surplus along into the low spots."
 		"pump":
 			if line.spike_on:
-				return "SPIKE! Y now, wherever you are: kill the pump. The faster, the more it's worth."
+				return "SPIKE! A now, wherever you are: kill the pump. The faster, the more it's worth."
+			if line.fix_i >= 0 and line._step_name() == "depress":
+				return "Pressure off before you open the joint: hold Y (your belt remote), wherever you are."
+			if line.fix_i >= 0 or (line.blocked and not line.block_found) or (line.fail_i >= 0 and line.burst):
+				return "The riser needs you: grab the part (CLAMP KITS or PIPES), up the LADDER, and fix it."
+			if line.fail_i >= 0:
+				return "A clamp's weeping. Grab a CLAMP KIT and up the LADDER to swap it before it bursts."
 			if line.tripped:
 				return "Pump's off and the pressure's easing. Hold A at the PUMP PANEL to restart it."
-			if line.fix_i >= 0 and line._step_name() == "depress":
-				return "The truck hand needs the pressure off: hold Y (your belt remote), wherever you are."
 			if line.live and line.idle_t > line.SET_TIME * 0.5 and not line.line_down():
 				return "The line's standing still. A at the PUMP PANEL strokes it so it doesn't go off."
-			return "Watch the gauge. The moment the needle jumps into the red, Y kills the pump."
+			return "Watch the gauge on the side of the pump. The moment the needle jumps into the red, A kills the pump."
 		"line":
-			if line.fix_i >= 0 or (line.blocked and not line.block_found) or (line.fail_i >= 0 and line.burst):
-				return "The riser needs you: grab the part (CLAMP KITS or PIPES), up the LADDER, and fix it. Trucks wait till you're back."
 			var chk = line.needs_check()
 			if chk != null:
 				if not chk["checked"]:
@@ -220,7 +222,5 @@ func _tip(p) -> String:
 				return "Your reading against the order, 100 mm ±20: in it, A uses the load. Under 80 (stiff), X adds the water the plant held back, then test again. Over 120, or batched over 90 minutes ago, B sends it back."
 			if line.can_wave_in():
 				return "Wave the next truck back onto the hopper (A at the TRUCK BAY)."
-			if line.fail_i >= 0:
-				return "A clamp's weeping. Grab a CLAMP KIT and up the LADDER to swap it before it bursts."
 			return "Keep the trucks coming. Two on the go means the hopper never runs dry."
 	return ""

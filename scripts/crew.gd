@@ -2,8 +2,9 @@
 ## job nobody has taken, through the same buttons a person presses. Bots go
 ## for the work flagged with a hand sign, and run when it turns red.
 ##
-## Climb days use the same crew: the boom operator is the dogman, the truck hand
-## rigs and pins the tower, and the poker hand holds the tag line.
+## Climb days use the same crew: the boom operator is the dogman, the pump
+## operator rigs and pins the tower, the truck hand slings the sections and
+## sends the pins up, and the poker hand holds the tag line.
 extends Node
 
 const PlayerScript := preload("res://scripts/player.gd")
@@ -17,10 +18,10 @@ const PLAYER_COLORS := [Color("4fa3ff"), Color("7cd992"), Color("ff7ad9"), Color
 const INFO := {
 	"boom": {"name": "Boom operator", "hat": Color("ffc72c"), "climb": "dogman",
 		"text": "Steer the placing boom from the radio remote and pump the concrete where it's needed, bay by bay. Keep an eye on the hopper.\n\nClimb days: dogman, whistling the crane in."},
-	"line": {"name": "Truck hand", "hat": Color("7cd992"), "climb": "rigger",
-		"text": "Run the truck bay. Wave trucks in, slump-test the loads, then use it, add the water held back, or send it back. When the riser weeps, bursts or blocks, grab the parts and fix it.\n\nClimb days: rigger, pinning the new sections."},
-	"pump": {"name": "Pump operator", "hat": Color("ff7a1a"), "climb": "",
-		"text": "Watch the pressure gauge. The moment it spikes, kill the pump: the faster you react, the more it's worth. Then restart it, drop the pressure for a repair, and stroke the line through a wait.\n\nClimb days: slinger and pins."},
+	"line": {"name": "Truck hand", "hat": Color("7cd992"), "climb": "slinger",
+		"text": "Run the truck bay. Wave trucks in, slump-test the loads, then use it, add the water held back, or send it back.\n\nClimb days: sling the next section and send the pins up."},
+	"pump": {"name": "Pump operator", "hat": Color("ff7a1a"), "climb": "rigger",
+		"text": "Watch the pressure gauge. The moment it spikes, kill the pump (A): the faster you react, the more it's worth. When the riser weeps, bursts or blocks, take the pressure off, grab the parts, climb up and fix it.\n\nClimb days: rigger, pinning the new sections."},
 	"poker": {"name": "Poker hand", "hat": Color("c49bff"), "climb": "tag line",
 		"text": "Vibrate the concrete as it lands: plunge, feel it shudder, lift out when the bubbles stop, move on. Tow your drive unit along.\n\nClimb days: the tag line."},
 	"hose": {"name": "Pipe guy", "hat": Color("2fd3e8"), "climb": "",

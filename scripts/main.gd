@@ -667,9 +667,9 @@ func _build_site() -> void:
 
 ## Which job works at each station: its spot and name are in that job's colour.
 const STATION_ROLE := {"boom": "boom", "dogman": "boom", "screed": "screed", "poker": "poker", "tag": "poker",
-	"rigger": "line", "ladder": "line", "ladder_g": "line", "pinsets": "line", "bay": "line", "panel": "pump",
-	"spares": "line", "haul": "pump", "rack": "line", "rig0": "pump", "rig1": "pump", "rig2": "pump",
-	"rig3": "pump", "pins": "pump", "sling": "pump", "bin": "boom", "hose": "hose", "valve": "line"}
+	"rigger": "pump", "ladder": "pump", "ladder_g": "pump", "pinsets": "line", "bay": "line", "panel": "pump",
+	"spares": "pump", "haul": "line", "rack": "pump", "rig0": "pump", "rig1": "pump", "rig2": "pump",
+	"rig3": "pump", "pins": "line", "sling": "line", "bin": "boom", "hose": "hose", "valve": "line"}
 
 func _make_station(key: String, def: Dictionary, parent: Node3D, zone: String) -> void:
 	if STATION_ROLE.has(key):
@@ -1227,6 +1227,115 @@ func _build_insets() -> void:
 		badge.visible = false
 		box.add_child(badge)
 		insets.append({"box": box, "view": view, "cam": cam, "label": lab, "badge": badge, "frame": fsb, "chip": csb, "icon": chip_icon})
+	_build_gauge_pop(layer)
+
+## The gauge close-up: a small camera on the pump's pressure gauge that pops
+## up half a second before a spike, over the pump wherever it is on screen
+## (kept inside its own half of a split screen and clear of the other pop-ups),
+## with the A to kill it.
+const GAUGE_POP := Vector2(250, 180)
+var gauge_pop: SubViewportContainer
+var _gauge_cam: Camera3D
+var _gauge_badge
+var _gauge_label: Label
+var _gauge_frame: StyleBoxFlat
+
+func _build_gauge_pop(layer: CanvasLayer) -> void:
+	gauge_pop = SubViewportContainer.new()
+	gauge_pop.stretch = true
+	gauge_pop.size = GAUGE_POP
+	gauge_pop.visible = false
+	gauge_pop.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(gauge_pop)
+	var view := SubViewport.new()
+	view.size = Vector2i(int(GAUGE_POP.x), int(GAUGE_POP.y))
+	view.world_3d = get_viewport().world_3d
+	view.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	gauge_pop.add_child(view)
+	_gauge_cam = Camera3D.new()
+	_gauge_cam.fov = 34.0
+	_gauge_cam.far = 60.0
+	_gauge_cam.cull_mask = 1
+	view.add_child(_gauge_cam)
+	var frame := Panel.new()
+	_gauge_frame = StyleBoxFlat.new()
+	_gauge_frame.draw_center = false
+	_gauge_frame.set_border_width_all(4)
+	_gauge_frame.border_color = Color("ff5a5f")
+	_gauge_frame.set_corner_radius_all(6)
+	frame.add_theme_stylebox_override("panel", _gauge_frame)
+	frame.set_anchors_preset(Control.PRESET_FULL_RECT)
+	frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	gauge_pop.add_child(frame)
+	var chip := PanelContainer.new()
+	var csb := StyleBoxFlat.new()
+	csb.bg_color = UI.ROLE["pump"]
+	csb.corner_radius_bottom_right = 8
+	csb.content_margin_left = 8
+	csb.content_margin_right = 10
+	csb.content_margin_top = 2
+	csb.content_margin_bottom = 3
+	chip.add_theme_stylebox_override("panel", csb)
+	chip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	gauge_pop.add_child(chip)
+	_gauge_label = Label.new()
+	_gauge_label.add_theme_font_size_override("font_size", 16)
+	_gauge_label.add_theme_color_override("font_color", Color("0f1b2d"))
+	chip.add_child(_gauge_label)
+	_gauge_badge = CueBadge.new()
+	_gauge_badge.position = Vector2(6, GAUGE_POP.y - 76)
+	gauge_pop.add_child(_gauge_badge)
+
+func _update_gauge_pop() -> void:
+	if gauge_pop == null:
+		return
+	gauge_pop.visible = phase == "pour" and line != null and line.gauge_popup() and not skyline
+	if not gauge_pop.visible:
+		return
+	var vs: Vector2 = get_viewport().get_visible_rect().size
+	var target: Vector3 = line.gauge_target()
+	_gauge_cam.position = line.gauge_eye()
+	_gauge_cam.look_at(target, Vector3.UP)
+	# Which view the pump's in: the street band when split, else the main one
+	var split_on: bool = band_box != null and band_box.visible and _band_h > GAUGE_POP.y * 0.6
+	var region := Rect2(16, 96, vs.x - 32, vs.y - 112 - _band_h) if not split_on else Rect2(16, vs.y - _band_h + 10, vs.x - 32, _band_h - 20)
+	var cam: Camera3D = band_cam if split_on else camera
+	var pt := Vector2(region.position.x + region.size.x * 0.5, region.end.y)
+	if not cam.is_position_behind(target):
+		pt = cam.unproject_position(target)
+		if split_on:
+			pt = Vector2(pt.x, vs.y - _band_h + pt.y * _band_h / maxf(1.0, float(band_view.size.y)))
+	# (a short band: the close-up shrinks to fit inside it)
+	var k := minf(1.0, region.size.y / GAUGE_POP.y)
+	var sz := GAUGE_POP * k
+	gauge_pop.size = sz
+	gauge_pop.scale = Vector2.ONE
+	# Over the pump: just above it if there's room, else just below
+	var r := Rect2(Vector2(pt.x - sz.x * 0.5, pt.y - 40.0 - sz.y), sz)
+	if r.position.y < region.position.y:
+		r.position.y = pt.y + 40.0
+	r.position.x = clampf(r.position.x, region.position.x, region.end.x - sz.x)
+	r.position.y = clampf(r.position.y, region.position.y, region.end.y - sz.y)
+	# Clear of the other pop-ups: slide sideways off any it would cover
+	for inset in insets:
+		var b: SubViewportContainer = inset["box"]
+		if not b.visible:
+			continue
+		var other := b.get_global_rect().grow(10.0)
+		if r.intersects(other):
+			var left_x := other.position.x - sz.x
+			var right_x := other.end.x
+			if left_x >= region.position.x and (absf(left_x - r.position.x) <= absf(right_x - r.position.x) or right_x + sz.x > region.end.x):
+				r.position.x = left_x
+			elif right_x + sz.x <= region.end.x:
+				r.position.x = right_x
+	gauge_pop.position = r.position
+	var spike: bool = line.spike_on
+	_gauge_frame.border_color = Color("ff5a5f") if spike or line.spike_warn else UI.ROLE["pump"]
+	_gauge_label.text = "PRESSURE SPIKE!" if spike else ("PUMP GAUGE" if line.spike_warn else "PUMP OFF")
+	var akey := "A"
+	_gauge_badge.position = Vector2(6, sz.y - 76)
+	_gauge_badge.show_cue([akey, "KILL THE PUMP", -1.0, true, Vector2(-1, -1), true, false] if spike else ([akey, "get ready", -1.0, true, Vector2(-1, -1), false, false] if line.spike_warn else []))
 
 func _add_section() -> void:
 	var s := F.lattice_section(LS, LW)
@@ -1979,8 +2088,8 @@ func _update_pour(delta: float) -> void:
 		var pk = crew.crew["poker"]
 		var sc = crew.crew["screed"]
 		print("[dbg] poker zone=%s pos=%s tool=%s busy=%s mv=%s act=%s st=%s | screed zone=%s pos=%s tool=%s mv=%s act=%s mode=%s" % [pk.zone, str(pk.position), pk.tool, pk.busy, str(pk.ai_move), pk.ai_action, poker._state(pk)["state"], sc.zone, str(sc.position), sc.tool, str(sc.ai_move), sc.ai_action, bots._scr["mode"]])
-		var lh = crew.crew["line"]
-		var pp = crew.crew["pump"]
+		var lh = crew.crew["pump"]
+		var pp = crew.crew["line"]
 		var hh = crew.crew["hose"]
 		print("[dbg] ops=%s primed=%s step_t=%.1f hose=%s busy=%s pos=%s disch=%s tip=%s want_boom=%s" % [ops.stage, ops.primed, ops.step_t, hh.char_name, hh.busy, str(hh.position), str(discharge()), str(tip_target), str(_boom_operator() != null)])
 		print("[dbg] t=%.0f cov=%.2f bay%d hopper=%.1f p=%.0f high=%s line=%s/%s y=%.1f held=%s pump=%s held=%s fail=%d fix=%d/%s blk=%s idle=%.0f hook=%s trucks=%s scr=%.2f" % [pour_clock, _filled_ratio(), pour.cur_bay, line.hopper, line.pressure, line.speed_high, lh.zone, lh.busy, lh.position.y, lh.held_kind, str(pp.position), pp.held_kind, line.fail_i, line.fix_i, line._step_name(), line.blocked, line.idle_t, line.hook["state"], ",".join(ts), pour.screed_share()])
@@ -2256,6 +2365,11 @@ func _scale_world_labels() -> void:
 		var l: Label3D = stations[key]["label"]
 		if l and l.is_inside_tree():
 			l.scale = Vector3.ONE * _label_k(l.global_position) * wt
+	# The pressure reading over the pump's gauge: by the street band's camera
+	# while the screen is split, a touch bigger than a station name
+	if line and line.gauge_label:
+		var gc: Camera3D = band_cam if _split > 0.5 and band_cam else camera
+		line.gauge_label.scale = Vector3.ONE * clampf(gc.global_position.distance_to(line.gauge_label.global_position) / 20.0, 1.0, 2.8) * wt
 
 func _label_k(at: Vector3) -> float:
 	var cam: Camera3D = camera
@@ -2435,7 +2549,7 @@ func _handle_player(p, delta: float) -> void:
 	if p.held != null and p.busy == "" and p.held_kind != "pinsets":
 		for q in players:
 			var reach_zone: bool = q.zone == p.zone or (p.zone == "ground" and q.zone == "ladder" and q.position.y < 2.4)
-			if q != p and reach_zone and q.held == null and q.tool in ["", "screed"] and q.role == "line" and Vector2(q.position.x - p.position.x, q.position.z - p.position.z).length() < 1.5:
+			if q != p and reach_zone and q.held == null and q.tool in ["", "screed"] and q.role == "pump" and Vector2(q.position.x - p.position.x, q.position.z - p.position.z).length() < 1.5:
 				p.cue("action", "pass " + p.held_kind, -1.0, true)
 				if p.action_pressed():
 					var kind: String = p.held_kind
@@ -2617,13 +2731,13 @@ func _jobs() -> Array:
 		if climb.tag_ready() and climb.tag_hand == null:
 			add.call("tag", st_pos.call("tag") + up, 0, "poker")
 		if climb.stage in ["jack", "roll", "pin"] and not has.has("rigger"):
-			add.call("rigger", st_pos.call("rigger") + up, 1, "line")
+			add.call("rigger", st_pos.call("rigger") + up, 1, "pump")
 		if climb.needs_sling() and climb.sling_prog <= 0.0:
-			add.call("sling", st_pos.call("sling") + up + Vector3(0, 1.0, 0), 1 if climb.hook_ready() else 0, "pump", "SLING IT")
+			add.call("sling", st_pos.call("sling") + up + Vector3(0, 1.0, 0), 1 if climb.hook_ready() else 0, "line", "SLING IT")
 		if climb.needs_pins() and not climb.pins_coming():
-			add.call("pins", st_pos.call("pins") + up, 2 if climb.pin_sub == "wait" and climb.stage == "pin" else (1 if climb.stage in ["roll", "pin"] else 0), "pump", "PIN BAG")
-		elif climb.needs_pins() and crew.crew["pump"].held_kind == "pins":
-			add.call("haul", st_pos.call("haul") + up, 1, "pump", "SEND IT UP")
+			add.call("pins", st_pos.call("pins") + up, 2 if climb.pin_sub == "wait" and climb.stage == "pin" else (1 if climb.stage in ["roll", "pin"] else 0), "line", "PIN BAG")
+		elif climb.needs_pins() and crew.crew["line"].held_kind == "pins":
+			add.call("haul", st_pos.call("haul") + up, 1, "line", "SEND IT UP")
 	if phase != "pour":
 		return out
 	var oj: Array = ops.job()
@@ -2666,34 +2780,36 @@ func _jobs() -> Array:
 		add.call("bay", st_pos.call("bay") + up, 1 if hop < 0.3 else 0, "line", "WAVE TRUCK IN")
 	var pop = crew.crew["pump"]
 	var ykey := ""
+	var akey := ""
 	if not pop.bot and not pop.ai and pop.KEYS.has(pop.prefix) and bool(on_keys.get(pop.prefix, pop.prefix == "p1_")):
 		ykey = " [%s]" % pop.KEYS[pop.prefix]["Y"]
+		akey = " [%s]" % pop.KEYS[pop.prefix]["A"]
 	if line.spike_on:
-		# A pressure spike: the pump operator kills it from anywhere on the street
-		add.call("panel", (pop.global_position if pop.zone == "ground" else st_pos.call("panel")) + up + Vector3(0, 0.6, 0), 2, "pump", "Y%s: KILL THE PUMP" % ykey)
+		# A pressure spike: the pump operator kills it from anywhere
+		add.call("panel", pop.global_position + up + Vector3(0, 0.6, 0), 2, "pump", "A%s: KILL THE PUMP" % akey)
 	elif line.tripped:
 		add.call("panel", st_pos.call("panel") + up, 1, "pump", "RESTART THE PUMP")
 	elif line.fix_i >= 0 and line._step_name() == "depress" and line.pressure > line.SAFE_BAR:
 		# (the pump operator's belt remote does it from anywhere)
-		add.call("panel", (pop.global_position if pop.zone == "ground" else st_pos.call("panel")) + up + Vector3(0, 0.6, 0), 2, "pump", "Y%s: PRESSURE OFF" % ykey)
+		add.call("panel", pop.global_position + up + Vector3(0, 0.6, 0), 2, "pump", "Y%s: PRESSURE OFF" % ykey)
 	elif line.live and line.idle_t > line.SET_TIME * 0.5 and not line.line_down():
 		add.call("panel", st_pos.call("panel") + up, 2 if line.idle_t > line.SET_TIME * 0.75 else 1, "pump", "STROKE THE PUMP")
 	# The line
-	var lh = crew.crew["line"]
+	var lh = crew.crew["pump"]   # (the pump operator climbs up and fixes the line)
 	if line.fail_i >= 0 or line.fix_i >= 0:
 		var j: int = line.fix_i if line.fix_i >= 0 else line.fail_i
 		var lv2 := 2 if line.burst or line.wear > 0.7 else (1 if line.wear > 0.35 or line.job_kind != "" else 0)
 		var at_joint: bool = line.joint_near(lh) == j
 		if not at_joint or lv2 == 2:
-			add.call("joint", line.clamps[j]["pos"] + Vector3(0.9, 0.9, 0.9), lv2, "line", "C%d %s" % [j + 1, "BURST" if line.burst else ("BLOCKED PIPE" if line.job_kind == "block" else "CLAMP")])
+			add.call("joint", line.clamps[j]["pos"] + Vector3(0.9, 0.9, 0.9), lv2, "pump", "C%d %s" % [j + 1, "BURST" if line.burst else ("BLOCKED PIPE" if line.job_kind == "block" else "CLAMP")])
 	if line.blocked and not line.block_found:
-		add.call("block", Vector3(line.RISER.x + 0.9, maxf(2.0, line.riser_top * 0.5), line.RISER.z + 0.9), 2, "line")
+		add.call("block", Vector3(line.RISER.x + 0.9, maxf(2.0, line.riser_top * 0.5), line.RISER.z + 0.9), 2, "pump")
 	var part: String = bots.part_needed()
 	if part != "" and lh.held_kind != part and not line.part_coming(part, lh):
 		var key := "spares" if part == "clamp" else "rack"
-		add.call(key, st_pos.call(key) + up, 1, "line")
+		add.call(key, st_pos.call(key) + up, 1, "pump")
 	if line.hook["state"] == "up":
-		add.call("hook", line.hook_node.global_position + Vector3(0.5, 0.6, 0.0), 0, "line")
+		add.call("hook", line.hook_node.global_position + Vector3(0.5, 0.6, 0.0), 0, "pump")
 	return out
 
 ## Boots in wet concrete leave prints. Walking back over the screeded finish
@@ -3205,9 +3321,9 @@ func _tickets() -> Array:
 		out.append({"icon": "!", "text": "C%d burst · line down" % (line.fail_i + 1), "frac": 1.0 - float(line.fix_step) / maxf(1.0, line.job_steps.size()), "color": Color("ff5a5f"), "urgent": true})
 	elif line.job_kind != "":
 		var what := "Swap pipe section" if line.job_kind == "block" else "Swap clamp C%d" % (line.job_steps[0][1] + 1)
-		out.append({"icon": "C", "text": "%s · %s" % [what, line.STEP_INFO.get(line._step_name(), "")], "frac": 1.0 - float(line.fix_step) / maxf(1.0, line.job_steps.size()), "color": UI.ROLE["line"], "role": "line", "urgent": line._step_name() in ["kit", "pipe"]})
+		out.append({"icon": "C", "text": "%s · %s" % [what, line.STEP_INFO.get(line._step_name(), "")], "frac": 1.0 - float(line.fix_step) / maxf(1.0, line.job_steps.size()), "color": UI.ROLE["pump"], "role": "pump", "urgent": line._step_name() in ["kit", "pipe"]})
 	elif line.fail_i >= 0:
-		out.append({"icon": "C", "text": "C%d weeping · %d m up" % [line.fail_i + 1, int(line.clamps[line.fail_i]["pos"].y)], "frac": 1.0 - line.wear, "color": UI.ROLE["line"], "role": "line", "urgent": line.wear > 0.5})
+		out.append({"icon": "C", "text": "C%d weeping · %d m up" % [line.fail_i + 1, int(line.clamps[line.fail_i]["pos"].y)], "frac": 1.0 - line.wear, "color": UI.ROLE["pump"], "role": "pump", "urgent": line.wear > 0.5})
 	if line.blocked and not line.block_found:
 		out.append({"icon": "?", "text": "Blocked: tap the riser", "frac": 0.2, "color": Color("ff5a5f"), "urgent": true})
 	# The wet edge
@@ -3574,12 +3690,12 @@ func _update_camera(delta: float) -> void:
 				eye = target + Vector3(6.5, 1.0, 5.5)
 			var where := {"ladder": "  ·  %d m up" % int(p.position.y), "hoist": "  ·  %d m" % int(p.position.y)}
 			lab.text = _who(p) + where.get(p.zone, "")
-		# Framed in the colour of the job it's watching (the line's colour for a
+		# Framed in the colour of the job it's watching (the pump operator's colour, who fixes it, for a
 		# failing clamp or pipe)
-		var role_col: Color = UI.ROLE.get(p.role, Color.WHITE) if p != null else UI.ROLE["line"]
+		var role_col: Color = UI.ROLE.get(p.role, Color.WHITE) if p != null else UI.ROLE["pump"]
 		(inset["frame"] as StyleBoxFlat).border_color = role_col
 		(inset["chip"] as StyleBoxFlat).bg_color = role_col
-		(inset["icon"] as TextureRect).texture = Icons.texture(p.role if p != null else "line", 64)
+		(inset["icon"] as TextureRect).texture = Icons.texture(p.role if p != null else "pump", 64)
 		# The player's own button cue, for timing what they see in here
 		var badge = inset["badge"]
 		badge.show_cue((p.cues[0] as Array).duplicate() if p != null and (not p.bot or _bot_badges) and v["close"] and not p.cues.is_empty() else [])
@@ -3599,6 +3715,7 @@ func _update_camera(delta: float) -> void:
 		cam.near = clampf(cam.position.distance_to(target) - 0.8, 0.05, 4.0) if v["close"] else 0.05
 		if v["close"] and _slump_of(p) != null:
 			cam.near = 0.3   # (nothing in the way: the whole plate's in shot)
+	_update_gauge_pop()
 
 # ------------------------------------------------------------------ autotest
 

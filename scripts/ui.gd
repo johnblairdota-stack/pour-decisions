@@ -17,13 +17,13 @@ const ROLE := {"boom": Color("ffc72c"), "line": Color("7cd992"), "pump": Color("
 const ROLE_NAME := {"boom": "Boom operator", "line": "Truck hand", "pump": "Pump operator", "poker": "Poker hand", "screed": "Screeder", "hose": "Pipe guy"}
 const ROLE_SHORT := {
 	"boom": "Steers the placing boom and pours, bay by bay.",
-	"line": "Trucks and slump tests, and fixes the riser when it goes.",
-	"pump": "Watches the gauge and kills the pump the moment it spikes.",
+	"line": "Trucks and slump tests. Slings and pins on climb days.",
+	"pump": "Kills the pump on a spike, and climbs up to fix the riser.",
 	"poker": "Vibrates the concrete as it lands.",
 	"screed": "Strikes the slab flat behind the pokers.",
 	"hose": "On the end hose: puts the concrete exactly where it's wanted.",
 }
-const ROLE_CLIMB := {"boom": "Climb days: dogman", "line": "Climb days: rigger", "poker": "Climb days: tag line", "pump": "Climb days: slinger and pins", "screed": "", "hose": ""}
+const ROLE_CLIMB := {"boom": "Climb days: dogman", "line": "Climb days: slinger and pins", "poker": "Climb days: tag line", "pump": "Climb days: rigger", "screed": "", "hose": ""}
 ## What each button does in each job, for the pause menu's "Your job" card and
 ## the phone page. [button, what it does]; "stick" for the stick.
 const ROLE_HOW := {
@@ -32,12 +32,12 @@ const ROLE_HOW := {
 		"climb": [["stick", "whistle the crane toward the ghost"], ["A", "hold to lower it in"], ["X", "hoist"], ["Y", "\"slowly\" (twice: stop)"]],
 	},
 	"line": {
-		"pour": [["A", "wave a truck back"], ["A", "slump test: scoop, fill 3 layers, hold to rod and let go on 25, strike off, lift steady, read the tape"], ["A", "use the load"], ["X", "add the water held back (then test again)"], ["B", "send it back"], ["A", "repairs: carry parts · open and close clamps (hold)"], ["A", "hold: safety pin in (B skips it: that clamp goes next)"]],
-		"climb": [["A", "jack the frame · roll the section in"], ["stick", "line up the holes, A: podger"], ["A", "swing the hammer, let go in the gold"], ["A", "hold: R-clip back on (Y skips it: a safety note)"]],
+		"pour": [["A", "wave a truck back"], ["A", "slump test: scoop, fill 3 layers, hold to rod and let go on 25, strike off, lift steady, read the tape"], ["A", "use the load"], ["X", "add the water held back (then test again)"], ["B", "send it back"]],
+		"climb": [["A", "hold at the LAYDOWN to sling the next section"], ["A", "a PIN BAG from the base, up the HAUL ROPE"]],
 	},
 	"pump": {
-		"pour": [["A", "wave a truck back"], ["A", "slump test: sample, fill 3 layers to the mark, rod 25 each, strike off, lift steady, read the tape"], ["A", "use the load"], ["X", "add the water held back (then test again)"], ["B", "send it back"], ["Y", "belt remote: pressure off (hold)"]],
-		"climb": [["A", "hold at the LAYDOWN to sling the next section"], ["A", "a PIN BAG from the base, up the HAUL ROPE"]],
+		"pour": [["A", "KILL THE PUMP the moment the gauge spikes (anywhere)"], ["A", "hold at the panel: restart it"], ["Y", "belt remote: pressure off before a repair (hold)"], ["A", "repairs: carry parts · open and close clamps (hold)"], ["A", "hold: safety pin in (B skips it: that clamp goes next)"]],
+		"climb": [["A", "jack the frame · roll the section in"], ["stick", "line up the holes, A: podger"], ["A", "swing the hammer, let go in the gold"], ["A", "hold: R-clip back on (Y skips it: a safety note)"]],
 	},
 	"poker": {
 		"pour": [["A", "pick up the poker"], ["A", "hold in the purple until it's glossy"], ["Y", "call the boom over here"], ["B", "put it down"]],
