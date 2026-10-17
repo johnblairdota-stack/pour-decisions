@@ -2034,7 +2034,13 @@ func _process(delta: float) -> void:
 	coach.update(delta)
 	_update_camera(delta)
 	shake = maxf(0.0, shake - delta * 1.6)
-	if autotest and _frames > 60 * 60 * 40:
+	# A hang shows up as one phase that never ends; the whole run's budget is
+	# only a backstop (a full tower runs 30 to 40 minutes, give or take the
+	# trucks)
+	if autotest and phase_t > 8.0 * 60.0:
+		push_error("[autotest] stuck in phase %s at level %d (%.0fs)" % [phase, k + 1, phase_t])
+		get_tree().quit(1)
+	if autotest and _frames > 60 * 60 * 60:
 		push_error("[autotest] timed out in phase %s at level %d" % [phase, k + 1])
 		get_tree().quit(1)
 
