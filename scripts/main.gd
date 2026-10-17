@@ -91,7 +91,7 @@ const GROUND_STATIONS := {
 	"rig3": {"pos": Vector3(21.4, 0, 8.4), "label": "OUTRIGGER", "color": Color("ff7a1a")},
 	"pins": {"pos": Vector3(12.2, 0, 6.4), "label": "PIN BAGS", "color": Color("ff7a1a")},
 	"sling": {"pos": Vector3(1.0, 0, 8.6), "label": "LAYDOWN", "color": Color("ff7a1a")},
-	"valve": {"pos": Vector3(16.8, 0, 3.9), "label": "RELEASE VALVE", "color": Color("ff7a1a")},
+	"valve": {"pos": Vector3(16.4, 0, 10.0), "label": "RELEASE VALVE", "color": Color("ff7a1a")},
 }
 const PLAYER_COLORS := [Color("4fa3ff"), Color("7cd992"), Color("ff7ad9"), Color("c49bff")]
 const ACTION_NAMES := ["Space", "Enter", "A", "A"]

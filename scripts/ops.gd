@@ -166,7 +166,9 @@ func setup(owner_game) -> void:
 	_tank_arrow.position = Vector3(0, 2.9, 0)
 	_tank_arrow.visible = false
 	tank.add_child(_tank_arrow)
-	tank.position = game.GROUND_STATIONS["valve"]["pos"] + Vector3(1.9, 0, -0.5)
+	# (out in front of the pump, on the street side, clear of its outriggers,
+	# so it's never lost behind the pump or under its gauge reading)
+	tank.position = game.GROUND_STATIONS["valve"]["pos"] + Vector3(-2.6, 0, 0.6)
 	game.add_child(tank)
 	tank_label = F.label3d("SETTLING TANK", 34, Color("6cc3ff"))
 	tank_label.layers = 2
@@ -192,7 +194,7 @@ func setup(owner_game) -> void:
 	water_fx.amount = 40
 	water_fx.lifetime = 0.6
 	water_fx.emitting = false
-	water_fx.direction = Vector3(1, 0.3, -0.3)
+	water_fx.direction = Vector3(-0.95, 0.3, 0.2)
 	water_fx.spread = 18.0
 	water_fx.initial_velocity_min = 2.0
 	water_fx.initial_velocity_max = 3.4
