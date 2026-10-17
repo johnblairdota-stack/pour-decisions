@@ -59,6 +59,8 @@ var _scoop: Node3D
 var _reading: Label3D
 var _mark: MeshInstance3D
 var _mark_mesh: TorusMesh
+var _water: CPUParticles3D    # water pouring over the cone when the call's "add water"
+var _t := 0.0
 
 func setup(owner_line, at: Vector3) -> void:
 	line = owner_line
@@ -144,7 +146,35 @@ func setup(owner_line, at: Vector3) -> void:
 	_reading.layers = 1
 	_reading.pixel_size = 0.004
 	_reading.position = Vector3(TEST_X, 0.62, 0)
+	_reading.outline_size = 10
 	root.add_child(_reading)
+	# Water, for a stiff reading: a stream of drops over the cone
+	_water = CPUParticles3D.new()
+	_water.amount = 40
+	_water.lifetime = 0.7
+	_water.emitting = false
+	_water.direction = Vector3(0, -1, 0)
+	_water.spread = 12.0
+	_water.initial_velocity_min = 0.2
+	_water.initial_velocity_max = 0.5
+	_water.gravity = Vector3(0, -1.6, 0)
+	_water.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
+	_water.emission_sphere_radius = 0.06
+	var drop := SphereMesh.new()
+	drop.radius = 0.012
+	drop.height = 0.03
+	drop.radial_segments = 6
+	drop.rings = 3
+	var wm := StandardMaterial3D.new()
+	wm.albedo_color = Color(0.35, 0.7, 1.0, 0.85)
+	wm.emission_enabled = true
+	wm.emission = Color(0.25, 0.6, 1.0)
+	wm.emission_energy_multiplier = 1.4
+	wm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	drop.material = wm
+	_water.mesh = drop
+	_water.position = Vector3(TEST_X, 0.72, 0)
+	root.add_child(_water)
 
 func _st(t: Dictionary) -> Dictionary:
 	if not t.has("sl"):
@@ -256,8 +286,17 @@ func work(p, t: Dictionary, delta: float) -> bool:
 				if st["u"] >= 1.0:
 					st["step"] = "lift"
 					st["u"] = 0.0
+					st["armed"] = false
 		"lift":
-			p.cue("action", "lift it straight up, steady", st["lift"], true)
+			# A fresh hold: let go of A after the strike-off, then press and
+			# hold to lift, so the strike-off's hold can't run into the lift
+			if not st.get("armed", true):
+				p.cue("action", "let go, then hold A to lift", 0.0, true)
+				if not held:
+					st["armed"] = true
+				_show(t)
+				return false
+			p.cue("action", "hold A: lift it straight up, steady", st["lift"], true)
 			p.gold(not p.bot)
 			if held:
 				st["lift"] = minf(1.0, float(st["lift"]) + delta / LIFT_T)
@@ -266,7 +305,7 @@ func work(p, t: Dictionary, delta: float) -> bool:
 					st["step"] = "measure"
 					st["tape"] = 0.0
 					game.sfx.hit("clank")
-			elif st["lift"] > 0.05:
+			elif st["lift"] > 0.12:
 				# Jerked it: one side shears off. That's no test: do it again
 				st["shear"] = true
 				st["step"] = "sheared"
@@ -316,6 +355,8 @@ func _bot_hold(st: Dictionary) -> bool:
 			return float(st["rods"]) < float(RODS)
 		"sheared", "measure", "done":
 			return false
+		"lift":
+			return st.get("armed", true)
 	return true
 
 func _bot_press(t: Dictionary, st: Dictionary) -> bool:
@@ -346,6 +387,10 @@ func _show(t) -> void:
 	(_barrow.get_child(1) as Node3D).visible = step in ["sample", "fill", "rod"]
 	_tape.visible = step in ["measure", "done"]
 	_reading.text = ""
+	_water.emitting = false
+	_reading.modulate = Color("ffc72c")
+	_reading.scale = Vector3.ONE
+	_t += get_process_delta_time()
 	# The cone: down on the plate, lifting, then upturned beside it
 	if step in ["measure", "done"]:
 		_cone.position = Vector3(FLIP_X, CONE_H + 0.03, 0)
@@ -413,6 +458,25 @@ func _show(t) -> void:
 		_tape.position = Vector3(TEST_X, 0.03 + CONE_H + 0.009 - depth * 0.5, 0.0)
 		_reading.text = "%d mm" % int(round(depth * 1000.0))
 		_reading.position = Vector3(TEST_X + 0.02, 0.03 + CONE_H + 0.1, 0.05)
+		if step == "done":
+			# The reading says what to do: gold and bold in spec, blue with
+			# water pouring when it's stiff, red when it goes back
+			var pulse := 1.0 + 0.08 * sin(_t * 6.0)
+			match line.right_call(t):
+				"use":
+					_reading.text = "%d mm  ✓" % int(t.get("measured", 0.0))
+					_reading.modulate = Color("ffd23f") * (1.15 + 0.25 * sin(_t * 6.0))
+					_reading.scale = Vector3.ONE * 1.5 * pulse
+				"water":
+					_reading.text = "%d mm  STIFF: ADD WATER" % int(t.get("measured", 0.0))
+					_reading.modulate = Color("6cc3ff")
+					_reading.scale = Vector3.ONE * 1.2 * pulse
+					_water.emitting = true
+				_:
+					var old: bool = float(t["age"]) > line.MAX_AGE
+					_reading.text = "%d mm  %s" % [int(t.get("measured", 0.0)), "TOO OLD: SEND IT BACK" if old else "SEND IT BACK"]
+					_reading.modulate = Color("ff5a5f")
+					_reading.scale = Vector3.ONE * 1.2 * pulse
 
 ## The close-up's caption for this test (what's being done, then the result).
 func caption(t: Dictionary) -> String:

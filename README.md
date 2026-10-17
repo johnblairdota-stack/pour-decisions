@@ -54,7 +54,7 @@ In the main game there's no step-by-step instruction text: every action is a pul
 **Settings** (kept between sessions):
 
 - **Incidents:** None, Normal (one clamp or blockage a pour), Busy (one a bay from level 3) or Chaos (one a bay, blockages too, from level 1). Takes effect from the next pour.
-- **Load call help:** on, after a slump test the right call (use it, add water, send it back) glows; off (the default), you weigh your reading against the order yourself. Always on in the tutorial.
+- **Load call help:** on, the truck's label also says the right call. (The slump reading itself always shows the call it points to.) Always on in the tutorial.
 - **Screen text:** 100, 125 (the default) or 150%, for a big TV across the room. At 150% the job tickets drop below the task bar so nothing on the HUD overlaps.
 - **Split screen:** auto (the default: the deck on top, the street along the bottom, once the crew are far apart) or off (one camera pulls back over everyone).
 - **Camera test:** try the multiplayer cameras on your own. The camera treats some bots as people playing, with their button prompts showing: Deck + street (boom, pump), Deck + ladder (boom, truck hand), Two on the deck (poker, screeder), Deck, ladder + street, Four players, or the Whole crew. Not saved: it's back to Off next time.
@@ -197,8 +197,8 @@ There's no docket on the screen. The slump test is done by hand at the truck bay
 2. **Fill** the cone (300 mm tall, 200 mm base, 100 mm top) in **three layers** of about equal volume. Hold A and let go when the concrete reaches the yellow mark: about 70 mm, then 160 mm, then heaped over the top. The button's gold on the mark.
 3. **Rod** each layer **25 times** with the 16 mm rod: hold A and let go on 25. On the count is gold (a bonus); let go early and it isn't done, run over and it's over-rodded.
 4. **Strike off** the top, rolling the rod across it (hold A).
-5. **Lift** the cone straight up, steady (hold A, don't let go). Jerk it and one side shears off: a shear slump isn't a test, so scoop it back and do it again.
-6. **Measure**: the cone goes upside down beside it with the rod across the top, and the tape runs down from the rod to the centre of the slumped concrete. Press A when it touches (gold). That's your reading, to the nearest 5 mm.
+5. **Lift** the cone straight up, steady. Let go of A after the strike-off, then press and hold A again for the lift (the strike-off's hold never runs into it). Let go part way and it jerks: one side shears off, a shear slump isn't a test, so scoop it back and do it again.
+6. **Measure**: the cone goes upside down beside it with the rod across the top, and the tape runs down from the rod to the centre of the slumped concrete. Press A when it touches (gold). That's your reading, to the nearest 5 mm. The reading then shows the way, going on what you read: gold and bold with a tick when it's in spec (A glows gold), blue with water pouring over the cone when it's stiff (X turns water-blue), red when it goes back (B flashes red). Misread the tape and it points the wrong way.
 
 The close-up's caption then gives you everything the docket would: your reading against the order (a 100 mm pump mix, ±20 mm), how long since it was batched (90 minutes is the limit), and the water the plant held back (10 L/m³) that may be added on site. Add it and the driver mixes it in, and the load gets tested again. Read the tape wrong and you'll make the wrong call.
 

@@ -908,7 +908,20 @@ func _block(from_bad: bool) -> void:
 	if game.autotest:
 		print("[autotest]   BLOCKED in the section above C%d" % (block_s + 1))
 	if from_bad:
-		game.hud.toast("That load's packed in the line. Blockage!", 2.2)
+		# One blockage per bad load: the crew dump what's left of it out of
+		# the hopper and send the truck back, so it can't pack pipe after pipe
+		var dumped := minf(hopper, bad_volume)
+		hopper -= dumped
+		bad_volume = 0.0
+		bad_kind = ""
+		_bad_pumped = 0.0
+		for t in trucks:
+			if t.get("bad", "") != "" and t["state"] in ["pour", "ready"]:
+				t["bad"] = ""
+				ordered -= float(t["load"])
+				_set_truck(t, "leave_wait")
+				_arrive_t = minf(_arrive_t, 2.0)
+		game.hud.toast("That load's packed in the line. Blockage! The rest of it's dumped and the truck's sent back.", 2.6)
 	else:
 		game.hud.toast("The line sat too long and went off. Blockage!", 2.2)
 	game.sfx.hit("thunk")
@@ -2359,16 +2372,18 @@ func _bay(p, delta: float) -> void:
 	slump._show(t)
 	if t["state"] != "bay":
 		return
-	# The docket: A uses the load, X adds the docket's water, B sends it back.
-	# With Docket help on, the right call glows; with it off, it's yours to read.
+	# The call: A uses the load, X adds the water held back, B sends it back.
+	# Your reading points the way: in spec, A glows gold; stiff, X runs blue
+	# with water; wet or old, B flashes red. (Read the tape wrong and it points
+	# the wrong way: it goes on the reading, not the truth.)
 	var right := right_call(t)
-	var help := assist()
-	p.cue("action", "use it", -1.0, help and right == "use")
-	p.gold(help and right == "use")
-	p.cue("alt", "add water", -1.0, help and right == "water")
-	p.gold(help and right == "water")
+	p.cue("action", "use it", -1.0, right == "use")
+	p.gold(right == "use")
+	p.cue("alt", "add water", -1.0, right == "water")
+	if right == "water":
+		p.tint(Color("3fa9ff"))
 	if p.cues.size() < 3:
-		p.cues.append(["B", "send it back", -1.0, help and right == "reject", Vector2(-1, -1), false, help and right == "reject"])
+		p.cues.append(["B", "send it back", -1.0, right == "reject", Vector2(-1, -1), right == "reject", false])
 	if p.action_pressed():
 		decide(p, t, "use")
 	elif p.alt_pressed():

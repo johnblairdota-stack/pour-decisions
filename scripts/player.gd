@@ -468,6 +468,11 @@ func gold(on := true) -> void:
 	if on and _cue_added and not cues.is_empty():
 		cues[-1][6] = true
 
+## Colours the button just cued (the slump call's water-blue X).
+func tint(col: Color) -> void:
+	if _cue_added and not cues.is_empty():
+		cues[-1].append(col)
+
 ## Is this cue gold right now (in its hold band, or flagged by the assist)?
 static func is_gold(cu: Array) -> bool:
 	var zv: Vector2 = cu[4] if cu.size() > 4 else Vector2(-1, -1)
@@ -512,7 +517,8 @@ func show_cues(cam_right: Vector3, t: float, cam_pos := Vector3.ZERO) -> void:
 			n.position += Vector3(sin(t * 57.0), sin(t * 49.0 + 1.0), 0) * 0.04 * gk
 		n.scale = Vector3.ONE * gk
 		var m: ShaderMaterial = c["mat"]
-		var col: Color = Color("ff2d2d") if alarm else BTN_COLORS.get(btn, Color.WHITE)
+		var tinted: bool = cu.size() > 7 and cu[7] is Color
+		var col: Color = Color("ff2d2d") if alarm else (cu[7] if tinted else BTN_COLORS.get(btn, Color.WHITE))
 		m.set_shader_parameter("color", col)
 		m.set_shader_parameter("progress", cu[2])
 		m.set_shader_parameter("zone", cu[4] if cu.size() > 4 else Vector2(-1, -1))
@@ -542,7 +548,7 @@ func show_cues(cam_right: Vector3, t: float, cam_pos := Vector3.ZERO) -> void:
 			verb.text = ("%s  [%s]" % [cu[1], key]) if cu[1] != "" else "[%s]" % key
 		verb.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 		verb.position = cam_right * 0.75
-		verb.modulate = Color("ff6b6b") if alarm else (Color("ffd23f") if in_zone else Color.WHITE)
+		verb.modulate = Color("ff6b6b") if alarm else (Color("ffd23f") if in_zone else (Color("9fd6ff") if tinted else Color.WHITE))
 
 # ------------------------------------------------------------------ carrying
 
