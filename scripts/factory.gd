@@ -277,3 +277,40 @@ static func _reskin(n: Node, skin: Material) -> void:
 		if c is MeshInstance3D and c.has_meta("skin"):
 			(c as MeshInstance3D).material_override = skin
 		_reskin(c, skin)
+
+## An upright prism over a floor plan `poly` (x/z points), from y0 up `h`:
+## a floor slab or a storey of facade on a building that isn't a box. Each
+## face goes in both windings with its own normal, so it reads from any side
+## whichever way round the plan was drawn.
+static func prism(poly: PackedVector2Array, y0: float, h: float, material: Material, caps := true) -> MeshInstance3D:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var tri := func(a: Vector3, b: Vector3, c: Vector3, n: Vector3) -> void:
+		for v in [a, b, c, a, c, b]:
+			st.set_normal(n)
+			st.add_vertex(v)
+	if caps:
+		var idx := Geometry2D.triangulate_polygon(poly)
+		for i in range(0, idx.size(), 3):
+			var p := [poly[idx[i]], poly[idx[i + 1]], poly[idx[i + 2]]]
+			for y in [y0, y0 + h]:
+				tri.call(Vector3(p[0].x, y, p[0].y), Vector3(p[1].x, y, p[1].y), Vector3(p[2].x, y, p[2].y), Vector3.UP if y > y0 else Vector3.DOWN)
+	# Outward from each wall: which side that is depends on the plan's winding
+	var area := 0.0
+	for i in poly.size():
+		area += poly[i].cross(poly[(i + 1) % poly.size()])
+	var out_k := 1.0 if area > 0.0 else -1.0
+	for i in poly.size():
+		var a: Vector2 = poly[i]
+		var b: Vector2 = poly[(i + 1) % poly.size()]
+		var d := (b - a).normalized()
+		var n := Vector3(d.y, 0, -d.x) * out_k
+		var a0 := Vector3(a.x, y0, a.y)
+		var b0 := Vector3(b.x, y0, b.y)
+		var up := Vector3(0, h, 0)
+		tri.call(a0, b0, b0 + up, n)
+		tri.call(a0, b0 + up, a0 + up, n)
+	var mi := MeshInstance3D.new()
+	mi.mesh = st.commit()
+	mi.material_override = material
+	return mi

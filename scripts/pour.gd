@@ -15,8 +15,12 @@ extends Node3D
 const F := preload("res://scripts/factory.gd")
 const SURFACE := preload("res://shaders/concrete.gdshader")
 
-const NX := 48
-const NZ := 36
+## Grid size: 48 x 36 on the old 16 x 12 slab; bigger slabs get coarser cells
+## so the grid stays near MAX_CELLS (it's stepped every frame in GDScript)
+var NX := 48
+var NZ := 36
+const CELL_MIN := 1.0 / 3.0   # m, the finest cell
+const MAX_CELLS := 4200
 const SLAB := 0.25        # finished slab thickness, m
 const FORM_H := 0.45      # edge form height; concrete above it spills over
 const REPOSE := 0.24      # steepest slope (rise/run) fresh concrete holds
@@ -25,7 +29,7 @@ const SEEP_K := 0.22      # slow self-levelling seep below that slope
 const SEEP_MIN := 0.07    # thinner than this and it stops creeping
 const SPLASH := 0.42      # m, spread of the hose discharge where it lands
 const BAR := 0.045        # drawn rebar thickness (chunkier than real N16 so it reads)
-const BAYS := 4           # pour plan: bays from the far end back to the boom
+var BAYS := 4             # pour plan: bays from the far end back to the boom
 const SET_MIN_H := 0.08   # thinner than this doesn't count as having gone off
 const COLD_RISE := 0.05   # fresh concrete this deep over gone-off concrete = cold joint
 const DONE := 0.85        # vibrated enough: the poker's job is done here
@@ -33,6 +37,11 @@ const DONE := 0.85        # vibrated enough: the poker's job is done here
 var bw := 16.0
 var bd := 12.0
 var dx := 1.0 / 3.0
+## A bigger slab than the old 16 x 12 takes the same truckloads in the same
+## time (game m³ are game scale): each game m³ out of the hose covers this
+## many times more deck, landing in a wider spread to match.
+var vol_k := 1.0
+var splash_r := SPLASH
 var h := PackedFloat32Array()
 var age := PackedFloat32Array()
 var set_h := PackedFloat32Array()    # -1 while workable, else its height when it went off
@@ -52,7 +61,7 @@ var out_of_seq := 0.0     # m³ placed ahead of the bay being poured
 var rain_m3 := 0.0        # m³ placed during heavy rain
 var hand_placed := 0      # cells beyond the boom's reach the crew had to place by hand
 var cur_bay := 0
-var bay_cov: Array[float] = [0.0, 0.0, 0.0, 0.0]
+var bay_cov: Array[float] = []
 var img: Image
 var tex: ImageTexture
 var state_img: Image
@@ -79,7 +88,14 @@ var _t := 0.0
 func build(width: float, depth: float, columns: Array) -> void:
 	bw = width
 	bd = depth
+	dx = maxf(CELL_MIN, sqrt(bw * bd / MAX_CELLS))
+	NX = maxi(4, roundi(bw / dx))
 	dx = bw / NX
+	NZ = maxi(4, roundi(bd / dx))
+	mask_n = NX * NZ
+	_bay_c1 = NX
+	vol_k = maxf(1.0, bw * bd / 192.0)
+	splash_r = SPLASH * pow(vol_k, 0.75)
 	h.resize(NX * NZ)
 	age.resize(NX * NZ)
 	set_h.resize(NX * NZ)
@@ -116,7 +132,7 @@ func build(width: float, depth: float, columns: Array) -> void:
 	state_img = Image.create(NX, NZ, false, Image.FORMAT_RGBA8)
 	state_tex = ImageTexture.create_from_image(state_img)
 	var pm := PlaneMesh.new()
-	pm.size = Vector2(bw, bd)
+	pm.size = Vector2(bw, NZ * dx)
 	pm.subdivide_width = NX * 2 - 1
 	pm.subdivide_depth = NZ * 2 - 1
 	surface = MeshInstance3D.new()
@@ -125,7 +141,8 @@ func build(width: float, depth: float, columns: Array) -> void:
 	smat.shader = SURFACE
 	smat.set_shader_parameter("height_tex", tex)
 	smat.set_shader_parameter("state_tex", state_tex)
-	smat.set_shader_parameter("cell_m", Vector2(dx, bd / NZ))
+	smat.set_shader_parameter("cell_m", Vector2(dx, dx))
+	smat.set_shader_parameter("slab_size", Vector2(bw, NZ * dx))
 	surface.material_override = smat
 	surface.custom_aabb = AABB(Vector3(-bw * 0.5, -0.2, -bd * 0.5), Vector3(bw, 2.5, bd))
 	add_child(surface)
@@ -204,10 +221,11 @@ func build(width: float, depth: float, columns: Array) -> void:
 
 	# Discharge kernel: a soft round splat, normalised to 1
 	var sum := 0.0
-	for oz in range(-3, 4):
-		for ox in range(-3, 4):
+	var kr := maxi(3, ceili(3.0 * splash_r / dx))
+	for oz in range(-kr, kr + 1):
+		for ox in range(-kr, kr + 1):
 			var d2 := (ox * ox + oz * oz) * dx * dx
-			var w := exp(-d2 / (2.0 * SPLASH * SPLASH))
+			var w := exp(-d2 / (2.0 * splash_r * splash_r))
 			if w > 0.02:
 				_kernel.append([ox, oz, w])
 				sum += w
@@ -341,6 +359,7 @@ func reach_all() -> void:
 		reach[i] = mask[i]
 
 func reset() -> void:
+	_skip.clear()
 	_bay_meshes.clear()
 	_prints.clear()
 	if _prints_mm:
@@ -358,7 +377,8 @@ func reset() -> void:
 	rain_m3 = 0.0
 	hand_placed = 0
 	cur_bay = 0
-	bay_cov = [0.0, 0.0, 0.0, 0.0]
+	bay_cov.resize(BAYS)
+	bay_cov.fill(0.0)
 	_coverage = 0.0
 	_reach_cov = 0.0
 	smat.set_shader_parameter("cured", 0.0)
@@ -369,7 +389,7 @@ func reset() -> void:
 	_upload()
 
 func needed() -> float:
-	return bw * bd * SLAB * float(mask_n) / (NX * NZ)
+	return bw * bd * SLAB * float(mask_n) / (NX * NZ) / vol_k
 
 func _cell(ix: int, iz: int) -> int:
 	return clampi(iz, 0, NZ - 1) * NX + clampi(ix, 0, NX - 1)
@@ -428,7 +448,9 @@ func deposit(local: Vector3, volume: float, fresh := true) -> void:
 	if ix < -2 or ix > NX + 1 or iz < -2 or iz > NZ + 1:
 		spilled += volume
 		return
-	var per_area := volume / (dx * dx)
+	# (the screed's surplus is real concrete moved about, not game m³)
+	var k := vol_k if fresh else 1.0
+	var per_area := volume * k / (dx * dx)
 	for e in _kernel:
 		var c := _cell(ix + e[0], iz + e[1])
 		if not fresh and set_h[c] >= 0.0:
@@ -437,7 +459,7 @@ func deposit(local: Vector3, volume: float, fresh := true) -> void:
 		if mask[c] == 0:
 			# Off the edge of a round slab: over the form and gone
 			if fresh:
-				spilled += add * dx * dx
+				spilled += add * dx * dx / k
 			continue
 		var old := h[c]
 		if set_h[c] < 0.0:
@@ -534,7 +556,7 @@ func _spill(i: int, dt: float, area: float) -> void:
 	if h[i] > FORM_H:
 		var m := (h[i] - FORM_H) * minf(1.0, 3.0 * dt)
 		h[i] -= m
-		spilled += m * area
+		spilled += m * area / vol_k
 
 func _upload() -> void:
 	img.set_data(NX, NZ, false, Image.FORMAT_RF, h.to_byte_array())
@@ -543,8 +565,10 @@ func _upload() -> void:
 	var nr := 0
 	var rcount := 0
 	var need := SLAB * 0.85
-	var bn: Array[int] = [0, 0, 0, 0]
-	var bt: Array[int] = [0, 0, 0, 0]
+	var bn: Array[int] = []
+	var bt: Array[int] = []
+	bn.resize(BAYS)
+	bt.resize(BAYS)
 	var oldest := 0.0
 	var edge_oldest := 0.0
 	var risky := 0
@@ -575,7 +599,7 @@ func _upload() -> void:
 	# The wet edge's age is the age of the concrete at the front of the pour
 	# (where the next load goes against it), not the oldest anywhere
 	edge_left = open_time - edge_oldest
-	at_risk = float(risky) / h.size()
+	at_risk = float(risky) / maxf(1.0, mask_n)
 	_reach_cov = float(nr) / maxf(1.0, rcount)
 	# A bay's progress counts only what the boom can reach
 	for b in BAYS:
@@ -717,6 +741,18 @@ func _ribbon(pts: PackedVector2Array, w: float, closed := true) -> ArrayMesh:
 	return st.commit()
 
 ## Share of the slab at least 85% of full depth.
+## (test) Game m³ sitting on the slab now, and the depth of the deepest tenth of it.
+func debug_volume() -> Vector2:
+	var tot := 0.0
+	var hs: Array = []
+	for i in h.size():
+		if mask[i] == 1 and h[i] > 0.01:
+			tot += h[i]
+			hs.append(h[i])
+	hs.sort()
+	var deep: float = hs[int(hs.size() * 0.9)] if hs.size() > 10 else 0.0
+	return Vector2(tot * dx * dx / vol_k, deep)
+
 func coverage() -> float:
 	return _coverage
 
@@ -763,7 +799,41 @@ func lowest_point(bay := -1) -> Vector3:
 ## first strip that isn't full yet. Each new load goes against the last, the
 ## wet edge stays at the front of the pour, and nothing behind it is left to
 ## go off and be come back to.
-func next_face_point(bay: int) -> Vector3:
+## `from` (slab-local, optional): where the hose is now. Among the low spots
+## the nearest wins, so the boom works along the face instead of jumping to
+## its far end (which matters on a wide bay).
+func next_face_point(bay: int, from := Vector3.INF) -> Vector3:
+	return _next_face(bay, from)
+
+## How many cells in from the edge forms the boom aims, so its splash stays
+## inside them.
+func edge_cells() -> int:
+	return 1 if vol_k <= 1.0 else ceili(splash_r * 2.0 / dx) - 1
+
+## Spots the boom gave up on (a hole against a column that won't fill
+## without piling up the deck beside it): cell -> time it's wanted again.
+var _skip := {}
+## How far in from the forms the boom should aim for the spot
+## next_face_point last gave (m).
+var aim_margin := 0.75
+
+func skip_near(local: Vector3, radius: float, secs: float) -> void:
+	var r := ceili(radius / dx)
+	var cx := int((local.x + bw * 0.5) / dx)
+	var cz := int((local.z + bd * 0.5) / dx)
+	for oz in range(-r, r + 1):
+		for ox in range(-r, r + 1):
+			var ix := cx + ox
+			var iz := cz + oz
+			if ix >= 0 and ix < NX and iz >= 0 and iz < NZ:
+				_skip[iz * NX + ix] = _t + secs
+
+## In from the edge forms by the boom's aim margin (see edge_cells).
+func _inner(ix: int, iz: int) -> bool:
+	var m := edge_cells()
+	return iz >= m and iz < NZ - m and ix >= m and ix < NX - m
+
+func _next_face(bay: int, from: Vector3) -> Vector3:
 	bay = clampi(bay, 0, BAYS - 1)
 	var bc := bay_cols(bay)
 	var x0 := bc.x
@@ -783,15 +853,49 @@ func next_face_point(bay: int) -> Vector3:
 				var i := iz * NX + ix
 				if reach[i] == 0:
 					continue
-				n += 1
-				if h[i] >= full:
-					ok += 1
-				# (a cell in from the forms: the concrete flows out to them)
-				if iz > 0 and iz < NZ - 1 and h[i] < best:
-					best = h[i]
-					bi = i
+				# (in from the forms by about a splash: the concrete flows out
+				# to them, and doesn't go over them. On a big slab the strip's
+				# done once that middle is: the flow, the end hose and the
+				# screed take it out to the forms)
+				var m := edge_cells()
+				var inner := iz >= m and iz < NZ - m and ix >= m and ix < NX - m
+				if inner or vol_k <= 1.0:
+					n += 1
+					if h[i] >= full:
+						ok += 1
+				if inner and not (_skip.has(i) and float(_skip[i]) > _t):
+					var score := h[i]
+					# (half full is already taken: move on to fresh deck,
+					# so the hose doesn't stand piling up one spot)
+					if h[i] > SLAB * 0.5:
+						score += 1.0
+					if from.x != INF:
+						score += 0.012 * cell_center(i).distance_to(Vector3(from.x, 0, from.z))
+					if score < best:
+						best = score
+						bi = i
 		if n > 0 and float(ok) / n < 0.92 and bi >= 0:
+			aim_margin = (edge_cells() + 0.5) * dx
 			return cell_center(bi)
+	# (the middle's done: last, the strip along the forms, the lowest spot
+	# nearest the hose, aiming in closer to them)
+	aim_margin = 0.75
+	if vol_k > 1.0:
+		var best2 := 1e9
+		var bi2 := -1
+		for ix in range(x0, bc.y):
+			for iz in NZ:
+				var i := iz * NX + ix
+				if reach[i] == 0 or h[i] >= full or (_skip.has(i) and float(_skip[i]) > _t):
+					continue
+				var sc2 := h[i]
+				if from.x != INF:
+					sc2 += 0.03 * cell_center(i).distance_to(Vector3(from.x, 0, from.z))
+				if sc2 < best2:
+					best2 = sc2
+					bi2 = i
+		if bi2 >= 0:
+			return cell_center(bi2)
 	return lowest_point(bay)
 
 ## First column of the leading strip of bay `b` (the strip a boom operator
@@ -810,6 +914,8 @@ func leading_strip(b: int) -> Vector2i:
 			for iz in NZ:
 				var i := iz * NX + ix
 				if reach[i] == 0:
+					continue
+				if vol_k > 1.0 and not _inner(ix, iz):
 					continue
 				n += 1
 				if h[i] >= full:
@@ -932,7 +1038,7 @@ func work_left() -> Vector2:
 			raw += 1
 		if h[i] > SLAB * 0.8 and scr[i] < 0.5:
 			rough += 1
-	return Vector2(float(raw), float(rough)) / float(h.size())
+	return Vector2(float(raw), float(rough)) / maxf(1.0, mask_n)
 
 ## A boot sole: a rounded toe, a narrow waist and a heel, with tread bars.
 static func _sole_texture() -> ImageTexture:
@@ -1102,7 +1208,7 @@ func defects() -> Dictionary:
 			n_thick += 1
 			if vib[i] < 0.5:
 				n_void += 1
-	return {"cold": float(n_cold) / h.size(), "voids": float(n_void) / maxf(1.0, n_thick), "bleed": float(n_bleed) / h.size()}
+	return {"cold": float(n_cold) / maxf(1.0, mask_n), "voids": float(n_void) / maxf(1.0, n_thick), "bleed": float(n_bleed) / maxf(1.0, mask_n)}
 
 ## The screed board dragged along the segment a..b (pour-local), cutting the
 ## high spots down to slab level and carrying the surplus (`carry`, m³) along
@@ -1242,7 +1348,7 @@ func hand_place() -> void:
 	for i in h.size():
 		if reach[i] == 0 and h[i] < need and mask[i] == 1:
 			hand_placed += 1
-			poured += (SLAB - h[i]) * dx * dx
+			poured += (SLAB - h[i]) * dx * dx / vol_k
 			h[i] = SLAB
 	_upload()
 

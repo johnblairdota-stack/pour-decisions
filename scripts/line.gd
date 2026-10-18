@@ -50,11 +50,23 @@ const RACK := Vector3(10.4, 0, 5.4)      # pipe rack: spare 3 m sections
 const PIN_CRATE := Vector3(12.2, 0, 5.0) # bags of tower pins for climb days
 const QUEUE_X := 10.0
 const ROAD_Z := 15.6
-# Where the site road meets the real Angora Road, and which way Angora runs off to MacArthur Avenue
-const ANGORA_X := 39.0
+# The site road runs across the lot north of Riverlight (vacant in 2017) from
+# MacArthur Avenue, where the trucks come in, to Angora Road, where they leave,
+# and this is which way Angora runs off from there
+const MACARTHUR_X := -28.0
+const ANGORA_X := 51.0
 const ANGORA_DIR := Vector3(0.534, 0, -0.846)
+# Concrete supply rate. Volumes are game scale: Riverlight's east wing (about
+# 3.4x the old 16 x 12 slab) takes the same truckloads in the same time,
+# because each game m³ out of the hose covers pour.vol_k times more deck
+# (pour.gd, worked out from the slab's area). To speed the whole pour up or
+# slow it down, change these: load size, chute and pump output; truck spacing
+# is `interval` in start_pour. On a big slab main._start_pour closes the
+# trucks up (BIG_SLAB_TRUCKS), sends bigger loads (BIG_SLAB_LOAD, so fewer
+# changeovers at the bay) and gives the concrete a longer open time.
 const HOPPER_CAP := 5.0                  # m³ (game scale)
 const TRUCK_LOAD := 8.0                  # m³, a typical agitator load
+var load_m3 := TRUCK_LOAD                # this pour's loads (bigger on a big slab: main._start_pour)
 const DISCHARGE := 1.8                   # m³/s out of the chute
 const PUMP_Q := 1.15                     # m³/s at the hose on high
 const LOW := 0.55                        # output on low, as a share of high
@@ -1211,7 +1223,7 @@ func _celebrate(at: Vector3) -> void:
 func _spawn_truck(waiting: bool, top_up := false) -> void:
 	if ordered >= needed_m3 * 1.12 and not top_up:
 		return
-	var load := TRUCK_LOAD if top_up else minf(TRUCK_LOAD, needed_m3 * 1.12 - ordered + 0.5)
+	var load := load_m3 if top_up else minf(load_m3, needed_m3 * 1.12 - ordered + 0.5)
 	ordered += load
 	var r := randf()
 	var slump := randf_range(SPEC_SLUMP - 17.0, SPEC_SLUMP + 17.0)
@@ -1228,7 +1240,7 @@ func _spawn_truck(waiting: bool, top_up := false) -> void:
 		age += late_extra                       # stuck in traffic
 	var node := _truck_mesh()
 	add_child(node)
-	var t := {"node": node, "state": "arrive", "t": 0.0, "age": age, "slump": slump, "load": load, "checked": false, "verdict": "", "pos": Vector3(-47.0 if not waiting else _slot_x(_queue_count()), 0, ROAD_Z)}
+	var t := {"node": node, "state": "arrive", "t": 0.0, "age": age, "slump": slump, "load": load, "checked": false, "verdict": "", "pos": Vector3(MACARTHUR_X if not waiting else _slot_x(_queue_count()), 0, ROAD_Z)}
 	node.position = t["pos"]
 	trucks.append(t)
 	if waiting:
@@ -2320,7 +2332,8 @@ func _ladder(p, delta: float) -> void:
 			p.position = Vector3(13.6, work, 1.6)
 		elif at_ground:
 			p.zone = "ground"
-			p.position = Vector3(LADDER.x + 1.1, 0.0, LADDER.z + 1.0)
+			# (onto the street side of the ladder, clear of the west wing)
+			p.position = Vector3(LADDER.x + 0.6, 0.0, LADDER.z + 1.3)
 
 ## Tap the pipe: a clear pipe rings, a packed one thuds.
 func _tap(y: float, j := -1) -> void:
@@ -2557,9 +2570,9 @@ func _bay(p, delta: float) -> void:
 	var t = needs_check()
 	if t == null:
 		if can_wave_in():
-			p.cue("action", "wave truck in", -1.0, bay_truck == null or bay_truck["load"] < TRUCK_LOAD * 0.6)
+			p.cue("action", "wave truck in", -1.0, bay_truck == null or bay_truck["load"] < load_m3 * 0.6)
 			# Gold: now's the time, so the next one's on before the hopper runs low
-			p.gold(not p.bot and (bay_truck == null or bay_truck["load"] < TRUCK_LOAD * 0.6))
+			p.gold(not p.bot and (bay_truck == null or bay_truck["load"] < load_m3 * 0.6))
 			if p.action_pressed():
 				wave_in(p)
 				p.pose_arms(Vector3(-2.8, 0, -0.3), Vector3(-2.8, 0, 0.3))
@@ -2594,7 +2607,7 @@ func _bay(p, delta: float) -> void:
 		# A wave to the next driver doesn't stop the test (X): they back in
 		# on the free side while you work
 		if can_wave_in():
-			var hungry: bool = bay_truck == null or bay_truck == t or float(bay_truck["load"]) < TRUCK_LOAD * 0.85
+			var hungry: bool = bay_truck == null or bay_truck == t or float(bay_truck["load"]) < load_m3 * 0.85
 			p.cue("alt", "wave the next truck in", -1.0, hungry)
 			p.gold(not p.bot and hungry)
 			if (p.alt_pressed() and not p.bot) or ((p.bot or p.covering) and hungry):

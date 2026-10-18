@@ -100,7 +100,7 @@ def lines(g):
 
 
 # The game's own site (its slab, hardstand and truck road) keeps the ground clear
-SITE_CUT = [(-45, -14, 50, 24), (-47, 11.6, 41, 20.6)]
+SITE_CUT = [(-45, -14, 50, 24), (-44.5, 21.1, 35.5, 30.1)]
 
 
 def flat_ground(out, order):

@@ -40,8 +40,20 @@ const Surrounds := preload("res://scripts/surrounds.gd")
 # Riverlight: 11 levels; 10 lattice sections reached a 41.4 m free-stand.
 const FLOORS := 11
 const FH := 3.0
-const BW := 16.0
-const BD := 12.0
+# The slab this crew pours each level: Riverlight's east wing, 30 x 21.8 m
+# (a second crew pours the west wing beside it). Its north-west corner (game
+# +x, +z) is set 4 m short of the boom tower, which stands in the notch
+# between the two wings, so the street and the tower sit where they always
+# have and the wing reaches away from them. The water tower tutorial keeps
+# the old 16 x 12 frame centred on the origin.
+var BW := 30.0
+var BD := 21.8
+var SC := Vector3(8.0 - 15.0, 0, 2.0 - 10.9)   # the slab's centre
+## Where the game's origin is in the real-world frame Riverlight's map data
+## uses (Riverlight's centroid, x west, z north)
+const REAL_ORIGIN := Vector3(-15.8, 0, 9.5)
+const BIG_SLAB_TRUCKS := 1.35   # trucks come up to this much more often on a big slab
+const BIG_SLAB_LOAD := 1.3      # ...carrying up to this much more each
 const LS := 4.14
 const LW := 2.0
 const LAT_X := 12.0
@@ -55,7 +67,7 @@ const BOOM_WIND := 72.0       # km/h gust at which the placing boom has to be pa
 const CLIMB_LEVELS := [3, 6, 9]   # climb before pouring levels 4, 7 and 10
 const SECTIONS_PER_CLIMB := 2      # 4 starting + 3 climbs x 2 = Riverlight's 10 sections
 const HOIST_X := -6.6
-const HOIST_Z := 8.4
+var HOIST_Z := 4.4
 # The perimeter scaffold: a walkway right round the slab, off the concrete,
 # that climbs with the deck. The boom operator works from it and never steps
 # on the pad; everyone else can use it to get round without walking through
@@ -66,25 +78,25 @@ const WALK_MID := WALK_GAP + WALK_W * 0.5   # centreline, out from the slab edge
 const NPC_POKER_R := 1.1
 
 const DECK_STATIONS := {
-	"boom": {"pos": Vector3(8.85, 0, 6.75), "label": "BOOM REMOTE", "color": Color("ffc72c")},
-	"screed": {"pos": Vector3(-7.2, 0, -5.0), "label": "SCREED", "color": Color("f4f7fa")},
+	"boom": {"pos": Vector3(8.85, 0, 2.85), "label": "BOOM REMOTE", "color": Color("ffc72c")},
+	"screed": {"pos": Vector3(-21.2, 0, -18.8), "label": "SCREED", "color": Color("f4f7fa")},
 	"ladder": {"pos": Vector3(13.6, 0, 1.6), "label": "LADDER", "color": Color("7cd992")},
-	"tag": {"pos": Vector3(8.85, 0, 4.0), "label": "TAG LINE", "color": Color("d9c27a")},
-	"dogman": {"pos": Vector3(8.85, 0, 6.75), "label": "DOGMAN", "color": Color("4fa3ff")},
+	"tag": {"pos": Vector3(8.85, 0, -1.8), "label": "TAG LINE", "color": Color("d9c27a")},
+	"dogman": {"pos": Vector3(8.85, 0, 2.85), "label": "DOGMAN", "color": Color("4fa3ff")},
 	"rigger": {"pos": Vector3(13.4, 0, -1.6), "label": "RIGGER", "color": Color("ff7a1a")},
-	"poker": {"pos": Vector3(1.5, 0, 5.0), "label": "POKER", "color": Color("c49bff")},
-	"hoist": {"pos": Vector3(HOIST_X + 1.5, 0, 6.85), "label": "HOIST", "color": Color("9fb3c8")},
-	"pinsets": {"pos": Vector3(-3.0, 0, 5.1), "label": "PIN SETS", "color": Color("f4f7fa")},
-	"bin": {"pos": Vector3(5.2, 0, 6.85), "label": "BIN", "color": Color("ffc72c")},
+	"poker": {"pos": Vector3(1.5, 0, 1.0), "label": "POKER", "color": Color("c49bff")},
+	"hoist": {"pos": Vector3(HOIST_X + 1.5, 0, 2.85), "label": "HOIST", "color": Color("9fb3c8")},
+	"pinsets": {"pos": Vector3(-3.0, 0, 1.1), "label": "PIN SETS", "color": Color("f4f7fa")},
+	"bin": {"pos": Vector3(5.2, 0, 2.85), "label": "BIN", "color": Color("ffc72c")},
 	"hose": {"pos": Vector3(0, 0, 0), "label": "END HOSE", "color": Color("2fd3e8")},
 }
 const GROUND_STATIONS := {
 	"bay": {"pos": Vector3(24.6, 0, 10.0), "label": "TRUCK BAY", "color": Color("ffc72c")},
 	"panel": {"pos": Vector3(18.6, 0, 8.6), "label": "PUMP PANEL", "color": Color("ff7a1a")},
-	"ladder_g": {"pos": Vector3(14.4, 0, 1.9), "label": "LADDER", "color": Color("7cd992")},
-	"hoist_g": {"pos": Vector3(HOIST_X + 1.6, 0, 9.8), "label": "HOIST", "color": Color("9fb3c8")},
+	"ladder_g": {"pos": Vector3(14.0, 0, 1.9), "label": "LADDER", "color": Color("7cd992")},
+	"hoist_g": {"pos": Vector3(HOIST_X + 1.6, 0, 5.8), "label": "HOIST", "color": Color("9fb3c8")},
 	"spares": {"pos": Vector3(13.9, 0, 6.2), "label": "CLAMP KITS", "color": Color("4f8dff")},
-	"haul": {"pos": Vector3(15.6, 0, 0.6), "label": "HAUL ROPE", "color": Color("d9c27a")},
+	"haul": {"pos": Vector3(14.9, 0, 2.6), "label": "HAUL ROPE", "color": Color("d9c27a")},
 	"rack": {"pos": Vector3(10.4, 0, 6.6), "label": "PIPES", "color": Color("dce1e6")},
 	"rig0": {"pos": Vector3(15.6, 0, 3.6), "label": "OUTRIGGER", "color": Color("ff7a1a")},
 	"rig1": {"pos": Vector3(15.6, 0, 8.4), "label": "OUTRIGGER", "color": Color("ff7a1a")},
@@ -113,6 +125,8 @@ var _shots_taken := {}
 var _shot_wait := 0
 
 var building: Node3D
+var podium: Node3D
+var hoist_mast: Node3D
 var floor_nodes: Array[Node3D] = []
 var rig: Node3D
 var ground_st: Node3D
@@ -214,6 +228,9 @@ func _ready() -> void:
 	if not autotest:
 		Settings.apply_window()
 	_setup_input()
+	if tutorial or args.has("--oldslab"):
+		# (dev `--oldslab`: the old 16 x 12 slab, to compare against)
+		_use_tut_frame()
 	_build_environment()
 	_build_world()
 	_build_site()
@@ -357,32 +374,22 @@ func _build_environment() -> void:
 func _build_world() -> void:
 	# The real place: the river, the park, the neighbours, Bulimba over the
 	# water, the CBD and the Gateway Bridge (scripts/surrounds.gd)
-	Surrounds.build(self)
-	# Site hardstand around the pump and truck bay
-	add_child(F.box(Vector3(26.5, 0.06, 17.5), F.mat("podium"), Vector3(21.75, 0.03, 4.25), false))
-
-	for tp in [Vector3(-14, 0, 9), Vector3(-10, 0, 11), Vector3(-15, 0, -8), Vector3(16, 0, -9), Vector3(-5, 0, 13.0), Vector3(6.8, 0, 14.4)]:
-		var t := Node3D.new()
-		t.position = tp
-		t.add_child(F.cylinder(0.25, 1.8, F.mat("trunk"), Vector3(0, 0.9, 0), 8))
-		var crown := MeshInstance3D.new()
-		var sm := SphereMesh.new()
-		sm.radius = 1.5
-		sm.height = 2.6
-		sm.radial_segments = 8
-		sm.rings = 5
-		crown.mesh = sm
-		crown.material_override = F.mat("tree")
-		crown.position.y = 2.6
-		t.add_child(crown)
-		add_child(t)
+	var world := Node3D.new()
+	world.name = "Surrounds"
+	world.position = -REAL_ORIGIN
+	add_child(world)
+	Surrounds.build(world)
+	# Site hardstand around the pump and truck bay, north of the west wing,
+	# and into the notch at the boom tower's foot
+	add_child(F.box(Vector3(26.5, 0.06, 11.3), F.mat("podium"), Vector3(21.75, 0.03, 7.35), false))
+	add_child(F.box(Vector3(5.9, 0.06, 2.9), F.mat("podium"), Vector3(11.35, 0.03, 0.25), false))
 
 	rain = CPUParticles3D.new()
 	rain.amount = 700
 	rain.lifetime = 0.9
 	rain.emitting = false
 	rain.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
-	rain.emission_box_extents = Vector3(22, 0.5, 18)
+	rain.emission_box_extents = Vector3(30, 0.5, 26)
 	rain.direction = Vector3(0.15, -1, 0)
 	rain.spread = 4.0
 	rain.initial_velocity_min = 18.0
@@ -410,8 +417,10 @@ var _tut_nodes: Array = []
 const TUT_DECK := {
 	"boom": Vector3(4.57, 0, 4.84), "screed": Vector3(-4.0, 0, -3.4), "dogman": Vector3(4.57, 0, 4.84),
 	"poker": Vector3(1.5, 0, 4.0), "hoist": Vector3(-5.9, 0, 4.6), "pinsets": Vector3(-2.6, 0, 4.6),
-	"bin": Vector3(3.33, 0, -5.76),
+	"bin": Vector3(3.33, 0, -5.76), "tag": Vector3(8.85, 0, 4.0),
 }
+## ...and the hoist stands off the tank on the street.
+const TUT_HOIST_Z := 8.4
 
 func deck_pos(key: String) -> Vector3:
 	if tutorial and TUT_DECK.has(key):
@@ -426,6 +435,24 @@ func climb_levels() -> Array:
 
 func sections_per_climb() -> int:
 	return 1 if tutorial else SECTIONS_PER_CLIMB
+
+## The water tower keeps the old frame: a 16 x 12 grid round the origin, the
+## hoist out on the street.
+func _use_tut_frame() -> void:
+	BW = 16.0
+	BD = 12.0
+	SC = Vector3.ZERO
+	HOIST_Z = TUT_HOIST_Z
+	if pour == null:
+		return
+	# (the site's already up for Riverlight: move it across)
+	remove_child(pour)
+	pour.queue_free()
+	_make_pour()
+	podium.position = Vector3(0, -0.49, 0)
+	hoist_mast.position.z = HOIST_Z
+	hoist_cage.position.z = HOIST_Z
+	(stations["hoist_g"]["node"] as Node3D).position.z = HOIST_Z + 1.4
 
 ## Turns the site into the water tower: round rails, the walkway run in to
 ## the round deck, a round slab.
@@ -480,7 +507,8 @@ func _tut_site() -> void:
 	screed.rack_local = Vector3(-4.0, 0, -3.4)
 
 func _build_site() -> void:
-	add_child(F.box(Vector3(BW + 10, 1.0, BD + 10), F.mat("podium"), Vector3(0, -0.49, 0)))
+	podium = F.box(Vector3(BW + 10, 1.0, BD + 10), F.mat("podium"), Vector3(SC.x, -0.49, SC.z))
+	add_child(podium)
 	building = Node3D.new()
 	add_child(building)
 
@@ -498,13 +526,10 @@ func _build_site() -> void:
 		_make_station(key, def, rig, "deck")
 	for key in GROUND_STATIONS:
 		_make_station(key, GROUND_STATIONS[key], ground_st, "ground")
+	(stations["hoist_g"]["node"] as Node3D).position.z = HOIST_Z + 1.4
 
 	# Formwork deck, rebar and the concrete heightfield
-	pour = PourScript.new()
-	add_child(pour)
-	pour.build(BW, BD, _column_xz())
-	pour.walk_mid = WALK_MID
-	pour.visible = false
+	_make_pour()
 
 	lattice = Node3D.new()
 	lattice.position = Vector3(LAT_X, 0, 0)
@@ -573,7 +598,8 @@ func _build_site() -> void:
 
 	# Builder's hoist on the south face: the quick way between deck and ground
 	var mast_h := FLOORS * FH + 4.0
-	add_child(F.box(Vector3(0.5, mast_h, 0.5), F.mat("steel"), Vector3(HOIST_X - 1.0, mast_h * 0.5, HOIST_Z)))
+	hoist_mast = F.box(Vector3(0.5, mast_h, 0.5), F.mat("steel"), Vector3(HOIST_X - 1.0, mast_h * 0.5, HOIST_Z))
+	add_child(hoist_mast)
 	hoist_cage = Node3D.new()
 	hoist_cage.add_child(F.box(Vector3(1.6, 0.1, 1.6), F.mat("navy"), Vector3(0, 0.05, 0)))
 	for cx in [-0.78, 0.78]:
@@ -710,11 +736,11 @@ func _build_walkway() -> void:
 	# the walkway out to the boom
 	var runs := [
 		[Vector3(-ox, 0, -oz), Vector3(ox, 0, -oz)],
-		[Vector3(-ox, 0, oz), Vector3(HOIST_X - 1.0, 0, oz)],
-		[Vector3(HOIST_X + 1.0, 0, oz), Vector3(ox, 0, oz)],
+		[Vector3(-ox, 0, oz), Vector3(HOIST_X - SC.x - 1.0, 0, oz)],
+		[Vector3(HOIST_X - SC.x + 1.0, 0, oz), Vector3(ox, 0, oz)],
 		[Vector3(-ox, 0, -oz), Vector3(-ox, 0, oz)],
-		[Vector3(ox, 0, -oz), Vector3(ox, 0, -1.3)],
-		[Vector3(ox, 0, 1.3), Vector3(ox, 0, oz)],
+		[Vector3(ox, 0, -oz), Vector3(ox, 0, -SC.z - 1.3)],
+		[Vector3(ox, 0, -SC.z + 1.3), Vector3(ox, 0, oz)],
 	]
 	for r in runs:
 		var a: Vector3 = r[0]
@@ -732,6 +758,8 @@ func _build_walkway() -> void:
 			# Scaffold standards down to the floor below
 			parts.append(F.box(Vector3(0.06, FH, 0.06), grate, p + Vector3(0, -FH * 0.5, 0)))
 	for part in parts:
+		# (built round the slab's centre)
+		part.position += Vector3(SC.x, 0, SC.z)
 		rig.add_child(part)
 		_rect_rails.append(part)
 
@@ -744,17 +772,18 @@ func walkway_point(s: float) -> Vector2:
 	var A := BW * 0.5 + WALK_MID
 	var B := BD * 0.5 + WALK_MID
 	var per := 4.0 * (A + B)
+	var c := Vector2(SC.x, SC.z)
 	s = fposmod(s, per)
 	if s < 2.0 * A:
-		return Vector2(-A + s, -B)
+		return c + Vector2(-A + s, -B)
 	s -= 2.0 * A
 	if s < 2.0 * B:
-		return Vector2(A, -B + s)
+		return c + Vector2(A, -B + s)
 	s -= 2.0 * B
 	if s < 2.0 * A:
-		return Vector2(A - s, B)
+		return c + Vector2(A - s, B)
 	s -= 2.0 * A
-	return Vector2(-A, B - s)
+	return c + Vector2(-A, B - s)
 
 func walkway_length() -> float:
 	if tutorial:
@@ -768,6 +797,7 @@ func walkway_param(q: Vector2) -> float:
 		return fposmod(atan2(q.y, q.x), TAU) * r
 	var A := BW * 0.5 + WALK_MID
 	var B := BD * 0.5 + WALK_MID
+	q -= Vector2(SC.x, SC.z)
 	var sides := [[Vector2(-A, -B), Vector2(A, -B), 0.0], [Vector2(A, -B), Vector2(A, B), 2.0 * A],
 		[Vector2(A, B), Vector2(-A, B), 2.0 * A + 2.0 * B], [Vector2(-A, B), Vector2(-A, -B), 4.0 * A + 2.0 * B]]
 	var best := 1e9
@@ -787,7 +817,7 @@ func walkway_param(q: Vector2) -> float:
 func on_pad(p: Vector3) -> bool:
 	if tutorial:
 		return Vector2(p.x, p.z).length() < TUT_R - 0.2
-	return absf(p.x) < BW * 0.5 - 0.2 and absf(p.z) < BD * 0.5 - 0.2
+	return absf(p.x - SC.x) < BW * 0.5 - 0.2 and absf(p.z - SC.z) < BD * 0.5 - 0.2
 
 ## Builds the placing boom's two arms for the chosen kit.
 func _build_boom(a: float, b: float) -> void:
@@ -821,6 +851,7 @@ func _build_boom(a: float, b: float) -> void:
 func _apply_kit(which: String) -> void:
 	if which == "tutorial":
 		tutorial = true
+		_use_tut_frame()
 		which = "tower"
 	kit = which
 	line = LineScript.new()
@@ -837,7 +868,9 @@ func _apply_kit(which: String) -> void:
 	elif tutorial:
 		_build_boom(12.0, 12.0)
 	else:
-		_build_boom(12.0, 12.0)
+		# Long enough to reach the far corner of the east wing from the tower
+		# in the notch (an MX42 reaches about 38 m; this is a shade more)
+		_build_boom(20.0, 20.0)
 		hud.toast(Settings.branded("Good call: that's the kit SCP ran on Riverlight."), 2.4)
 	line.build(self, kit)
 	line.whip.connect(_on_whip)
@@ -847,6 +880,7 @@ func _apply_kit(which: String) -> void:
 	screed = ScreedScript.new()
 	add_child(screed)
 	screed.build(self)
+	screed.rack_local = deck_pos("screed")
 	ops = OpsScript.new()
 	add_child(ops)
 	ops.setup(self)
@@ -1358,7 +1392,7 @@ func _add_section() -> void:
 	section_count += 1
 	if section_count % 3 == 0:
 		var y := section_count * LS - 0.6
-		add_child(F.beam(Vector3(BW * 0.5 + 0.3, y, 0), Vector3(LAT_X - LW * 0.5, y, 0), 0.22, F.mat("steel")))
+		add_child(F.beam(Vector3(SC.x + BW * 0.5 + 0.3, y, 0), Vector3(LAT_X - LW * 0.5, y, 0), 0.22, F.mat("steel")))
 
 ## The people playing (not bots), or the whole crew in an all-bot test.
 func humans() -> Array:
@@ -1388,12 +1422,33 @@ func haptic(p, pattern: String) -> void:
 
 # ------------------------------------------------------------------ geometry helpers
 
+## The columns under the slab (slab-local x/z): the old four by two, or on
+## Riverlight's wing a grid about 7 m each way.
 func _column_xz() -> Array:
+	var xs := [-BW * 0.5 + 0.6, -BW * 0.25, BW * 0.25, BW * 0.5 - 0.6]
+	var zs := [-BD * 0.5 + 0.6, BD * 0.5 - 0.6]
+	if BW > 20.0:
+		xs = []
+		for i in 5:
+			xs.append(lerpf(-BW * 0.5 + 0.6, BW * 0.5 - 0.6, i / 4.0))
+		zs = [-BD * 0.5 + 0.6, 0.0, BD * 0.5 - 0.6]
 	var out := []
-	for x in [-BW * 0.5 + 0.6, -BW * 0.25, BW * 0.25, BW * 0.5 - 0.6]:
-		for z in [-BD * 0.5 + 0.6, BD * 0.5 - 0.6]:
+	for x in xs:
+		for z in zs:
 			out.append(Vector2(x, z))
 	return out
+
+## The lift core under the slab (slab-local), clear of the columns.
+func _core_xz() -> Vector2:
+	return Vector2(BW * 0.125, 0) if BW > 20.0 else Vector2(-2.0, 0)
+
+func _make_pour() -> void:
+	pour = PourScript.new()
+	add_child(pour)
+	pour.build(BW, BD, _column_xz())
+	pour.walk_mid = WALK_MID
+	pour.visible = false
+	pour.position = Vector3(SC.x, 0, SC.z)
 
 func pour_level() -> float:
 	return (k + 1) * FH
@@ -1410,6 +1465,11 @@ func _walkable(p: Vector3, zone: String, who = null) -> bool:
 		return false
 	if zone == "ground":
 		var ok := (p.x >= 9.4 and p.x <= 33.5 and p.z >= -4.0 and p.z <= 12.5) or (p.x >= -9.5 and p.x <= 9.4 and p.z >= 6.9 and p.z <= 12.5)
+		if not tutorial:
+			# Riverlight's two wings come right up to the street: the west wing
+			# east of x 14.3 and the east wing round the slab, with the boom
+			# tower in the notch between them
+			ok = (p.x >= 14.2 and p.x <= 33.5 and p.z >= 1.9 and p.z <= 12.5) or (p.x >= 8.4 and p.x <= 14.2 and p.z >= -1.2 and p.z <= 12.5) or (p.x >= -9.5 and p.x <= 8.4 and p.z >= 2.9 and p.z <= 12.5)
 		if not ok:
 			return false
 		if kit == "tower" and absf(p.x - LAT_X) < 1.4 and absf(p.z) < 1.4:
@@ -1428,7 +1488,7 @@ func _walkable(p: Vector3, zone: String, who = null) -> bool:
 			return true
 		if p.x >= -7.1 and p.x <= -3.4 and p.z >= 3.4 and p.z <= 7.6:
 			return true
-	elif absf(p.x) <= BW * 0.5 + WALK_GAP + WALK_W - 0.3 and absf(p.z) <= BD * 0.5 + WALK_GAP + WALK_W - 0.3:
+	elif absf(p.x - SC.x) <= BW * 0.5 + WALK_GAP + WALK_W - 0.3 and absf(p.z - SC.z) <= BD * 0.5 + WALK_GAP + WALK_W - 0.3:
 		return true
 	if p.x >= 7.0 and p.x <= 11.0 and absf(p.z) <= 1.0:
 		return true
@@ -1466,7 +1526,8 @@ func _clear_trucks_of_people() -> void:
 ## The box a level's walkable area sits in, for the bots' route search.
 func walk_bounds(zone: String) -> Rect2:
 	if zone == "deck":
-		return Rect2(-BW * 0.5 - 2.0, -BD * 0.5 - 2.0, 14.6 + BW * 0.5 + 2.0, BD + 4.0)
+		var x0 := SC.x - BW * 0.5 - 2.0
+		return Rect2(x0, SC.z - BD * 0.5 - 2.0, LAT_X + 2.6 - x0, BD + 4.0)
 	return Rect2(-9.6, -4.5, 43.6, 17.6)
 
 func _needs_climb() -> bool:
@@ -1531,7 +1592,7 @@ func _brief_text() -> String:
 	if cfg["gusty"]:
 		lines.append("GUSTY. The boom parks over %d km/h until it eases." % int(BOOM_WIND))
 	lines.append("")
-	lines.append("Pour plan: 4 bays, far end first, back toward the boom. Keep the edge wet.")
+	lines.append("Pour plan: %d bays, far end first, back toward the boom. Keep the edge wet." % pour.BAYS)
 	return "\n".join(lines)
 
 # ------------------------------------------------------------------ phases
@@ -1554,10 +1615,10 @@ func _start_floor() -> void:
 	if tutorial:
 		_tut_frame(frame)
 	else:
-		for x in [-BW * 0.5 + 0.6, -BW * 0.25, BW * 0.25, BW * 0.5 - 0.6]:
-			for z in [-BD * 0.5 + 0.6, BD * 0.5 - 0.6]:
-				frame.add_child(F.box(Vector3(0.6, FH - 0.3, 0.6), col, Vector3(x, (FH - 0.3) * 0.5, z)))
-		frame.add_child(F.box(Vector3(4.0, FH - 0.3, 4.0), F.mat("core"), Vector3(-2.0, (FH - 0.3) * 0.5, 0)))
+		for c in _column_xz():
+			frame.add_child(F.box(Vector3(0.6, FH - 0.3, 0.6), col, Vector3(SC.x + c.x, (FH - 0.3) * 0.5, SC.z + c.y)))
+		var core := _core_xz()
+		frame.add_child(F.box(Vector3(4.0, FH - 0.3, 4.0), F.mat("core"), Vector3(SC.x + core.x, (FH - 0.3) * 0.5, SC.z + core.y)))
 	frame.scale.y = 0.01
 	building.add_child(f)
 	floor_nodes.append(f)
@@ -1572,12 +1633,12 @@ func _start_inspect() -> void:
 	_defect_prog = 0.0
 	climb.wind_mean = 36.0 if cfg["gusty"] else randf_range(14.0, 26.0)
 	if cfg["defect"]:
-		var dx := randf_range(-6.5, 4.0)
-		var dz := randf_range(-4.5, 4.5)
-		defect.position = Vector3(dx, deck_top() + 0.5, dz)
+		var dx := randf_range(-BW * 0.5 + 1.5, BW * 0.25)
+		var dz := randf_range(-BD * 0.5 + 1.5, BD * 0.5 - 1.5)
+		defect.position = SC + Vector3(dx, deck_top() + 0.5, dz)
 		defect.visible = true
 	engineer.visible = true
-	engineer.position = Vector3(-6.0, work_y, -4.0)
+	engineer.position = SC + Vector3(-6.0, work_y, -4.0)
 	# A crew with people in it reads the brief and says when they're ready
 	_brief_ok = crew.humans().is_empty() or autotest
 	hud.show_brief(true, _brief_text(), not _brief_ok)
@@ -1612,16 +1673,18 @@ func _plan_incidents() -> Array:
 		2, 3:
 			var per_bay: bool = lvl == 3 or k >= 2
 			if per_bay:
-				for b in 4:
+				for b in pour.BAYS:
 					var kind := "block" if randf() < (0.3 if lvl == 3 else 0.15) else "clamp"
-					out.append({"at": (b + randf_range(0.15, 0.7)) / 4.0, "kind": kind})
+					out.append({"at": (b + randf_range(0.15, 0.7)) / float(pour.BAYS), "kind": kind})
 			else:
 				out.append({"at": randf_range(0.2, 0.55), "kind": "clamp"})
 	return out
 
 func _start_pour() -> void:
 	pour.reset()
-	pour.open_time = cfg["open"]
+	# (a big slab's face is longer, so each strip takes longer to come back
+	# to: the concrete stays workable for longer to match, in game time)
+	pour.open_time = cfg["open"] * sqrt(pour.vol_k)
 	if kit == "truck":
 		pour.set_reach(Callable(self, "_can_reach"))
 	else:
@@ -1631,7 +1694,12 @@ func _start_pour() -> void:
 	clamp_used = false
 	clamp_trigger = randf_range(0.2, 0.55)
 	_incidents = _plan_incidents()
+	# (and the trucks come closer together and carry more, so the pump
+	# isn't kept waiting on changeovers)
+	line.load_m3 = line.TRUCK_LOAD * minf(BIG_SLAB_LOAD, sqrt(pour.vol_k))
 	line.start_pour(pour.needed(), cfg)
+	line.interval /= minf(BIG_SLAB_TRUCKS, sqrt(pour.vol_k))
+	line._arrive_t = line.interval
 	ops.start_pour()
 	hud.show_brief(false)
 	engineer.visible = false
@@ -1755,11 +1823,40 @@ func _lock_slab(level: int, instant := false) -> void:
 		disc.position.y = FH - 0.15
 		floor_nodes[level].add_child(disc)
 		return
-	var slab := F.box(Vector3(BW + 0.6, 0.3, BD + 0.6), F.color_mat(Color("b5b6b3")), Vector3(0, FH - 0.15, 0))
+	var slab := F.box(Vector3(BW + 0.6, 0.3, BD + 0.6), F.color_mat(Color("b5b6b3")), Vector3(SC.x, FH - 0.15, SC.z))
 	floor_nodes[level].add_child(slab)
+	_other_crew_floor(level, instant)
 	if level >= 1:
-		var fac := F.box(Vector3(BW - 0.4, FH - 0.3, BD - 0.4), F.window_mat(Color("eef0ec"), 0.0, 0.0, Color("4e6878")), Vector3(0, (FH - 0.3) * 0.5, 0))
+		var fac := F.box(Vector3(BW - 0.4, FH - 0.3, BD - 0.4), F.window_mat(Color("eef0ec"), 0.0, 0.0, Color("4e6878")), Vector3(SC.x, (FH - 0.3) * 0.5, SC.z))
 		fac.name = "Facade"
+		fac.scale.y = 1.0 if instant else 0.01
+		floor_nodes[level - 1].add_child(fac)
+
+## Riverlight's floor plan east of this slab (game x/z, from the map data's
+## footprint): the narrow link the boom tower stands against, and the west
+## wing out to its rounded end. Another crew pours it, a level at a time,
+## alongside ours.
+const OTHER_WING := [Vector2(8.3, -12.1), Vector2(10.7, -12.1), Vector2(10.6, -19.7), Vector2(59.0, -20.0),
+	Vector2(55.0, -10.1), Vector2(49.6, -10.2), Vector2(47.1, -3.5), Vector2(47.7, 1.6), Vector2(14.3, 1.8),
+	Vector2(14.3, -1.15), Vector2(8.3, -1.15)]
+
+## The other crew's slab for `level`, and the storey of facade under it.
+func _other_crew_floor(level: int, instant: bool) -> void:
+	if tutorial:
+		return
+	var plan := PackedVector2Array(OTHER_WING)
+	var plate := F.prism(plan, FH - 0.3, 0.3, F.color_mat(Color("b5b6b3")))
+	floor_nodes[level].add_child(plate)
+	if level >= 1:
+		# (flush with our facade where the two meet)
+		var wall := plan.duplicate()
+		wall[0].x = 7.6
+		wall[wall.size() - 1].x = 7.6
+		var inset: Array = Geometry2D.offset_polygon(wall, -0.2)
+		if inset.is_empty():
+			return
+		var fac := F.prism(inset[0], 0.0, FH - 0.3, F.window_mat(Color("eef0ec"), 0.0, 0.0, Color("4e6878")), false)
+		fac.name = "OtherFacade"
 		fac.scale.y = 1.0 if instant else 0.01
 		floor_nodes[level - 1].add_child(fac)
 
@@ -1769,8 +1866,8 @@ func _top_out() -> void:
 	hud._card_t = 0.0
 	skyline = true
 	flag.visible = true
-	flag.position = Vector3(-BW * 0.5 + 2.0, floors() * FH, -BD * 0.5 + 2.0)
-	confetti.position = Vector3(0, floors() * FH + 2.0, 0)
+	flag.position = SC + Vector3(-BW * 0.5 + 2.0, floors() * FH, -BD * 0.5 + 2.0)
+	confetti.position = SC + Vector3(0, floors() * FH + 2.0, 0)
 	confetti.restart()
 	confetti.emitting = true
 	var tally := [0, 0, 0]
@@ -1807,6 +1904,10 @@ func _people_line() -> String:
 
 func _process(delta: float) -> void:
 	_frames += 1
+	var now_us := Time.get_ticks_usec()
+	if _frame_us > 0:
+		_frame_ms = lerpf(_frame_ms, (now_us - _frame_us) / 1000.0, 0.05)
+	_frame_us = now_us
 	phase_t += delta
 	work_y = lerpf(work_y, work_target, minf(1.0, delta * 3.0))
 	rig.position.y = work_y
@@ -1961,9 +2062,10 @@ func _process(delta: float) -> void:
 				_set_phase("cure")
 		"cure":
 			if k >= 1:
-				var fac := floor_nodes[k - 1].get_node_or_null("Facade") as Node3D
-				if fac:
-					fac.scale.y = maxf(0.01, clampf(phase_t / 0.8, 0.0, 1.0))
+				for fname in ["Facade", "OtherFacade"]:
+					var fac := floor_nodes[k - 1].get_node_or_null(fname) as Node3D
+					if fac:
+						fac.scale.y = maxf(0.01, clampf(phase_t / 0.8, 0.0, 1.0))
 			# The slab report stays up till someone presses A
 			if hud.card_waiting() and ((_human_a and hud.card_age() > 1.0) or hud.card_age() > 45.0):
 				hud.dismiss_card()
@@ -2088,7 +2190,7 @@ func _update_setup(delta: float) -> void:
 func _update_inspect(delta: float) -> void:
 	# The engineer walks the deck checking steel, chairs and cover
 	var t := phase_t
-	engineer.position = Vector3(-6.0 + 9.0 * (0.5 - 0.5 * cos(t * 0.9)), work_y, -4.0 + 8.0 * (0.5 - 0.5 * cos(t * 0.6)))
+	engineer.position = SC + Vector3(-BW * 0.375 + BW * 0.56 * (0.5 - 0.5 * cos(t * 0.9)), work_y, -BD * 0.33 + BD * 0.66 * (0.5 - 0.5 * cos(t * 0.6)))
 	engineer.rotation.y = t * 0.8
 	engineer.get_node("LegL").rotation.x = sin(t * 8.0) * 0.5
 	engineer.get_node("LegR").rotation.x = -sin(t * 8.0) * 0.5
@@ -2109,6 +2211,16 @@ func _update_pour(delta: float) -> void:
 		pour_clock += delta
 	ops.update(delta)
 	_draw_hose()
+	if autotest and fmod(phase_t, 15.0) < delta:
+		# (progress, and how long a frame takes, for long pours)
+		print("[autotest]   pour t=%.0f clock=%.0f fill=%.2f poured=%.1f/%.1f bay=%d/%d edge=%.0f risk=%.2f wall=%ds step=%.1fms frame=%.1fms" % [phase_t, pour_clock, _filled_ratio(), pour.poured, pour.needed(), pour.cur_bay + 1, pour.BAYS, pour.edge_left, pour.at_risk, Time.get_ticks_msec() / 1000, _step_ms, _frame_ms])
+		var dv: Vector2 = pour.debug_volume()
+		print("[autotest]     on slab %.1f, spilled %.1f, p90 depth %.2f m, boom held off %s, pumping %.0fs" % [dv.x, pour.spilled, dv.y, str(bots.stop_t), _pump_t])
+		if OS.get_cmdline_user_args().has("--dbg"):
+			var dl := _pour_local(discharge())
+			print("[autotest]     goal %s tip %s disch %s under %.2f strip %s hoser %s" % [str(bots._boom_goal), str(_pour_local(tip_target)), str(dl), pour.height_at(dl), str(pour.leading_strip(pour.cur_bay)), str(hose_holder.position) if hose_holder != null else "-"])
+		bots.stop_t = {}
+		_pump_t = 0.0
 	if autotest and _dbg and fmod(pour_clock, 5.0) < delta and ops.primed:
 		var ts := []
 		for t in line.trucks:
@@ -2121,7 +2233,7 @@ func _update_pour(delta: float) -> void:
 		var lh = crew.crew["pump"]
 		var pp = crew.crew["line"]
 		var hh = crew.crew["hose"]
-		print("[dbg] ops=%s primed=%s step_t=%.1f hose=%s busy=%s pos=%s disch=%s tip=%s want_boom=%s" % [ops.stage, ops.primed, ops.step_t, hh.char_name, hh.busy, str(hh.position), str(discharge()), str(tip_target), str(_boom_operator() != null)])
+		print("[dbg] pumpop=%s mv=%s act=%s ops=%s primed=%s step_t=%.1f hose=%s busy=%s pos=%s disch=%s tip=%s want_boom=%s" % [str(lh.position), str(lh.ai_move), lh.ai_action, ops.stage, ops.primed, ops.step_t, hh.char_name, hh.busy, str(hh.position), str(discharge()), str(tip_target), str(_boom_operator() != null)])
 		print("[dbg] t=%.0f cov=%.2f bay%d hopper=%.1f p=%.0f high=%s line=%s/%s y=%.1f held=%s pump=%s held=%s fail=%d fix=%d/%s blk=%s idle=%.0f hook=%s trucks=%s scr=%.2f" % [pour_clock, _filled_ratio(), pour.cur_bay, line.hopper, line.pressure, line.speed_high, lh.zone, lh.busy, lh.position.y, lh.held_kind, str(pp.position), pp.held_kind, line.fail_i, line.fix_i, line._step_name(), line.blocked, line.idle_t, line.hook["state"], ",".join(ts), pour.screed_share()])
 	# The incident director: what goes wrong this pour, and when (the
 	# Incidents setting in the pause menu). One at a time: the next waits
@@ -2137,7 +2249,7 @@ func _update_pour(delta: float) -> void:
 	var raining: bool = cfg["rain"] and pour_clock > cfg["rain_at"] and pour_clock < cfg["rain_at"] + cfg["rain_len"]
 	pour.raining = raining
 	rain.emitting = raining
-	rain.position = Vector3(0, work_y + 18.0, 0)
+	rain.position = Vector3(SC.x + 8.0, work_y + 18.0, SC.z + 6.0)
 	if cfg["gusty"] and pour_clock > cfg["gust_at"] and climb._spike_t < 0.0 and not cfg.get("gusted", false):
 		cfg["gusted"] = true
 		climb._spike_t = 0.0
@@ -2196,7 +2308,11 @@ func _update_pour(delta: float) -> void:
 			if hose_holder != null:
 				score.trickle(hose_holder, q * 3.0, "On the end hose")
 	pour.set_splash(pumping and not (ops.wants_bin() and ops.over_bin(discharge())), hose_local)
+	if line.pumping:
+		_pump_t += delta
+	var t0 := Time.get_ticks_usec()
 	pour.step(delta)
+	_step_ms = lerpf(_step_ms, (Time.get_ticks_usec() - t0) / 1000.0, 0.05)
 	pour.show_bays(true)
 
 
@@ -2241,6 +2357,10 @@ func _update_pour(delta: float) -> void:
 		_left = Vector2.ONE
 
 var _left := Vector2.ONE
+var _step_ms := 0.0
+var _pump_t := 0.0
+var _frame_ms := 0.0
+var _frame_us := 0
 var _weary_all := OS.get_cmdline_user_args().has("--weary")
 var _bot_badges := OS.get_cmdline_user_args().has("--botcues")   # dev: show bots' cues in the close-ups
 
@@ -2486,8 +2606,8 @@ func _handle_player(p, delta: float) -> void:
 			tip_target = tip_target.lerp(Vector3(tip_pos.x, tip_target.y, tip_pos.z), minf(1.0, delta * 6.0))
 		# Over the slab (and out over the scaffold to the bin when it's wanted)
 		var out_k := 1.4 if ops.wants_bin() else -0.6
-		tip_target.x = clampf(tip_target.x, -BW * 0.5 - out_k, BW * 0.5 + out_k)
-		tip_target.z = clampf(tip_target.z, -BD * 0.5 - out_k, BD * 0.5 + out_k)
+		tip_target.x = clampf(tip_target.x, SC.x - BW * 0.5 - out_k, SC.x + BW * 0.5 + out_k)
+		tip_target.z = clampf(tip_target.z, SC.z - BD * 0.5 - out_k, SC.z + BD * 0.5 + out_k)
 		if tutorial:
 			# The hose stays over the round slab
 			var flat := Vector2(tip_target.x, tip_target.z).limit_length(TUT_R + (1.4 if ops.wants_bin() else -0.7))
@@ -2672,10 +2792,10 @@ func _update_hoist(delta: float) -> void:
 	if absf(rider.position.y - to) < 0.01:
 		if to <= 0.01:
 			rider.zone = "ground"
-			rider.position = Vector3(HOIST_X, 0, 9.8)
+			rider.position = Vector3(HOIST_X, 0, HOIST_Z + 1.4)
 		else:
 			rider.zone = "deck"
-			rider.position = Vector3(HOIST_X, work_y, 6.85)
+			rider.position = Vector3(HOIST_X, work_y, HOIST_Z - 1.55)
 		if not rider.bot:
 			sfx.hit("clank")
 
@@ -2686,17 +2806,17 @@ func _walk_boom_op(p, delta: float) -> void:
 	if not tutorial:
 		# Down the front of the slab, the walkway nearest the camera, keeping
 		# in line with the pipe guy so they can see the concrete land
-		var fz: float = BD * 0.5 + WALK_MID
+		var fz: float = SC.z + BD * 0.5 + WALK_MID
 		var fx: float = BW * 0.5 + WALK_MID
 		var want_x: float = discharge().x
 		if ops.wants_bin():
 			# (stand back from the bin, not on it: the pipe guy needs the room)
 			want_x = ops.bin_world().x - 2.4
-		want_x = clampf(want_x, -fx, fx)
+		want_x = clampf(want_x, SC.x - fx, SC.x + fx)
 		if absf(p.position.z - fz) > 0.05:
 			# Round the scaffold onto the front walkway first: along to the
 			# nearest end, then down the side (never across the pad)
-			var side_x: float = fx if p.position.x >= 0.0 else -fx
+			var side_x: float = SC.x + (fx if p.position.x >= SC.x else -fx)
 			if p.position.z < fz - 1.0 and absf(p.position.x - side_x) > 0.05:
 				p.position.x = move_toward(p.position.x, side_x, 3.2 * delta)
 			else:
@@ -2705,7 +2825,7 @@ func _walk_boom_op(p, delta: float) -> void:
 		elif absf(want_x - p.position.x) > 0.6:
 			p.position.x = move_toward(p.position.x, want_x, minf(absf(want_x - p.position.x) - 0.5, 3.2 * delta))
 			p._walk += delta * 10.0
-		p.position.x = clampf(p.position.x, -fx, fx)
+		p.position.x = clampf(p.position.x, SC.x - fx, SC.x + fx)
 		return
 	# Round the scaffold, keeping level with the hose (and the pipe guy on it)
 	# so they can see the concrete landing, but never on the pad
@@ -3345,7 +3465,7 @@ func _tickets() -> Array:
 		var cov: float = clampf(pour.bay_cov[b], 0.0, 1.0)
 		var state := "edge fresh" if left >= 0.55 else ("edge ageing" if left >= 0.3 else "EDGE GOING OFF")
 		var bar := UI.GREEN if left >= 0.55 else (UI.YELLOW if left >= 0.3 else UI.RED)
-		out.append({"icon": "E", "text": "Bay %d of 4 · %d%% · %s" % [b + 1, int(cov * 100.0), state], "frac": cov, "bar": bar, "color": UI.ROLE["boom"], "role": "boom", "urgent": left < 0.3})
+		out.append({"icon": "E", "text": "Bay %d of %d · %d%% · %s" % [b + 1, pour.BAYS, int(cov * 100.0), state], "frac": cov, "bar": bar, "color": UI.ROLE["boom"], "role": "boom", "urgent": left < 0.3})
 	if pour.at_risk > 0.01:
 		out.append({"icon": "V", "text": "Going off unvibrated", "frac": 1.0 - minf(1.0, pour.at_risk * 8.0), "color": UI.ROLE["poker"], "role": "poker", "urgent": true})
 	# Pump and trucks
@@ -3427,7 +3547,7 @@ func _update_hud() -> void:
 				hud.set_task("Start-up · prime the line", ("%s · %s" % [tk2[0], tk2[1]]) if not tk2.is_empty() else "")
 				hud.set_progress(float(tk2[3]) if not tk2.is_empty() else 0.0)
 			else:
-				hud.set_task("Pour · bay %d of 4" % (pour.cur_bay + 1), sub)
+				hud.set_task("Pour · bay %d of %d" % [pour.cur_bay + 1, pour.BAYS], sub)
 				hud.set_progress(_filled_ratio())
 		"screed", "cure":
 			hud.set_task("")   # (the slab report's up)
@@ -3532,7 +3652,7 @@ func _update_camera(delta: float) -> void:
 		if main_follow.is_empty() and not away.is_empty():
 			main_follow = [away[0]]
 			away.remove_at(0)
-	var focus := Vector3(0, work_y + 3.0, 0)
+	var focus := Vector3(SC.x * 0.5, work_y + 3.0, SC.z * 0.5)
 	var spread := 0.0
 	# What the deck view has to keep in: the people up there, and the bin
 	# while the boom's putting slurry or washout in it
@@ -3580,11 +3700,12 @@ func _update_camera(delta: float) -> void:
 			cam_pitch = _pitch_before
 			_dog_view = false
 	if phase == "select" or phase == "roles":
-		focus = Vector3(4, 10, 0)
-		dist = 60.0
+		focus = Vector3(4, 10, 0) + (Vector3(SC.x, 0, SC.z) if not tutorial else Vector3.ZERO) * 0.5
+		dist = 60.0 if tutorial else 72.0
 	if skyline:
 		var top := maxf(head.position.y, (k + 1) * FH)
-		focus = Vector3(0, top * 0.45, -8.0)
+		# (the whole of Riverlight, both wings)
+		focus = (Vector3.ZERO if tutorial else -REAL_ORIGIN) + Vector3(0, top * 0.45, -8.0)
 		dist = maxf(110.0, top * 2.4)
 	cam_focus = cam_focus.lerp(focus, minf(1.0, delta * 2.5))
 	var off := Vector3(sin(cam_yaw) * cos(cam_pitch), sin(cam_pitch), cos(cam_yaw) * cos(cam_pitch)) * dist
@@ -3913,7 +4034,7 @@ func _maybe_shot() -> void:
 		# then upstream to the city
 		cam_yaw = 1.4 if key == "vista" else -0.99
 		cam_pitch = 0.08
-		_shot_cam = [Vector3(0, 30, 0), 60.0]
+		_shot_cam = [-REAL_ORIGIN + Vector3(0, 30, 0), 60.0]
 	if key == "pause":
 		pause_menu.visible = true
 		pause_menu._side = "job"
