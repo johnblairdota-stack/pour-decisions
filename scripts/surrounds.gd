@@ -438,7 +438,7 @@ static func _gateway(root: Node3D, d: Dictionary) -> void:
 		for k in range(1, 10):
 			piers.append(-130.0 - k * 75.0)
 			piers.append(130.0 + k * 75.0)
-		for s in piers:
+		for s: float in piers:
 			var u: float = s / half
 			if absf(u) > 1.0:
 				continue
