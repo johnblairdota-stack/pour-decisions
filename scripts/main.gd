@@ -52,6 +52,7 @@ var SC := Vector3(8.0 - 15.0, 0, 2.0 - 10.9)   # the slab's centre
 ## Where the game's origin is in the real-world frame Riverlight's map data
 ## uses (Riverlight's centroid, x west, z north)
 const REAL_ORIGIN := Vector3(-15.8, 0, 9.5)
+const BIG_SLAB_TRUCKS := 1.35   # trucks come up to this much more often on a big slab
 const LS := 4.14
 const LW := 2.0
 const LAT_X := 12.0
@@ -1680,7 +1681,9 @@ func _plan_incidents() -> Array:
 
 func _start_pour() -> void:
 	pour.reset()
-	pour.open_time = cfg["open"]
+	# (a big slab's face is longer, so each strip takes longer to come back
+	# to: the concrete stays workable for longer to match, in game time)
+	pour.open_time = cfg["open"] * sqrt(pour.vol_k)
 	if kit == "truck":
 		pour.set_reach(Callable(self, "_can_reach"))
 	else:
@@ -1691,6 +1694,8 @@ func _start_pour() -> void:
 	clamp_trigger = randf_range(0.2, 0.55)
 	_incidents = _plan_incidents()
 	line.start_pour(pour.needed(), cfg)
+	# (and the trucks come closer together, so the pump isn't kept waiting)
+	line.interval /= minf(BIG_SLAB_TRUCKS, sqrt(pour.vol_k))
 	ops.start_pour()
 	hud.show_brief(false)
 	engineer.visible = false

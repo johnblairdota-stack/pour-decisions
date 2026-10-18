@@ -61,7 +61,8 @@ const ANGORA_DIR := Vector3(0.534, 0, -0.846)
 # because each game m³ out of the hose covers pour.vol_k times more deck
 # (pour.gd, worked out from the slab's area). To speed the whole pour up or
 # slow it down, change these: load size, chute and pump output; truck spacing
-# is `interval` in start_pour.
+# is `interval` in start_pour (closed up by main.BIG_SLAB_TRUCKS on a big
+# slab, whose open time is also longer: main._start_pour).
 const HOPPER_CAP := 5.0                  # m³ (game scale)
 const TRUCK_LOAD := 8.0                  # m³, a typical agitator load
 const DISCHARGE := 1.8                   # m³/s out of the chute
