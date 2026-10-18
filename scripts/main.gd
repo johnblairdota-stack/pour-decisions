@@ -2807,7 +2807,7 @@ func _jobs() -> Array:
 	var hop: float = line.hopper / line.HOPPER_CAP
 	if t != null:
 		var tl := 2 if t["age"] > 80.0 or (t == line.bay_truck and hop < 0.2) else 1
-		add.call("bay", (t["node"] as Node3D).position + Vector3(-2.0, 4.2, 0), tl, "line", "SLUMP TEST" if not t["checked"] else "MAKE THE CALL")
+		add.call("bay", (t["node"] as Node3D).position + Vector3(-2.0, 4.2, 0), tl, "line", "CHECK THE DOCKET" if t["state"] == "docket" else ("SLUMP TEST" if not t["checked"] else "MAKE THE CALL"))
 	elif line.can_wave_in() and (line.bay_truck == null or line.staged == null and hop < 0.6):
 		add.call("bay", st_pos.call("bay") + up, 1 if hop < 0.3 else 0, "line", "WAVE TRUCK IN")
 	var pop = crew.crew["pump"]
@@ -3152,7 +3152,7 @@ func _update_stations() -> void:
 			needed.append("spares")
 		if step == "pipe" or (line.blocked and line.block_found and step in ["", "open", "lower"]):
 			needed.append("rack")
-		if line.bay_truck == null and line._next_queued() != null or line.bay_truck != null and line.bay_truck["state"] in ["bay", "check"]:
+		if line.bay_truck == null and line._next_queued() != null or line.bay_truck != null and line.bay_truck["state"] in ["bay", "check", "docket"]:
 			needed.append("bay")
 		if pour.at_risk > 0.01:
 			needed.append("poker")
@@ -3374,7 +3374,7 @@ func _tickets() -> Array:
 		out.append({"icon": "P", "text": "Line standing still", "frac": 1.0 - line.idle_t / line.SET_TIME, "color": UI.ROLE["pump"], "role": "pump", "urgent": true})
 	var chk = line.needs_check()
 	if chk != null:
-		var what := "Slump test the truck" if not chk["checked"] else "Make the call: use, water or send back?"
+		var what := "Check the docket against the order" if chk["state"] == "docket" else ("Slump test the truck" if not chk["checked"] else "Make the call: use, water or send back?")
 		out.append({"icon": "T", "text": what, "frac": 1.0 - float(chk["age"]) / line.MAX_AGE, "color": UI.ROLE["line"], "role": "line", "urgent": true})
 	elif line.can_wave_in():
 		var nq = line._next_queued()

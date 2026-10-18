@@ -676,6 +676,15 @@ func _bay(p, urgent_only: bool) -> bool:
 	var line = game.line
 	var t = line.needs_check()
 	var bay: Vector3 = game.GROUND_STATIONS["bay"]["pos"]
+	# Spotting the truck it waved in: wave it on, let go about on the mark
+	for tr in line.trucks:
+		if tr["state"] in ["called", "approach", "back"] and tr.get("spotter") == p:
+			walk(p, bay, 0.6)
+			if tr["state"] == "back":
+				if not tr.has("bot_stop"):
+					tr["bot_stop"] = 1.0 + randf_range(-1.0, 1.0) * [0.05, 0.03, 0.015][game.score.bot_tier]
+				p.ai_action = float(tr.get("su", 0.0)) < float(tr["bot_stop"])
+			return true
 	if t != null:
 		if walk(p, bay, 0.6):
 			if not t["checked"]:
@@ -685,7 +694,14 @@ func _bay(p, urgent_only: bool) -> bool:
 				t["read_t"] = float(t.get("read_t", 0.0)) + get_process_delta_time()
 				if float(t["read_t"]) < READ_T[game.score.bot_tier]:
 					return true
-				match line.right_call(t):
+				var call: String = line.right_call(t)
+				if t["state"] == "docket" and call == "reject":
+					# (a bot doesn't always spot the wrong mix on the docket)
+					if not t.has("bot_saw"):
+						t["bot_saw"] = randf() > [0.3, 0.15, 0.05][game.score.bot_tier]
+					if not t["bot_saw"]:
+						call = "use"
+				match call:
 					"use":
 						p.ai_action = _tap()
 					"water":
