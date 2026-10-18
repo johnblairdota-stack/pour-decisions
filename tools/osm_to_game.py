@@ -16,6 +16,7 @@ import os
 
 from shapely.geometry import LineString, Polygon, Point, mapping, shape
 from shapely.ops import unary_union
+import shapely
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, "reference", "osm")
@@ -96,6 +97,51 @@ def lines(g):
     if g.geom_type == "MultiLineString":
         return list(g.geoms)
     return []
+
+
+# The game's own site (its slab, hardstand and truck road) keeps the ground clear
+SITE_CUT = [(-45, -14, 50, 24), (-47, 11.6, 41, 20.6)]
+
+
+def flat_ground(out, order):
+    """Everything that lies flat on the ground (land use, water, drains, roads,
+    paths) as one set of pieces that don't overlap, already cut into triangles,
+    so no two pieces fight over the same spot on screen. Roads win over paths,
+    paths over drains and water, and so on down the area draw order."""
+    from shapely.geometry import box
+    layers = [("road", unary_union([LineString(r["pts"]).buffer(r["w"] / 2, quad_segs=4)
+                                    for r in out["roads"] if not r["bridge"] and len(r["pts"]) > 1]))]
+    layers.append(("path", unary_union([LineString(p["pts"]).buffer(p["w"] / 2, quad_segs=2)
+                                        for p in out["paths"] if len(p["pts"]) > 1])))
+    layers.append(("drain", unary_union([LineString(d["pts"]).buffer(d["w"] / 2, quad_segs=2)
+                                         for d in out["drains"] if len(d["pts"]) > 1])))
+    for kind in reversed(order):
+        geoms = []
+        for a in out["areas"]:
+            if a["kind"] == kind and len(a["pts"]) > 3:
+                pg = Polygon(a["pts"], [h for h in a.get("holes", []) if len(h) > 3])
+                geoms.append(pg if pg.is_valid else pg.buffer(0))
+        if geoms:
+            layers.append((kind, unary_union(geoms)))
+    taken = unary_union([box(*r) for r in SITE_CUT])
+    ground = []
+    for kind, g in layers:
+        g = g.difference(taken).simplify(0.2)
+        taken = taken.union(g)
+        tris = []
+        for t in shapely.constrained_delaunay_triangles(g).geoms:
+            if t.area < 0.05:
+                continue
+            q = list(t.exterior.coords)[:3]
+            # All one way round (the way the game's ribbons wind), so every
+            # triangle faces up and lights the same
+            if (q[1][0] - q[0][0]) * (q[2][1] - q[0][1]) - (q[1][1] - q[0][1]) * (q[2][0] - q[0][0]) > 0:
+                q = [q[0], q[2], q[1]]
+            for x, z in q:
+                tris += [round(x, 1), round(z, 1)]
+        if tris:
+            ground.append({"kind": kind, "tris": tris})
+    return ground
 
 
 def load(name):
@@ -270,6 +316,7 @@ def main():
     order = ["residential", "industrial", "vacant", "golf", "park", "scrub", "pitch", "parking",
              "paving", "beach", "golf_water", "water", "bridge"]
     out["areas"].sort(key=lambda a: (order.index(a["kind"]) if a["kind"] in order else 99))
+    out["ground"] = flat_ground(out, order)
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     json.dump(out, open(OUT, "w"), separators=(",", ":"))
     for k, v in out.items():
