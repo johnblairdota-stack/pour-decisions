@@ -53,6 +53,7 @@ var SC := Vector3(8.0 - 15.0, 0, 2.0 - 10.9)   # the slab's centre
 ## uses (Riverlight's centroid, x west, z north)
 const REAL_ORIGIN := Vector3(-15.8, 0, 9.5)
 const BIG_SLAB_TRUCKS := 1.35   # trucks come up to this much more often on a big slab
+const BIG_SLAB_LOAD := 1.3      # ...carrying up to this much more each
 const LS := 4.14
 const LW := 2.0
 const LAT_X := 12.0
@@ -1693,9 +1694,12 @@ func _start_pour() -> void:
 	clamp_used = false
 	clamp_trigger = randf_range(0.2, 0.55)
 	_incidents = _plan_incidents()
+	# (and the trucks come closer together and carry more, so the pump
+	# isn't kept waiting on changeovers)
+	line.load_m3 = line.TRUCK_LOAD * minf(BIG_SLAB_LOAD, sqrt(pour.vol_k))
 	line.start_pour(pour.needed(), cfg)
-	# (and the trucks come closer together, so the pump isn't kept waiting)
 	line.interval /= minf(BIG_SLAB_TRUCKS, sqrt(pour.vol_k))
+	line._arrive_t = line.interval
 	ops.start_pour()
 	hud.show_brief(false)
 	engineer.visible = false

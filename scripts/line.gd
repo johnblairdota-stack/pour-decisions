@@ -61,10 +61,12 @@ const ANGORA_DIR := Vector3(0.534, 0, -0.846)
 # because each game m³ out of the hose covers pour.vol_k times more deck
 # (pour.gd, worked out from the slab's area). To speed the whole pour up or
 # slow it down, change these: load size, chute and pump output; truck spacing
-# is `interval` in start_pour (closed up by main.BIG_SLAB_TRUCKS on a big
-# slab, whose open time is also longer: main._start_pour).
+# is `interval` in start_pour. On a big slab main._start_pour closes the
+# trucks up (BIG_SLAB_TRUCKS), sends bigger loads (BIG_SLAB_LOAD, so fewer
+# changeovers at the bay) and gives the concrete a longer open time.
 const HOPPER_CAP := 5.0                  # m³ (game scale)
 const TRUCK_LOAD := 8.0                  # m³, a typical agitator load
+var load_m3 := TRUCK_LOAD                # this pour's loads (bigger on a big slab: main._start_pour)
 const DISCHARGE := 1.8                   # m³/s out of the chute
 const PUMP_Q := 1.15                     # m³/s at the hose on high
 const LOW := 0.55                        # output on low, as a share of high
@@ -1221,7 +1223,7 @@ func _celebrate(at: Vector3) -> void:
 func _spawn_truck(waiting: bool, top_up := false) -> void:
 	if ordered >= needed_m3 * 1.12 and not top_up:
 		return
-	var load := TRUCK_LOAD if top_up else minf(TRUCK_LOAD, needed_m3 * 1.12 - ordered + 0.5)
+	var load := load_m3 if top_up else minf(load_m3, needed_m3 * 1.12 - ordered + 0.5)
 	ordered += load
 	var r := randf()
 	var slump := randf_range(SPEC_SLUMP - 17.0, SPEC_SLUMP + 17.0)
@@ -2568,9 +2570,9 @@ func _bay(p, delta: float) -> void:
 	var t = needs_check()
 	if t == null:
 		if can_wave_in():
-			p.cue("action", "wave truck in", -1.0, bay_truck == null or bay_truck["load"] < TRUCK_LOAD * 0.6)
+			p.cue("action", "wave truck in", -1.0, bay_truck == null or bay_truck["load"] < load_m3 * 0.6)
 			# Gold: now's the time, so the next one's on before the hopper runs low
-			p.gold(not p.bot and (bay_truck == null or bay_truck["load"] < TRUCK_LOAD * 0.6))
+			p.gold(not p.bot and (bay_truck == null or bay_truck["load"] < load_m3 * 0.6))
 			if p.action_pressed():
 				wave_in(p)
 				p.pose_arms(Vector3(-2.8, 0, -0.3), Vector3(-2.8, 0, 0.3))
@@ -2605,7 +2607,7 @@ func _bay(p, delta: float) -> void:
 		# A wave to the next driver doesn't stop the test (X): they back in
 		# on the free side while you work
 		if can_wave_in():
-			var hungry: bool = bay_truck == null or bay_truck == t or float(bay_truck["load"]) < TRUCK_LOAD * 0.85
+			var hungry: bool = bay_truck == null or bay_truck == t or float(bay_truck["load"]) < load_m3 * 0.85
 			p.cue("alt", "wave the next truck in", -1.0, hungry)
 			p.gold(not p.bot and hungry)
 			if (p.alt_pressed() and not p.bot) or ((p.bot or p.covering) and hungry):
