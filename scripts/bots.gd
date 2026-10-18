@@ -7,6 +7,7 @@ extends Node
 var game
 var _boom_goal := Vector3.ZERO
 var _boom_goal_t := 0.0
+var _heap_t := 0.0
 var _tap_y := -1.0
 var _scr := {"mode": "seek", "x": 0.0, "dir": 1.0, "end": 0.0, "t": 0.0}
 var _spot_tries := {}   # patch -> {n, at, p}: spot pulls tried on it
@@ -333,10 +334,11 @@ func _boom(p, delta: float) -> void:
 		return
 	# Aim at the lowest spot in the bay being poured
 	if _boom_goal_t <= 0.0:
-		_boom_goal = pour.next_face_point(pour.cur_bay)
+		_boom_goal = pour.next_face_point(pour.cur_bay, g._pour_local(g.discharge()))
 		# Keep the hose off the edge forms, so nothing goes over them
-		_boom_goal.x = clampf(_boom_goal.x, -pour.bw * 0.5 + 0.75, pour.bw * 0.5 - 0.75)
-		_boom_goal.z = clampf(_boom_goal.z, -pour.bd * 0.5 + 0.75, pour.bd * 0.5 - 0.75)
+		var em: float = maxf(0.75, pour.aim_margin)
+		_boom_goal.x = clampf(_boom_goal.x, -pour.bw * 0.5 + em, pour.bw * 0.5 - em)
+		_boom_goal.z = clampf(_boom_goal.z, -pour.bd * 0.5 + em, pour.bd * 0.5 - em)
 		if pour.round_r > 0.0:
 			var fl := Vector2(_boom_goal.x, _boom_goal.z).limit_length(pour.round_r - 1.0)
 			_boom_goal = Vector3(fl.x, _boom_goal.y, fl.y)
@@ -358,8 +360,10 @@ func _boom(p, delta: float) -> void:
 	# (bronze bots only switch when it matters)
 	p.ai_alt = g.speed_advice["want"] != "" and (g.score.bot_tier > 0 or g.speed_advice["level"] >= 1) and _tap()
 	var ok: bool = line.hopper > 0.25 or feeding and line.hopper > 0.08
+	var why := "" if ok else "hopper"
 	if pour.raining or g.climb.wind_gust >= g.BOOM_WIND or line.line_down() or line.blocked:
 		ok = false
+		why = "line"
 	if line.hopper < 0.08 and not feeding:
 		_bark_once(p, "hopper", "Hopper's empty!")
 	elif line.hopper > 1.0:
@@ -367,12 +371,27 @@ func _boom(p, delta: float) -> void:
 	# A weeping clamp: stop pumping so the line hand can swap it
 	if line.fail_i >= 0 and line.wear > 0.25 and not g.let_burst:
 		ok = false
+		why = "clamp"
 	# Don't pile it up: off the trigger while the hose moves on from a full spot,
 	# or while it's still swinging over to the face
 	var dl: Vector3 = g._pour_local(g.discharge())
 	var under: float = pour.height_at(dl)
 	if to.length() > 2.5 and under > pour.SLAB * 1.3:
 		ok = false
+		why = "pile"
+	# (on a big slab's wide splash, never stand building a heap: wait for the
+	# hose to move on to fresh deck)
+	if pour.vol_k > 1.0 and under > pour.SLAB * 1.5:
+		ok = false
+		why = "heap"
+		# (a goal that only heaps up beside it: give up on it for a while)
+		_heap_t += delta
+		if _heap_t > 1.5:
+			_heap_t = 0.0
+			pour.skip_near(_boom_goal, 1.2, 25.0)
+			_boom_goal_t = 0.0
+	else:
+		_heap_t = 0.0
 	# Never ahead of the bay being poured (swinging across from the bin, or
 	# the pipe guy still catching up)
 	# (a hose that's stopped moving is as far as the boom reaches: pump there)
@@ -381,11 +400,15 @@ func _boom(p, delta: float) -> void:
 	var swinging := hv > 0.4
 	if swinging and (pour.bay_of_x(dl.x) > pour.cur_bay or to.length() > 3.5):
 		ok = false
+		why = "swing"
+	if why != "" and game.autotest:
+		stop_t[why] = float(stop_t.get(why, 0.0)) + delta
 	p.ai_action = ok
 
 # ------------------------------------------------------------------ pipe guy
 
 var _hose_goal := Vector3.INF
+var stop_t := {}     # (test) s the boom bot held off pumping, by reason
 var _last_dl := Vector3.ZERO
 var _hose_goal_t := 0.0
 

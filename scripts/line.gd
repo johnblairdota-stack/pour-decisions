@@ -2202,7 +2202,8 @@ func _ladder(p, delta: float) -> void:
 			p.position = Vector3(13.6, work, 1.6)
 		elif at_ground:
 			p.zone = "ground"
-			p.position = Vector3(LADDER.x + 1.1, 0.0, LADDER.z + 1.0)
+			# (onto the street side of the ladder, clear of the west wing)
+			p.position = Vector3(LADDER.x + 0.6, 0.0, LADDER.z + 1.3)
 
 ## Tap the pipe: a clear pipe rings, a packed one thuds.
 func _tap(y: float, j := -1) -> void:

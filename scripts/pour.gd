@@ -95,7 +95,7 @@ func build(width: float, depth: float, columns: Array) -> void:
 	mask_n = NX * NZ
 	_bay_c1 = NX
 	vol_k = maxf(1.0, bw * bd / 192.0)
-	splash_r = SPLASH * sqrt(vol_k)
+	splash_r = SPLASH * pow(vol_k, 0.75)
 	h.resize(NX * NZ)
 	age.resize(NX * NZ)
 	set_h.resize(NX * NZ)
@@ -359,6 +359,7 @@ func reach_all() -> void:
 		reach[i] = mask[i]
 
 func reset() -> void:
+	_skip.clear()
 	_bay_meshes.clear()
 	_prints.clear()
 	if _prints_mm:
@@ -740,6 +741,18 @@ func _ribbon(pts: PackedVector2Array, w: float, closed := true) -> ArrayMesh:
 	return st.commit()
 
 ## Share of the slab at least 85% of full depth.
+## (test) Game m³ sitting on the slab now, and the depth of the deepest tenth of it.
+func debug_volume() -> Vector2:
+	var tot := 0.0
+	var hs: Array = []
+	for i in h.size():
+		if mask[i] == 1 and h[i] > 0.01:
+			tot += h[i]
+			hs.append(h[i])
+	hs.sort()
+	var deep: float = hs[int(hs.size() * 0.9)] if hs.size() > 10 else 0.0
+	return Vector2(tot * dx * dx / vol_k, deep)
+
 func coverage() -> float:
 	return _coverage
 
@@ -786,7 +799,41 @@ func lowest_point(bay := -1) -> Vector3:
 ## first strip that isn't full yet. Each new load goes against the last, the
 ## wet edge stays at the front of the pour, and nothing behind it is left to
 ## go off and be come back to.
-func next_face_point(bay: int) -> Vector3:
+## `from` (slab-local, optional): where the hose is now. Among the low spots
+## the nearest wins, so the boom works along the face instead of jumping to
+## its far end (which matters on a wide bay).
+func next_face_point(bay: int, from := Vector3.INF) -> Vector3:
+	return _next_face(bay, from)
+
+## How many cells in from the edge forms the boom aims, so its splash stays
+## inside them.
+func edge_cells() -> int:
+	return 1 if vol_k <= 1.0 else ceili(splash_r * 2.0 / dx) - 1
+
+## Spots the boom gave up on (a hole against a column that won't fill
+## without piling up the deck beside it): cell -> time it's wanted again.
+var _skip := {}
+## How far in from the forms the boom should aim for the spot
+## next_face_point last gave (m).
+var aim_margin := 0.75
+
+func skip_near(local: Vector3, radius: float, secs: float) -> void:
+	var r := ceili(radius / dx)
+	var cx := int((local.x + bw * 0.5) / dx)
+	var cz := int((local.z + bd * 0.5) / dx)
+	for oz in range(-r, r + 1):
+		for ox in range(-r, r + 1):
+			var ix := cx + ox
+			var iz := cz + oz
+			if ix >= 0 and ix < NX and iz >= 0 and iz < NZ:
+				_skip[iz * NX + ix] = _t + secs
+
+## In from the edge forms by the boom's aim margin (see edge_cells).
+func _inner(ix: int, iz: int) -> bool:
+	var m := edge_cells()
+	return iz >= m and iz < NZ - m and ix >= m and ix < NX - m
+
+func _next_face(bay: int, from: Vector3) -> Vector3:
 	bay = clampi(bay, 0, BAYS - 1)
 	var bc := bay_cols(bay)
 	var x0 := bc.x
@@ -806,15 +853,49 @@ func next_face_point(bay: int) -> Vector3:
 				var i := iz * NX + ix
 				if reach[i] == 0:
 					continue
-				n += 1
-				if h[i] >= full:
-					ok += 1
-				# (a cell in from the forms: the concrete flows out to them)
-				if iz > 0 and iz < NZ - 1 and h[i] < best:
-					best = h[i]
-					bi = i
+				# (in from the forms by about a splash: the concrete flows out
+				# to them, and doesn't go over them. On a big slab the strip's
+				# done once that middle is: the flow, the end hose and the
+				# screed take it out to the forms)
+				var m := edge_cells()
+				var inner := iz >= m and iz < NZ - m and ix >= m and ix < NX - m
+				if inner or vol_k <= 1.0:
+					n += 1
+					if h[i] >= full:
+						ok += 1
+				if inner and not (_skip.has(i) and float(_skip[i]) > _t):
+					var score := h[i]
+					# (half full is already taken: move on to fresh deck,
+					# so the hose doesn't stand piling up one spot)
+					if h[i] > SLAB * 0.5:
+						score += 1.0
+					if from.x != INF:
+						score += 0.012 * cell_center(i).distance_to(Vector3(from.x, 0, from.z))
+					if score < best:
+						best = score
+						bi = i
 		if n > 0 and float(ok) / n < 0.92 and bi >= 0:
+			aim_margin = (edge_cells() + 0.5) * dx
 			return cell_center(bi)
+	# (the middle's done: last, the strip along the forms, the lowest spot
+	# nearest the hose, aiming in closer to them)
+	aim_margin = 0.75
+	if vol_k > 1.0:
+		var best2 := 1e9
+		var bi2 := -1
+		for ix in range(x0, bc.y):
+			for iz in NZ:
+				var i := iz * NX + ix
+				if reach[i] == 0 or h[i] >= full or (_skip.has(i) and float(_skip[i]) > _t):
+					continue
+				var sc2 := h[i]
+				if from.x != INF:
+					sc2 += 0.03 * cell_center(i).distance_to(Vector3(from.x, 0, from.z))
+				if sc2 < best2:
+					best2 = sc2
+					bi2 = i
+		if bi2 >= 0:
+			return cell_center(bi2)
 	return lowest_point(bay)
 
 ## First column of the leading strip of bay `b` (the strip a boom operator
@@ -833,6 +914,8 @@ func leading_strip(b: int) -> Vector2i:
 			for iz in NZ:
 				var i := iz * NX + ix
 				if reach[i] == 0:
+					continue
+				if vol_k > 1.0 and not _inner(ix, iz):
 					continue
 				n += 1
 				if h[i] >= full:

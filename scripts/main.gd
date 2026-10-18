@@ -226,7 +226,8 @@ func _ready() -> void:
 	if not autotest:
 		Settings.apply_window()
 	_setup_input()
-	if tutorial:
+	if tutorial or args.has("--oldslab"):
+		# (dev `--oldslab`: the old 16 x 12 slab, to compare against)
 		_use_tut_frame()
 	_build_environment()
 	_build_world()
@@ -2204,6 +2205,13 @@ func _update_pour(delta: float) -> void:
 	if autotest and fmod(phase_t, 15.0) < delta:
 		# (progress, and how long a frame takes, for long pours)
 		print("[autotest]   pour t=%.0f clock=%.0f fill=%.2f poured=%.1f/%.1f bay=%d/%d edge=%.0f risk=%.2f wall=%ds step=%.1fms frame=%.1fms" % [phase_t, pour_clock, _filled_ratio(), pour.poured, pour.needed(), pour.cur_bay + 1, pour.BAYS, pour.edge_left, pour.at_risk, Time.get_ticks_msec() / 1000, _step_ms, _frame_ms])
+		var dv: Vector2 = pour.debug_volume()
+		print("[autotest]     on slab %.1f, spilled %.1f, p90 depth %.2f m, boom held off %s, pumping %.0fs" % [dv.x, pour.spilled, dv.y, str(bots.stop_t), _pump_t])
+		if OS.get_cmdline_user_args().has("--dbg"):
+			var dl := _pour_local(discharge())
+			print("[autotest]     goal %s tip %s disch %s under %.2f strip %s hoser %s" % [str(bots._boom_goal), str(_pour_local(tip_target)), str(dl), pour.height_at(dl), str(pour.leading_strip(pour.cur_bay)), str(hose_holder.position) if hose_holder != null else "-"])
+		bots.stop_t = {}
+		_pump_t = 0.0
 	if autotest and _dbg and fmod(pour_clock, 5.0) < delta and ops.primed:
 		var ts := []
 		for t in line.trucks:
@@ -2216,7 +2224,7 @@ func _update_pour(delta: float) -> void:
 		var lh = crew.crew["pump"]
 		var pp = crew.crew["line"]
 		var hh = crew.crew["hose"]
-		print("[dbg] ops=%s primed=%s step_t=%.1f hose=%s busy=%s pos=%s disch=%s tip=%s want_boom=%s" % [ops.stage, ops.primed, ops.step_t, hh.char_name, hh.busy, str(hh.position), str(discharge()), str(tip_target), str(_boom_operator() != null)])
+		print("[dbg] pumpop=%s mv=%s act=%s ops=%s primed=%s step_t=%.1f hose=%s busy=%s pos=%s disch=%s tip=%s want_boom=%s" % [str(lh.position), str(lh.ai_move), lh.ai_action, ops.stage, ops.primed, ops.step_t, hh.char_name, hh.busy, str(hh.position), str(discharge()), str(tip_target), str(_boom_operator() != null)])
 		print("[dbg] t=%.0f cov=%.2f bay%d hopper=%.1f p=%.0f high=%s line=%s/%s y=%.1f held=%s pump=%s held=%s fail=%d fix=%d/%s blk=%s idle=%.0f hook=%s trucks=%s scr=%.2f" % [pour_clock, _filled_ratio(), pour.cur_bay, line.hopper, line.pressure, line.speed_high, lh.zone, lh.busy, lh.position.y, lh.held_kind, str(pp.position), pp.held_kind, line.fail_i, line.fix_i, line._step_name(), line.blocked, line.idle_t, line.hook["state"], ",".join(ts), pour.screed_share()])
 	# The incident director: what goes wrong this pour, and when (the
 	# Incidents setting in the pause menu). One at a time: the next waits
@@ -2289,6 +2297,8 @@ func _update_pour(delta: float) -> void:
 			if hose_holder != null:
 				score.trickle(hose_holder, q * 3.0, "On the end hose")
 	pour.set_splash(pumping and not (ops.wants_bin() and ops.over_bin(discharge())), hose_local)
+	if line.pumping:
+		_pump_t += delta
 	var t0 := Time.get_ticks_usec()
 	pour.step(delta)
 	_step_ms = lerpf(_step_ms, (Time.get_ticks_usec() - t0) / 1000.0, 0.05)
@@ -2337,6 +2347,7 @@ func _update_pour(delta: float) -> void:
 
 var _left := Vector2.ONE
 var _step_ms := 0.0
+var _pump_t := 0.0
 var _frame_ms := 0.0
 var _frame_us := 0
 var _weary_all := OS.get_cmdline_user_args().has("--weary")
