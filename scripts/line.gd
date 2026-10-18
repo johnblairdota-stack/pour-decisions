@@ -83,7 +83,7 @@ const SPOT_BAND := Vector2(0.95, 1.035)  # let go in here: the chute's over the 
 const SPOT_BUMP := 1.06                  # this far and it backs into the hopper
 const DOCKET_T := 12.0                   # s the driver waits on a docket before starting anyway
 const SPOT_WAIT := 5.0                   # s a spotted truck sits waiting before the driver backs in alone
-const MIX_WRONG := 0.15                  # chance a load that isn't tested is the wrong mix
+const MIX_WRONG := 0.1                   # chance a load that isn't tested is the wrong mix
 const ORDER := {"mpa": 40, "stone": 20, "site": "Riverlight"}
 # Once the sample's taken the driver keeps the chute running on trust, slowly,
 # while the test's done: the pour keeps moving. Only so much goes in before
@@ -1707,6 +1707,7 @@ func _park(t: Dictionary, sl: String) -> void:
 		t["eyeballed"] = true
 		if _backed_in > 1 and randf() < MIX_WRONG:
 			t["mix_wrong"] = ["mpa", "stone", "site"][randi() % 3]
+			t["why"] = "wrong mix"
 		_set_truck(t, "docket")
 
 ## Where a reversing truck is, `u` of the way back (past 1: into the hopper).
