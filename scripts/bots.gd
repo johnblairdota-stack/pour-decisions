@@ -441,9 +441,15 @@ func _hose(p, delta: float) -> void:
 		ok = false
 	if line.fail_i >= 0 and line.wear > 0.25 and not g.let_burst:
 		ok = false
+	# Don't pile it up while the boom's still swinging over to its next spot
+	# (as the boom bot judged it when the trigger was its own)
 	var dl: Vector3 = g._pour_local(g.discharge())
-	if d.length() > 0.7 and pour.height_at(dl) > pour.SLAB * 1.3:
-		ok = false
+	var op = g._boom_operator()
+	if op != null and op.bot:
+		var to: Vector3 = _boom_goal - g.tip_target
+		to.y = 0.0
+		if to.length() > 2.5 and pour.height_at(dl) > pour.SLAB * 1.3:
+			ok = false
 	if pour.bay_of_x(dl.x) > pour.cur_bay:
 		ok = false
 	p.ai_action = ok
