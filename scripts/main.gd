@@ -3884,7 +3884,10 @@ func _update_camera(delta: float) -> void:
 		(inset["icon"] as TextureRect).texture = Icons.texture(p.role if p != null else "pump", 64)
 		# The player's own button cue, for timing what they see in here
 		var badge = inset["badge"]
-		badge.show_cue((p.cues[0] as Array).duplicate() if p != null and (not p.bot or _bot_badges) and v["close"] and not p.cues.is_empty() else [])
+		var cue: Array = (p.cues[0] as Array).duplicate() if p != null and (not p.bot or _bot_badges) and v["close"] and not p.cues.is_empty() else []
+		if slump_view and not cue.is_empty():
+			cue[1] = ""   # (just the button: the guide strip says the step)
+		badge.show_cue(cue)
 		var key := str(v["close"]) + str(p)
 		if climb.active and climb.stage == "pin" and v["close"]:
 			key += climb.pin_sub   # cut to the new angle when the job changes

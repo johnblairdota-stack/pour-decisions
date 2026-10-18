@@ -532,12 +532,12 @@ func _show(t) -> void:
 
 ## The six steps, in order: [step key, name, what you're doing and why].
 const GUIDE := [
-	["sample", "SAMPLE", "Scoop a barrow-load of concrete off the truck's chute."],
-	["fill", "FILL", "Fill the cone in 3 layers. Each layer stops at the yellow ring."],
-	["rod", "ROD", "Rod each layer 25 times to push the air out."],
-	["strike", "STRIKE", "Roll the rod across the top to level it off."],
-	["lift", "LIFT", "Lift the cone straight up, slow and steady. Don't stop."],
-	["measure", "MEASURE", "Lower the tape from the rod to the top of the concrete."],
+	["sample", "SAMPLE", "Scoop a barrow-load off the chute."],
+	["fill", "FILL", "3 layers, each up to the yellow ring."],
+	["rod", "ROD", "25 rods a layer, air out."],
+	["strike", "STRIKE", "Roll the rod across to level the top."],
+	["lift", "LIFT", "Straight up, steady. Don't stop."],
+	["measure", "MEASURE", "Tape down to the concrete."],
 ]
 
 ## Which of the six steps this test is on (0 to 5; 6 when it's measured).
@@ -557,20 +557,20 @@ func guide_text(t: Dictionary) -> String:
 	var st := _st(t)
 	match st["step"]:
 		"sheared":
-			return "It sheared: the lift stopped part way. Scoop it back and test again."
+			return "Sheared. Scoop it back, test again."
 		"fill":
-			return "Fill layer %d of 3. It stops at the yellow ring." % (int(st["layer"]) + 1) if int(st["layer"]) < 2 else "Fill layer 3 of 3, heaped over the top."
+			return "Layer %d of 3, up to the yellow ring." % (int(st["layer"]) + 1) if int(st["layer"]) < 2 else "Layer 3 of 3, heaped over the top."
 		"rod":
-			return "Rod layer %d of 3, 25 times, to push the air out." % (int(st["layer"]) + 1)
+			return "Layer %d of 3: 25 rods, air out." % (int(st["layer"]) + 1)
 		"done":
 			var m := int(t.get("measured", t["slump"]))
 			var lo := int(line.SPEC_SLUMP - line.SLUMP_TOL)
 			var hi := int(line.SPEC_SLUMP + line.SLUMP_TOL)
 			var why := "In spec: use it."
 			match line.right_call(t):
-				"water": why = "Too stiff: add the %d L/m³ of water the plant held back, then test again." % int(line.WATER_HELD)
+				"water": why = "Too stiff: add the %d L/m³ held back, test again." % int(line.WATER_HELD)
 				"reject": why = ("Over %d min old: send it back." % int(line.MAX_AGE)) if float(t["age"]) > line.MAX_AGE else "Out of spec: send it back."
-			return "It dropped %d mm (spec %d to %d mm). %s" % [m, lo, hi, why]
+			return "%d mm (spec %d to %d). %s" % [m, lo, hi, why]
 	return GUIDE[guide_index(t)][2]
 
 ## The close-up's caption for this test (short: the guide carries the rest).

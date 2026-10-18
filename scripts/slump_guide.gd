@@ -2,17 +2,18 @@
 ## One line: a dot per step (ticked when done, the one being done lit gold),
 ## then the step's name and what you're doing and why (or what the reading
 ## means). The words shrink a little to stay on one line, and only wrap when
-## they really can't fit; the strip grows to take them.
+## they really can't fit, back under the dots so the strip stays thin and
+## the close-up keeps the room.
 extends Control
 
 const GOLD := Color("ffd23f")
 const DONE := Color("7cd992")
 const BG := Color(0.04, 0.07, 0.12, 0.97)
-const DOT := 13.0
-const DOT_GAP := 5.0
-const PAD := 8.0
-const MAX_FS := 17
-const MIN_FS := 13
+const DOT := 12.0
+const DOT_GAP := 4.0
+const PAD := 6.0
+const MAX_FS := 15
+const MIN_FS := 12
 
 var steps: Array = []      # the step names
 var at := 0                # the step being done (steps.size(): all done)
@@ -49,7 +50,8 @@ func fit(w: float) -> float:
 	_fs = MAX_FS
 	while _fs > MIN_FS and _bold.get_string_size(name, HORIZONTAL_ALIGNMENT_LEFT, -1, _fs).x + _font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, _fs).x > room:
 		_fs -= 1
-	# Word-wrap name + text into the room left of the dots
+	# Word-wrap name + text: the first line beside the dots, the rest under
+	# them, full width
 	_lines = []
 	var cur_name := name
 	var cur := ""
@@ -60,13 +62,16 @@ func fit(w: float) -> float:
 			_lines.append([cur_name, cur])
 			cur_name = ""
 			used = 0.0
+			room = w - PAD * 2.0
 			cur = word
 		else:
 			cur = tryit
 	_lines.append([cur_name, cur])
-	var h := maxf(DOT, _lines.size() * (_fs + 4.0)) + PAD * 2.0
+	var h := maxf(DOT, _lines.size() * (_fs + 3.0)) + PAD * 2.0
+	# (the minimum first: a size under the old minimum would be refused, and
+	# the strip would stay as tall as its tallest step, over the close-up)
+	custom_minimum_size = Vector2(w, h)
 	size = Vector2(w, h)
-	custom_minimum_size = size
 	return h
 
 func _process(delta: float) -> void:
@@ -101,11 +106,11 @@ func _draw() -> void:
 		else:
 			draw_arc(c, DOT * 0.5 - 1.0, 0.0, TAU, 20, Color(1, 1, 1, 0.45), 2.0, true)
 	# The step's name in gold, then what it's for
-	var lh := _fs + 4.0
+	var lh := _fs + 3.0
 	var top := PAD + maxf(0.0, (DOT - lh) * 0.5)
 	for li in _lines.size():
 		var y := top + li * lh + _fs * 0.85
-		var x := _text_x()
+		var x := _text_x() if li == 0 else PAD
 		var nm: String = _lines[li][0]
 		if nm != "":
 			draw_string(_bold, Vector2(x, y), nm, HORIZONTAL_ALIGNMENT_LEFT, -1, _fs, GOLD)
