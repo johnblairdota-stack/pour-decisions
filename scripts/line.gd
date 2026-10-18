@@ -83,7 +83,6 @@ const SLUMP_TOL := 20.0
 const WATER_HELD := 10.0                 # L/m³ the plant held back
 const SLUMP_PER_L := 4.5                 # mm of slump each L/m³ of water adds
 const SlumpScript := preload("res://scripts/slump.gd")
-const TEST_EVERY := 3                    # a slump test on the first load, then every 3rd
 # The truck hand's other jobs on each load: spotting the truck back onto the
 # hopper (hold A to wave it on, let go on the mark), checking the docket of
 # a load that isn't due a test against the order (now and then it's the
@@ -92,6 +91,7 @@ const TEST_EVERY := 3                    # a slump test on the first load, then 
 const SPOT_LEN := 2.4                    # s of reversing, waved on the whole way
 const SPOT_SLOW := 0.8                   # past this share of the way it creeps
 const SPOT_BAND := Vector2(0.95, 1.035)  # let go in here: the chute's over the hopper
+const SPOT_M := 8.0                      # m of the back-in the readout counts down (the last bit of it)
 const SPOT_BUMP := 1.06                  # this far and it backs into the hopper
 const DOCKET_T := 12.0                   # s the driver waits on a docket before starting anyway
 const SPOT_WAIT := 5.0                   # s a spotted truck sits waiting before the driver backs in alone
@@ -207,6 +207,9 @@ var _pending_cause := ""      # a failure's spike, half a second away
 var _kill_show_t := 0.0       # s the close-up stays up after a kill, to see it drop
 var hopper_fill: MeshInstance3D
 var hopper_label: Label3D
+var spot_label: Label3D        # over a spotted truck's tail: how far to go, and when to stop
+var _spot_shown := false
+var spot_marks := {}           # slot -> {node, mat}: the painted stop line behind each bay
 var drips: CPUParticles3D
 var burst_fx: CPUParticles3D
 var grout_spray: CPUParticles3D
@@ -543,6 +546,28 @@ func _build_pump() -> void:
 	chute_stream = F.cylinder(0.14, 1.0, F.color_mat(Color("6c6f73")), Vector3.ZERO, 8)
 	chute_stream.visible = false
 	add_child(chute_stream)
+	# Spotting a truck back: a stop line painted where its tail stops, and a
+	# big readout over the tail while someone's waving it on
+	spot_label = F.label3d("", 64, Color.WHITE)
+	spot_label.layers = 2
+	spot_label.outline_size = 14
+	spot_label.visible = false
+	add_child(spot_label)
+	if kit == "tower":
+		for sl in ["A", "B"]:
+			var pose: Array = _slot_pose(sl)
+			var xf := Transform3D(Basis(Vector3.UP, _yaw_for(pose[1])), pose[0])
+			var mat := StandardMaterial3D.new()
+			mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+			mat.albedo_color = Color("ffc72c")
+			# (wheel stops behind the back tyres, with a line painted between)
+			var bar := Node3D.new()
+			bar.add_child(F.box(Vector3(0.14, 0.02, 3.0), mat, Vector3(0, 0.01, 0), false))
+			for z in [-1.2, 1.2]:
+				bar.add_child(F.box(Vector3(0.3, 0.22, 0.5), mat, Vector3(-0.1, 0.11, z)))
+			bar.transform = xf * Transform3D(Basis(), Vector3(-3.5, 0.0, 0))
+			add_child(bar)
+			spot_marks[sl] = {"node": bar, "mat": mat}
 	# The slump test at the bay: cone, rod, tape, barrow (slump.gd)
 	slump = SlumpScript.new()
 	add_child(slump)
@@ -1293,23 +1318,31 @@ func _verdict(t: Dictionary) -> String:
 		return "stiff"
 	return "ok"
 
+## The order against what the driver's docket says came on the truck.
+func _order_lines(t: Dictionary) -> String:
+	var load := ORDER.duplicate()
+	match t.get("mix_wrong", ""):
+		"mpa": load["mpa"] = 32
+		"stone": load["stone"] = 10
+		"site": load["site"] = "Harbour St"
+	return "ORDER   %d MPa · %d mm stone · %s\nDOCKET %d MPa · %d mm stone · %s · %d min" % [ORDER["mpa"], ORDER["stone"], ORDER["site"], load["mpa"], load["stone"], load["site"], int(t["age"])]
+
 func docket_text(t: Dictionary) -> String:
 	if t.get("eyeballed", false):
-		var load := ORDER.duplicate()
-		match t.get("mix_wrong", ""):
-			"mpa": load["mpa"] = 32
-			"stone": load["stone"] = 10
-			"site": load["site"] = "Harbour St"
-		var s0 := "ORDER   %d MPa · %d mm stone · %s\nDOCKET %d MPa · %d mm stone · %s · %d min" % [ORDER["mpa"], ORDER["stone"], ORDER["site"], load["mpa"], load["stone"], load["site"], int(t["age"])]
+		var s0 := _order_lines(t)
 		if assist() and t["state"] == "docket":
 			s0 += "  ✗ wrong mix" if t.get("mix_wrong", "") != "" else "  ✓"
 		return s0
+	# (every load's tested on the tower: the docket's read at the call)
+	var head := _order_lines(t) + "\n" if kit == "tower" else ""
 	if not t["checked"]:
 		var why: String = t.get("why", "")
-		return ("Slump test: %s · " % why if why != "" else "") + "batched %d min ago · %d L/m³ water held back" % [int(t["age"]), int(WATER_HELD)]
-	var s := "Slump %d mm · batched %d min ago" % [int(t.get("measured", t["slump"])), int(t["age"])]
+		return head + ("Slump test: %s · " % why if why != "" else "") + "%d L/m³ water held back" % int(WATER_HELD)
+	var s := head + "Slump %d mm" % int(t.get("measured", t["slump"]))
 	if not assist():
 		return s
+	if t.get("mix_wrong", "") != "":
+		return s + "  ✗ wrong mix"
 	# (going on what was measured, as the operator would)
 	match right_call(t):
 		"use":
@@ -1498,6 +1531,11 @@ func _update_trucks(delta: float) -> void:
 					_driver_test(t)
 				if st in ["bay", "check", "docket"] and pouring == null and _trust_feed == null:
 					_on_trust(t, delta)
+				if st == "check" and slump.step_of(t) == "fetch":
+					# The tester's off to the chute with the tray for a sample
+					var side := _chute_side(t)
+					var chute: Vector3 = (t["node"] as Node3D).global_transform * (Vector3(-5.4, 0.0, 1.55 * side) if side != 0.0 else Vector3(-4.5, 0.0, 0))
+					slump.fetch_tick(t, chute, delta)
 				if st == "water" and t["t"] > 3.0:
 					# The driver's added the water held back and mixed it in
 					# (30 turns of the drum): now it gets tested again
@@ -1639,9 +1677,8 @@ func _next_queued() -> Variant:
 func _wants_test(t: Dictionary) -> bool:
 	# (sampling goes by volume: the truck pump's smaller slabs only need the
 	# first; and its one spot at the hopper can't spare the time)
-	var every: int = TEST_EVERY if kit == "tower" else 0
-	if _backed_in == 1 or (every > 0 and _backed_in % every == 1):
-		t["why"] = "first load" if _backed_in == 1 else "due a test"
+	if _backed_in == 1 or kit == "tower":
+		t["why"] = "first load" if _backed_in == 1 else "every load's tested"
 		return true
 	match _verdict(t):
 		"stiff", "wet":
@@ -1714,13 +1751,18 @@ func _park(t: Dictionary, sl: String) -> void:
 	t.erase("spotter")
 	_set_truck(t, "bay")
 	_backed_in += 1
-	if not _wants_test(t):
-		t["checked"] = true
-		t["eyeballed"] = true
-		if _backed_in > 1 and randf() < MIX_WRONG:
+	if _wants_test(t):
+		# (now and then the plant's sent the wrong mix: it's on the docket,
+		# and it goes back whatever the slump reads)
+		if kit == "tower" and _backed_in > 1 and randf() < MIX_WRONG:
 			t["mix_wrong"] = ["mpa", "stone", "site"][randi() % 3]
-			t["why"] = "wrong mix"
-		_set_truck(t, "docket")
+		return
+	t["checked"] = true
+	t["eyeballed"] = true
+	if _backed_in > 1 and randf() < MIX_WRONG:
+		t["mix_wrong"] = ["mpa", "stone", "site"][randi() % 3]
+		t["why"] = "wrong mix"
+	_set_truck(t, "docket")
 
 ## Where a reversing truck is, `u` of the way back (past 1: into the hopper).
 func _back_pose(t: Dictionary, path: Array, u: float, eased: bool) -> void:
@@ -1861,6 +1903,12 @@ func update(delta: float, in_pour: bool) -> void:
 	# The slump cone only stands out while a load is being tested
 	if needs_check() == null or not in_pour:
 		slump_cone.visible = false
+	# The spotting readout only shows while someone's waving a truck back
+	if not _spot_shown:
+		spot_label.visible = false
+		for k in spot_marks:
+			(spot_marks[k]["mat"] as StandardMaterial3D).albedo_color = Color("ffc72c")
+	_spot_shown = false
 
 	# Hopper visual
 	var fill := clampf(hopper / HOPPER_CAP, 0.0, 1.0)
@@ -2245,6 +2293,8 @@ func pick_up(p, e: Dictionary) -> void:
 	p.hold_item(e["node"], e["kind"])
 	game.sfx.hit("tink")
 
+const LADDER_OFF_T := 1.2   # s holding down at the foot of the ladder before you're stepped off
+
 func _ladder(p, delta: float) -> void:
 	var v: Vector2 = p.move_input()
 	var top := maxf(0.0, riser_top - 1.6)
@@ -2302,6 +2352,15 @@ func _ladder(p, delta: float) -> void:
 	p.model.rotation.y = -PI * 0.5
 	var at_deck: bool = absf(p.position.y - work) < 0.5 and kit == "tower" and game.deck_open()
 	var at_ground: bool = p.position.y < 0.5
+	# Still pushing down at the foot of the ladder: you're stepped off it
+	var down_t: float = p.get_meta("ladder_down", 0.0)
+	down_t = down_t + delta if at_ground and p.position.y < 0.05 and v.y > 0.3 else 0.0
+	p.set_meta("ladder_down", down_t)
+	if down_t >= LADDER_OFF_T:
+		p.set_meta("ladder_down", 0.0)
+		p.zone = "ground"
+		p.position = Vector3(LADDER.x + 0.6, 0.0, LADDER.z + 1.3)
+		return
 	p.say("%d m" % int(round(p.position.y)))
 	var j := joint_near(p)
 	var at_job: bool = j >= 0 and job_kind != "" and j == fix_i
@@ -2546,6 +2605,35 @@ func _joint_work(p, j: int, delta: float) -> bool:
 
 	return true
 
+## The readout over a spotted truck's tail while it backs in: the gap to the
+## stop line in big type, white, then amber as it creeps, then a flashing
+## green STOP when the chute's over the hopper (and red past it). The stop
+## line on the ground lights the same.
+func _spot_show(t: Dictionary, su: float, in_band: bool, past: bool) -> void:
+	var node: Node3D = t["node"]
+	var gap := maxf(0.0, (SPOT_BAND.x - su) * SPOT_M)
+	var flash := 0.5 + 0.5 * sin(game.phase_t * 18.0)
+	var col := Color.WHITE
+	if past:
+		spot_label.text = "WHOA!"
+		col = Color("ff4d4d")
+	elif in_band:
+		spot_label.text = "STOP!"
+		col = Color("4dff88").lerp(Color.WHITE, flash * 0.5)
+	elif su >= SPOT_SLOW:
+		spot_label.text = "slow… %.1f m" % gap
+		col = Color("ffc72c")
+	else:
+		spot_label.text = "back %.1f m" % gap
+	spot_label.modulate = col
+	spot_label.scale = Vector3.ONE * (1.25 + 0.1 * flash if in_band else 1.0)
+	spot_label.global_position = node.global_transform * Vector3(-5.4, 3.6, 0)
+	spot_label.visible = true
+	_spot_shown = true
+	var m = spot_marks.get(t.get("slot", "A"))
+	if m != null:
+		(m["mat"] as StandardMaterial3D).albedo_color = col if (in_band or past) else Color("ffc72c")
+
 ## The truck bay: wave the next truck back, check the docket, slump test,
 ## water or reject. With a truck already discharging, the next one backs in
 ## alongside and gets tested there, ready to go the moment the first is empty.
@@ -2560,7 +2648,15 @@ func _bay(p, delta: float) -> void:
 			tr["spot_hold"] = p.action_held()
 			var su: float = tr.get("su", 0.0)
 			p.face((tr["node"] as Node3D).position)
-			p.cue("action", "hold: wave it back" if su < SPOT_BAND.x else "let go: stop!", su / SPOT_BUMP, true, Vector2(SPOT_BAND.x, SPOT_BAND.y) / SPOT_BUMP)
+			var in_band: bool = su >= SPOT_BAND.x and su <= SPOT_BAND.y
+			var past: bool = su > SPOT_BAND.y
+			p.cue("action", "LET GO: STOP IT!" if in_band else ("too far!" if past else "hold: wave it back"), su / SPOT_BUMP, true, Vector2(SPOT_BAND.x, SPOT_BAND.y) / SPOT_BUMP, past)
+			if not p.bot:
+				_spot_show(tr, su, in_band, past)
+				if in_band and not bool(tr.get("spot_rang", false)):
+					tr["spot_rang"] = true
+					game.sfx.hit("ding")
+					game.haptic(p, "40")
 			if tr["spot_hold"]:
 				var w := sin(tr["t"] * 8.0)
 				p.pose_arms(Vector3(-2.6 + 0.4 * w, 0, -0.3), Vector3(-2.6 - 0.4 * w, 0, 0.3))

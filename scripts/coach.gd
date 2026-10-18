@@ -217,13 +217,13 @@ func _tip(p) -> String:
 		"line":
 			for tr in line.trucks:
 				if tr["state"] in ["called", "approach", "back"] and tr.get("spotter") != null:
-					return "Spot the truck back: hold A to wave it on, and let go when the ring glows gold, with its chute over the hopper. Too far and it backs into the hopper."
+					return "Spot the truck back: hold A to wave it on and watch the metres over its tail. Let go the moment it flashes green STOP. Too far and it backs into the hopper."
 			var chk = line.needs_check()
 			if chk != null:
 				if chk["state"] == "docket":
 					return "Not due a test: read the docket on the truck against the ORDER line above it. Same mix, A pours it. Wrong strength, stone or site, B sends it back before it goes in."
 				if not chk["checked"]:
-					return "Truck in: slump test at the TRUCK BAY. Every step is a hold of A that stops itself: scoop, fill to the ring, rod to 25, strike off, lift steady, lower the tape, then press A to read it. The guide over the close-up shows each step. The truck keeps feeding while you test."
+					return "Truck in: slump test at the TRUCK BAY, four presses. A: fetch a sample in the tray. Hold A: fill and rod (it stops itself). Hold A: lift it steady. A: measure. The truck keeps feeding while you test."
 				return "Your reading against the order, 100 mm ±20: in it, A uses the load. Under 80 (stiff), X adds the water the plant held back, then test again. Over 120, or batched over 90 minutes ago, B sends it back."
 			if line.can_wave_in():
 				return "Wave the next truck in (A at the TRUCK BAY), then spot it back onto the hopper."

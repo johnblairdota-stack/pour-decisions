@@ -3017,6 +3017,12 @@ var _hose_segs: Array = []      # the end hose drawn to the pipe guy's hands
 const HOSE_REACH := 2.0         # m the end hose reaches from under the boom tip
 const HOSE_QUIET := 6.0         # s without a call before a bot boom carries on regardless
 var _hose_quiet_t := 0.0
+# The pipe guy shouts "Pump it!" / "Stop!" only for a real start or stop: a
+# quick dab to top up a gap stays quiet, and they don't shout twice in a row
+const HOSE_BARK_GAP := 4.0      # s between shouts
+const HOSE_BARK_RUN := 1.5      # s on (or off) before a change is worth a shout
+var _hose_bark_t := 0.0         # time since the last shout
+var _hose_state_t := 0.0        # time the call's been in its current state
 const HOSE_WALK_K := 0.55       # walking with the hose: slow and steady
 
 ## Where the concrete comes out: the pipe guy's hands on the end hose, or the
@@ -3090,10 +3096,15 @@ func _hose_work(p, delta: float) -> void:
 		p.cue("action", "hold: pump on" if not hose_call else "pumping · let go: off", 1.0 if hose_call else -1.0, _hose_quiet_t > HOSE_QUIET * 0.5)
 		# Gold: you're on the spot where the concrete's wanted
 		p.gold(not p.bot and pour.good_pour_spot(_pour_local(discharge())))
-	if hose_call and not was:
-		p.bark("Pump it!", 0.9)
-	elif was and not hose_call:
-		p.bark("Stop!", 0.7)
+	_hose_bark_t += delta
+	if hose_call != was:
+		var held := _hose_state_t
+		_hose_state_t = 0.0
+		if held >= HOSE_BARK_RUN and _hose_bark_t >= HOSE_BARK_GAP:
+			_hose_bark_t = 0.0
+			p.bark("Pump it!" if hose_call else "Stop!", 0.9 if hose_call else 0.7)
+	else:
+		_hose_state_t += delta
 
 ## The end hose drawn as a sagging run from the boom tip to the pipe guy's hands.
 func _draw_hose() -> void:
@@ -3362,7 +3373,7 @@ func _slump_shot(st: Dictionary) -> String:
 	for k in ["slump", "slumplift", "slumptape"]:
 		if _shots_taken.has(k) or (not _shot_only.is_empty() and not (k in _shot_only)):
 			continue
-		if k == "slump" and st["step"] == "rod" and int(st["layer"]) == 1 and float(st["rods"]) > 12.0:
+		if k == "slump" and st.get("draw", "") == "rod" and int(st["layer"]) == 1 and float(st["rods"]) > 12.0:
 			return k
 		if k == "slumplift" and st["step"] == "lift" and float(st["lift"]) > 0.6:
 			return k

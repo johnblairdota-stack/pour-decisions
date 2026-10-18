@@ -1,27 +1,24 @@
 ## The slump test at the truck bay, done by hand in a close-up, the way it's
 ## done on an Australian site (AS 1012.3.1, accepted against AS 1379):
 ##
-##   1. SAMPLE    a barrow-load off the chute once the load's running
-##   2. FILL      the cone (300 mm tall, 200 mm base, 100 mm top) in three
-##                layers of about equal volume: about 70 mm, 160 mm, then
-##                heaped over the top (hold A: it stops on the yellow ring)
-##   3. ROD       each layer 25 times with the 16 mm rod to push the air out
-##                (hold A: it counts to 25 and stops)
-##   4. STRIKE    off the top, rolling the rod across it (hold A)
-##   5. LIFT      the cone straight up, steady, in about 3 to 5 seconds (hold A:
+##   1. SAMPLE    press A: you walk to the truck's chute with the green
+##                tray, fill it off the running load and carry it back
+##   2. FILL+ROD  one hold of A does the lot: the cone (300 mm tall, 200 mm
+##                base, 100 mm top) in three layers of about equal volume,
+##                each rodded 25 times with the 16 mm rod to push the air out,
+##                then struck off by rolling the rod across. It stops itself
+##   3. LIFT      the cone straight up, steady, in about 3 to 5 seconds (hold A:
 ##                stop part way for more than a moment and it jerks, the
 ##                concrete shears, and the test has to be done again)
-##   6. MEASURE   the upturned cone goes beside it with the rod across the top;
-##                the tape goes down from the rod to the centre of the slumped
-##                top (hold A: it stops when it touches; press A to read it)
+##   4. MEASURE   press A: the tape runs down from the rod across the upturned
+##                cone to the centre of the slumped top, and it's read off
 ##
-## Every step is a hold that stops itself at the right point, so anyone can
-## do the test first time; a steady lift is the bonus. A guide over the
-## close-up lists the six steps, ticks them off and says what each is for.
+## Four presses a load, every load on the tower. A guide over the close-up
+## lists the four steps, ticks them off and says what each is for.
 ##
 ## Then the call: use it, add the water the plant held back (then mix and test
-## again), or send it back. Everything's shown in the close-up: no docket on
-## screen.
+## again), or send it back. The docket's on the truck: a wrong mix goes back
+## whatever the slump reads.
 ##
 ## Keeping pace: once the sample's in the barrow the driver keeps the chute
 ## running into the hopper on trust (up to line.TRUST_M3), so the pour doesn't
@@ -40,8 +37,11 @@ const MARK_TOL := 0.02      # m either side of a mark that counts as on it
 const FILL_RATE := 0.3      # m a second while A's held
 const RODS := 25
 const ROD_RATE := 11.0      # strokes a second while A's held (it stops itself on 25)
-const STRIKE_T := 0.45
-const SAMPLE_T := 0.45
+const FILLROD_T := 3.2      # s: the one hold that fills, rods and strikes off all three layers
+const FILL_SHARE := 0.35    # of each layer's share of that hold: the filling (the rest is rodding)
+const STRIKE_FROM := 0.92   # the last bit of the hold strikes off the top
+const SCOOP_T := 1.0        # s at the chute filling the tray
+const BARROW_AT := Vector3(0.12, 0, -0.38)   # where the tray sits by the plate
 const LIFT_T := 2.2          # s: steady, straight up (3 to 5 s on site; the game runs quick)
 const LIFT_PAUSE := 0.6      # s a lift can stop part way before it jerks and shears
 const TAPE_RATE := 0.12      # m a second the tape runs down while A's held
@@ -139,7 +139,7 @@ func setup(owner_line, at: Vector3) -> void:
 	_barrow = Node3D.new()
 	_barrow.add_child(F.box(Vector3(0.36, 0.14, 0.26), F.color_mat(Color("2f8f6b")), Vector3(0, 0.12, 0)))
 	_barrow.add_child(F.box(Vector3(0.32, 0.03, 0.22), F.color_mat(Color("8f949b")), Vector3(0, 0.19, 0)))
-	_barrow.position = Vector3(0.12, 0, -0.38)
+	_barrow.position = BARROW_AT
 	root.add_child(_barrow)
 	_scoop = F.box(Vector3(0.08, 0.03, 0.1), steel, Vector3.ZERO)
 	root.add_child(_scoop)
@@ -180,7 +180,7 @@ func setup(owner_line, at: Vector3) -> void:
 
 func _st(t: Dictionary) -> Dictionary:
 	if not t.has("sl"):
-		t["sl"] = {"step": "sample", "layer": 0, "level": 0.0, "rods": 0.0, "u": 0.0, "lift": 0.0, "tape": 0.0, "shear": false, "slips": 0}
+		t["sl"] = {"step": "sample", "draw": "sample", "layer": 0, "level": 0.0, "rods": 0.0, "u": 0.0, "lift": 0.0, "tape": 0.0, "shear": false, "slips": 0}
 	return t["sl"]
 
 ## Start again (after a shear, or after water's been added and mixed in).
@@ -188,6 +188,8 @@ func restart(t: Dictionary, keep_sample := false) -> void:
 	t.erase("sl")
 	if keep_sample:
 		_st(t)["step"] = "fill"
+		_st(t)["draw"] = "fill"
+		_st(t)["armed"] = false
 
 func step_of(t) -> String:
 	if t == null:
@@ -203,117 +205,82 @@ func _top_y(t: Dictionary) -> float:
 	return 0.03 + CONE_H - _true(t) / 1000.0
 
 ## One frame of the test. Returns true when the measurement's been taken.
-## Every step is a hold of A that stops itself at the right point, so anyone
-## can do it first time: the skill bonus is in keeping a steady hand.
+## Four presses: A to go and get a sample (you walk to the chute with the
+## tray, fill it and carry it back on your own), one hold of A to fill and rod
+## all three layers and strike off (it stops itself), a held lift (steady:
+## stop part way and it shears), and A to run the tape down and read it.
 func work(p, t: Dictionary, delta: float) -> bool:
 	var st := _st(t)
 	var auto: bool = p.bot or p.covering
 	var held: bool = p.action_held() if not auto else _bot_hold(st)
 	var pressed: bool = p.action_pressed() if not auto else _bot_press(t, st)
+	if st["step"] == "fetch":
+		return false   # (walking to the chute and back: fetch_tick)
 	# Stand at the plate, behind the cone, so the close-up has you in it
-	var stand := root.global_position + Vector3(-0.44, 0, -0.16) * S
+	var stand := _stand()
 	p.position.x = move_toward(p.position.x, stand.x, 3.0 * delta)
 	p.position.z = move_toward(p.position.z, stand.z, 3.0 * delta)
 	p.face(root.global_position + Vector3(TEST_X, 0, 0) * S)
 	var done := false
 	match st["step"]:
 		"sample":
-			p.cue("action", "hold: scoop a sample", st["u"], true)
+			p.cue("action", "get a sample", -1.0, true)
 			p.gold(not p.bot)
-			if held:
-				st["u"] = minf(1.0, float(st["u"]) + delta / SAMPLE_T)
-				p.pose_arms(Vector3(-1.0, 0, -0.3), Vector3(-1.0, 0, 0.3))
-				if st["u"] >= 1.0:
-					st["step"] = "fill"
-					st["u"] = 0.0
-					st["armed"] = false
-					game.sfx.hit("plop")
+			if pressed:
+				st["step"] = "fetch"
+				st["leg"] = "go"
+				st["u"] = 0.0
+				st["who"] = p
+				p.bounce()
 		"fill":
-			# Hold to scoop it in. It slows as it nears the yellow ring and
-			# stops on it; let go and that layer's in
-			var mark: float = MARKS[st["layer"]]
-			var lv: float = st["level"]
-			var at_mark := lv >= mark - 0.001
+			# One hold does the lot: three layers, each filled to its ring and
+			# rodded 25 times, then struck off. It stops itself at the end; let
+			# go part way and it waits for you
 			if not st.get("armed", true):
-				p.cue("action", "let go, then hold to fill", 0.0, true)
+				p.cue("action", "hold: fill and rod", 0.0, true)
 				if not held:
 					st["armed"] = true
 				_show(t)
 				return false
-			p.cue("action", ("at the ring: let go" if at_mark else "hold: fill to the ring"), clampf(lv / mark, 0.0, 1.0), true)
-			p.gold(at_mark and not p.bot)
-			if held and not at_mark:
-				var near := clampf((mark - lv) / 0.03, 0.25, 1.0)
-				st["level"] = minf(mark, lv + FILL_RATE * near * delta)
-				st["u"] = fmod(float(st["u"]) + delta * 2.2, 1.0)
-				var sw: float = sin(float(st["u"]) * TAU)
-				p.pose_arms(Vector3(-0.9 - 0.5 * sw, 0, -0.2), Vector3(-0.6, 0, 0.3))
-				if st["level"] >= mark - 0.001:
+			var u: float = st["u"]
+			p.cue("action", ("done: let go" if u >= 1.0 else "hold: fill and rod"), u, true)
+			p.gold(not p.bot)
+			if held and u < 1.0:
+				var before := int(float(st["rods"]))
+				var was_layer: int = st["layer"]
+				st["u"] = minf(1.0, u + delta / FILLROD_T)
+				_fill_at(st, float(st["u"]))
+				var draw: String = st["draw"]
+				if draw == "rod" and int(float(st["rods"])) != before:
 					game.sfx.hit("tink")
+				if int(st["layer"]) != was_layer:
+					game.sfx.hit("plop")
 					game.haptic(p, "8")
-			elif not held and at_mark:
-				game.score.award(p, 1, "Slump tests")
-				st["step"] = "rod"
-				st["rods"] = 0.0
-				st["armed"] = false
-		"rod":
-			# Hold to rod; the count runs up to 25 and stops. Let go and that
-			# layer's done
-			var rods: float = st["rods"]
-			var counted := rods >= float(RODS)
-			if not st.get("armed", true):
-				p.cue("action", "let go, then hold to rod", 0.0, true)
-				if not held:
-					st["armed"] = true
-				_show(t)
-				return false
-			p.cue("action", ("25: let go" if counted else "hold: rod it %d of 25" % int(rods)), rods / float(RODS), true)
-			p.gold(counted and not p.bot)
-			if held and not counted:
-				var before := int(rods)
-				st["rods"] = minf(float(RODS), rods + ROD_RATE * delta)
-				if int(st["rods"]) != before:
-					game.sfx.hit("tink")
-				if st["rods"] >= float(RODS):
+				match draw:
+					"fill":
+						var sw: float = sin(float(st["u"]) * 40.0)
+						p.pose_arms(Vector3(-0.9 - 0.5 * sw, 0, -0.2), Vector3(-0.6, 0, 0.3))
+					"rod":
+						var ph := fmod(float(st["rods"]), 1.0)
+						p.pose_arms(Vector3(-1.5 + 0.5 * sin(ph * TAU), 0, -0.1), Vector3(-1.5 + 0.5 * sin(ph * TAU), 0, 0.1))
+					_:
+						var sw2 := sin(float(st["u"]) * 60.0)
+						p.pose_arms(Vector3(-1.1, 0, -0.3 + 0.3 * sw2), Vector3(-1.1, 0, 0.3 + 0.3 * sw2))
+				if st["u"] >= 1.0:
 					game.sfx.hit("ding")
 					game.haptic(p, "12")
-				var ph := fmod(float(st["rods"]), 1.0)
-				p.pose_arms(Vector3(-1.5 + 0.5 * sin(ph * TAU), 0, -0.1), Vector3(-1.5 + 0.5 * sin(ph * TAU), 0, 0.1))
-			elif not held and counted:
-				game.score.award(p, 2, "Slump tests")
-				st["layer"] += 1
-				st["rods"] = 0.0
+					game.score.award(p, 3, "Slump tests")
+			elif u >= 1.0 and not held:
+				st["step"] = "lift"
+				st["draw"] = "lift"
+				st["lift"] = 0.0
 				st["armed"] = false
-				if st["layer"] >= 3:
-					st["step"] = "strike"
-					st["u"] = 0.0
-				else:
-					st["step"] = "fill"
-					st["level"] = MARKS[st["layer"] - 1]
-		"strike":
-			if not st.get("armed", true):
-				p.cue("action", "let go, then hold to strike off", 0.0, true)
-				if not held:
-					st["armed"] = true
-				_show(t)
-				return false
-			p.cue("action", "hold: roll the rod across", st["u"], true)
-			p.gold(not p.bot)
-			if held:
-				st["u"] = minf(1.0, float(st["u"]) + delta / STRIKE_T)
-				var sw2 := sin(float(st["u"]) * TAU * 2.0)
-				p.pose_arms(Vector3(-1.1, 0, -0.3 + 0.3 * sw2), Vector3(-1.1, 0, 0.3 + 0.3 * sw2))
-				st["level"] = lerpf(0.315, CONE_H, float(st["u"]))
-				if st["u"] >= 1.0:
-					st["step"] = "lift"
-					st["u"] = 0.0
-					st["armed"] = false
 		"lift":
 			# A fresh hold, then a steady lift straight up. Let go part way and
 			# it waits a moment; stop too long and it jerks, the concrete shears
 			# and the test has to be done again
 			if not st.get("armed", true):
-				p.cue("action", "let go, then hold to lift", 0.0, true)
+				p.cue("action", "hold: lift it straight up", 0.0, true)
 				if not held:
 					st["armed"] = true
 				_show(t)
@@ -327,9 +294,11 @@ func work(p, t: Dictionary, delta: float) -> bool:
 				p.pose_arms(Vector3(-1.2 - 1.2 * float(st["lift"]), 0, -0.35), Vector3(-1.2 - 1.2 * float(st["lift"]), 0, 0.35))
 				if st["lift"] >= 1.0:
 					st["step"] = "measure"
+					st["draw"] = "measure"
 					st["tape"] = 0.0
 					st["armed"] = false
 					st["touch"] = false
+					st["running"] = false
 					if not st.get("wobbled", false):
 						game.score.award(p, 3, "Slump tests")
 						game.pop("steady lift", root.global_position + Vector3(0, 1.4, 0), Color("ffd23f"))
@@ -341,6 +310,7 @@ func work(p, t: Dictionary, delta: float) -> bool:
 					# Jerked it: one side shears off. That's no test: do it again
 					st["shear"] = true
 					st["step"] = "sheared"
+					st["draw"] = "sheared"
 					st["u"] = 0.0
 					st["pause"] = 0.0
 					game.sfx.hit("buzz")
@@ -350,47 +320,145 @@ func work(p, t: Dictionary, delta: float) -> bool:
 			p.cue("action", "press: scoop it back, start again", -1.0, true)
 			if st["u"] > 1.2 and pressed:
 				st["step"] = "fill"
+				st["draw"] = "fill"
 				st["layer"] = 0
 				st["level"] = 0.0
+				st["rods"] = 0.0
+				st["u"] = 0.0
 				st["lift"] = 0.0
 				st["shear"] = false
 				st["wobbled"] = false
 				st["armed"] = false
 		"measure":
-			# Hold to run the tape down from the rod. It slows near the top
-			# and stops when it touches; then press to read it off
+			# Press once: the tape runs down from the rod, stops when it
+			# touches the slumped top, and the reading's taken off it
 			var target: float = _true(t) / 1000.0
-			var depth: float = st["tape"]
-			if not st.get("armed", true):
-				p.cue("action", "let go, then hold to lower the tape", 0.0, true)
-				if not held:
-					st["armed"] = true
-				_show(t)
-				return false
 			p.pose_arms(Vector3(-1.0, 0, -0.2), Vector3(-0.7, 0, 0.3))
-			if not st.get("touch", false):
-				p.cue("action", "hold: lower the tape", clampf(depth / maxf(0.01, target), 0.0, 1.0), true)
+			if not st.get("running", false):
+				if not st.get("armed", true):
+					if not held:
+						st["armed"] = true
+				p.cue("action", "measure it", -1.0, true)
 				p.gold(not p.bot)
-				if held:
-					var slow := clampf((target - depth) / 0.025, 0.3, 1.0)
-					st["tape"] = minf(target, depth + TAPE_RATE * slow * delta)
-					if st["tape"] >= target - 0.0005:
-						st["touch"] = true
-						st["u"] = 0.0
-						game.sfx.hit("tink")
-						game.haptic(p, "12")
+				if st.get("armed", true) and pressed:
+					st["running"] = true
+			elif not st.get("touch", false):
+				p.cue("action", "measuring…", clampf(float(st["tape"]) / maxf(0.01, target), 0.0, 1.0), true)
+				var slow := clampf((target - float(st["tape"])) / 0.025, 0.3, 1.0)
+				st["tape"] = minf(target, float(st["tape"]) + TAPE_RATE * slow * delta)
+				if st["tape"] >= target - 0.0005:
+					st["touch"] = true
+					st["u"] = 0.0
+					game.sfx.hit("tink")
+					game.haptic(p, "12")
 			else:
 				st["u"] = float(st["u"]) + delta
-				p.cue("action", "press: read %d mm" % _reading_of(t), -1.0, true)
-				p.gold(not p.bot)
-				if st["u"] > 0.25 and pressed:
+				if st["u"] > 0.35:
 					t["measured"] = float(_reading_of(t))
 					game.score.award(p, 5, "Slump tests")
 					game.sfx.hit("ding")
 					st["step"] = "done"
+					st["draw"] = "done"
 					done = true
 	_show(t)
 	return done
+
+## Where the tester stands at the plate.
+func _stand() -> Vector3:
+	return root.global_position + Vector3(-0.44, 0, -0.16) * S
+
+## How far through the one fill-and-rod hold (0 to 1) sets the layer, the
+## level in the cone and the rod count: each third is a layer, filled to its
+## ring then rodded 25 times; the last bit strikes off the top.
+func _fill_at(st: Dictionary, u: float) -> void:
+	if u >= STRIKE_FROM:
+		st["layer"] = 2
+		st["draw"] = "strike"
+		st["rods"] = float(RODS)
+		st["strike"] = clampf((u - STRIKE_FROM) / (1.0 - STRIKE_FROM), 0.0, 1.0)
+		st["level"] = lerpf(0.315, CONE_H, float(st["strike"]))
+		return
+	var w := u / STRIKE_FROM * 3.0
+	var layer := mini(2, int(w))
+	var f := w - float(layer)
+	var from: float = 0.0 if layer == 0 else float(MARKS[layer - 1])
+	st["layer"] = layer
+	if f < FILL_SHARE:
+		st["draw"] = "fill"
+		st["rods"] = 0.0
+		st["level"] = lerpf(from, float(MARKS[layer]), smoothstep(0.0, 1.0, f / FILL_SHARE))
+	else:
+		st["draw"] = "rod"
+		st["level"] = MARKS[layer]
+		st["rods"] = (f - FILL_SHARE) / (1.0 - FILL_SHARE) * float(RODS)
+
+## The walk for a sample, after the press: over to the truck's chute with
+## the tray, a scoop of the load into it, and back to the plate. Called by
+## the truck bay every frame (you're away from the bay while it runs).
+func fetch_tick(t: Dictionary, chute: Vector3, delta: float) -> void:
+	var st := _st(t)
+	var p = st.get("who")
+	if p == null or not is_instance_valid(p):
+		st["step"] = "fill"
+		st["armed"] = false
+		return
+	root.visible = true
+	st["u"] = float(st["u"]) + delta
+	var stand := _stand()
+	var at := Vector3(chute.x, 0, chute.z)
+	var off := Vector3(stand.x - at.x, 0, stand.z - at.z)
+	at += off.normalized() * 1.0 if off.length() > 0.1 else Vector3.ZERO
+	var tray_full := false
+	st["fetch_t"] = float(st.get("fetch_t", 0.0)) + delta
+	match st["leg"]:
+		"go":
+			if _walk_to(p, at, float(st["u"]), delta):
+				st["leg"] = "scoop"
+				st["u"] = 0.0
+		"scoop":
+			p.face(chute)
+			p.pose_arms(Vector3(-1.2, 0, -0.25), Vector3(-1.2, 0, 0.25))
+			tray_full = float(st["u"]) > SCOOP_T * 0.5
+			if st["u"] >= SCOOP_T:
+				game.sfx.hit("plop")
+				st["leg"] = "back"
+				st["u"] = 0.0
+		"back":
+			tray_full = true
+			if _walk_to(p, stand, float(st["u"]), delta):
+				st["step"] = "fill"
+				st["draw"] = "fill"
+				st["u"] = 0.0
+				st["armed"] = false
+				game.sfx.hit("plop")
+				game.score.award(p, 2, "Slump tests")
+				if game.autotest:
+					print("[autotest]   slump sample fetched in %.1fs" % float(st["fetch_t"]))
+				_barrow.position = BARROW_AT
+				_barrow.rotation = Vector3.ZERO
+				return
+	# The green tray, carried in front at the hands
+	var fwd := Vector3(sin(p.model.rotation.y), 0, cos(p.model.rotation.y))
+	_barrow.global_position = p.global_position + fwd * 0.75 + Vector3(0, 0.35, 0)
+	_barrow.rotation = Vector3(0, p.model.rotation.y + PI * 0.5, 0)
+	_barrow.visible = true
+	(_barrow.get_child(1) as Node3D).visible = tray_full
+	if st["leg"] != "scoop":
+		p.pose_arms(Vector3(-1.1, 0, -0.25), Vector3(-1.1, 0, 0.25))
+
+## Walks a tester toward `to` (their own legs, or straight there if
+## something's in the way). True once they're there.
+func _walk_to(p, to: Vector3, u: float, delta: float) -> bool:
+	var d := Vector2(to.x - p.position.x, to.z - p.position.z)
+	if d.length() < 0.25:
+		return true
+	if u < 2.5:
+		p.run_to = Vector3(to.x, p.position.y, to.z)
+	else:
+		p.position.x = move_toward(p.position.x, to.x, 4.0 * delta)
+		p.position.z = move_toward(p.position.z, to.z, 4.0 * delta)
+		p.face(Vector3(to.x, p.global_position.y, to.z))
+	return u > 6.0
 
 ## The tape at the top of the slumped concrete, to the nearest 5 mm.
 func _reading_of(t: Dictionary) -> int:
@@ -402,19 +470,15 @@ func _bot_hold(st: Dictionary) -> bool:
 		return false
 	match st["step"]:
 		"fill":
-			return float(st["level"]) < float(MARKS[st["layer"]]) - 0.001
-		"rod":
-			return float(st["rods"]) < float(RODS)
-		"measure":
-			return not st.get("touch", false)
-		"sheared", "done":
+			return float(st["u"]) < 1.0
+		"sheared", "done", "measure", "sample", "fetch":
 			return false
 	return true
 
 func _bot_press(_t: Dictionary, st: Dictionary) -> bool:
 	match st["step"]:
-		"measure":
-			return st.get("touch", false)
+		"sample", "measure":
+			return st.get("armed", true) and not st.get("running", false)
 		"sheared":
 			return true
 	return false
@@ -425,7 +489,7 @@ func _show(t) -> void:
 	if t == null:
 		return
 	var st := _st(t)
-	var step: String = st["step"]
+	var step: String = st.get("draw", st["step"])
 	var lift: float = st["lift"]
 	_scoop.visible = step == "fill"
 	_mark.visible = step == "fill"
@@ -435,8 +499,11 @@ func _show(t) -> void:
 		_mark_mesh.inner_radius = mr
 		_mark_mesh.outer_radius = mr + 0.008
 		_mark.position = Vector3(TEST_X, 0.03 + mh, 0)
-	_barrow.visible = step != "sample" or float(st["u"]) > 0.2
-	(_barrow.get_child(1) as Node3D).visible = step in ["sample", "fill", "rod"]
+	if st["step"] != "fetch":
+		_barrow.position = BARROW_AT
+		_barrow.rotation = Vector3.ZERO
+		_barrow.visible = true
+		(_barrow.get_child(1) as Node3D).visible = step in ["fill", "rod"]
 	_tape.visible = step in ["measure", "done"]
 	_reading.text = ""
 	_water.emitting = false
@@ -488,7 +555,7 @@ func _show(t) -> void:
 			_rod.position = Vector3(TEST_X + 0.04 * sin(float(st["rods"]) * 1.7), 0.03 + float(st["level"]) - 0.06 + 0.12 * absf(sin(ph * PI)), 0.03 * cos(float(st["rods"]) * 1.3))
 		"strike":
 			_rod.rotation = Vector3(0, 0, PI * 0.5)
-			_rod.position = Vector3(TEST_X + 0.3, 0.03 + CONE_H + 0.012, -0.12 + 0.24 * float(st["u"]))
+			_rod.position = Vector3(TEST_X + 0.3, 0.03 + CONE_H + 0.012, -0.12 + 0.24 * float(st.get("strike", 0.0)))
 		"measure", "done":
 			_rod.rotation = Vector3(0, 0, PI * 0.5)
 			_rod.position = Vector3(FLIP_X + 0.15, 0.03 + CONE_H + 0.009, 0)
@@ -497,7 +564,7 @@ func _show(t) -> void:
 			_rod.position = Vector3(0.36, 0.0, -0.2)
 	# The scoop going back and forth from the barrow
 	if step == "fill":
-		var u: float = st["u"]
+		var u: float = fmod(float(st["u"]) * 9.0, 1.0)
 		var from := _barrow.position + Vector3(0, 0.24, 0)
 		var to := Vector3(TEST_X, 0.03 + CONE_H + 0.05, 0)
 		var e2 := 0.5 - 0.5 * cos(u * TAU)
@@ -526,27 +593,29 @@ func _show(t) -> void:
 					_water.emitting = true
 				_:
 					var old: bool = float(t["age"]) > line.MAX_AGE
-					_reading.text = "%d mm  %s" % [int(t.get("measured", 0.0)), "TOO OLD: SEND IT BACK" if old else "SEND IT BACK"]
+					var why := "WRONG MIX: SEND IT BACK" if t.get("mix_wrong", "") != "" else ("TOO OLD: SEND IT BACK" if old else "SEND IT BACK")
+					_reading.text = "%d mm  %s" % [int(t.get("measured", 0.0)), why]
 					_reading.modulate = Color("ff5a5f")
 					_reading.scale = Vector3.ONE * 1.2 * pulse
 
-## The six steps, in order: [step key, name, what you're doing and why].
+## The four steps, in order: [step key, name, what you're doing and why].
 const GUIDE := [
-	["sample", "SAMPLE", "Scoop a barrow-load off the chute."],
-	["fill", "FILL", "3 layers, each up to the yellow ring."],
-	["rod", "ROD", "25 rods a layer, air out."],
-	["strike", "STRIKE", "Roll the rod across to level the top."],
+	["sample", "SAMPLE", "Fill the green tray off the chute."],
+	["fill", "FILL + ROD", "3 layers, 25 rods each, struck off."],
 	["lift", "LIFT", "Straight up, steady. Don't stop."],
-	["measure", "MEASURE", "Tape down to the concrete."],
+	["measure", "MEASURE", "Tape down from the rod."],
 ]
 
-## Which of the six steps this test is on (0 to 5; 6 when it's measured).
+## Which of the four steps this test is on (0 to 3; 4 when it's measured).
 func guide_index(t: Dictionary) -> int:
 	var step: String = _st(t)["step"]
-	if step == "done":
-		return GUIDE.size()
-	if step == "sheared":
-		return 4
+	match step:
+		"done":
+			return GUIDE.size()
+		"sheared":
+			return 2
+		"fetch":
+			return 0
 	for i in GUIDE.size():
 		if GUIDE[i][0] == step:
 			return i
@@ -558,10 +627,17 @@ func guide_text(t: Dictionary) -> String:
 	match st["step"]:
 		"sheared":
 			return "Sheared. Scoop it back, test again."
+		"fetch":
+			return "Off to the chute for a sample."
 		"fill":
+			if float(st["u"]) <= 0.0:
+				return GUIDE[1][2]
+			match String(st.get("draw", "fill")):
+				"strike":
+					return "Strike off: roll the rod across."
+				"rod":
+					return "Layer %d of 3: 25 rods, air out." % (int(st["layer"]) + 1)
 			return "Layer %d of 3, up to the yellow ring." % (int(st["layer"]) + 1) if int(st["layer"]) < 2 else "Layer 3 of 3, heaped over the top."
-		"rod":
-			return "Layer %d of 3: 25 rods, air out." % (int(st["layer"]) + 1)
 		"done":
 			var m := int(t.get("measured", t["slump"]))
 			var lo := int(line.SPEC_SLUMP - line.SLUMP_TOL)
@@ -569,7 +645,13 @@ func guide_text(t: Dictionary) -> String:
 			var why := "In spec: use it."
 			match line.right_call(t):
 				"water": why = "Too stiff: add the %d L/m³ held back, test again." % int(line.WATER_HELD)
-				"reject": why = ("Over %d min old: send it back." % int(line.MAX_AGE)) if float(t["age"]) > line.MAX_AGE else "Out of spec: send it back."
+				"reject":
+					if t.get("mix_wrong", "") != "":
+						why = "But the docket's the wrong mix: send it back."
+					elif float(t["age"]) > line.MAX_AGE:
+						why = "Over %d min old: send it back." % int(line.MAX_AGE)
+					else:
+						why = "Out of spec: send it back."
 			return "%d mm (spec %d to %d). %s" % [m, lo, hi, why]
 	return GUIDE[guide_index(t)][2]
 
@@ -580,7 +662,7 @@ func caption(t: Dictionary) -> String:
 		return "SLUMP TEST · shear: again"
 	if i >= GUIDE.size():
 		return "SLUMP %d mm · %d min old" % [int(t.get("measured", t["slump"])), int(t["age"])]
-	return "SLUMP TEST · step %d of 6: %s" % [i + 1, String(GUIDE[i][1]).to_lower()]
+	return "SLUMP TEST · step %d of 4: %s" % [i + 1, String(GUIDE[i][1]).to_lower()]
 
 ## Where the close-up camera sits: low and side on, so the cone, the tape
 ## and the slumped concrete all read.

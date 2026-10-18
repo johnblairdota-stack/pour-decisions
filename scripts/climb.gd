@@ -156,6 +156,8 @@ var _tagger = null          # whoever held the tag line during this lift
 # holding A all the while; let go and the line drops.
 const TAG_REACH := 7.0      # m from the tag spot the line has to hang before anyone runs for it
 const TAG_GRAB := 1.1       # m: close enough to grab the line
+const TAG_EDGE := 2.5       # m: a line hanging this near the scaffold edge can be reached for
+const TAG_FAR := 18.0       # m: past this from the tag spot, it's nobody's to run for
 var tag_hand = null         # who's on the tag line right now
 var _tag_sub := ""          # "fetch" running out to the line, "hold" walking it back or holding at the spot
 var _tag_best := INF        # closest they've got to the line so far
@@ -1875,7 +1877,7 @@ func work_focus(p) -> Vector3:
 # ------------------------------------------------------------------ players
 
 ## The tag line's there to take: the crane has the load up higher than the deck
-## and near enough the tag spot to run out to.
+## and near enough the tag spot, or near enough the scaffold edge, to run out to.
 func tag_ready() -> bool:
 	if load == null or not (stage in ["fly", "guide"]) or load_state != "" or not crane_busy():
 		return false
@@ -1883,7 +1885,24 @@ func tag_ready() -> bool:
 		return false
 	var c := _tag_corner()
 	var spot: Vector3 = game.deck_pos("tag")
-	return Vector2(c.x - spot.x, c.z - spot.z).length() < TAG_REACH
+	if Vector2(c.x - spot.x, c.z - spot.z).length() < TAG_REACH:
+		return true
+	# ...or anywhere it's come in near enough the scaffold edge to reach out
+	# for (the big slab: the load swings in a long way off the tag spot)
+	if Vector2(c.x - spot.x, c.z - spot.z).length() > TAG_FAR:
+		return false
+	return _deck_within(c, TAG_EDGE)
+
+## True if there's deck or scaffold walkway within `r` m (across) of `at`.
+func _deck_within(at: Vector3, r: float) -> bool:
+	for i in 17:
+		var off := Vector3.ZERO
+		if i > 0:
+			var a := float(i - 1) / 8.0 * TAU
+			off = Vector3(cos(a), 0, sin(a)) * (r if i <= 8 else r * 0.5)
+		if game._walkable(Vector3(at.x, game.work_y, at.z) + off, "deck"):
+			return true
+	return false
 
 func _tag_corner() -> Vector3:
 	return load.global_transform * Vector3(LW * 0.5, 0.3, LW * 0.5)
@@ -2148,7 +2167,7 @@ func handle_player(p, delta: float, near: String, act: String, alt: String, leav
 			if stage in ["fly", "guide"] and load:
 				if not tag_ready() or tag_hand != null:
 					p.cue("action", "tag line", -1.0, false)
-					p.say("wait till it's over the deck" if tag_hand == null else "%s has the line" % tag_hand.char_name)
+					p.say("wait till it's near the scaffold" if tag_hand == null else "%s has the line" % tag_hand.char_name)
 				else:
 					p.cue("action", "hold: grab the tag line", -1.0, true)
 					p.gold(not p.bot)

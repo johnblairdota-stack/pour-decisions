@@ -1319,6 +1319,21 @@ func strip_work(x0: float, x1: float) -> int:
 				n += 1
 	return n
 
+## Where along the strip x0..x1 the work is: Vector2(nearest z, farthest z)
+## of the cells still wanting the screed, or (INF, -INF) if none.
+func strip_band(x0: float, x1: float) -> Vector2:
+	var out := Vector2(INF, -INF)
+	for iz in range(NZ):
+		for ix in range(NX):
+			var i := iz * NX + ix
+			var c := cell_center(i)
+			if c.x < x0 or c.x > x1:
+				continue
+			if h[i] > SLAB * 0.8 and scr[i] < 0.5 and set_h[i] < 0.0 and vib_ok(i):
+				out.x = minf(out.x, c.z)
+				out.y = maxf(out.y, c.z)
+	return out
+
 ## Share of the placed slab that went off before anyone screeded it. (Still
 ## fresh at the end of the pour is fine: the crew finishes it off.)
 func rough_share() -> float:
