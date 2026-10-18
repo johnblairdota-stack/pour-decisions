@@ -451,6 +451,31 @@ func _hose(p, delta: float) -> void:
 		walk(p, Vector3(tgt.x, g.work_y, tgt.z) - d.normalized() * 0.5, 0.25)
 	else:
 		p.face(Vector3(tgt.x, here.y, tgt.z))
+	if g.ops.wants_bin():
+		return   # (the slurry and the washout: the boom pumps into the bin)
+	# Call the pump on (hold A) when it's worth it, the way the boom bot did
+	# before the call was the pipe guy's: not into an empty hopper, a weeping
+	# clamp or a blocked line, not in the rain or a gust, not while walking off
+	# a spot that's full, and never ahead of the bay being poured
+	var line = g.line
+	var feeding: bool = line.hud_info()["bay"] == "discharging"
+	var ok: bool = line.hopper > 0.25 or feeding and line.hopper > 0.08
+	if pour.raining or g.climb.wind_gust >= g.BOOM_WIND or line.line_down() or line.blocked or line.tripped:
+		ok = false
+	if line.fail_i >= 0 and line.wear > 0.25 and not g.let_burst:
+		ok = false
+	# Don't pile it up while the boom's still swinging over to its next spot
+	# (as the boom bot judged it when the trigger was its own)
+	var dl: Vector3 = g._pour_local(g.discharge())
+	var op = g._boom_operator()
+	if op != null and op.bot:
+		var to: Vector3 = _boom_goal - g.tip_target
+		to.y = 0.0
+		if to.length() > 2.5 and pour.height_at(dl) > pour.SLAB * 1.3:
+			ok = false
+	if pour.bay_of_x(dl.x) > pour.cur_bay:
+		ok = false
+	p.ai_action = ok
 
 ## The lowest spot within the end hose's reach that the pour plan wants now.
 func _hose_spot(anchor: Vector3) -> Vector3:
@@ -699,6 +724,15 @@ func _bay(p, urgent_only: bool) -> bool:
 	var line = game.line
 	var t = line.needs_check()
 	var bay: Vector3 = game.GROUND_STATIONS["bay"]["pos"]
+	# Spotting the truck it waved in: wave it on, let go about on the mark
+	for tr in line.trucks:
+		if tr["state"] in ["called", "approach", "back"] and tr.get("spotter") == p:
+			walk(p, bay, 0.6)
+			if tr["state"] == "back":
+				if not tr.has("bot_stop"):
+					tr["bot_stop"] = 1.0 + randf_range(-1.0, 1.0) * [0.05, 0.03, 0.015][game.score.bot_tier]
+				p.ai_action = float(tr.get("su", 0.0)) < float(tr["bot_stop"])
+			return true
 	if t != null:
 		if walk(p, bay, 0.6):
 			if not t["checked"]:
@@ -708,7 +742,14 @@ func _bay(p, urgent_only: bool) -> bool:
 				t["read_t"] = float(t.get("read_t", 0.0)) + get_process_delta_time()
 				if float(t["read_t"]) < READ_T[game.score.bot_tier]:
 					return true
-				match line.right_call(t):
+				var call: String = line.right_call(t)
+				if t["state"] == "docket" and call == "reject":
+					# (a bot doesn't always spot the wrong mix on the docket)
+					if not t.has("bot_saw"):
+						t["bot_saw"] = randf() > [0.3, 0.15, 0.05][game.score.bot_tier]
+					if not t["bot_saw"]:
+						call = "use"
+				match call:
 					"use":
 						p.ai_action = _tap()
 					"water":
