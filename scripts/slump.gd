@@ -534,10 +534,10 @@ func _show(t) -> void:
 const GUIDE := [
 	["sample", "SAMPLE", "Scoop a barrow-load off the chute."],
 	["fill", "FILL", "3 layers, each up to the yellow ring."],
-	["rod", "ROD", "25 rods a layer push the air out."],
+	["rod", "ROD", "25 rods a layer, air out."],
 	["strike", "STRIKE", "Roll the rod across to level the top."],
-	["lift", "LIFT", "Straight up, slow and steady. Don't stop."],
-	["measure", "MEASURE", "Lower the tape onto the concrete."],
+	["lift", "LIFT", "Straight up, steady. Don't stop."],
+	["measure", "MEASURE", "Tape down to the concrete."],
 ]
 
 ## Which of the six steps this test is on (0 to 5; 6 when it's measured).
@@ -557,11 +557,11 @@ func guide_text(t: Dictionary) -> String:
 	var st := _st(t)
 	match st["step"]:
 		"sheared":
-			return "Sheared: the lift stopped. Scoop it back, test again."
+			return "Sheared. Scoop it back, test again."
 		"fill":
 			return "Layer %d of 3, up to the yellow ring." % (int(st["layer"]) + 1) if int(st["layer"]) < 2 else "Layer 3 of 3, heaped over the top."
 		"rod":
-			return "Layer %d of 3: 25 rods push the air out." % (int(st["layer"]) + 1)
+			return "Layer %d of 3: 25 rods, air out." % (int(st["layer"]) + 1)
 		"done":
 			var m := int(t.get("measured", t["slump"]))
 			var lo := int(line.SPEC_SLUMP - line.SLUMP_TOL)
