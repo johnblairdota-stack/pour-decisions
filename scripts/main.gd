@@ -597,8 +597,9 @@ func _build_site() -> void:
 	add_child(call_marker)
 
 	# Builder's hoist on the south face: the quick way between deck and ground
-	var mast_h := FLOORS * FH + 4.0
-	hoist_mast = F.box(Vector3(0.5, mast_h, 0.5), F.mat("steel"), Vector3(HOIST_X - 1.0, mast_h * 0.5, HOIST_Z))
+	# (built 1 m tall and stretched to just above the deck as the building
+	# climbs: _update_see_through)
+	hoist_mast = F.box(Vector3(0.5, 1.0, 0.5), F.mat("steel"), Vector3(HOIST_X - 1.0, 0.5, HOIST_Z))
 	add_child(hoist_mast)
 	hoist_cage = Node3D.new()
 	hoist_cage.add_child(F.box(Vector3(1.6, 0.1, 1.6), F.mat("navy"), Vector3(0, 0.05, 0)))
@@ -1953,6 +1954,7 @@ func _process(delta: float) -> void:
 				selector.pick(2 if tutorial else (0 if _auto_kit == "tower" else 1))
 				_auto_kit = ""
 		_update_camera(delta)
+		_update_see_through(delta)
 		return
 
 	pumping = false
@@ -2097,6 +2099,7 @@ func _process(delta: float) -> void:
 	_update_hud()
 	coach.update(delta)
 	_update_camera(delta)
+	_update_see_through(delta)
 	shake = maxf(0.0, shake - delta * 1.6)
 	# A hang shows up as one phase that never ends; the whole run's budget is
 	# only a backstop (a full tower runs 30 to 40 minutes, give or take the
@@ -2217,6 +2220,7 @@ func _update_pour(delta: float) -> void:
 		var dv: Vector2 = pour.debug_volume()
 		print("[autotest]     on slab %.1f, spilled %.1f, p90 depth %.2f m, boom held off %s, pumping %.0fs" % [dv.x, pour.spilled, dv.y, str(bots.stop_t), _pump_t])
 		if OS.get_cmdline_user_args().has("--dbg"):
+			print("[autotest]     ghost %s" % str(_ghost))
 			var dl := _pour_local(discharge())
 			print("[autotest]     goal %s tip %s disch %s under %.2f strip %s hoser %s" % [str(bots._boom_goal), str(_pour_local(tip_target)), str(dl), pour.height_at(dl), str(pour.leading_strip(pour.cur_bay)), str(hose_holder.position) if hose_holder != null else "-"])
 		bots.stop_t = {}
@@ -3604,6 +3608,103 @@ var _shot_cam: Array = []
 func _who(p) -> String:
 	return (("P%d " % p.index) if not p.bot else "") + p.char_name.to_upper()
 
+## The hoist and the boom tower stand on the street side of the deck, right
+## where the camera looks in from: when one's between the camera and the work
+## (the people on the deck, or where the concrete's going) it fades to a
+## ghost, so nobody loses the pour behind it.
+const SEE_THROUGH := 0.8      # how far it fades (1 = gone)
+var _ghost := {"hoist": 0.0, "tower": 0.0}
+
+func _update_see_through(delta: float) -> void:
+	if hoist_mast == null:
+		return
+	# A real hoist mast is extended a section at a time as the building goes
+	# up, a little past the deck, not to the full height from day one
+	var mast_h := maxf(4.0, work_y + 3.5)
+	hoist_mast.scale.y = mast_h
+	hoist_mast.position.y = mast_h * 0.5
+	if tutorial or kit != "tower":
+		return
+	var cam := camera.global_position
+	var pts: Array = [cam_focus]
+	for p in humans():
+		if p.zone == "deck":
+			pts.append(p.position + Vector3(0, 1.0, 0))
+	if phase == "pour":
+		pts.append(discharge())
+	var top := head.position.y + 2.5
+	# (a ghost stays one over a slightly wider stretch, so it doesn't flicker
+	# in and out as the camera drifts along the edge)
+	var hr := 1.4 * (1.3 if _ghost["hoist"] > 0.0 else 1.0)
+	var tr := 3.0 * (1.3 if _ghost["tower"] > 0.0 else 1.0)
+	var want := {
+		"hoist": _in_the_way(cam, pts, Vector2(hoist_mast.position.x + 0.5, hoist_mast.position.z), hr, mast_h),
+		# (not on a climb day: the climbing frame's where the work is)
+		"tower": not climb.active and _in_the_way(cam, pts, Vector2(head.position.x, head.position.z), tr, top),
+	}
+	for key in _ghost:
+		var was: float = _ghost[key]
+		_ghost[key] = move_toward(was, SEE_THROUGH if want[key] else 0.0, delta * 3.0)
+		# (while it's a ghost, keep at it: the tower grows a section a level)
+		if _ghost[key] == 0.0 and was == 0.0:
+			continue
+		var roots: Array = [hoist_mast, hoist_cage] if key == "hoist" else [lattice, climb.platform, yaw_node.get_child(0)] + head_deco
+		for r in roots:
+			if r != null and is_instance_valid(r):
+				_fade(r, _ghost[key])
+
+## True when something standing at `c` (radius `r`, up to height `top`) is
+## between the camera and any of `pts`.
+func _in_the_way(cam: Vector3, pts: Array, c: Vector2, r: float, top: float) -> bool:
+	var a := Vector2(cam.x, cam.z)
+	for pt in pts:
+		var b := Vector2(pt.x, pt.z)
+		# (not when the work's right at it: someone on the hoist, the boom head)
+		if b.distance_to(c) < r + 1.0:
+			continue
+		var ab := b - a
+		var l2 := ab.length_squared()
+		if l2 < 0.01:
+			continue
+		var t := clampf((c - a).dot(ab) / l2, 0.0, 1.0)
+		if (a + ab * t).distance_to(c) < r and lerpf(cam.y, pt.y, t) < top:
+			return true
+	return false
+
+## Fades `n` and everything under it: a see-through copy of each part's
+## colour stands in for its material while it's a ghost (works the same on
+## every renderer, toon shader or not).
+func _fade(n: Node, amount: float) -> void:
+	if n is MeshInstance3D:
+		var mi := n as MeshInstance3D
+		if amount <= 0.0:
+			if mi.has_meta("ghost"):
+				mi.material_override = mi.get_meta("ghost_was")
+				mi.remove_meta("ghost")
+		else:
+			if not mi.has_meta("ghost"):
+				mi.set_meta("ghost_was", mi.material_override)
+				var src: Material = mi.material_override
+				if src == null and mi.mesh != null and mi.mesh.get_surface_count() > 0:
+					src = mi.mesh.surface_get_material(0)
+				var c := Color(0.85, 0.87, 0.9)
+				if src is ShaderMaterial and (src as ShaderMaterial).get_shader_parameter("albedo") != null:
+					c = (src as ShaderMaterial).get_shader_parameter("albedo")
+				elif src is BaseMaterial3D:
+					c = (src as BaseMaterial3D).albedo_color
+				var g := StandardMaterial3D.new()
+				g.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+				g.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+				g.albedo_color = c
+				mi.set_meta("ghost", g)
+			var gm: StandardMaterial3D = mi.get_meta("ghost")
+			gm.albedo_color.a = 1.0 - amount
+			mi.material_override = gm
+	elif n is Label3D:
+		(n as Label3D).modulate.a = 1.0 - amount
+	for ch in n.get_children():
+		_fade(ch, amount)
+
 func _update_camera(delta: float) -> void:
 	# Who's up top and who's down on the street. While the deck's low, one
 	# camera takes in everyone. Once it's up past SPLIT_Y with people at both
@@ -3942,6 +4043,10 @@ func _maybe_shot() -> void:
 		key = "remote"
 	elif "highlow" in _shot_only and phase == "pour" and speed_advice["want"] != "" and speed_advice["level"] >= 1 and _filled_ratio() > 0.2 and not _shots_taken.has("highlow"):
 		key = "highlow"
+	elif "ghost" in _shot_only and phase == "pour" and _ghost["tower"] >= SEE_THROUGH and not _shots_taken.has("ghost"):
+		key = "ghost"
+	elif "ghosthoist" in _shot_only and phase == "pour" and _ghost["hoist"] >= SEE_THROUGH and not _shots_taken.has("ghosthoist"):
+		key = "ghosthoist"
 	elif phase == "select":
 		key = "select"
 	elif phase == "roles":
