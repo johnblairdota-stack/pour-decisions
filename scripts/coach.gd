@@ -184,15 +184,17 @@ func _tip(p) -> String:
 		"hose":
 			if p.busy != "hose":
 				return "Take the END HOSE: it hangs under the boom tip. Walk under it and press A."
-			return "Walk the hose where it's wanted: where it glows gold, right out to the forms and into the corners. Hold A to call the pump on, let go to stop."
+			return "Walk the hose where it's wanted: where it glows gold, right out to the forms and into the corners. The concrete's your call: hold A for the pump, let go to stop."
 		"boom":
 			if p.busy != "boom":
 				return "Walk to BOOM REMOTE and press A to take it."
 			var adv: Dictionary = g.speed_advice
 			if adv["want"] != "" and adv["level"] >= 1:
 				return "X is up: switch the pump to %s (%s)." % [adv["want"].to_upper(), adv["why"]]
+			if g.pipe_calls():
+				return "The pipe guy calls the concrete on and off. Steer the boom with the stick so the end hose reaches where they're working, and keep it along the wet edge."
 			if not line.pumping:
-				return "Hold A to pump. The stick steers the hose. Start in the green bay."
+				return "Hold A to pump (nobody's on the end hose). The stick steers the hose. Start in the green bay."
 			return "Lay it against the wet edge so it stays green. Amber means it's getting old: get back to it."
 		"poker":
 			if p.tool != "poker":
