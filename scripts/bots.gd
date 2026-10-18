@@ -250,7 +250,7 @@ func _deck(key: String) -> Vector3:
 	return Vector3(v.x, game.work_y, v.z)
 
 func _gnd(key: String) -> Vector3:
-	return game.GROUND_STATIONS[key]["pos"]
+	return (game.stations[key]["node"] as Node3D).position
 
 ## Gets to `zone` (deck or ground) by the ladder or the hoist, then to `pos`.
 func go(p, zone: String, pos: Vector3, tol := 0.4) -> bool:
@@ -322,7 +322,7 @@ func _boom(p, delta: float) -> void:
 	# Start-up and washout: the slurry and the last of the line into the bin
 	if g.ops.wants_bin():
 		var bl: Vector3 = g._pour_local(g.ops.bin_world())
-		var tb: Vector3 = bl - g.tip_target
+		var tb: Vector3 = bl - g._pour_local(g.tip_target)
 		tb.y = 0.0
 		if tb.length() > 0.08:
 			var lb := (tb.normalized() * minf(1.0, tb.length() / 1.2)).rotated(Vector3.UP, -g.cam_yaw)
@@ -346,7 +346,7 @@ func _boom(p, delta: float) -> void:
 			_boom_goal = g._pour_local(g.call_marker.global_position)
 			_boom_goal.y = 0.0
 	_boom_goal_t -= delta
-	var to: Vector3 = _boom_goal - g.tip_target
+	var to: Vector3 = _boom_goal - g._pour_local(g.tip_target)
 	to.y = 0.0
 	if to.length() > 0.1:
 		var local := (to.normalized() * minf(1.0, to.length() / 1.2)).rotated(Vector3.UP, -g.cam_yaw)
@@ -821,11 +821,11 @@ func _screed_inner(p, delta: float) -> void:
 			var tgt: Vector3 = pour.needs_screed(local, hose, 0.0 if full else 2.4, skip)
 			if tgt.x == INF:
 				# Nothing ready: wait behind the pokers, out from under the boom
-				var wait := Vector3(clampf(hose.x - 4.0, -7.0, 7.0), 0, clampf(-hose.z * 0.5, -4.5, 4.5))
+				var wait := Vector3(clampf(hose.x - 4.0, -pour.bw * 0.5 + 1.0, pour.bw * 0.5 - 1.0), 0, clampf(-hose.z * 0.5, -pour.bd * 0.5 + 1.5, pour.bd * 0.5 - 1.5))
 				wait = _on_slab(wait, 1.0)
 				walk(p, pour.position + Vector3(wait.x, 0, wait.z) + Vector3(0, wy - pour.position.y, 0), 0.8)
 				return
-			var strip := 2.7
+			var strip: float = scr.BOARD - 0.3
 			var x: float = clampf(roundf((tgt.x + pour.bw * 0.5 - strip * 0.5) / strip) * strip - pour.bw * 0.5 + strip * 0.5, -pour.bw * 0.5 + 1.2, pour.bw * 0.5 - 1.2)
 			var dir := 1.0 if tgt.z < 0.0 else -1.0
 			if pour.round_r > 0.0:
@@ -849,7 +849,7 @@ func _screed_inner(p, delta: float) -> void:
 			var stand := _on_slab(tgt2 + n * 0.85, 0.45)
 			_scr["t"] += delta
 			p.ai_action = false
-			if walk(p, pour.position + Vector3(stand.x, wy - pour.position.y, stand.z), 0.25) or _scr["t"] > 7.0:
+			if walk(p, pour.position + Vector3(stand.x, wy - pour.position.y, stand.z), 0.25) or _scr["t"] > 7.0 * sqrt(pour.vol_k):
 				_spot_tries[key] = {"n": tries + 1, "at": g.phase_t, "p": tgt2}
 				p.model.rotation.y = atan2(-n.x, -n.z)   # facing the patch
 				_scr = {"mode": "spot_pull", "tgt": tgt2, "n": n, "from": stand, "t": 0.0}
@@ -877,7 +877,7 @@ func _screed_inner(p, delta: float) -> void:
 			# dragged along the form, finishing the edge and the corners
 			# (only if there's concrete under the board, not bare deck)
 			p.ai_action = bool(_scr.get("hold", false)) and _under_board(p)
-			if walk(p, at, 0.35) or _scr["t"] > 6.0:
+			if walk(p, at, 0.35) or _scr["t"] > 6.0 * sqrt(pour.vol_k):
 				if not p.ai_action:
 					p.model.rotation.y = 0.0 if dir > 0.0 else PI
 				_scr["mode"] = "sweep"
@@ -892,11 +892,11 @@ func _screed_inner(p, delta: float) -> void:
 			# Don't screed under the boom's hose
 			var ahead: Vector3 = local + Vector3(0, 0, dir2 * 1.2)
 			var under_hose: bool = g._filled_ratio() < 1.0 and Vector2(ahead.x - hose.x, ahead.z - hose.z).length() < 1.6
-			if arrived or _scr["t"] > 9.0 or under_hose:
+			if arrived or _scr["t"] > 9.0 * sqrt(pour.vol_k) or under_hose:
 				p.ai_action = arrived
 				# Down one strip and back up the next, the way a crew works a slab:
 				# step across a board's width and pull it back the other way
-				var strip := 2.7
+				var strip: float = scr.BOARD - 0.3
 				var nx := -INF
 				if arrived:
 					for cand in [float(_scr["x"]) + strip, float(_scr["x"]) - strip]:

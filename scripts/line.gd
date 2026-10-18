@@ -50,9 +50,18 @@ const RACK := Vector3(10.4, 0, 5.4)      # pipe rack: spare 3 m sections
 const PIN_CRATE := Vector3(12.2, 0, 5.0) # bags of tower pins for climb days
 const QUEUE_X := 10.0
 const ROAD_Z := 15.6
-# Where the site road meets the real Angora Road, and which way Angora runs off to MacArthur Avenue
-const ANGORA_X := 39.0
+# The site road runs across the lot north of Riverlight (vacant in 2017) from
+# MacArthur Avenue, where the trucks come in, to Angora Road, where they leave,
+# and this is which way Angora runs off from there
+const MACARTHUR_X := -28.0
+const ANGORA_X := 51.0
 const ANGORA_DIR := Vector3(0.534, 0, -0.846)
+# Concrete supply rate. Volumes are game scale: Riverlight's east wing (about
+# 3.4x the old 16 x 12 slab) takes the same truckloads in the same time,
+# because each game m³ out of the hose covers pour.vol_k times more deck
+# (pour.gd, worked out from the slab's area). To speed the whole pour up or
+# slow it down, change these: load size, chute and pump output; truck spacing
+# is `interval` in start_pour.
 const HOPPER_CAP := 5.0                  # m³ (game scale)
 const TRUCK_LOAD := 8.0                  # m³, a typical agitator load
 const DISCHARGE := 1.8                   # m³/s out of the chute
@@ -1214,7 +1223,7 @@ func _spawn_truck(waiting: bool, top_up := false) -> void:
 		age += late_extra                       # stuck in traffic
 	var node := _truck_mesh()
 	add_child(node)
-	var t := {"node": node, "state": "arrive", "t": 0.0, "age": age, "slump": slump, "load": load, "checked": false, "verdict": "", "pos": Vector3(-47.0 if not waiting else _slot_x(_queue_count()), 0, ROAD_Z)}
+	var t := {"node": node, "state": "arrive", "t": 0.0, "age": age, "slump": slump, "load": load, "checked": false, "verdict": "", "pos": Vector3(MACARTHUR_X if not waiting else _slot_x(_queue_count()), 0, ROAD_Z)}
 	node.position = t["pos"]
 	trucks.append(t)
 	if waiting:

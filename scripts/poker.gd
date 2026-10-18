@@ -11,7 +11,7 @@ extends Node3D
 
 const F := preload("res://scripts/factory.gd")
 
-const R := 1.5             # radius of action, m (game scale)
+var R := 1.5               # radius of action, m (game scale; wider on a bigger slab, set in build)
 const COMPACT_T := 0.6     # s for a person to compact a spot
 const NPC_T := 1.25        # the crew are a bit slower
 const OVER_T := 2.5        # s held after it's done before bleed water comes up
@@ -23,7 +23,7 @@ const GOOD_SHARE := 0.45   # gold: at least this much of the circle is raw concr
 var game
 var pour
 var unit: Node3D
-var unit_local := Vector3(1.5, 0, 4.4)    # on the deck, rig-local
+var unit_local := Vector3(1.5, 0, 4.4)    # on the deck, rig-local (set from the slab's +z edge in build)
 var users := {}            # instance id -> state
 var hint: Node3D           # where to plunge next, for a person holding the poker
 var _hint_mat: StandardMaterial3D
@@ -32,6 +32,7 @@ var _plop_t := 0.0
 func build(owner_game) -> void:
 	game = owner_game
 	pour = game.pour
+	R = 1.5 * minf(1.8, sqrt(pour.vol_k))
 	# The drive unit: a little petrol motor on a skid with a pull handle
 	unit = Node3D.new()
 	unit.add_child(F.box(Vector3(0.7, 0.08, 0.5), F.mat("navy"), Vector3(0, 0.04, 0)))
@@ -41,6 +42,7 @@ func build(owner_game) -> void:
 	unit.add_child(F.cylinder(0.12, 0.3, F.mat("hose"), Vector3(-0.18, 0.55, 0), 8))
 	unit.add_child(F.beam(Vector3(0.3, 0.1, 0), Vector3(0.6, 0.7, 0), 0.04, F.mat("steel")))
 	game.rig.add_child(unit)
+	unit_local = Vector3(1.5, 0, game.SC.z + game.BD * 0.5 - 1.6)
 	unit.position = unit_local
 	# The "plunge here" hint: a soft chevron bobbing over the next raw spot
 	hint = Node3D.new()
@@ -291,8 +293,8 @@ func handle_player(p, delta: float) -> bool:
 			if dist > HOSE_LEN:
 				var pull := Vector3(p.position.x - ud.x, 0, p.position.z - ud.z).normalized() * (dist - HOSE_LEN)
 				unit_local += pull
-				unit_local.x = clampf(unit_local.x, -7.6, 7.6)
-				unit_local.z = clampf(unit_local.z, -5.6, 5.6)
+				unit_local.x = clampf(unit_local.x, game.SC.x - game.BW * 0.5 + 0.4, game.SC.x + game.BW * 0.5 - 0.4)
+				unit_local.z = clampf(unit_local.z, game.SC.z - game.BD * 0.5 + 0.4, game.SC.z + game.BD * 0.5 - 0.4)
 				unit.position = unit_local
 	_draw_hose(p, st)
 	return true

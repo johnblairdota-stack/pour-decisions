@@ -73,8 +73,10 @@ void fragment() {
 	if (round_r > 0.0 && length(lp) > round_r) {
 		discard;
 	}
-	float grit = hash(floor(UV * vec2(1400.0, 1050.0)));
-	float blot = hash(floor(UV * vec2(90.0, 70.0)));
+	// (noise sized in metres: the same grain on any size of slab)
+	vec2 nuv = UV * slab_size / vec2(16.0, 12.0);
+	float grit = hash(floor(nuv * vec2(1400.0, 1050.0)));
+	float blot = hash(floor(nuv * vec2(90.0, 70.0)));
 	float depth = smoothstep(0.0, 0.22, vh);
 	vec4 st = texture(state_tex, UV);
 	float cold = step(0.75, st.g);
@@ -91,15 +93,15 @@ void fragment() {
 
 	// Raw: stony and matte, with dark air pockets. Compacted: cream comes up.
 	float raw = (1.0 - vib) * depth;
-	float stones = step(0.7, vnoise(UV * vec2(520.0, 390.0)));
+	float stones = step(0.7, vnoise(nuv * vec2(520.0, 390.0)));
 	c = mix(c, c * 0.72 + vec3(0.05, 0.04, 0.02) * stones, raw * 0.8);
-	float pocket = step(0.93, hash(floor(UV * vec2(700.0, 525.0)))) * raw;
+	float pocket = step(0.93, hash(floor(nuv * vec2(700.0, 525.0)))) * raw;
 	c = mix(c, vec3(0.2, 0.2, 0.21), pocket * 0.7);
 	vec3 cream = vec3(0.74, 0.71, 0.62);
 	c = mix(c, cream, vib * depth * 0.6);
 
 	// Air bubbles popping where a poker is working
-	float bub = step(0.986, hash(floor(UV * vec2(620.0, 465.0)) + floor(TIME * 14.0))) * near_poker * (1.0 - vib * 0.85);
+	float bub = step(0.986, hash(floor(nuv * vec2(620.0, 465.0)) + floor(TIME * 14.0))) * near_poker * (1.0 - vib * 0.85);
 	c = mix(c, vec3(0.95, 0.96, 0.98), bub);
 
 	// Going off: lighter and duller as it stiffens
@@ -107,12 +109,12 @@ void fragment() {
 	c = mix(c, vec3(0.6, 0.6, 0.58), going * 0.55);
 
 	// Unscreeded: lumpy. Screeded: flat satin.
-	float lump = (vnoise(UV * vec2(64.0, 48.0)) - 0.5) * (1.0 - scr) * depth * (1.0 - cured);
+	float lump = (vnoise(nuv * vec2(64.0, 48.0)) - 0.5) * (1.0 - scr) * depth * (1.0 - cured);
 	NORMAL = normalize(NORMAL + (VIEW_MATRIX * vec4(lump * 0.9, 0.0, lump * 0.6, 0.0)).xyz);
 	c = mix(c, c * 1.05 + vec3(0.02), scr * depth * 0.6);
 
 	// Honeycomb on thick concrete that went off unvibrated
-	float honey = (1.0 - vib) * depth * going * step(0.6, hash(floor(UV * vec2(620.0, 465.0))));
+	float honey = (1.0 - vib) * depth * going * step(0.6, hash(floor(nuv * vec2(620.0, 465.0))));
 	vec3 finished = vec3(0.71, 0.71, 0.69) * (0.95 + 0.06 * blot + 0.03 * grit);
 	vec3 col = mix(c, finished, cured);
 	col = mix(col, vec3(0.3, 0.29, 0.27), honey * 0.6);
@@ -124,16 +126,16 @@ void fragment() {
 	float todo_v = (1.0 - smoothstep(0.6, 0.84, vib)) * step(0.1, vh) * (1.0 - step(0.999, st.r)) * poker_view;
 	float hurry = smoothstep(0.45, 0.8, st.r);
 	vec3 vcol = mix(vec3(0.62, 0.42, 0.98), vec3(1.0, 0.3, 0.45), hurry);
-	float vp = (0.38 + 0.14 * sin(TIME * 4.0 + UV.x * 20.0)) * todo_v;
+	float vp = (0.38 + 0.14 * sin(TIME * 4.0 + nuv.x * 20.0)) * todo_v;
 	col = mix(col, vcol, vp);
 	float todo_s = smoothstep(0.5, 0.8, vib) * (1.0 - smoothstep(0.3, 0.7, scr)) * step(0.18, vh) * (1.0 - step(0.999, st.r)) * screed_view;
-	float sp = (0.3 + 0.12 * sin(TIME * 4.0 + UV.y * 20.0)) * todo_s;
+	float sp = (0.3 + 0.12 * sin(TIME * 4.0 + nuv.y * 20.0)) * todo_s;
 	col = mix(col, vec3(0.72, 1.0, 0.86), sp);   // cool green-white: gold is kept for the assist
 	float edge = step(0.15, st.g) * (1.0 - step(0.3, st.g)) * (1.0 - cured);
 	vec3 ecol = mix(vec3(0.3, 0.95, 0.55), vec3(1.0, 0.72, 0.15), smoothstep(0.3, 0.6, st.r));
 	ecol = mix(ecol, vec3(1.0, 0.18, 0.12), smoothstep(0.6, 0.8, st.r));
 	float erate = mix(3.0, 12.0, smoothstep(0.5, 0.85, st.r));
-	float ep = edge * edge_view * (0.55 + 0.45 * sin(TIME * erate + (UV.x + UV.y) * 30.0));
+	float ep = edge * edge_view * (0.55 + 0.45 * sin(TIME * erate + (nuv.x + nuv.y) * 30.0));
 	col = mix(col, ecol, ep * 0.75);
 	EMISSION = vcol * vp * 0.35 + vec3(0.72, 1.0, 0.86) * sp * 0.3 + ecol * ep * 0.6;
 	ALBEDO = col;

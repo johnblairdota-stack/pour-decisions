@@ -32,7 +32,7 @@ const WIND_STOP := 54.0     # km/h gust at the boom head: lifting stops
 const RUNWAY_Z := 4.0
 const LAND_TOL := 0.5       # m off the runway stops that still seat
 const SPIN_TOL := 0.3       # rad (about 17 degrees)
-const MAST := Vector3(-20.0, 0.0, -16.0)
+const MAST := Vector3(11.0, 0.0, -23.0)   # off the south side of the link, between the wings
 const CRANE_H := 66.0
 const JIB := 52.0
 const SLING := 2.4
@@ -44,7 +44,10 @@ const WIND_GRACE := 2.0     # s the driver waits for "dog everything" before hol
 const LAYDOWN := Vector3(1.0, 0.0, 10.5)   # where the next section stands on the street, waiting to be slung
 const SLING_TIME := 2.2     # s of slinging: four legs onto the section's top lugs
 const LIFT_K := 2.8         # the crane hoists this much faster lifting off the laydown
-const PIN_HAUL := Vector3(-3.0, 0.0, 6.4)  # the gin wheel at the deck edge the pin sets come up on
+## The gin wheel at the deck edge the pin sets come up on: just past the
+## slab's +z edge, by the pin sets station.
+func _pin_haul() -> Vector3:
+	return Vector3(-3.0, 0.0, game.SC.z + game.BD * 0.5 + 0.4)
 const HAUL_TIME := 2.6      # s of hauling the pin sets up
 
 var game
@@ -955,8 +958,9 @@ func _collide() -> void:
 			_bounce_box(c, Vector2(LAT_X, 0.0), 1.3 + r, "Knock! It's hitting the tower")
 		return
 	# The slab edge
-	if bottom < game.work_y + 1.4 and c.x - r < 8.4 and absf(c.y) - r < 6.6 and load_state == "":
-		var push: float = 8.4 - (c.x - r)
+	var edge_x: float = game.SC.x + game.BW * 0.5 + 0.4
+	if bottom < game.work_y + 1.4 and c.x - r < edge_x and absf(c.y - game.SC.z) - r < game.BD * 0.5 + 0.6 and load_state == "":
+		var push: float = edge_x - (c.x - r)
 		swing.x += push + 0.05
 		if swing_v.x < 0.45:
 			swing_v.x = maxf(-swing_v.x * 0.5, 0.45)
@@ -1020,7 +1024,7 @@ func _update_wreck(delta: float) -> void:
 	if load == null:
 		return
 	var floor_y := 0.0
-	if absf(load.position.x) < 8.6 and absf(load.position.z) < 6.6:
+	if absf(load.position.x - game.SC.x) < game.BW * 0.5 + 0.6 and absf(load.position.z - game.SC.z) < game.BD * 0.5 + 0.6:
 		floor_y = game.work_y
 	if _wreck_landed < 0.0:
 		_wreck_v.y -= G * delta
@@ -1147,7 +1151,7 @@ func _build_pin_haul() -> void:
 	add_child(laydown_mark)
 
 func _gin_top() -> Vector3:
-	return Vector3(PIN_HAUL.x, game.work_y + 1.8, PIN_HAUL.z + 0.82)
+	return Vector3(_pin_haul().x, game.work_y + 1.8, _pin_haul().z + 0.82)
 
 ## Pin sets each frame: sitting on the street, coming up the rope, or up on
 ## the rigger's platform.
@@ -1155,7 +1159,7 @@ func _update_bundle(_delta: float) -> void:
 	var on: bool = active and game.kit == "tower"
 	laydown_mark.visible = false   # (pins come up the haul rope from the base now)
 	if on:
-		laydown_mark.position = Vector3(PIN_HAUL.x, game.work_y, PIN_HAUL.z - 0.9)
+		laydown_mark.position = Vector3(_pin_haul().x, game.work_y, _pin_haul().z - 0.9)
 	haul_rope.visible = false
 	if not on:
 		bundle.visible = false

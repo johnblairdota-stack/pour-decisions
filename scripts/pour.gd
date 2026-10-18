@@ -37,6 +37,11 @@ const DONE := 0.85        # vibrated enough: the poker's job is done here
 var bw := 16.0
 var bd := 12.0
 var dx := 1.0 / 3.0
+## A bigger slab than the old 16 x 12 takes the same truckloads in the same
+## time (game m³ are game scale): each game m³ out of the hose covers this
+## many times more deck, landing in a wider spread to match.
+var vol_k := 1.0
+var splash_r := SPLASH
 var h := PackedFloat32Array()
 var age := PackedFloat32Array()
 var set_h := PackedFloat32Array()    # -1 while workable, else its height when it went off
@@ -89,6 +94,8 @@ func build(width: float, depth: float, columns: Array) -> void:
 	NZ = maxi(4, roundi(bd / dx))
 	mask_n = NX * NZ
 	_bay_c1 = NX
+	vol_k = maxf(1.0, bw * bd / 192.0)
+	splash_r = SPLASH * sqrt(vol_k)
 	h.resize(NX * NZ)
 	age.resize(NX * NZ)
 	set_h.resize(NX * NZ)
@@ -135,6 +142,7 @@ func build(width: float, depth: float, columns: Array) -> void:
 	smat.set_shader_parameter("height_tex", tex)
 	smat.set_shader_parameter("state_tex", state_tex)
 	smat.set_shader_parameter("cell_m", Vector2(dx, dx))
+	smat.set_shader_parameter("slab_size", Vector2(bw, NZ * dx))
 	surface.material_override = smat
 	surface.custom_aabb = AABB(Vector3(-bw * 0.5, -0.2, -bd * 0.5), Vector3(bw, 2.5, bd))
 	add_child(surface)
@@ -213,10 +221,11 @@ func build(width: float, depth: float, columns: Array) -> void:
 
 	# Discharge kernel: a soft round splat, normalised to 1
 	var sum := 0.0
-	for oz in range(-3, 4):
-		for ox in range(-3, 4):
+	var kr := maxi(3, ceili(3.0 * splash_r / dx))
+	for oz in range(-kr, kr + 1):
+		for ox in range(-kr, kr + 1):
 			var d2 := (ox * ox + oz * oz) * dx * dx
-			var w := exp(-d2 / (2.0 * SPLASH * SPLASH))
+			var w := exp(-d2 / (2.0 * splash_r * splash_r))
 			if w > 0.02:
 				_kernel.append([ox, oz, w])
 				sum += w
@@ -379,7 +388,7 @@ func reset() -> void:
 	_upload()
 
 func needed() -> float:
-	return bw * bd * SLAB * float(mask_n) / (NX * NZ)
+	return bw * bd * SLAB * float(mask_n) / (NX * NZ) / vol_k
 
 func _cell(ix: int, iz: int) -> int:
 	return clampi(iz, 0, NZ - 1) * NX + clampi(ix, 0, NX - 1)
@@ -438,7 +447,9 @@ func deposit(local: Vector3, volume: float, fresh := true) -> void:
 	if ix < -2 or ix > NX + 1 or iz < -2 or iz > NZ + 1:
 		spilled += volume
 		return
-	var per_area := volume / (dx * dx)
+	# (the screed's surplus is real concrete moved about, not game m³)
+	var k := vol_k if fresh else 1.0
+	var per_area := volume * k / (dx * dx)
 	for e in _kernel:
 		var c := _cell(ix + e[0], iz + e[1])
 		if not fresh and set_h[c] >= 0.0:
@@ -447,7 +458,7 @@ func deposit(local: Vector3, volume: float, fresh := true) -> void:
 		if mask[c] == 0:
 			# Off the edge of a round slab: over the form and gone
 			if fresh:
-				spilled += add * dx * dx
+				spilled += add * dx * dx / k
 			continue
 		var old := h[c]
 		if set_h[c] < 0.0:
@@ -544,7 +555,7 @@ func _spill(i: int, dt: float, area: float) -> void:
 	if h[i] > FORM_H:
 		var m := (h[i] - FORM_H) * minf(1.0, 3.0 * dt)
 		h[i] -= m
-		spilled += m * area
+		spilled += m * area / vol_k
 
 func _upload() -> void:
 	img.set_data(NX, NZ, false, Image.FORMAT_RF, h.to_byte_array())
@@ -1254,7 +1265,7 @@ func hand_place() -> void:
 	for i in h.size():
 		if reach[i] == 0 and h[i] < need and mask[i] == 1:
 			hand_placed += 1
-			poured += (SLAB - h[i]) * dx * dx
+			poured += (SLAB - h[i]) * dx * dx / vol_k
 			h[i] = SLAB
 	_upload()
 

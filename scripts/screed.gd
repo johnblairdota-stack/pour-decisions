@@ -8,7 +8,7 @@ extends Node3D
 
 const F := preload("res://scripts/factory.gd")
 
-const BOARD := 3.0          # m
+var BOARD := 3.0            # m (a longer board on a bigger slab, set in build)
 const REACH := 0.85         # board ahead of the hands
 const SPEED_K := 0.8        # walking speed while screeding (the bots)
 const PERSON_K := 0.5       # a person screeding: a slow, steady pull, not a jog
@@ -39,6 +39,7 @@ var _input_seen := false
 func build(owner_game) -> void:
 	game = owner_game
 	pour = game.pour
+	BOARD = 3.0 * minf(1.7, sqrt(pour.vol_k))
 	board = Node3D.new()
 	board.add_child(F.box(Vector3(BOARD, 0.11, 0.05), F.mat("steel", true), Vector3.ZERO))
 	board.add_child(F.box(Vector3(BOARD, 0.025, 0.12), F.mat("steel", true), Vector3(0, -0.055, 0.03)))

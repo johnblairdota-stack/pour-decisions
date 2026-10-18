@@ -18,8 +18,8 @@ const FAR := 2500.0           # the haze ring of houses goes out to here
 
 ## Left clear for the game's own site: the building, the boom tower, the pump
 ## and truck bay, and the strip the trucks drive along.
-const SITE_CLEAR := [Rect2(-45, -14, 95, 38), Rect2(-50, 10, 95, 13)]
-const TRUCK_ROAD := Rect2(-47, 11.6, 88, 9.0)
+const SITE_CLEAR := [Rect2(-45, -14, 95, 38), Rect2(-50, 10, 88, 22)]
+const TRUCK_ROAD := Rect2(-44.5, 21.1, 80.0, 9.0)
 ## The map's ground sits a little above the plain grass and under the game's own
 ## hardstand (6 cm) and truck road (4.5 cm), clear of both so nothing flickers.
 const GROUND_Y := 0.02
