@@ -95,7 +95,7 @@ Every person picks one of the named crew with the stick (left/right) and a job (
 | Job | On a pour | On a climb day |
 | --- | --- | --- |
 | **Boom operator** | Walks the deck with the radio remote, steering the hose and pumping bay by bay | Dogman: whistles the crane in |
-| **Truck hand** | The truck bay: waves trucks in, slump-tests the loads and makes the call on each one | Slinger: slings the next section on the laydown, then sends the pins up the haul rope |
+| **Truck hand** | The truck bay: waves trucks in and spots them back onto the hopper, checks each docket against the order, slump-tests the loads that are due one and makes the call | Slinger: slings the next section on the laydown, then sends the pins up the haul rope |
 | **Pump operator** | Watches the pressure gauge on the side of the pump and kills the pump (A) the moment it spikes, points for how fast, then restarts it. A spike is often the line going: kill it, climb up and fix the riser (weeping clamp, burst or blockage), fetching their own parts. Opens the washout valve | Rigger: jacks the frame, pins the new sections |
 | **Poker hand** | Vibrates the concrete as it lands | The tag line |
 | **Screeder** | Strikes the slab flat behind the pokers | A breather (and some staff tricks) |
@@ -113,7 +113,7 @@ Every job's button lights up **gold** at the moment, or in the spot, where press
 | Poker | **Plunge:** you're over a good patch of purple. (When it's done there, or won't reach further, the button goes red and shakes instead: let go.) |
 | Screeder | Board down over vibrated, unscreeded concrete, and "keep pulling" while the board's finishing as it goes |
 | Pump | Kill the pump the moment it spikes (flashes red); restart after a spike (once the line's fixed); stroke the pump before the line goes off; tapping at the blocked pipe; swap a weeping clamp |
-| Truck hand | Wave the next truck in now; each slump test step (the fill at the ring, the rod on 25, the tape on the concrete); the right call on a load (with Load call help on) |
+| Truck hand | Wave the next truck in now; let go of A as the reversing truck's ring glows gold; the docket call (with Load call help on); each slump test step (the fill at the ring, the rod on 25, the tape on the concrete); the right call on a load (with Load call help on) |
 | Pipe guy | Radio the moment the hose puffs or the colour changes |
 | Climb day | Pump the ram, podger in when the holes line up, sling when the hook's down, lower when the load's over the ghost, let go in the hammer's gold band |
 
@@ -227,6 +227,12 @@ Sources: [MixHub: concrete slump test](https://www.mixhub.com.au/guides/concrete
 ### Keeping the hopper fed
 
 A real pump hopper is a small buffer, a minute or two of concrete, and on a good pour it never runs dry. That isn't because it's big: it's a **twin truck feed**. Two agitators back in from the east side by side, their rears just short of the hopper, each with an extra chute section swung in to reach it. One discharges while the next stands by, tested and ready, and the moment the first is empty the second starts. The trucks drive like trucks: they pull up along the road, then reverse onto the hopper on a turning path, and drive forwards out onto the far lane to leave. Only one manoeuvres at a time, and a reversing truck stops dead if anyone is behind it (WorkSafe QLD: nobody stands between a reversing truck and the hopper; twin feeds may need a spotter for each truck). The truck bay and the slump cone sit just south of the hopper, so the truck hand can test the next load while the first one pours, and everything they need sits along one clear lane to the tower: the bay, the **PUMP PANEL** beside the pump, then the parts store at the tower's foot (**CLAMP KITS**, **PIPES** and the **PIN BAGS**) next to the **HAUL ROPE**. No trucks in the way. Run the hopper dry on high and air goes up the line and the hose whips. (The truck pump kit only has room for one truck at a time, because its own outriggers take up the second side.)
+
+**The truck hand's loads.** Each load gives the truck hand something different to do:
+- **Spotting it back.** Wave a truck in with A and you're its spotter: it only reverses while you hold A, and it stops where you let go. Let go when the ring glows gold and the chute's over the hopper ("Spot on!" pays most). Hold on too long and it backs into the hopper. Walk off and the driver backs in on their mirrors.
+- **The docket.** A load that isn't due a slump test still gets its docket checked against the order (40 MPa, 20 mm stone, Riverlight), shown on the truck. Now and then it's the wrong mix (the wrong strength, the wrong stone or another site's load): B sends it back. A pours a right one. Leave it and after a while the driver starts the chute anyway, wrong mix or not.
+- **The slump test** on the first load, every third, and any that looks off (below).
+- **Tight changeovers.** Each new load whose chute opens before the hopper's run low grows a streak, and each one pays more. Let the hopper run low between trucks and the streak's over.
 
 ![The street: twin trucks side by side, the bay south of the hopper, the panel and the parts store on one lane](docs/screenshots/layout.png)
 

@@ -72,6 +72,18 @@ const WATER_HELD := 10.0                 # L/m³ the plant held back
 const SLUMP_PER_L := 4.5                 # mm of slump each L/m³ of water adds
 const SlumpScript := preload("res://scripts/slump.gd")
 const TEST_EVERY := 3                    # a slump test on the first load, then every 3rd
+# The truck hand's other jobs on each load: spotting the truck back onto the
+# hopper (hold A to wave it on, let go on the mark), checking the docket of
+# a load that isn't due a test against the order (now and then it's the
+# wrong mix), and keeping the changeovers tight (a streak while the hopper
+# never runs low between trucks)
+const SPOT_LEN := 2.4                    # s of reversing, waved on the whole way
+const SPOT_SLOW := 0.8                   # past this share of the way it creeps
+const SPOT_BAND := Vector2(0.95, 1.035)  # let go in here: the chute's over the hopper
+const SPOT_BUMP := 1.06                  # this far and it backs into the hopper
+const DOCKET_T := 12.0                   # s the driver waits on a docket before starting anyway
+const MIX_WRONG := 0.15                  # chance a load that isn't tested is the wrong mix
+const ORDER := {"mpa": 40, "stone": 20, "site": "Riverlight"}
 # Once the sample's taken the driver keeps the chute running on trust, slowly,
 # while the test's done: the pour keeps moving. Only so much goes in before
 # the call, and a bad load caught has put that much in already.
@@ -704,7 +716,8 @@ func start_pour(need: float, cfg: Dictionary) -> void:
 	blocked = false
 	block_found = false
 	_clear_job()
-	stats = {"bursts": 0, "whips": 0, "blocks": 0, "bad_loads": 0, "rejected": 0, "unpinned": 0, "jobs": 0, "spikes": 0, "spike_best": -1.0, "spike_missed": 0}
+	stats = {"bursts": 0, "whips": 0, "blocks": 0, "bad_loads": 0, "rejected": 0, "unpinned": 0, "jobs": 0, "spikes": 0, "spike_best": -1.0, "spike_missed": 0, "best_streak": 0, "wrong_mix_caught": 0}
+	streak = 0
 	for t in trucks:
 		(t["node"] as Node).queue_free()
 	trucks.clear()
@@ -1236,8 +1249,29 @@ func _set_truck(t: Dictionary, s: String) -> void:
 	t["t"] = 0.0
 	if s == "back":
 		game.sfx.hit("beep")
+	if s == "pour" and live:
+		_changeover(t)
+
+## A new load's chute opens: if the hopper was still fed, the changeover
+## streak grows (and pays more each time); if it ran low first, it's over.
+func _changeover(t: Dictionary) -> void:
+	var at: Vector3 = (t["node"] as Node3D).position + Vector3(0, 4.6, 0)
+	var who = game.crew.crew.get("line") if game.crew else null
+	if hopper > HOPPER_CAP * 0.12:
+		streak += 1
+		stats["best_streak"] = maxi(int(stats.get("best_streak", 0)), streak)
+		if streak >= 2:
+			game.pop("Tight changeover x%d" % streak, at, Color("ffd23f"))
+			if who != null:
+				game.score.award(who, mini(3 * streak, 15), "Tight changeovers")
+	else:
+		if streak >= 2:
+			game.pop("Hopper ran low: streak over", at, Color("ff9a3d"))
+		streak = 0
 
 func _verdict(t: Dictionary) -> String:
+	if t.get("mix_wrong", "") != "":
+		return "mix"
 	if t["age"] > MAX_AGE:
 		return "old"
 	if t["slump"] > SPEC_SLUMP + SLUMP_TOL:
@@ -1248,7 +1282,15 @@ func _verdict(t: Dictionary) -> String:
 
 func docket_text(t: Dictionary) -> String:
 	if t.get("eyeballed", false):
-		return "Looks right · batched %d min ago" % int(t["age"])
+		var load := ORDER.duplicate()
+		match t.get("mix_wrong", ""):
+			"mpa": load["mpa"] = 32
+			"stone": load["stone"] = 10
+			"site": load["site"] = "Harbour St"
+		var s0 := "ORDER   %d MPa · %d mm stone · %s\nDOCKET %d MPa · %d mm stone · %s · %d min" % [ORDER["mpa"], ORDER["stone"], ORDER["site"], load["mpa"], load["stone"], load["site"], int(t["age"])]
+		if assist() and t["state"] == "docket":
+			s0 += "  ✗ wrong mix" if t.get("mix_wrong", "") != "" else "  ✓"
+		return s0
 	if not t["checked"]:
 		var why: String = t.get("why", "")
 		return ("Slump test: %s · " % why if why != "" else "") + "batched %d min ago · %d L/m³ water held back" % [int(t["age"]), int(WATER_HELD)]
@@ -1343,7 +1385,7 @@ func _update_trucks(delta: float) -> void:
 		var st: String = t["state"]
 		# (the first loads are timed for when the line's primed: they don't
 		# count the setup and start-up against their 90 minutes)
-		if st in ["arrive", "queue", "called", "approach", "back", "bay", "check", "water", "ready"] and game.ops.primed:
+		if st in ["arrive", "queue", "called", "approach", "back", "bay", "check", "water", "ready", "docket"] and game.ops.primed:
 			t["age"] += AGE_RATE * delta
 		var drum: Node3D = node.get_node("Drum")
 		drum.rotate_object_local(Vector3.RIGHT, delta * (3.0 if st == "pour" else 1.0))
@@ -1351,7 +1393,7 @@ func _update_trucks(delta: float) -> void:
 		lab.text = ""
 		var ext: Node3D = node.get_node("ChuteExt")
 		var cside := _chute_side(t)
-		ext.visible = cside != 0.0 and st in ["bay", "check", "water", "ready", "pour"]
+		ext.visible = cside != 0.0 and st in ["bay", "check", "water", "ready", "pour", "docket"]
 		if ext.visible:
 			ext.rotation = Vector3(0, cside * 1.07, -0.12)
 			ext.scale = Vector3(1.12, 1, 1)
@@ -1397,26 +1439,41 @@ func _update_trucks(delta: float) -> void:
 					t["t"] -= delta
 					if fmod(_knock_phase, 0.5) < delta:
 						game.sfx.hit("beep")
-				var u3 := clampf(t["t"] / 2.4, 0.0, 1.0)
-				var e := smoothstep(0.0, 1.0, u3)
-				node.position = _bez(path2[0], path2[1], path2[2], path2[3], e)
-				var tan := _bez_d(path2[0], path2[1], path2[2], path2[3], clampf(e, 0.02, 0.98))
-				node.rotation.y = _yaw_for(-tan)
+				# A spotter waves it on: it only reverses while they hold A, and
+				# stops where they let go. Nobody spotting (or they walk off):
+				# the driver backs in on their mirrors.
+				var spot = t.get("spotter")
+				if spot != null and game.phase_t - float(t.get("spot_seen", -9.0)) > 1.5:
+					t.erase("spotter")
+					spot = null
 				if fmod(t["t"], 0.6) < delta:
 					game.sfx.hit("beep")
-				if u3 >= 1.0:
-					var pose: Array = _slot_pose(sl)
-					node.position = pose[0]
-					node.rotation.y = _yaw_for(pose[1])
-					_set_truck(t, "bay")
-					_backed_in += 1
-					if not _wants_test(t):
-						# Looks right coming down the chute and it isn't due a
-						# test: straight in
-						t["checked"] = true
-						t["eyeballed"] = true
-						accept(t)
-			"bay", "check", "water", "ready":
+				if spot != null or t.has("su"):
+					var su: float = t.get("su", 0.0)
+					var moving: bool = not blocked and (spot == null or bool(t.get("spot_hold", false)))
+					if moving:
+						su += delta / SPOT_LEN * (1.0 if su < SPOT_SLOW else 0.45)
+						if spot == null:
+							su = minf(su, 1.0)
+					t["su"] = su
+					_back_pose(t, path2, su, false)
+					if spot == null:
+						if su >= 1.0:
+							_park(t, sl)
+					elif su >= SPOT_BUMP or (not moving and not blocked and su >= SPOT_BAND.x):
+						_spot_rated(t, su)
+						_park(t, sl)
+				else:
+					var u3 := clampf(t["t"] / SPOT_LEN, 0.0, 1.0)
+					_back_pose(t, path2, u3, true)
+					if u3 >= 1.0:
+						_park(t, sl)
+			"bay", "check", "water", "ready", "docket":
+				if st == "docket" and game.phase_t - float(t.get("touched", game.phase_t - t["t"])) > DOCKET_T:
+					# Nobody's checked it: the driver starts the chute anyway
+					game.pop("Driver didn't wait for the docket check", node.position + Vector3(0, 3.5, 0), Color("ffc72c"))
+					t["tester"] = null
+					accept(t)
 				if st in ["bay", "check"] and game.phase_t - float(t.get("touched", game.phase_t - t["t"])) > DRIVER_T:
 					_driver_test(t)
 				if st in ["bay", "check"] and pouring == null and _trust_feed == null:
@@ -1488,7 +1545,7 @@ func _update_trucks(delta: float) -> void:
 	staged = null
 	var at_pump: Array = []
 	for t in trucks:
-		if t["state"] in ["called", "approach", "back", "bay", "check", "water", "ready", "pour"]:
+		if t["state"] in ["called", "approach", "back", "bay", "check", "water", "ready", "pour", "docket"]:
 			at_pump.append(t)
 	for t in at_pump:
 		if t["state"] == "pour":
@@ -1515,6 +1572,7 @@ func _update_trucks(delta: float) -> void:
 ## The chute running on trust while the slump test's done (from the moment
 ## the sample's in the barrow until the call, up to TRUST_M3).
 var _trust_feed = null
+var streak := 0               # changeovers in a row with the hopper still fed
 func _on_trust(t: Dictionary, delta: float) -> void:
 	if t["checked"] or not t.has("sl") or slump.step_of(t) == "sample":
 		return
@@ -1600,7 +1658,7 @@ func _driver_test(t: Dictionary) -> void:
 
 func needs_check() -> Variant:
 	for t in [bay_truck, staged]:
-		if t != null and t["state"] in ["bay", "check"]:
+		if t != null and t["state"] in ["bay", "check", "docket"]:
 			return t
 	return null
 
@@ -1613,24 +1671,81 @@ func can_wave_in() -> bool:
 
 ## Bay actions shared by a person and the bots: call the next truck in. It
 ## pulls up and reverses onto whichever side of the hopper is free.
-func wave_in() -> bool:
+func wave_in(spotter = null) -> bool:
 	if not can_wave_in():
 		return false
 	var t = _next_queued()
 	t["slot"] = "A" if _slot_free("A") else "B"
+	if spotter != null:
+		# A person waving it on: they spot it all the way back (_bay)
+		t["spotter"] = spotter
+		t["spot_seen"] = game.phase_t
 	_set_truck(t, "called")
 	return true
+
+## The truck's on the hopper: it's due a slump test, or the truck hand checks
+## its docket against the order (now and then it's the wrong mix).
+func _park(t: Dictionary, sl: String) -> void:
+	var node: Node3D = t["node"]
+	var pose: Array = _slot_pose(sl)
+	node.position = pose[0]
+	node.rotation.y = _yaw_for(pose[1])
+	t.erase("spotter")
+	_set_truck(t, "bay")
+	_backed_in += 1
+	if not _wants_test(t):
+		t["checked"] = true
+		t["eyeballed"] = true
+		if _backed_in > 1 and randf() < MIX_WRONG:
+			t["mix_wrong"] = ["mpa", "stone", "site"][randi() % 3]
+		_set_truck(t, "docket")
+
+## Where a reversing truck is, `u` of the way back (past 1: into the hopper).
+func _back_pose(t: Dictionary, path: Array, u: float, eased: bool) -> void:
+	var node: Node3D = t["node"]
+	var e := smoothstep(0.0, 1.0, u) if eased else minf(u, 1.0)
+	node.position = _bez(path[0], path[1], path[2], path[3], e)
+	if u > 1.0:
+		var back: Vector3 = ((path[3] as Vector3) - _bez(path[0], path[1], path[2], path[3], 0.97)).normalized()
+		node.position += back * (u - 1.0) * 12.0
+	var tan := _bez_d(path[0], path[1], path[2], path[3], clampf(e, 0.02, 0.98))
+	node.rotation.y = _yaw_for(-tan)
+
+## How well the spotter stopped it.
+func _spot_rated(t: Dictionary, u: float) -> void:
+	var p = t.get("spotter")
+	var at: Vector3 = (t["node"] as Node3D).position + Vector3(0, 4.0, 0)
+	if u >= SPOT_BUMP:
+		game.pop("Whoa! Backed into the hopper", at, Color("ff4d4d"))
+		game.sfx.hit("clank")
+		if p != null:
+			game.score.award(p, -10, "Trucks spotted in")
+		return
+	var err := absf(u - 1.0)
+	if err < 0.015:
+		game.pop("Spot on!", at, Color("ffd23f"))
+		if p != null:
+			game.score.award(p, 15, "Trucks spotted in")
+	elif err < 0.035:
+		game.pop("Good stop", at, Color("7cd992"))
+		if p != null:
+			game.score.award(p, 8, "Trucks spotted in")
+	else:
+		game.pop("Close enough", at, Color("ffffff"))
+		if p != null:
+			game.score.award(p, 3, "Trucks spotted in")
 
 func accept(t: Dictionary) -> void:
 	var v := _verdict(t)
 	var at: Vector3 = (t["node"] as Node3D).position + Vector3(0, 3.5, 0)
-	game.pop("Good load" if v == "ok" else "Bad load!", at, Color("7cd992") if v == "ok" else Color("ff4d4d"))
+	game.pop("Good load" if v == "ok" else ("Wrong mix going in!" if v == "mix" else "Bad load!"), at, Color("7cd992") if v == "ok" else Color("ff4d4d"))
 	var who = t.get("tester")
 	if who != null:
 		game.score.award(who, 15 if v == "ok" else -25, "Good loads in" if v == "ok" else "Bad load accepted")
 	if v != "ok":
-		t["bad"] = v
-		bad_kind = v
+		# (a weaker mix in the slab: a weak patch where it lands, like a wet one)
+		t["bad"] = "wet" if v == "mix" else v
+		bad_kind = t["bad"]
 		stats["bad_loads"] += 1
 		game.hud.toast("Bad load going in the pump...", 1.6)
 	t["accepted"] = true
@@ -1648,6 +1763,8 @@ func reject(t: Dictionary) -> void:
 	if who != null:
 		game.score.award(who, 15 if _verdict(t) != "ok" else -20, "Bad loads turned away" if _verdict(t) != "ok" else "Good load rejected")
 	stats["rejected"] += 1
+	if _verdict(t) == "mix":
+		stats["wrong_mix_caught"] += 1
 	var in_already: float = t.get("trust_m3", 0.0)
 	if in_already > 0.3 and _verdict(t) != "ok":
 		if who != null:
@@ -2410,15 +2527,31 @@ func _joint_work(p, j: int, delta: float) -> bool:
 ## water or reject. With a truck already discharging, the next one backs in
 ## alongside and gets tested there, ready to go the moment the first is empty.
 func _bay(p, delta: float) -> void:
-	var t = needs_check()
 	slump_cone.visible = false
+	# Spotting a truck back: hold A to wave it on, let go on the mark
+	for tr in trucks:
+		if tr.get("spotter") == p and tr["state"] in ["called", "approach"]:
+			tr["spot_seen"] = game.phase_t   # (still here, waiting for it to come round)
+		if tr["state"] == "back" and tr.get("spotter") == p:
+			tr["spot_seen"] = game.phase_t
+			tr["spot_hold"] = p.action_held()
+			var su: float = tr.get("su", 0.0)
+			p.face((tr["node"] as Node3D).position)
+			p.cue("action", "hold: wave it back" if su < SPOT_BAND.x else "let go: stop!", su / SPOT_BUMP, true, Vector2(SPOT_BAND.x, SPOT_BAND.y) / SPOT_BUMP)
+			if tr["spot_hold"]:
+				var w := sin(tr["t"] * 8.0)
+				p.pose_arms(Vector3(-2.6 + 0.4 * w, 0, -0.3), Vector3(-2.6 - 0.4 * w, 0, 0.3))
+			else:
+				p.pose_arms(Vector3(-3.0, 0, -0.9), Vector3(-3.0, 0, 0.9))
+			return
+	var t = needs_check()
 	if t == null:
 		if can_wave_in():
 			p.cue("action", "wave truck in", -1.0, bay_truck == null or bay_truck["load"] < TRUCK_LOAD * 0.6)
 			# Gold: now's the time, so the next one's on before the hopper runs low
 			p.gold(not p.bot and (bay_truck == null or bay_truck["load"] < TRUCK_LOAD * 0.6))
 			if p.action_pressed():
-				wave_in()
+				wave_in(p)
 				p.pose_arms(Vector3(-2.8, 0, -0.3), Vector3(-2.8, 0, 0.3))
 				p.bounce()
 				game.score.award(p, 5, "Trucks waved in")
@@ -2431,6 +2564,19 @@ func _bay(p, delta: float) -> void:
 	p.face((t["node"] as Node3D).position)
 	t["tester"] = p
 	t["touched"] = game.phase_t
+	if t["state"] == "docket":
+		# Not due a test: check the docket against the order (it's on the
+		# truck). A pours it, B sends a wrong mix back.
+		var ok: bool = right_call(t) == "use"
+		p.cue("action", "docket's right: pour it", -1.0, ok)
+		p.gold(ok)
+		if p.cues.size() < 3:
+			p.cues.append(["B", "wrong mix: send it back", -1.0, not ok, Vector2(-1, -1), not ok, false])
+		if p.action_pressed():
+			decide(p, t, "use")
+		elif p.leave_pressed() and p.held == null:
+			decide(p, t, "reject")
+		return
 	if not t["checked"]:
 		# The slump test, by hand, in its own close-up (slump.gd)
 		t["state"] = "check"
@@ -2482,6 +2628,8 @@ func assist() -> bool:
 ## What a good pump operator does with this load.
 func right_call(t: Dictionary) -> String:
 	# (on what was measured: read the tape wrong and the "right" call is wrong)
+	if t.get("mix_wrong", "") != "":
+		return "reject"
 	if t["age"] > MAX_AGE:
 		return "reject"
 	var m: float = t.get("measured", t["slump"])
@@ -2607,11 +2755,17 @@ func _update_npc(delta: float, in_pour: bool) -> void:
 		if _npc_t <= 0.0:
 			wave_in()
 			_npc_t = 1.4
-	elif bay_truck != null and bay_truck["state"] in ["bay", "check"]:
+	elif bay_truck != null and bay_truck["state"] in ["bay", "check", "docket"]:
 		goal = Vector3(25.2, 0, 9.4)
 		var t: Dictionary = bay_truck
 		if _npc_t <= 0.0:
-			if not t["checked"]:
+			if t["state"] == "docket":
+				if right_call(t) == "use":
+					accept(t)
+				else:
+					reject(t)
+				_npc_t = 1.2
+			elif not t["checked"]:
 				t["checked"] = true
 				_npc_t = 1.6
 			else:

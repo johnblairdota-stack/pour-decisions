@@ -213,12 +213,17 @@ func _tip(p) -> String:
 				return "The line's standing still. A at the PUMP PANEL strokes it so it doesn't go off."
 			return "Watch the gauge on the side of the pump. The moment the needle jumps into the red, A kills the pump."
 		"line":
+			for tr in line.trucks:
+				if tr["state"] in ["called", "approach", "back"] and tr.get("spotter") != null:
+					return "Spot the truck back: hold A to wave it on, and let go when the ring glows gold, with its chute over the hopper. Too far and it backs into the hopper."
 			var chk = line.needs_check()
 			if chk != null:
+				if chk["state"] == "docket":
+					return "Not due a test: read the docket on the truck against the ORDER line above it. Same mix, A pours it. Wrong strength, stone or site, B sends it back before it goes in."
 				if not chk["checked"]:
 					return "Truck in: slump test at the TRUCK BAY. Every step is a hold of A that stops itself: scoop, fill to the ring, rod to 25, strike off, lift steady, lower the tape, then press A to read it. The guide over the close-up shows each step. The truck keeps feeding while you test."
 				return "Your reading against the order, 100 mm ±20: in it, A uses the load. Under 80 (stiff), X adds the water the plant held back, then test again. Over 120, or batched over 90 minutes ago, B sends it back."
 			if line.can_wave_in():
-				return "Wave the next truck back onto the hopper (A at the TRUCK BAY)."
-			return "Keep the trucks coming. Two on the go means the hopper never runs dry."
+				return "Wave the next truck in (A at the TRUCK BAY), then spot it back onto the hopper."
+			return "Keep the trucks coming. Each new load that opens before the hopper runs low grows your changeover streak."
 	return ""
