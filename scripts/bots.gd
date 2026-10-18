@@ -388,7 +388,6 @@ func _boom(p, delta: float) -> void:
 var _hose_goal := Vector3.INF
 var _last_dl := Vector3.ZERO
 var _hose_goal_t := 0.0
-var _last_anchor := Vector3.ZERO
 
 ## The pipe guy: take the end hose from under the boom, walk it to the bin for
 ## the slurry and the washout, and on the pour put it where the boom can't
@@ -443,15 +442,9 @@ func _hose(p, delta: float) -> void:
 	if line.fail_i >= 0 and line.wear > 0.25 and not g.let_burst:
 		ok = false
 	var dl: Vector3 = g._pour_local(g.discharge())
-	if pour.height_at(dl) > pour.SLAB * (1.15 if d.length() <= 0.7 else 1.0):
-		ok = false   # (full here: move on before it heaps up)
-	if pour.bay_of_x(dl.x) > pour.cur_bay:
+	if d.length() > 0.7 and pour.height_at(dl) > pour.SLAB * 1.3:
 		ok = false
-	# The boom swinging over to a new spot drags the hose with it: wait till
-	# it's there
-	var av: float = Vector2(anchor.x - _last_anchor.x, anchor.z - _last_anchor.z).length() / maxf(delta, 0.001)
-	_last_anchor = anchor
-	if av > 2.5:
+	if pour.bay_of_x(dl.x) > pour.cur_bay:
 		ok = false
 	p.ai_action = ok
 
