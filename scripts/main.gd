@@ -1894,6 +1894,10 @@ func _people_line() -> String:
 
 func _process(delta: float) -> void:
 	_frames += 1
+	var now_us := Time.get_ticks_usec()
+	if _frame_us > 0:
+		_frame_ms = lerpf(_frame_ms, (now_us - _frame_us) / 1000.0, 0.05)
+	_frame_us = now_us
 	phase_t += delta
 	work_y = lerpf(work_y, work_target, minf(1.0, delta * 3.0))
 	rig.position.y = work_y
@@ -2197,6 +2201,9 @@ func _update_pour(delta: float) -> void:
 		pour_clock += delta
 	ops.update(delta)
 	_draw_hose()
+	if autotest and fmod(phase_t, 15.0) < delta:
+		# (progress, and how long a frame takes, for long pours)
+		print("[autotest]   pour t=%.0f clock=%.0f fill=%.2f poured=%.1f/%.1f bay=%d/%d edge=%.0f risk=%.2f wall=%ds step=%.1fms frame=%.1fms" % [phase_t, pour_clock, _filled_ratio(), pour.poured, pour.needed(), pour.cur_bay + 1, pour.BAYS, pour.edge_left, pour.at_risk, Time.get_ticks_msec() / 1000, _step_ms, _frame_ms])
 	if autotest and _dbg and fmod(pour_clock, 5.0) < delta and ops.primed:
 		var ts := []
 		for t in line.trucks:
@@ -2282,7 +2289,9 @@ func _update_pour(delta: float) -> void:
 			if hose_holder != null:
 				score.trickle(hose_holder, q * 3.0, "On the end hose")
 	pour.set_splash(pumping and not (ops.wants_bin() and ops.over_bin(discharge())), hose_local)
+	var t0 := Time.get_ticks_usec()
 	pour.step(delta)
+	_step_ms = lerpf(_step_ms, (Time.get_ticks_usec() - t0) / 1000.0, 0.05)
 	pour.show_bays(true)
 
 
@@ -2327,6 +2336,9 @@ func _update_pour(delta: float) -> void:
 		_left = Vector2.ONE
 
 var _left := Vector2.ONE
+var _step_ms := 0.0
+var _frame_ms := 0.0
+var _frame_us := 0
 var _weary_all := OS.get_cmdline_user_args().has("--weary")
 var _bot_badges := OS.get_cmdline_user_args().has("--botcues")   # dev: show bots' cues in the close-ups
 
