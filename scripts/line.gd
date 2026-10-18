@@ -50,6 +50,9 @@ const RACK := Vector3(10.4, 0, 5.4)      # pipe rack: spare 3 m sections
 const PIN_CRATE := Vector3(12.2, 0, 5.0) # bags of tower pins for climb days
 const QUEUE_X := 10.0
 const ROAD_Z := 15.6
+# Where the site road meets the real Angora Road, and which way Angora runs off to MacArthur Avenue
+const ANGORA_X := 39.0
+const ANGORA_DIR := Vector3(0.534, 0, -0.846)
 const HOPPER_CAP := 5.0                  # m³ (game scale)
 const TRUCK_LOAD := 8.0                  # m³, a typical agitator load
 const DISCHARGE := 1.8                   # m³/s out of the chute
@@ -1211,7 +1214,7 @@ func _spawn_truck(waiting: bool, top_up := false) -> void:
 		age += late_extra                       # stuck in traffic
 	var node := _truck_mesh()
 	add_child(node)
-	var t := {"node": node, "state": "arrive", "t": 0.0, "age": age, "slump": slump, "load": load, "checked": false, "verdict": "", "pos": Vector3(-70.0 if not waiting else _slot_x(_queue_count()), 0, ROAD_Z)}
+	var t := {"node": node, "state": "arrive", "t": 0.0, "age": age, "slump": slump, "load": load, "checked": false, "verdict": "", "pos": Vector3(-47.0 if not waiting else _slot_x(_queue_count()), 0, ROAD_Z)}
 	node.position = t["pos"]
 	trucks.append(t)
 	if waiting:
@@ -1296,7 +1299,7 @@ func _back_path(slot: String) -> Array:
 ## The drive out: forwards off the hopper and onto the far lane of the road.
 func _leave_path(slot: String) -> Array:
 	var at: Vector3 = _slot_pose(slot)[0]
-	return [at, at + Vector3(7.0, 0, 0), Vector3(38.0, 0, EXIT_Z), Vector3(46.0, 0, EXIT_Z)]
+	return [at, at + Vector3(7.0, 0, 0), Vector3(37.0, 0, EXIT_Z), Vector3(40.0, 0, EXIT_Z)]
 
 func _yard_busy(except = null) -> bool:
 	for t in trucks:
@@ -1470,9 +1473,11 @@ func _update_trucks(delta: float) -> void:
 			"road":
 				# Pull across into the far lane and head back to the plant
 				var vel := Vector3(9.0, 0, clampf((EXIT_Z - node.position.z) * 1.5, -2.5, 2.5))
+				if node.position.x > ANGORA_X:
+					vel = ANGORA_DIR * 9.0
 				node.position += vel * delta
 				node.rotation.y = _yaw_for(vel)
-				if node.position.x > 160.0:
+				if node.position.z < -70.0:
 					t["state"] = "gone"
 	for t in trucks:
 		if t["state"] == "gone":

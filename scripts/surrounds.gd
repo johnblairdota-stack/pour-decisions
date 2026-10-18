@@ -18,8 +18,8 @@ const FAR := 2500.0           # the haze ring of houses goes out to here
 
 ## Left clear for the game's own site: the building, the boom tower, the pump
 ## and truck bay, and the strip the trucks drive along.
-const SITE_CLEAR := [Rect2(-45, -14, 95, 38), Rect2(-100, 10, 270, 13)]
-const TRUCK_ROAD := Rect2(-100, 11.6, 270, 9.0)
+const SITE_CLEAR := [Rect2(-45, -14, 95, 38), Rect2(-50, 10, 95, 13)]
+const TRUCK_ROAD := Rect2(-47, 11.6, 88, 9.0)
 
 ## Ground colours by land use, drawn in this order (later on top)
 const AREA := {
@@ -105,17 +105,17 @@ static func _ground(root: Node3D, d: Dictionary) -> void:
 		var kind: String = a["kind"]
 		var poly := _v2(a["pts"])
 		if kind == "water":
-			_flat(wt, poly, 0.004, Color.WHITE)
+			_flat(wt, poly, 0.04, Color.WHITE)
 		elif AREA.has(kind):
-			_flat(st, poly, 0.001 + 0.0002 * kinds.find(kind), AREA[kind])
+			_flat(st, poly, 0.01 + 0.002 * kinds.find(kind), AREA[kind])
 	for dr in d["drains"]:
-		_ribbon(wt, _v2(dr["pts"]), dr["w"], 0.005, Color.WHITE, false)
+		_ribbon(wt, _v2(dr["pts"]), dr["w"], 0.045, Color.WHITE, false)
 	for r in d["roads"]:
 		if r["bridge"]:
 			continue
-		_ribbon(st, _v2(r["pts"]), r["w"], 0.006, ROAD, true)
+		_ribbon(st, _v2(r["pts"]), r["w"], 0.05, ROAD, true)
 	for p in d["paths"]:
-		_ribbon(st, _v2(p["pts"]), p["w"], 0.007, PATH, false)
+		_ribbon(st, _v2(p["pts"]), p["w"], 0.055, PATH, false)
 	for pr in d["piers"]:
 		if pr.has("pts"):
 			_flat(st, _v2(pr["pts"]), 0.3, Color("9a968c"))
@@ -378,6 +378,7 @@ static func _solid_mat() -> StandardMaterial3D:
 static func _vertex_mat() -> StandardMaterial3D:
 	var m := StandardMaterial3D.new()
 	m.vertex_color_use_as_albedo = true
+	m.vertex_color_is_srgb = true
 	m.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
 	m.specular_mode = BaseMaterial3D.SPECULAR_TOON
 	m.roughness = 0.9
