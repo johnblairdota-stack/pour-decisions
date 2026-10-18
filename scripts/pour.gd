@@ -15,8 +15,12 @@ extends Node3D
 const F := preload("res://scripts/factory.gd")
 const SURFACE := preload("res://shaders/concrete.gdshader")
 
-const NX := 48
-const NZ := 36
+## Grid size: 48 x 36 on the old 16 x 12 slab; bigger slabs get coarser cells
+## so the grid stays near MAX_CELLS (it's stepped every frame in GDScript)
+var NX := 48
+var NZ := 36
+const CELL_MIN := 1.0 / 3.0   # m, the finest cell
+const MAX_CELLS := 4200
 const SLAB := 0.25        # finished slab thickness, m
 const FORM_H := 0.45      # edge form height; concrete above it spills over
 const REPOSE := 0.24      # steepest slope (rise/run) fresh concrete holds
@@ -25,7 +29,7 @@ const SEEP_K := 0.22      # slow self-levelling seep below that slope
 const SEEP_MIN := 0.07    # thinner than this and it stops creeping
 const SPLASH := 0.42      # m, spread of the hose discharge where it lands
 const BAR := 0.045        # drawn rebar thickness (chunkier than real N16 so it reads)
-const BAYS := 4           # pour plan: bays from the far end back to the boom
+var BAYS := 4             # pour plan: bays from the far end back to the boom
 const SET_MIN_H := 0.08   # thinner than this doesn't count as having gone off
 const COLD_RISE := 0.05   # fresh concrete this deep over gone-off concrete = cold joint
 const DONE := 0.85        # vibrated enough: the poker's job is done here
@@ -52,7 +56,7 @@ var out_of_seq := 0.0     # m³ placed ahead of the bay being poured
 var rain_m3 := 0.0        # m³ placed during heavy rain
 var hand_placed := 0      # cells beyond the boom's reach the crew had to place by hand
 var cur_bay := 0
-var bay_cov: Array[float] = [0.0, 0.0, 0.0, 0.0]
+var bay_cov: Array[float] = []
 var img: Image
 var tex: ImageTexture
 var state_img: Image
@@ -79,7 +83,12 @@ var _t := 0.0
 func build(width: float, depth: float, columns: Array) -> void:
 	bw = width
 	bd = depth
+	dx = maxf(CELL_MIN, sqrt(bw * bd / MAX_CELLS))
+	NX = maxi(4, roundi(bw / dx))
 	dx = bw / NX
+	NZ = maxi(4, roundi(bd / dx))
+	mask_n = NX * NZ
+	_bay_c1 = NX
 	h.resize(NX * NZ)
 	age.resize(NX * NZ)
 	set_h.resize(NX * NZ)
@@ -116,7 +125,7 @@ func build(width: float, depth: float, columns: Array) -> void:
 	state_img = Image.create(NX, NZ, false, Image.FORMAT_RGBA8)
 	state_tex = ImageTexture.create_from_image(state_img)
 	var pm := PlaneMesh.new()
-	pm.size = Vector2(bw, bd)
+	pm.size = Vector2(bw, NZ * dx)
 	pm.subdivide_width = NX * 2 - 1
 	pm.subdivide_depth = NZ * 2 - 1
 	surface = MeshInstance3D.new()
@@ -125,7 +134,7 @@ func build(width: float, depth: float, columns: Array) -> void:
 	smat.shader = SURFACE
 	smat.set_shader_parameter("height_tex", tex)
 	smat.set_shader_parameter("state_tex", state_tex)
-	smat.set_shader_parameter("cell_m", Vector2(dx, bd / NZ))
+	smat.set_shader_parameter("cell_m", Vector2(dx, dx))
 	surface.material_override = smat
 	surface.custom_aabb = AABB(Vector3(-bw * 0.5, -0.2, -bd * 0.5), Vector3(bw, 2.5, bd))
 	add_child(surface)
@@ -358,7 +367,8 @@ func reset() -> void:
 	rain_m3 = 0.0
 	hand_placed = 0
 	cur_bay = 0
-	bay_cov = [0.0, 0.0, 0.0, 0.0]
+	bay_cov.resize(BAYS)
+	bay_cov.fill(0.0)
 	_coverage = 0.0
 	_reach_cov = 0.0
 	smat.set_shader_parameter("cured", 0.0)
@@ -543,8 +553,10 @@ func _upload() -> void:
 	var nr := 0
 	var rcount := 0
 	var need := SLAB * 0.85
-	var bn: Array[int] = [0, 0, 0, 0]
-	var bt: Array[int] = [0, 0, 0, 0]
+	var bn: Array[int] = []
+	var bt: Array[int] = []
+	bn.resize(BAYS)
+	bt.resize(BAYS)
 	var oldest := 0.0
 	var edge_oldest := 0.0
 	var risky := 0
@@ -575,7 +587,7 @@ func _upload() -> void:
 	# The wet edge's age is the age of the concrete at the front of the pour
 	# (where the next load goes against it), not the oldest anywhere
 	edge_left = open_time - edge_oldest
-	at_risk = float(risky) / h.size()
+	at_risk = float(risky) / maxf(1.0, mask_n)
 	_reach_cov = float(nr) / maxf(1.0, rcount)
 	# A bay's progress counts only what the boom can reach
 	for b in BAYS:
@@ -932,7 +944,7 @@ func work_left() -> Vector2:
 			raw += 1
 		if h[i] > SLAB * 0.8 and scr[i] < 0.5:
 			rough += 1
-	return Vector2(float(raw), float(rough)) / float(h.size())
+	return Vector2(float(raw), float(rough)) / maxf(1.0, mask_n)
 
 ## A boot sole: a rounded toe, a narrow waist and a heel, with tread bars.
 static func _sole_texture() -> ImageTexture:
@@ -1102,7 +1114,7 @@ func defects() -> Dictionary:
 			n_thick += 1
 			if vib[i] < 0.5:
 				n_void += 1
-	return {"cold": float(n_cold) / h.size(), "voids": float(n_void) / maxf(1.0, n_thick), "bleed": float(n_bleed) / h.size()}
+	return {"cold": float(n_cold) / maxf(1.0, mask_n), "voids": float(n_void) / maxf(1.0, n_thick), "bleed": float(n_bleed) / maxf(1.0, mask_n)}
 
 ## The screed board dragged along the segment a..b (pour-local), cutting the
 ## high spots down to slab level and carrying the surplus (`carry`, m³) along

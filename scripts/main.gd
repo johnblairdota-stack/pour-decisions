@@ -1531,7 +1531,7 @@ func _brief_text() -> String:
 	if cfg["gusty"]:
 		lines.append("GUSTY. The boom parks over %d km/h until it eases." % int(BOOM_WIND))
 	lines.append("")
-	lines.append("Pour plan: 4 bays, far end first, back toward the boom. Keep the edge wet.")
+	lines.append("Pour plan: %d bays, far end first, back toward the boom. Keep the edge wet." % pour.BAYS)
 	return "\n".join(lines)
 
 # ------------------------------------------------------------------ phases
@@ -1612,9 +1612,9 @@ func _plan_incidents() -> Array:
 		2, 3:
 			var per_bay: bool = lvl == 3 or k >= 2
 			if per_bay:
-				for b in 4:
+				for b in pour.BAYS:
 					var kind := "block" if randf() < (0.3 if lvl == 3 else 0.15) else "clamp"
-					out.append({"at": (b + randf_range(0.15, 0.7)) / 4.0, "kind": kind})
+					out.append({"at": (b + randf_range(0.15, 0.7)) / float(pour.BAYS), "kind": kind})
 			else:
 				out.append({"at": randf_range(0.2, 0.55), "kind": "clamp"})
 	return out
@@ -3360,7 +3360,7 @@ func _tickets() -> Array:
 		var cov: float = clampf(pour.bay_cov[b], 0.0, 1.0)
 		var state := "edge fresh" if left >= 0.55 else ("edge ageing" if left >= 0.3 else "EDGE GOING OFF")
 		var bar := UI.GREEN if left >= 0.55 else (UI.YELLOW if left >= 0.3 else UI.RED)
-		out.append({"icon": "E", "text": "Bay %d of 4 · %d%% · %s" % [b + 1, int(cov * 100.0), state], "frac": cov, "bar": bar, "color": UI.ROLE["boom"], "role": "boom", "urgent": left < 0.3})
+		out.append({"icon": "E", "text": "Bay %d of %d · %d%% · %s" % [b + 1, pour.BAYS, int(cov * 100.0), state], "frac": cov, "bar": bar, "color": UI.ROLE["boom"], "role": "boom", "urgent": left < 0.3})
 	if pour.at_risk > 0.01:
 		out.append({"icon": "V", "text": "Going off unvibrated", "frac": 1.0 - minf(1.0, pour.at_risk * 8.0), "color": UI.ROLE["poker"], "role": "poker", "urgent": true})
 	# Pump and trucks
@@ -3442,7 +3442,7 @@ func _update_hud() -> void:
 				hud.set_task("Start-up · prime the line", ("%s · %s" % [tk2[0], tk2[1]]) if not tk2.is_empty() else "")
 				hud.set_progress(float(tk2[3]) if not tk2.is_empty() else 0.0)
 			else:
-				hud.set_task("Pour · bay %d of 4" % (pour.cur_bay + 1), sub)
+				hud.set_task("Pour · bay %d of %d" % [pour.cur_bay + 1, pour.BAYS], sub)
 				hud.set_progress(_filled_ratio())
 		"screed", "cure":
 			hud.set_task("")   # (the slab report's up)
