@@ -679,7 +679,8 @@ func _bay(p, urgent_only: bool) -> bool:
 	# Spotting the truck it waved in: wave it on, let go about on the mark
 	for tr in line.trucks:
 		if tr["state"] in ["called", "approach", "back"] and tr.get("spotter") == p:
-			if walk(p, bay, 0.6) and tr["state"] == "back":
+			walk(p, bay, 0.6)
+			if tr["state"] == "back":
 				if not tr.has("bot_stop"):
 					tr["bot_stop"] = 1.0 + randf_range(-1.0, 1.0) * [0.05, 0.03, 0.015][game.score.bot_tier]
 				p.ai_action = float(tr.get("su", 0.0)) < float(tr["bot_stop"])

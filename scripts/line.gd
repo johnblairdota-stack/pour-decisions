@@ -82,6 +82,7 @@ const SPOT_SLOW := 0.8                   # past this share of the way it creeps
 const SPOT_BAND := Vector2(0.95, 1.035)  # let go in here: the chute's over the hopper
 const SPOT_BUMP := 1.06                  # this far and it backs into the hopper
 const DOCKET_T := 12.0                   # s the driver waits on a docket before starting anyway
+const SPOT_WAIT := 5.0                   # s a spotted truck sits waiting before the driver backs in alone
 const MIX_WRONG := 0.15                  # chance a load that isn't tested is the wrong mix
 const ORDER := {"mpa": 40, "stone": 20, "site": "Riverlight"}
 # Once the sample's taken the driver keeps the chute running on trust, slowly,
@@ -1446,11 +1447,18 @@ func _update_trucks(delta: float) -> void:
 				if spot != null and game.phase_t - float(t.get("spot_seen", -9.0)) > 1.5:
 					t.erase("spotter")
 					spot = null
+				# (a spotter who waved it in and then stands there: the driver
+				# gives up waiting and backs in on their own)
+				if spot != null and float(t.get("spot_idle", 0.0)) > SPOT_WAIT:
+					game.pop("Driver's backing in on their own", node.position + Vector3(0, 4.0, 0), Color("ffc72c"))
+					t.erase("spotter")
+					spot = null
 				if fmod(t["t"], 0.6) < delta:
 					game.sfx.hit("beep")
 				if spot != null or t.has("su"):
 					var su: float = t.get("su", 0.0)
 					var moving: bool = not blocked and (spot == null or bool(t.get("spot_hold", false)))
+					t["spot_idle"] = 0.0 if moving or blocked else float(t.get("spot_idle", 0.0)) + delta
 					if moving:
 						su += delta / SPOT_LEN * (1.0 if su < SPOT_SLOW else 0.45)
 						if spot == null:
@@ -1476,7 +1484,7 @@ func _update_trucks(delta: float) -> void:
 					accept(t)
 				if st in ["bay", "check"] and game.phase_t - float(t.get("touched", game.phase_t - t["t"])) > DRIVER_T:
 					_driver_test(t)
-				if st in ["bay", "check"] and pouring == null and _trust_feed == null:
+				if st in ["bay", "check", "docket"] and pouring == null and _trust_feed == null:
 					_on_trust(t, delta)
 				if st == "water" and t["t"] > 3.0:
 					# The driver's added the water held back and mixed it in
@@ -1574,7 +1582,8 @@ func _update_trucks(delta: float) -> void:
 var _trust_feed = null
 var streak := 0               # changeovers in a row with the hopper still fed
 func _on_trust(t: Dictionary, delta: float) -> void:
-	if t["checked"] or not t.has("sl") or slump.step_of(t) == "sample":
+	# (a docket being read: the driver's already started the chute)
+	if t["state"] != "docket" and (t["checked"] or not t.has("sl") or slump.step_of(t) == "sample"):
 		return
 	var room := TRUST_M3 - float(t.get("trust_m3", 0.0))
 	var flow := minf(TRUST_Q * delta, minf(minf(t["load"], room), HOPPER_CAP - hopper))
@@ -1587,7 +1596,7 @@ func _on_trust(t: Dictionary, delta: float) -> void:
 	# A wet load bleeds where it lands (half the harm, mixed with good concrete
 	# in the hopper). A stiff or old one caught in time is diluted enough not
 	# to pack the line: it costs points at the call instead (reject).
-	if _verdict(t) == "wet":
+	if _verdict(t) in ["wet", "mix"]:
 		bad_volume += flow * 0.5
 		bad_kind = "wet"
 
