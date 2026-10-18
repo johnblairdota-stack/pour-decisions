@@ -1,27 +1,46 @@
-## The real surroundings of Riverlight at Hamilton Reach, Brisbane, built from
-## primitives: the river, the park and the RiverWalk, the Hamilton Reach
-## neighbours, the golf course, Bulimba across the water, the CBD far upstream,
-## the Gateway Bridge downstream and a CityCat running to the terminal.
-## Sources: /mnt/project-files/visuals/riverlight-site-reference.md.
+## The real surroundings of Riverlight at Hamilton Reach, Brisbane. The streets,
+## footpaths, parks, the golf course, the river and every building within
+## about 1.6 km come from OpenStreetMap (data/riverlight_osm.json, made by
+## tools/osm_to_game.py; map data (c) OpenStreetMap contributors, ODbL 1.0).
+## Past that: houses in the haze, the CBD upstream and the Gateway Bridge
+## downstream. Sources: /mnt/project-files/visuals/riverlight-site-reference.md.
 ##
-## The site plan has the river at -z. Riverlight looks south over the river, so
-## seen from the site the city's upstream on the right (+x) and the Gateway
-## Bridge downstream on the left (-x), as they are from the real building.
-## Distances past the river are squeezed to about half, so the haze leaves
-## something to see.
+## Frame: metres from Riverlight's centroid, turned so the building's long side
+## lies along x. +x is west (upstream, the city), +z is north, so the river's
+## at -z, about 185 m south of the building, as on the real site.
 extends RefCounted
 
 const F := preload("res://scripts/factory.gd")
 
-const RIVER_N := -34.0       # the near bank (the RiverWalk's on it)
-const RIVER_W := 380.0       # the Brisbane River's about 400 m wide here
-const RIVER_S := RIVER_N - RIVER_W
-const GATEWAY_X := -1300.0   # the Gateway Bridge, about 3 km downstream
-const TERMINAL := Vector3(-150.0, 0.0, RIVER_N - 12.0)   # Northshore Hamilton CityCat
+const DATA := "res://data/riverlight_osm.json"
+const NEAR := 1600.0          # the map data reaches this far
+const FAR := 2500.0           # the haze ring of houses goes out to here
 
+## Left clear for the game's own site: the building, the boom tower, the pump
+## and truck bay, and the strip the trucks drive along.
+const SITE_CLEAR := [Rect2(-45, -14, 95, 38), Rect2(-100, 10, 270, 13)]
+const TRUCK_ROAD := Rect2(-100, 11.6, 270, 9.0)
+
+## Ground colours by land use, drawn in this order (later on top)
+const AREA := {
+	"residential": Color("b9b6a4"), "industrial": Color("c9c4bd"), "vacant": Color("a39a68"),
+	"golf": Color("7fae58"), "park": Color("78a457"), "scrub": Color("5d7f45"),
+	"pitch": Color("6fae5c"), "parking": Color("8e9196"), "paving": Color("c8c4ba"),
+	"beach": Color("e6d7aa"), "golf_water": Color("4f6660"), "bridge": Color("9a9a96"),
+}
+const ROAD := Color("4a4e55")
+const PATH := Color("cfcabd")
 const ROOFS := [Color("8a9096"), Color("5e6670"), Color("b4634a"), Color("e8e6df"), Color("9c8b74"), Color("6f7a72")]
 const WALLS := [Color("f1eee6"), Color("e5ddcc"), Color("d7dde0"), Color("f4f2ec")]
 const LEAVES := [Color("4f7d43"), Color("5d8a48"), Color("426b3c"), Color("6b9150")]
+const BUILDING := {
+	"industrial": [Color("cfccc4"), Color("b6bcc0")], "warehouse": [Color("c9c6bd"), Color("aab0b4")],
+	"apartments": [Color("f1efe9"), Color("e8e8e4")], "school": [Color("e2d8c4"), Color("b4634a")],
+	"commercial": [Color("dcd8d0"), Color("b6bcc0")], "retail": [Color("e8dcc8"), Color("b6bcc0")],
+	"office": [Color("c9d3d8"), Color("e8e8e4")], "house": [Color("f1eee6"), Color("8a9096")],
+	"shed": [Color("b8b4aa"), Color("a9adb0")], "roof": [Color("e8e6df"), Color("dcdcd6")],
+}
+const CONTAINERS := [Color("b04a3a"), Color("2f5f8f"), Color("6f7a72"), Color("c98a3a"), Color("e8e6df")]
 
 static func build(root: Node3D) -> void:
 	var ground := MeshInstance3D.new()
@@ -30,140 +49,240 @@ static func build(root: Node3D) -> void:
 	ground.mesh = pm
 	ground.material_override = F.mat("grass")
 	root.add_child(ground)
-	root.add_child(F.box(Vector3(8000, 0.05, 9), F.mat("road"), Vector3(0, 0.03, 16), false))
-	root.add_child(F.box(Vector3(8000, 0.05, RIVER_W), _water(), Vector3(0, 0.04, RIVER_N - RIVER_W * 0.5), false))
-	# Rock revetment along both banks, and the RiverWalk path on the near one
-	root.add_child(F.box(Vector3(8000, 0.3, 2.0), F.mat("rock"), Vector3(0, 0.05, RIVER_N - 0.6), false))
-	root.add_child(F.box(Vector3(8000, 0.3, 2.0), F.mat("rock"), Vector3(0, 0.05, RIVER_S + 0.6), false))
-	root.add_child(F.box(Vector3(8000, 0.06, 4), F.mat("podium"), Vector3(0, 0.05, -28), false))
-	# Kingsford Smith Drive, up behind the site
-	root.add_child(F.box(Vector3(8000, 0.05, 22), F.mat("road"), Vector3(0, 0.03, 330), false))
-
+	# The game's truck lane in from the street
+	root.add_child(F.box(Vector3(TRUCK_ROAD.size.x, 0.05, TRUCK_ROAD.size.y), F.mat("road"),
+		Vector3(TRUCK_ROAD.get_center().x, 0.03, TRUCK_ROAD.get_center().y), false))
+	var d := _load()
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 2017
-	_park(root, rng)
-	_neighbours(root)
-	_sheds(root)
-	_golf(root, rng)
-	_suburbs(root, rng)
+	if d.is_empty():
+		push_warning("surrounds: %s missing, the world's bare" % DATA)
+	else:
+		_ground(root, d)
+		_buildings(root, d, rng)
+		_trees(root, d, rng)
+		_lamps(root, d)
+		_haze_ring(root, d, rng)
+		_gateway(root, d)
+		for fe in d.get("ferry", []):
+			_terminal(root, fe)
+			_citycat(root, fe, d.get("cat_route", []))
 	_cbd(root, rng)
-	_gateway(root)
-	_terminal(root)
-	_citycat(root)
 
-## Northshore Riverside Park between the site and the river: lawn, big shade
-## trees, and palms along the RiverWalk.
-static func _park(root: Node3D, rng: RandomNumberGenerator) -> void:
-	for x in [-72.0, -46.0, -24.0, 2.0, 26.0, 50.0, 78.0]:
-		_palm(root, Vector3(x + rng.randf_range(-3, 3), 0, -31.5 + rng.randf_range(-1, 1)), rng)
-	for p in [Vector3(-60, 0, -18), Vector3(-34, 0, -22), Vector3(40, 0, -20), Vector3(66, 0, -16), Vector3(96, 0, -22)]:
-		_fig(root, p, rng.randf_range(4.5, 6.0))
+static func _load() -> Dictionary:
+	if not FileAccess.file_exists(DATA):
+		return {}
+	var parsed = JSON.parse_string(FileAccess.get_file_as_string(DATA))
+	return parsed if parsed is Dictionary else {}
 
-static func _palm(root: Node3D, at: Vector3, rng: RandomNumberGenerator) -> void:
-	var h := rng.randf_range(6.5, 9.0)
-	var lean := Vector3(rng.randf_range(-0.6, 0.6), 0, rng.randf_range(-0.6, 0.6))
-	var top := at + Vector3(0, h, 0) + lean
-	var trunk := F.beam(at, top, 0.32, F.mat("palm_trunk"))
-	trunk.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	root.add_child(trunk)
-	for i in 7:
-		var a := TAU * i / 7.0 + rng.randf() * 0.4
-		var tip := top + Vector3(cos(a) * 2.6, -1.1, sin(a) * 2.6)
-		var mid := top + Vector3(cos(a) * 1.3, 0.35, sin(a) * 1.3)
-		root.add_child(F.beam(top, mid, 0.22, F.mat("palm")))
-		root.add_child(F.beam(mid, tip, 0.18, F.mat("palm")))
+static func _v2(pts: Array) -> PackedVector2Array:
+	var out := PackedVector2Array()
+	for p in pts:
+		out.append(Vector2(p[0], p[1]))
+	# (the data closes each ring; the triangulator wants it open)
+	if out.size() > 2 and out[0].is_equal_approx(out[out.size() - 1]):
+		out.remove_at(out.size() - 1)
+	return out
 
-static func _fig(root: Node3D, at: Vector3, r: float) -> void:
-	root.add_child(F.cylinder(0.6, 3.2, F.mat("trunk"), at + Vector3(0, 1.6, 0), 8))
-	var crown := F.sphere(r, F.mat("tree"), at + Vector3(0, 3.0 + r * 0.45, 0))
-	crown.scale = Vector3(1.0, 0.8, 1.0)
-	root.add_child(crown)
+static func _clear(p: Vector2) -> bool:
+	for r in SITE_CLEAR:
+		if r.has_point(p):
+			return false
+	return true
 
-## Hamilton Reach's other buildings: lower than Riverlight ("it rises above the
-## low rise buildings below"), in the estate's whites, sand and river greys.
-static func _neighbours(root: Node3D) -> void:
-	# [x, z, width, depth, storeys, facade]
-	var blocks := [
-		[-56.0, -6.0, 18.0, 22.0, 7, Color("f1efe9")],
-		[-84.0, 22.0, 24.0, 16.0, 6, Color("e2d8c4")],
-		[-60.0, 52.0, 30.0, 14.0, 5, Color("f1efe9")],
-		[-118.0, -12.0, 20.0, 26.0, 8, Color("c9d3d8")],
-		[-146.0, 34.0, 26.0, 18.0, 6, Color("f1efe9")],
-		[-182.0, 0.0, 22.0, 22.0, 5, Color("e2d8c4")],
-		[-34.0, 88.0, 40.0, 12.0, 3, Color("e2d8c4")],
-		[-100.0, 96.0, 44.0, 12.0, 3, Color("d7dde0")],
-		[-170.0, 92.0, 36.0, 12.0, 3, Color("f1efe9")],
-	]
-	for b in blocks:
-		var h: float = float(b[4]) * 3.1
-		var m := F.window_mat(b[5], 0.0, 0.0, Color("566e7d"))
-		var mi := F.box(Vector3(b[2], h, b[3]), m, Vector3(b[0], h * 0.5, b[1]))
-		root.add_child(mi)
-		# Roof slab and plant room in white
-		root.add_child(F.box(Vector3(b[2] + 0.6, 0.5, b[3] + 0.6), F.mat("white"), Vector3(b[0], h + 0.25, b[1]), false))
-		if int(b[4]) >= 5:
-			root.add_child(F.box(Vector3(b[2] * 0.35, 2.4, b[3] * 0.35), F.mat("white"), Vector3(b[0], h + 1.2, b[1]), false))
-	# Street trees along the estate's streets
-	for x in range(-200, -30, 14):
-		for z in [70.0, 112.0]:
-			_fig(root, Vector3(x, 0, z), 2.6)
+# ------------------------------------------------------------------ the ground
 
-## Northshore west of the site in 2017: old wharf sheds and vacant lots.
-static func _sheds(root: Node3D) -> void:
-	for s in [[120.0, -6.0, 70.0, 30.0], [210.0, 30.0, 60.0, 34.0], [150.0, 80.0, 90.0, 26.0]]:
-		var h := 9.0
-		root.add_child(F.box(Vector3(s[2], h, s[3]), F.mat("shed"), Vector3(s[0], h * 0.5, s[1])))
-		var roof := MeshInstance3D.new()
-		var prism := PrismMesh.new()
-		prism.size = Vector3(s[3] + 1.0, 3.0, s[2] + 1.0)
-		roof.mesh = prism
-		roof.material_override = F.mat("shed_roof")
-		roof.position = Vector3(s[0], h + 1.5, s[1])
-		roof.rotation.y = PI * 0.5
-		root.add_child(roof)
-	for lot in [[70.0, 150.0, 80.0, 60.0], [260.0, 120.0, 100.0, 80.0], [330.0, -10.0, 70.0, 40.0]]:
-		root.add_child(F.box(Vector3(lot[2], 0.05, lot[3]), F.mat("dry_grass"), Vector3(lot[0], 0.06, lot[1]), false))
+## Land use, the river, roads, footpaths and drains, all flat and all in two
+## meshes (one for the water, so it can shine). Everything's kept under 1 cm
+## so the game's own slabs and roads sit on top.
+static func _ground(root: Node3D, d: Dictionary) -> void:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var wt := SurfaceTool.new()
+	wt.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var kinds := AREA.keys()
+	for a in d["areas"]:
+		var kind: String = a["kind"]
+		var poly := _v2(a["pts"])
+		if kind == "water":
+			_flat(wt, poly, 0.004, Color.WHITE)
+		elif AREA.has(kind):
+			_flat(st, poly, 0.001 + 0.0002 * kinds.find(kind), AREA[kind])
+	for dr in d["drains"]:
+		_ribbon(wt, _v2(dr["pts"]), dr["w"], 0.005, Color.WHITE, false)
+	for r in d["roads"]:
+		if r["bridge"]:
+			continue
+		_ribbon(st, _v2(r["pts"]), r["w"], 0.006, ROAD, true)
+	for p in d["paths"]:
+		_ribbon(st, _v2(p["pts"]), p["w"], 0.007, PATH, false)
+	for pr in d["piers"]:
+		if pr.has("pts"):
+			_flat(st, _v2(pr["pts"]), 0.3, Color("9a968c"))
+		else:
+			_ribbon(st, _v2(pr["line"]), pr["w"], 0.3, Color("9a968c"), false)
+	var land := MeshInstance3D.new()
+	land.mesh = st.commit()
+	land.material_override = _flat_mat()
+	land.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	root.add_child(land)
+	var water := MeshInstance3D.new()
+	water.mesh = wt.commit()
+	water.material_override = _water()
+	water.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	root.add_child(water)
 
-## The Royal Queensland Golf Club borders Hamilton Reach on the east.
-static func _golf(root: Node3D, rng: RandomNumberGenerator) -> void:
-	var trees: Array = []
-	for f in [[-420.0, 40.0, 260.0, 46.0, 0.2], [-560.0, 170.0, 300.0, 52.0, -0.3], [-760.0, 60.0, 280.0, 48.0, 0.5], [-900.0, 230.0, 240.0, 44.0, 0.1]]:
-		var fw := F.box(Vector3(f[2], 0.05, f[3]), F.mat("fairway"), Vector3(f[0], 0.06, f[1]), false)
-		fw.rotation.y = f[4]
-		root.add_child(fw)
-		var green := F.cylinder(13.0, 0.06, F.mat("green_cut"), Vector3(f[0], 0.1, f[1]) + Vector3(cos(f[4]), 0, -sin(f[4])) * f[2] * 0.5, 20)
-		root.add_child(green)
-		for side in [-1.0, 1.0]:
-			var bunker := F.cylinder(6.0, 0.07, F.mat("sand"), green.position + Vector3(rng.randf_range(-8, 8), 0.03, side * 14.0), 14)
-			bunker.scale = Vector3(1.6, 1, 0.8)
-			root.add_child(bunker)
-		for i in 26:
-			var along: float = rng.randf_range(-0.5, 0.5) * f[2]
-			var across: float = (f[3] * 0.5 + rng.randf_range(6, 16)) * (1.0 if i % 2 == 0 else -1.0)
-			var b := Basis(Vector3.UP, f[4])
-			trees.append(Vector3(f[0], 0, f[1]) + b * Vector3(along, 0, across))
-	_tree_field(root, trees, rng)
+static func _flat(st: SurfaceTool, poly: PackedVector2Array, y: float, c: Color) -> void:
+	if poly.size() < 3:
+		return
+	var idx := Geometry2D.triangulate_polygon(poly)
+	st.set_color(c)
+	st.set_normal(Vector3.UP)
+	for i in idx:
+		st.add_vertex(Vector3(poly[i].x, y, poly[i].y))
 
-## Across the river: Bulimba and Morningside, low houses under big trees. And
-## up behind the site, Hamilton's houses on the hill past Kingsford Smith Drive.
-static func _suburbs(root: Node3D, rng: RandomNumberGenerator) -> void:
+## A strip of width `w` along a line, with round-ish joints so bends don't gap.
+static func _ribbon(st: SurfaceTool, line: PackedVector2Array, w: float, y: float, c: Color, joints: bool) -> void:
+	st.set_color(c)
+	st.set_normal(Vector3.UP)
+	var h := w * 0.5
+	for i in line.size() - 1:
+		var a := line[i]
+		var b := line[i + 1]
+		if a.distance_to(b) < 0.01:
+			continue
+		var n := (b - a).normalized().orthogonal() * h
+		for q in [a + n, a - n, b - n, a + n, b - n, b + n]:
+			st.add_vertex(Vector3(q.x, y, q.y))
+	if not joints:
+		return
+	for i in range(1, line.size() - 1):
+		var p := line[i]
+		for k in 8:
+			var a0 := TAU * k / 8.0
+			var a1 := TAU * (k + 1) / 8.0
+			for q in [p, p + Vector2(cos(a0), sin(a0)) * h, p + Vector2(cos(a1), sin(a1)) * h]:
+				st.add_vertex(Vector3(q.x, y, q.y))
+
+# ------------------------------------------------------------------ buildings
+
+## Every building in the map data, extruded to its height (from its levels
+## where the map has them). Shipping containers get their colours.
+static func _buildings(root: Node3D, d: Dictionary, rng: RandomNumberGenerator) -> void:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for b in d["buildings"]:
+		var poly := _v2(b["pts"])
+		if poly.size() < 3:
+			continue
+		var c := Vector2.ZERO
+		for p in poly:
+			c += p
+		c /= poly.size()
+		if not _clear(c):
+			continue
+		var kind: String = b["kind"]
+		var cols: Array = BUILDING.get(kind, [WALLS[rng.randi() % WALLS.size()], ROOFS[rng.randi() % ROOFS.size()]])
+		if kind == "container":
+			var cc: Color = CONTAINERS[rng.randi() % CONTAINERS.size()]
+			cols = [cc, cc.darkened(0.1)]
+		_extrude(st, poly, float(b["h"]), cols[0], cols[1])
+	var mi := MeshInstance3D.new()
+	mi.mesh = st.commit()
+	mi.material_override = _solid_mat()
+	root.add_child(mi)
+
+static func _extrude(st: SurfaceTool, poly: PackedVector2Array, h: float, wall: Color, roof: Color) -> void:
+	# Which way round the ring goes decides which side of each wall is out
+	var area := 0.0
+	for i in poly.size():
+		var a := poly[i]
+		var b := poly[(i + 1) % poly.size()]
+		area += a.x * b.y - b.x * a.y
+	var turn := 1.0 if area > 0.0 else -1.0
+	st.set_color(wall)
+	for i in poly.size():
+		var a := poly[i]
+		var b := poly[(i + 1) % poly.size()]
+		var e := (b - a).normalized()
+		var out := Vector3(e.y, 0, -e.x) * turn
+		st.set_normal(out)
+		for q in [Vector3(a.x, 0, a.y), Vector3(b.x, 0, b.y), Vector3(b.x, h, b.y),
+				Vector3(a.x, 0, a.y), Vector3(b.x, h, b.y), Vector3(a.x, h, a.y)]:
+			st.add_vertex(q)
+	_flat(st, poly, h, roof)
+
+# ------------------------------------------------------------------ trees and lamps
+
+## The map's own trees, and the parks, the golf course and the scrub planted
+## out at about the density the aerial photos show.
+static func _trees(root: Node3D, d: Dictionary, rng: RandomNumberGenerator) -> void:
+	var at: Array = []
+	for t in d["trees"]:
+		var p := Vector2(t[0], t[1])
+		if _clear(p):
+			at.append(Vector3(p.x, 0, p.y))
+	var per := {"park": 220.0, "golf": 1400.0, "scrub": 70.0}
+	for a in d["areas"]:
+		if not per.has(a["kind"]):
+			continue
+		var poly := _v2(a["pts"])
+		var box := Rect2(poly[0], Vector2.ZERO)
+		for p in poly:
+			box = box.expand(p)
+		if box.get_center().length() > 900.0:
+			continue
+		var n := mini(int(box.get_area() / per[a["kind"]]), 1500)
+		for i in n:
+			var p := Vector2(rng.randf_range(box.position.x, box.end.x), rng.randf_range(box.position.y, box.end.y))
+			if _clear(p) and Geometry2D.is_point_in_polygon(p, poly):
+				at.append(Vector3(p.x, 0, p.y))
+	_tree_field(root, at, rng)
+
+static func _lamps(root: Node3D, d: Dictionary) -> void:
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.use_colors = true
+	var bm := BoxMesh.new()
+	bm.size = Vector3(0.18, 7.0, 0.18)
+	mm.mesh = bm
+	var keep: Array = []
+	for l in d["lamps"]:
+		var p := Vector2(l[0], l[1])
+		if _clear(p) and p.length() < 600.0:
+			keep.append(p)
+	mm.instance_count = keep.size()
+	for i in keep.size():
+		mm.set_instance_transform(i, Transform3D(Basis.IDENTITY, Vector3(keep[i].x, 3.5, keep[i].y)))
+		mm.set_instance_color(i, Color("8a9096"))
+	_add_multi(root, mm, true)
+
+# ------------------------------------------------------------------ out in the haze
+
+## Past the map data: houses under trees out to the haze, wherever there's no
+## water.
+static func _haze_ring(root: Node3D, d: Dictionary, rng: RandomNumberGenerator) -> void:
+	var water: Array = []
+	for a in d["areas"]:
+		if a["kind"] == "water":
+			water.append(_v2(a["pts"]))
 	var houses: Array = []
 	var trees: Array = []
-	for i in 1400:
-		var p := Vector3(rng.randf_range(-1700, 2200), 0, rng.randf_range(RIVER_S - 1300, RIVER_S - 18))
-		if abs(p.x - GATEWAY_X) < 60.0:
+	for i in 2600:
+		var ang := rng.randf() * TAU
+		var r := sqrt(rng.randf_range(NEAR * NEAR, FAR * FAR))
+		var p := Vector2(cos(ang), sin(ang)) * r
+		var wet := false
+		for w in water:
+			if Geometry2D.is_point_in_polygon(p, w):
+				wet = true
+				break
+		if wet:
 			continue
-		houses.append(p)
-	for i in 900:
-		var p := Vector3(rng.randf_range(-1700, 2200), 0, rng.randf_range(RIVER_S - 1300, RIVER_S - 10))
-		trees.append(p)
-	for i in 900:
-		var p := Vector3(rng.randf_range(-1700, 2200), 0, rng.randf_range(350, 1500))
-		if (p.x < -250 and p.z < 500) or abs(p.x - GATEWAY_X) < 60.0:
-			continue
-		houses.append(p)
-		if i % 2 == 0:
-			trees.append(p + Vector3(rng.randf_range(-12, 12), 0, rng.randf_range(-12, 12)))
+		if i % 3 == 0:
+			trees.append(Vector3(p.x, 0, p.y))
+		else:
+			houses.append(Vector3(p.x, 0, p.y))
 	_house_field(root, houses, rng)
 	_tree_field(root, trees, rng)
 
@@ -184,14 +303,13 @@ static func _house_field(root: Node3D, at: Array, rng: RandomNumberGenerator) ->
 	roofs.instance_count = at.size()
 	for i in at.size():
 		var w := rng.randf_range(9, 14)
-		var d := rng.randf_range(10, 16)
+		var dd := rng.randf_range(10, 16)
 		# Queenslanders stand up on stumps: a taller box under the roof
 		var h := rng.randf_range(3.2, 5.5)
-		var yaw := rng.randf() * PI
-		var b := Basis(Vector3.UP, yaw)
-		walls.set_instance_transform(i, Transform3D(b * Basis.from_scale(Vector3(w, h, d)), at[i] + Vector3(0, h * 0.5, 0)))
+		var b := Basis(Vector3.UP, rng.randf() * PI)
+		walls.set_instance_transform(i, Transform3D(b * Basis.from_scale(Vector3(w, h, dd)), at[i] + Vector3(0, h * 0.5, 0)))
 		walls.set_instance_color(i, WALLS[rng.randi() % WALLS.size()])
-		roofs.set_instance_transform(i, Transform3D(b * Basis.from_scale(Vector3(w + 1.0, 2.4, d + 1.0)), at[i] + Vector3(0, h + 1.2, 0)))
+		roofs.set_instance_transform(i, Transform3D(b * Basis.from_scale(Vector3(w + 1.0, 2.4, dd + 1.0)), at[i] + Vector3(0, h + 1.2, 0)))
 		roofs.set_instance_color(i, ROOFS[rng.randi() % ROOFS.size()])
 	_add_multi(root, walls)
 	_add_multi(root, roofs)
@@ -208,18 +326,21 @@ static func _tree_field(root: Node3D, at: Array, rng: RandomNumberGenerator) -> 
 	mm.mesh = sm
 	mm.instance_count = at.size()
 	for i in at.size():
-		var r := rng.randf_range(4.0, 9.0)
-		var b := Basis.from_scale(Vector3(r * 2.0, r * 1.4, r * 2.0))
-		mm.set_instance_transform(i, Transform3D(b, at[i] + Vector3(0, r * 1.1, 0)))
+		var r := rng.randf_range(3.0, 6.5)
+		var b := Basis.from_scale(Vector3(r * 2.0, r * 1.6, r * 2.0))
+		mm.set_instance_transform(i, Transform3D(b, at[i] + Vector3(0, r * 1.3, 0)))
 		mm.set_instance_color(i, LEAVES[rng.randi() % LEAVES.size()])
-	_add_multi(root, mm)
+	_add_multi(root, mm, true)
 
-static func _add_multi(root: Node3D, mm: MultiMesh) -> void:
+static func _add_multi(root: Node3D, mm: MultiMesh, shadows := false) -> void:
 	var mi := MultiMeshInstance3D.new()
 	mi.multimesh = mm
 	mi.material_override = _tinted()
-	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	if not shadows:
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	root.add_child(mi)
+
+# ------------------------------------------------------------------ materials
 
 ## The river: the Brisbane River's olive-brown, glossy enough to pick up the
 ## sky so it reads as water from up high.
@@ -228,74 +349,119 @@ static func _water() -> StandardMaterial3D:
 	m.albedo_color = F.COLORS["river"]
 	m.roughness = 0.12
 	m.metallic_specular = 0.8
+	m.cull_mode = BaseMaterial3D.CULL_DISABLED
 	return m
 
 static var _tint: StandardMaterial3D
+static var _flat_m: StandardMaterial3D
+static var _solid_m: StandardMaterial3D
 
 ## Toon-lit, coloured per instance (for the fields of houses and trees).
 static func _tinted() -> StandardMaterial3D:
 	if _tint == null:
-		_tint = StandardMaterial3D.new()
-		_tint.vertex_color_use_as_albedo = true
-		_tint.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
-		_tint.specular_mode = BaseMaterial3D.SPECULAR_TOON
-		_tint.roughness = 0.9
+		_tint = _vertex_mat()
 	return _tint
 
-## The CBD, about 6 km upstream to the west-south-west, in the haze.
+## The ground meshes: coloured per vertex, seen from either side.
+static func _flat_mat() -> StandardMaterial3D:
+	if _flat_m == null:
+		_flat_m = _vertex_mat()
+		_flat_m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	return _flat_m
+
+static func _solid_mat() -> StandardMaterial3D:
+	if _solid_m == null:
+		_solid_m = _vertex_mat()
+		_solid_m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	return _solid_m
+
+static func _vertex_mat() -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.vertex_color_use_as_albedo = true
+	m.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
+	m.specular_mode = BaseMaterial3D.SPECULAR_TOON
+	m.roughness = 0.9
+	return m
+
+# ------------------------------------------------------------------ landmarks
+
+## The CBD, about 6 km to the west-south-west, brought in to 2.3 km so it shows
+## through the haze.
 static func _cbd(root: Node3D, rng: RandomNumberGenerator) -> void:
-	var centre := Vector3(1900, 0, -1250)
+	var centre := Vector3(4658, 0, -4413).normalized() * 2300.0
 	var tones := [Color("8fa6b8"), Color("a7b7c2"), Color("7d93a6"), Color("c3ccd2"), Color("9aa9b0")]
 	for i in 38:
 		var p := centre + Vector3(rng.randf_range(-260, 260), 0, rng.randf_range(-200, 200))
 		var near := 1.0 - clampf(p.distance_to(centre) / 300.0, 0.0, 1.0)
-		var h := rng.randf_range(40, 90) + near * rng.randf_range(60, 170)
+		var h := rng.randf_range(40, 90) + near * rng.randf_range(60, 180)
 		var w := rng.randf_range(24, 44)
 		var b := F.box(Vector3(w, h, rng.randf_range(24, 44)), F.color_mat(tones[i % tones.size()]), p + Vector3(0, h * 0.5, 0), false)
 		b.rotation.y = rng.randf_range(-0.3, 0.3)
 		root.add_child(b)
 
-## The Gateway Bridge (Sir Leo Hielscher Bridges): twin concrete box girders,
-## 1.6 km long, 260 m main span, the deck 64.5 m over the river.
-static func _gateway(root: Node3D) -> void:
-	var mid := RIVER_N - RIVER_W * 0.5
-	var half := 800.0
+## The Gateway Bridge (Sir Leo Hielscher Bridges), on the map's own line:
+## twin concrete box girders, 1.6 km long, the deck 64.5 m over the river.
+static func _gateway(root: Node3D, d: Dictionary) -> void:
 	var concrete := F.mat("bridge")
-	for x in [GATEWAY_X - 16.0, GATEWAY_X + 16.0]:
-		var n := 32
+	for a in d["areas"]:
+		if a["kind"] != "bridge":
+			continue
+		var poly := _v2(a["pts"])
+		# The long axis of the deck's outline
+		var p0 := poly[0]
+		var far0 := p0
+		for p in poly:
+			if p.distance_to(p0) > far0.distance_to(p0):
+				far0 = p
+		var far1 := far0
+		for p in poly:
+			if p.distance_to(far0) > far1.distance_to(far0):
+				far1 = p
+		var length := far0.distance_to(far1)
+		if length < 1000.0:
+			continue
+		var mid := (far0 + far1) * 0.5
+		var dir := (far1 - far0).normalized()
+		var half := length * 0.5
+		var n := 40
 		var prev := Vector3.ZERO
 		for i in n + 1:
 			var u := -1.0 + 2.0 * i / n
-			var p := Vector3(x, _gateway_deck(u), mid + u * half)
+			var q := mid + dir * u * half
+			var p := Vector3(q.x, _gateway_deck(u), q.y)
 			if i > 0:
 				var seg := F.box(Vector3(22.0, 4.0, prev.distance_to(p) + 0.5), concrete, (prev + p) * 0.5, false)
 				seg.basis = Basis.looking_at(p - prev, Vector3.UP)
 				root.add_child(seg)
 			prev = p
-		# Piers: the two big ones either side of the main span, then the approaches
 		var piers := [-130.0, 130.0]
-		for k in range(1, 9):
+		for k in range(1, 10):
 			piers.append(-130.0 - k * 75.0)
 			piers.append(130.0 + k * 75.0)
-		for z in piers:
-			var u: float = z / half
+		for s in piers:
+			var u: float = s / half
+			if absf(u) > 1.0:
+				continue
 			var h := _gateway_deck(u) - 2.0
 			if h < 2.0:
 				continue
-			var t := 7.0 if absf(z) < 140.0 else 3.5
-			root.add_child(F.box(Vector3(t, h, t * 1.6), concrete, Vector3(x, h * 0.5, mid + z), false))
-		# The main span's girder deepens over the piers (haunches)
-		for z in [-130.0, 130.0]:
-			root.add_child(F.box(Vector3(18.0, 12.0, 40.0), concrete, Vector3(x, _gateway_deck(z / half) - 6.0, mid + z), false))
+			var q := mid + dir * s
+			var t := 7.0 if absf(s) < 140.0 else 3.5
+			var pier := F.box(Vector3(t, h, t * 1.6), concrete, Vector3(q.x, h * 0.5, q.y), false)
+			pier.rotation.y = atan2(dir.x, dir.y)
+			root.add_child(pier)
 
 static func _gateway_deck(u: float) -> float:
 	return 4.0 + 60.5 * (1.0 - u * u)
 
 ## The Northshore Hamilton CityCat terminal: a pontoon with a white and blue
-## shelter, and a gangway to the RiverWalk.
-static func _terminal(root: Node3D) -> void:
+## shelter, and a gangway back to the bank.
+static func _terminal(root: Node3D, fe: Dictionary) -> void:
+	var at := Vector2(fe["at"][0], fe["at"][1])
+	var edge := Vector2(fe["edge"][0], fe["edge"][1])
 	var t := Node3D.new()
-	t.position = TERMINAL
+	t.position = Vector3(at.x, 0, at.y)
+	t.rotation.y = -deg_to_rad(float(fe["bank_deg"]))
 	root.add_child(t)
 	t.add_child(F.box(Vector3(30, 1.0, 9), F.mat("podium"), Vector3(0, 0.3, 0)))
 	t.add_child(F.box(Vector3(26, 0.4, 8), F.mat("white"), Vector3(0, 3.6, 0)))
@@ -303,10 +469,11 @@ static func _terminal(root: Node3D) -> void:
 	for x in [-11.0, 0.0, 11.0]:
 		for z in [-3.5, 3.5]:
 			t.add_child(F.box(Vector3(0.25, 2.6, 0.25), F.mat("white"), Vector3(x, 2.0, z)))
-	t.add_child(F.beam(Vector3(0, 0.8, 4.5), Vector3(0, 0.6, 12.0), 2.2, F.mat("steel")))
+	root.add_child(F.beam(Vector3(at.x, 0.8, at.y), Vector3(edge.x, 0.8, edge.y), 2.2, F.mat("steel")))
 
-## A CityCat comes down from the city, berths at the terminal, and heads back.
-static func _citycat(root: Node3D) -> void:
+## A CityCat comes down the river from the city, berths at the terminal, and
+## heads back.
+static func _citycat(root: Node3D, fe: Dictionary, route: Array) -> void:
 	var boat := Node3D.new()
 	var navy := F.mat("citycat_blue")
 	for z in [-2.6, 2.6]:
@@ -315,14 +482,23 @@ static func _citycat(root: Node3D) -> void:
 	boat.add_child(F.box(Vector3(18, 1.3, 6.4), F.color_mat(Color("2a3a48")), Vector3(-1.0, 3.2, 0)))
 	boat.add_child(F.box(Vector3(19, 0.35, 6.8), F.mat("white"), Vector3(-1.0, 4.0, 0)))
 	boat.add_child(F.box(Vector3(24.2, 0.4, 7.05), navy, Vector3(0, 2.3, 0)))
-	var berth := TERMINAL + Vector3(0, 0, -8.5)
-	var away := Vector3(2300, 0, RIVER_N - RIVER_W * 0.55)
-	boat.position = away
-	var d := berth - away
-	boat.rotation.y = atan2(-d.z, d.x)
+	var at := Vector2(fe["at"][0], fe["at"][1])
+	var edge := Vector2(fe["edge"][0], fe["edge"][1])
+	var berth := at + (at - edge).normalized() * 9.0
+	var pts: Array = []
+	for r in route:
+		pts.append(Vector3(r[0], 0, r[1]))
+	pts.append(Vector3(berth.x, 0, berth.y))
+	boat.position = pts[0]
 	root.add_child(boat)
 	var tw := boat.create_tween().set_loops()
-	tw.tween_property(boat, "position", berth, 150.0).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-	tw.tween_interval(40.0)
-	tw.tween_property(boat, "position", away, 150.0).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
-	tw.tween_interval(20.0)
+	var legs := [pts, pts.duplicate()]
+	legs[1].reverse()
+	for leg in legs:
+		for i in range(1, leg.size()):
+			var a: Vector3 = leg[i - 1]
+			var b: Vector3 = leg[i]
+			var dir := b - a
+			tw.tween_callback(func(): boat.rotation.y = atan2(-dir.z, dir.x))
+			tw.tween_property(boat, "position", b, a.distance_to(b) / 10.0)
+		tw.tween_interval(40.0 if leg == legs[0] else 20.0)
