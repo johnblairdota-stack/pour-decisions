@@ -8,6 +8,7 @@ var game
 var _boom_goal := Vector3.ZERO
 var _boom_goal_t := 0.0
 var _heap_t := 0.0
+var _boom_ok := true    # the boom bot's own say on pumping now
 var _tap_y := -1.0
 var _scr := {"mode": "seek", "x": 0.0, "dir": 1.0, "end": 0.0, "t": 0.0}
 var _spot_tries := {}   # patch -> {n, at, p}: spot pulls tried on it
@@ -403,6 +404,7 @@ func _boom(p, delta: float) -> void:
 		why = "swing"
 	if why != "" and game.autotest:
 		stop_t[why] = float(stop_t.get(why, 0.0)) + delta
+	_boom_ok = ok
 	p.ai_action = ok
 
 # ------------------------------------------------------------------ pipe guy
@@ -469,10 +471,11 @@ func _hose(p, delta: float) -> void:
 	var dl: Vector3 = g._pour_local(g.discharge())
 	var op = g._boom_operator()
 	if op != null and op.bot:
-		var to: Vector3 = _boom_goal - g.tip_target
-		to.y = 0.0
-		if to.length() > 2.5 and pour.height_at(dl) > pour.SLAB * 1.3:
-			ok = false
+		# (the boom bot still judges the swing, the pile-ups and, on a big
+		# slab, the heaps: it moves on from them, the pipe guy holds off)
+		ok = ok and _boom_ok
+	elif pour.vol_k > 1.0 and pour.height_at(dl) > pour.SLAB * 1.5:
+		ok = false
 	if pour.bay_of_x(dl.x) > pour.cur_bay:
 		ok = false
 	p.ai_action = ok
