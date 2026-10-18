@@ -428,6 +428,25 @@ func _hose(p, delta: float) -> void:
 		walk(p, Vector3(tgt.x, g.work_y, tgt.z) - d.normalized() * 0.5, 0.25)
 	else:
 		p.face(Vector3(tgt.x, here.y, tgt.z))
+	if g.ops.wants_bin():
+		return   # (the slurry and the washout: the boom pumps into the bin)
+	# Call the pump on (hold A) when it's worth it, the way the boom bot did
+	# before the call was the pipe guy's: not into an empty hopper, a weeping
+	# clamp or a blocked line, not in the rain or a gust, not while walking off
+	# a spot that's full, and never ahead of the bay being poured
+	var line = g.line
+	var feeding: bool = line.hud_info()["bay"] == "discharging"
+	var ok: bool = line.hopper > 0.25 or feeding and line.hopper > 0.08
+	if pour.raining or g.climb.wind_gust >= g.BOOM_WIND or line.line_down() or line.blocked or line.tripped:
+		ok = false
+	if line.fail_i >= 0 and line.wear > 0.25 and not g.let_burst:
+		ok = false
+	var dl: Vector3 = g._pour_local(g.discharge())
+	if d.length() > 0.7 and pour.height_at(dl) > pour.SLAB * 1.3:
+		ok = false
+	if pour.bay_of_x(dl.x) > pour.cur_bay:
+		ok = false
+	p.ai_action = ok
 
 ## The lowest spot within the end hose's reach that the pour plan wants now.
 func _hose_spot(anchor: Vector3) -> Vector3:

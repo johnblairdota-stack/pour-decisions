@@ -2143,22 +2143,24 @@ func _update_pour(delta: float) -> void:
 		climb._spike_t = 0.0
 	var wind_park: bool = climb.wind_gust >= BOOM_WIND
 
-	var want := false
 	var op = _boom_operator()
-	if op != null and op.action_held() and not wind_park and (_filled_ratio() < 1.0 or ops.wants_bin()):
-		want = true
-	# The pipe guy calling for it (holding A on the end hose) runs a bot boom
-	# operator's trigger; a person on the remote gets the call as a gold cue
-	# (a pipe guy who hasn't called for a while gets the boom carrying on
-	# without them, so nobody stands waiting)
+	# The pipe guy calls the concrete on and off (holding A on the end hose):
+	# the boom operator just keeps the boom over them. The boom's own A only
+	# pumps with nobody on the hose, for the slurry and the washout into the
+	# bin, or once a pipe guy's gone quiet (so nobody stands waiting)
 	var person_hose: bool = hose_holder != null and not hose_holder.bot and not hose_holder.covering
 	# (walking the hose to the next spot isn't being quiet)
 	if person_hose and not hose_call and hose_holder.move_input().length() < 0.2:
 		_hose_quiet_t += delta
 	else:
 		_hose_quiet_t = 0.0
-	if op != null and op.bot and person_hose and ops.primed and not ops.busy() and _hose_quiet_t < HOSE_QUIET:
-		want = hose_call and not wind_park and _filled_ratio() < 1.0
+	var want := false
+	if pipe_calls():
+		want = hose_call
+	elif op != null:
+		want = op.action_held()
+	if wind_park or not (_filled_ratio() < 1.0 or ops.wants_bin()):
+		want = false
 	if _filled_ratio() >= 1.0 and ops.stage == "pour":
 		ops.start_washout()
 	# High or low output is the boom operator's call (X on the remote). With
@@ -2505,25 +2507,17 @@ func _handle_player(p, delta: float) -> void:
 			p.gold(not p.bot and ob)
 		elif not ops.primed or ops.busy():
 			p.say("start-up…" if not ops.primed else "washout…")
+		elif pipe_calls():
+			pass   # (the pipe guy calls the concrete: you keep the boom over them)
 		elif trouble:
 			p.cue("action", "STOP pumping!", -1.0, true, Vector2(-1, -1), true)
 		else:
-			var person_pipe: bool = hose_holder != null and not hose_holder.bot and not hose_holder.covering
-			if person_pipe:
-				# Two people: the pipe guy calls, you pump. Answer the call
-				# quickly (on and off) for the "on the call" bonus
-				p.cue("action", "pump on the call" if not hose_call else "CALLED: pump!", 1.0 if line.pumping else -1.0, hose_call and not line.pumping)
-				if not p.bot:
-					p.gold(hose_call and not blocked_now and line.hopper > 0.1)
-			else:
-				p.cue("action", "pump", 1.0 if line.pumping else -1.0, not blocked_now and line.hopper > 0.3 and not line.pumping)
-				# Gold: the boom's over the leading strip, where the concrete's
-				# wanted (from the boom tip itself: a bot on the hose works
-				# around it, but where you aim is what counts)
-				if not p.bot and not blocked_now and line.hopper > 0.1:
-					p.gold(pour.good_pour_spot(_pour_local(hose_end.global_position)))
-			if person_pipe and not p.bot:
-				_on_the_call(p)
+			p.cue("action", "pump", 1.0 if line.pumping else -1.0, not blocked_now and line.hopper > 0.3 and not line.pumping)
+			# Gold: the boom's over the leading strip, where the concrete's
+			# wanted (from the boom tip itself: a bot on the hose works
+			# around it, but where you aim is what counts)
+			if not p.bot and not blocked_now and line.hopper > 0.1:
+				p.gold(pour.good_pour_spot(_pour_local(hose_end.global_position)))
 		# X: high or low output. The button only shows when it's worth
 		# switching, and flashes red when it's urgent (the hopper emptying).
 		var adv: Dictionary = speed_advice
@@ -2902,10 +2896,6 @@ var hose_call := false          # the pipe guy's calling for concrete (holding A
 var _hose_segs: Array = []      # the end hose drawn to the pipe guy's hands
 const HOSE_REACH := 2.0         # m the end hose reaches from under the boom tip
 const HOSE_QUIET := 6.0         # s without a call before a bot boom carries on regardless
-var _call_on_at := -99.0         # pour clock when the pipe guy last called "pump"
-var _call_off_at := -99.0        # ...and "stop"
-var _was_pumping := false
-const ON_CALL_T := 0.5           # s to answer the call for the "on the call" bonus
 var _hose_quiet_t := 0.0
 const HOSE_WALK_K := 0.55       # walking with the hose: slow and steady
 
@@ -2939,6 +2929,13 @@ func drop_hose() -> void:
 	for s in _hose_segs:
 		(s as Node3D).visible = false
 
+## True when the pipe guy on the end hose is the one turning the pump on and off.
+func pipe_calls() -> bool:
+	if hose_holder == null or not ops.primed or ops.busy():
+		return false
+	var person: bool = not hose_holder.bot and not hose_holder.covering
+	return not (person and _hose_quiet_t >= HOSE_QUIET)
+
 ## The pipe guy on the end hose: walk it where it's wanted (slowly, on a
 ## leash from the boom tip), hold A to call the pump on, B to let go.
 func _hose_work(p, delta: float) -> void:
@@ -2966,29 +2963,17 @@ func _hose_work(p, delta: float) -> void:
 		return
 	var was := hose_call
 	hose_call = p.action_held()
-	p.cue("action", "hold: pump on" if not hose_call else "pumping · let go: off", 1.0 if hose_call else -1.0, _hose_quiet_t > HOSE_QUIET * 0.5)
-	# Gold: you're on the spot where the concrete's wanted
-	p.gold(not p.bot and pour.good_pour_spot(_pour_local(discharge())))
+	# A clamp weeping or a pipe blocked: the button itself tells you to stop
+	if line.fail_i >= 0 or line.blocked or line.line_down():
+		p.cue("action", "STOP: let go!" if hose_call else "line trouble: hold off", -1.0, hose_call, Vector2(-1, -1), hose_call)
+	else:
+		p.cue("action", "hold: pump on" if not hose_call else "pumping · let go: off", 1.0 if hose_call else -1.0, _hose_quiet_t > HOSE_QUIET * 0.5)
+		# Gold: you're on the spot where the concrete's wanted
+		p.gold(not p.bot and pour.good_pour_spot(_pour_local(discharge())))
 	if hose_call and not was:
 		p.bark("Pump it!", 0.9)
 	elif was and not hose_call:
 		p.bark("Stop!", 0.7)
-
-## The boom operator answering the pipe guy's calls: pumping within half a
-## second of "pump it", stopping within half a second of "stop".
-func _on_the_call(p) -> void:
-	var now := pour_clock
-	if hose_call and _call_on_at < _call_off_at:
-		_call_on_at = now
-	elif not hose_call and _call_on_at > _call_off_at:
-		_call_off_at = now
-	var pumping_now: bool = line.pumping
-	if pumping_now and not _was_pumping and hose_call and now - _call_on_at <= ON_CALL_T:
-		score.award(p, 5, "On the call")
-		score.award(hose_holder, 2, "On the call")
-	elif not pumping_now and _was_pumping and not hose_call and now - _call_off_at <= ON_CALL_T:
-		score.award(p, 5, "On the call")
-	_was_pumping = pumping_now
 
 ## The end hose drawn as a sagging run from the boom tip to the pipe guy's hands.
 func _draw_hose() -> void:
