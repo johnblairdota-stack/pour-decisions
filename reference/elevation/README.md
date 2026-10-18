@@ -28,21 +28,24 @@ Downloaded: 2026-10-18
 
 Note: the GeoTIFFs use "sparse" tiles. Empty 128 × 128 tiles have no bytes. GDAL and QGIS read them fine. Some small JavaScript readers (geotiff.js 2.1) crash on them.
 
-## Not done: surface model (DSM), point cloud, building heights
+## Surface model (DSM), building heights and trees (2019 LiDAR)
 
-The brief asked for a DSM or classified point cloud, then a CSV of OSM building heights (DSM minus DEM).
+Made: 2026-10-18, from one LiDAR tile that John ordered from ELVIS.
 
-- ELVIS (https://elevation.fsdf.org.au) lists the right files. For the 9 km² around the site:
-  - 2019 LiDAR point cloud: 9 tiles `Brisbane_2019_Prj_SW_{507000..509000}_{6963000..6965000}_1k_las.zip`, about **945 MB** total.
-  - 2014 LiDAR point cloud: 9 tiles, about 250 MB total.
-  - 2019 1 m DEM tiles: 9 files, about 25 MB.
-- These files are on Amazon S3 with "requester pays" turned on. A direct download returns "AccessDenied". The only free way is the ELVIS order form. It asks for an email address and then emails a download link.
-- There is no free public DSM web service for this area. (The only DSM is the 30 m SRTM one, which is too coarse.)
+- Source tile: `Brisbane_2019_Prj_SW_508000_6964000_1k_class_AHD.laz` (classified point cloud, 84 MB, 17.0 M points). It covers only **E 508000-509000, N 6964000-6965000** (1 km x 1 km). That is the middle of the 1500 m box, with Riverlight in it. The rest of the box has no DSM.
+- Capture: Brisbane 2019 Project, flown **2019-06-11 to 2019-08-16**.
+- Licence: the tile's metadata says "© State of Queensland (Department of Resources) 2023" and "Limited Use Licence". ELVIS lists Queensland LiDAR as CC BY 4.0. Keep the raw tile out of git. Credit the State of Queensland on any copy.
+- The raw tile and the 1 m DSM GeoTIFF are in `lidar_2019/` (in `.gitignore`).
+- Scripts: `tools/lidar/grid.js` then `tools/lidar/products.mjs` (Node, with npm packages laz-perf 0.0.6, geotiff 2.1.3, proj4 2.15.0).
 
-### What John can do (free, about 10 minutes)
+| file | in git | what it is |
+|---|---|---|
+| lidar_2019/qld_dsm_2019_1m_1500m_mga56.tif | no (9 MB) | 1 m DSM (highest point in each cell, noise and water left out). Same 1500 x 1500 box, Float32, EPSG:28356, NaN = no data. |
+| dsm_2019_2m_750px_u16.png | yes | Game-ready DSM, same box and pixels as `heightmap_2m_750px_u16.png`. 2 m pixels (highest of each 2 x 2). **Height in metres = pixel / 500 − 20** (a different scale from the heightmap, so tall buildings fit). 0 = no data. |
+| building_heights.csv | yes | Every OSM building whose centre is within 1.5 km of the Riverlight centre (424). Height above ground = 90th percentile of the DSM inside the footprint − median ground inside the footprint. Ground = the 2019 ground points, with gaps under roofs filled from the sides. Only 43 are inside the tile; the rest say "outside 2019 LiDAR tile". |
+| canopy_height_2019_1m_u8.png | yes | Tree canopy height, 1 m pixels, the 1 km tile only (top-left = E 508000, N 6965000). **Height in metres = pixel / 4.** Uses vegetation points only, and leaves out OSM footprints and building points (grown by 1 m). |
+| tree_points_2019.csv | yes | 2825 tree tops: local highest points (5 x 5 m window) of the canopy height that are over 3 m. lon/lat (WGS84), height above ground, ground height (AHD). |
 
-1. Open https://elevation.fsdf.org.au
-2. Draw a box around Hamilton Northshore (or zoom in and use the select tool).
-3. Under **QLD Government → Point Clouds → AHD**, tick the 9 `Brisbane_2019_Prj` tiles listed above.
-4. Enter your email and submit. Wait for the email. Download the zip files.
-5. Put them in `reference/elevation/lidar_2019/` (this folder is in `.gitignore`). Then ask Claude to make the DSM and the building-height CSV.
+Notes on the capture year:
+- "nothing tall here in 2019: may postdate the capture" means the footprint was under 2.5 m in 2019. **Riverlight North Apartments** is one of these (1.2 m in 2019).
+- "OSM start_date ... postdates the 2019 capture" is added when OSM gives a build year after 2019.
