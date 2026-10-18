@@ -1767,7 +1767,7 @@ func accept(t: Dictionary) -> void:
 
 func reject(t: Dictionary) -> void:
 	if game.autotest:
-		print("[autotest]   rejected: slump %.0f measured %s age %.0f why %s watered %s" % [float(t["slump"]), str(t.get("measured", "-")), float(t["age"]), str(t.get("why", "")), str(t.get("watered", false))])
+		print("[autotest]   rejected: slump %.0f measured %s age %.0f why %s watered %s" % [float(t["slump"]), str(t.get("measured", "-")), float(t["age"]), str(t.get("why", _verdict(t))), str(t.get("watered", false))])
 	game.pop("Rejected", (t["node"] as Node3D).position + Vector3(0, 3.5, 0), Color("ffc23d"))
 	var who = t.get("tester")
 	if who != null:
