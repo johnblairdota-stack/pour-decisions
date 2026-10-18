@@ -1,3 +1,7 @@
 # Godot cache, regenerated when the project opens
 .godot/
 export/
+
+# Reference material kept out of git (copyright or too large)
+reference/plans/*.pdf
+reference/elevation/lidar_2019/
