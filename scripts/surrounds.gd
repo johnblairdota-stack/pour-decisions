@@ -20,6 +20,9 @@ const FAR := 2500.0           # the haze ring of houses goes out to here
 ## and truck bay, and the strip the trucks drive along.
 const SITE_CLEAR := [Rect2(-45, -14, 95, 38), Rect2(-50, 10, 95, 13)]
 const TRUCK_ROAD := Rect2(-47, 11.6, 88, 9.0)
+## The map's ground sits a little above the plain grass and under the game's own
+## hardstand (6 cm) and truck road (4.5 cm), clear of both so nothing flickers.
+const GROUND_Y := 0.02
 
 ## Ground colours by land use, drawn in this order (later on top)
 const AREA := {
@@ -51,7 +54,7 @@ static func build(root: Node3D) -> void:
 	root.add_child(ground)
 	# The game's truck lane in from the street
 	root.add_child(F.box(Vector3(TRUCK_ROAD.size.x, 0.05, TRUCK_ROAD.size.y), F.mat("road"),
-		Vector3(TRUCK_ROAD.get_center().x, 0.03, TRUCK_ROAD.get_center().y), false))
+		Vector3(TRUCK_ROAD.get_center().x, 0.02, TRUCK_ROAD.get_center().y), false))
 	var d := _load()
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 2017
@@ -93,29 +96,24 @@ static func _clear(p: Vector2) -> bool:
 # ------------------------------------------------------------------ the ground
 
 ## Land use, the river, roads, footpaths and drains, all flat and all in two
-## meshes (one for the water, so it can shine). Everything's kept under 1 cm
-## so the game's own slabs and roads sit on top.
+## meshes (one for the water, so it can shine). The converter has already cut
+## them into pieces that don't overlap, so they can all lie at one height
+## without flickering; the game's own slabs and roads sit on top.
 static func _ground(root: Node3D, d: Dictionary) -> void:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var wt := SurfaceTool.new()
 	wt.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var kinds := AREA.keys()
-	for a in d["areas"]:
-		var kind: String = a["kind"]
-		var poly := _v2(a["pts"])
-		if kind == "water":
-			_flat(wt, poly, 0.04, Color.WHITE)
-		elif AREA.has(kind):
-			_flat(st, poly, 0.01 + 0.002 * kinds.find(kind), AREA[kind])
-	for dr in d["drains"]:
-		_ribbon(wt, _v2(dr["pts"]), dr["w"], 0.045, Color.WHITE, false)
-	for r in d["roads"]:
-		if r["bridge"]:
-			continue
-		_ribbon(st, _v2(r["pts"]), r["w"], 0.05, ROAD, true)
-	for p in d["paths"]:
-		_ribbon(st, _v2(p["pts"]), p["w"], 0.055, PATH, false)
+	for g in d.get("ground", []):
+		var kind: String = g["kind"]
+		var wet := kind in ["water", "drain"]
+		var t: SurfaceTool = wt if wet else st
+		t.set_color(Color.WHITE if wet else (ROAD if kind == "road" else (PATH if kind == "path" else AREA.get(kind, ROAD))))
+		t.set_normal(Vector3.UP)
+		var tris: Array = g["tris"]
+		for i in range(0, tris.size() - 5, 6):
+			for k in 3:
+				t.add_vertex(Vector3(tris[i + k * 2], GROUND_Y, tris[i + k * 2 + 1]))
 	for pr in d["piers"]:
 		if pr.has("pts"):
 			_flat(st, _v2(pr["pts"]), 0.3, Color("9a968c"))
