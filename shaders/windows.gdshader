@@ -41,7 +41,7 @@ void fragment() {
 	if (riverlight && abs(wnorm.y) < 0.9) {
 		float band = 1.0 - step(0.05, f.y) * step(f.y, 0.86);
 		float bay = floor(uv.x);
-		float panel = step(panel_every - 0.5, mod(bay, panel_every));
+		float panel = step(panel_every - 1.5, mod(bay, panel_every));
 		float mull = 1.0 - step(0.04, f.x) * step(f.x, 0.96);
 		float rail = step(0.33, f.y) * step(f.y, 0.36);
 		vec3 glass = f.y < 0.34 ? mix(glass_color.rgb, vec3(0.62, 0.70, 0.72), 0.45) : glass_color.rgb;
