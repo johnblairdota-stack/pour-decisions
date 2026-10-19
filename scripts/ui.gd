@@ -151,8 +151,7 @@ const JOB_CARD := {
 			["B", "Put it down", ["put down"]]]},
 	"screed": {"goal": "Strike the slab flat behind the pokers.", "watch": "the gold strip. Don't screed raw, unpoked mix.",
 		"steps": [["A", "Pick up the board", ["take screed", "pick up"]],
-			["A", "Hold and walk back over the gold", ["screed", "stroke"]],
-			["B", "Put it down", ["put down"]]]},
+			["A", "Hold and walk back over the gold", ["screed", "stroke"]]]},
 }
 
 ## What each button does in each job, for the pause menu's "Your job" card and

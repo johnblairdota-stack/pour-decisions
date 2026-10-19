@@ -416,8 +416,7 @@ func _note_for(action: String) -> String:
 		var p = game.crew.crew[role]
 		if not p.bot:
 			return "P%d's on this one." % p.index if p.index != _who else "That's your job now."
-		var why: String = game.swap_blocked(game.crew.human(_who)) if game.crew.human(_who) != null else ""
-		return why if why != "" else "Hold on: A swaps P%d onto it." % _who
+		return "A swaps P%d onto it. A bot takes over your job where you left it." % _who
 	return ""
 
 # ------------------------------------------------------------------ doing
@@ -480,10 +479,6 @@ func _do(action: String) -> void:
 func _swap_to(role: String) -> void:
 	var me = game.crew.human(_who)
 	if me == null or not game.crew.is_bot(role):
-		return
-	var why: String = game.swap_blocked(me)
-	if why != "":
-		_note.text = why
 		return
 	if game.crew.assign(_who, role):
 		game.hud.toast("P%d is on the %s job" % [_who, UI.ROLE_NAME[role].to_lower()], 1.6)

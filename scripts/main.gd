@@ -3243,16 +3243,6 @@ func _call_out(p) -> void:
 	hud.toast(line_text, 2.0)
 	haptic(p, UI.BUZZ["turn"])
 
-## Why this person can't swap jobs right now ("" when they can).
-func swap_blocked(p) -> String:
-	if p.held != null:
-		return "Put down what you're carrying first"
-	if p.tool != "":
-		return "Put the %s down first (B)" % p.tool
-	if p.busy != "":
-		return "Finish up or step off first (B)"
-	return ""
-
 ## `--human=<job>` with `--nocover` keeps a test's idle person idle.
 func autotest_human(_p) -> bool:
 	return autotest and OS.get_cmdline_user_args().has("--nocover")
@@ -4284,8 +4274,11 @@ func _update_camera(delta: float) -> void:
 		var target: Vector3 = v["focus"]
 		var eye: Vector3
 		var lab: Label = inset["label"]
-		# Close-ups leave out the floating labels and glyphs (layer 2)
-		cam.cull_mask = 1 if v["close"] else 0xFFFFF
+		# Close-ups leave out the floating labels and glyphs (layer 2); the
+		# small views of someone off screen keep the name tags but not the
+		# button glyphs (layer 4), which are sized for the main camera and
+		# would fill the view: the badge in the corner shows the button
+		cam.cull_mask = 1 if v["close"] else (0xFFFFF & ~8)
 		cam.fov = 42.0 if v["close"] else 55.0
 		if v["close"]:
 			# Look at the work from outside, a couple of metres off
@@ -4336,7 +4329,7 @@ func _update_camera(delta: float) -> void:
 		# The player's own button cue, for timing what they see in here
 		var badge = inset["badge"]
 		badge.dot_color = role_col
-		var cue: Array = (p.cues[0] as Array).duplicate() if p != null and (not p.bot or _bot_badges) and v["close"] and not p.cues.is_empty() else []
+		var cue: Array = (p.cues[0] as Array).duplicate() if p != null and (not p.bot or _bot_badges) and not p.cues.is_empty() else []
 		if slump_view and not cue.is_empty():
 			cue[1] = ""   # (just the button: the guide strip says the step)
 		badge.show_cue(cue)
