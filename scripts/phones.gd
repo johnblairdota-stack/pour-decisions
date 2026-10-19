@@ -9,10 +9,16 @@
 ##   http://<this computer's address>:8080   the controller page
 ##   ws://<this computer's address>:8081     controller input
 ##
-## Messages from a phone (text): "hello <token>", "m <x> <y>", "d <A|B|X|Y>",
-## "u <A|B|X|Y>". To a phone: "p <player number> <colour hex>",
-## "c <button:verb:hold progress:urgent,...>", "j <role> <colour> <name|job>", "v <ms>",
-## "full". The token lets a phone that drops out reconnect to the same chibi.
+## Messages from a phone (text): "hello <token>", "m <x> <y>", "d <A|B|X|Y|MENU>",
+## "u <A|B|X|Y>", and for picking jobs "pick <job>", "lock", "unlock",
+## "char <1|-1>" (in the lobby) and "swap <job>" (on site, to a job a bot's
+## doing). To a phone: "p <player number> <colour hex>",
+## "c <button:verb:hold progress:urgent:gold,...>", "v <ms pattern>", "full",
+## and "J <json>" for the rest: {t: state} lobby / site / play / pause,
+## {t: roster} who's on each job, {t: card} your job ticket, {t: now} the
+## ticket's live step, {t: gauge} the pump gauge (pump operator), {t: nudge}
+## how long the game's been waiting on you, {t: toast} a short note.
+## The token lets a phone that drops out reconnect to the same chibi.
 extends Node
 
 const PORTS := [[8080, 8081], [8090, 8091], [8180, 8181], [18080, 18081]]
@@ -146,11 +152,16 @@ func _serve_http(delta: float) -> void:
 			elif path == "/icon.png":
 				ctype = "image/png"
 				body = _icon_png()
+			elif path.begins_with("/font/") and FONTS.has(path.substr(6)):
+				# The Site Kit's Barlow, the same as the TV's
+				ctype = "font/ttf"
+				body = _font_bytes(path.substr(6))
 			else:
 				status = "404 Not Found"
 				ctype = "text/plain"
 				body = "not found".to_utf8_buffer()
-			var head := "HTTP/1.1 %s\r\nContent-Type: %s\r\nContent-Length: %d\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n" % [status, ctype, body.size()]
+			var cache := "max-age=86400" if ctype == "font/ttf" else "no-store"
+			var head := "HTTP/1.1 %s\r\nContent-Type: %s\r\nContent-Length: %d\r\nCache-Control: %s\r\nConnection: close\r\n\r\n" % [status, ctype, body.size(), cache]
 			conn.put_data(head.to_utf8_buffer())
 			conn.put_data(body)
 			hc[2] = 98.0
@@ -160,6 +171,13 @@ func _serve_http(delta: float) -> void:
 	_http_conns = _http_conns.filter(func(hc): return hc[2] <= 5.0)
 
 var _icon_cache := PackedByteArray()
+const FONTS := {"head.ttf": "res://fonts/BarlowCondensed-ExtraBold.ttf", "body.ttf": "res://fonts/Barlow-SemiBold.ttf"}
+var _font_cache := {}
+
+func _font_bytes(name: String) -> PackedByteArray:
+	if not _font_cache.has(name):
+		_font_cache[name] = FileAccess.get_file_as_bytes(FONTS[name]) if FileAccess.file_exists(FONTS[name]) else PackedByteArray()
+	return _font_cache[name]
 
 ## The home-screen icon: a yellow hard hat on the night sky, drawn here so
 ## there's no file to ship.
@@ -222,6 +240,9 @@ func _on_message(c: Dictionary, msg: String) -> void:
 			p.ai = true
 			p.remote_id = 1
 			(c["ws"] as WebSocketPeer).send_text("p %d %s" % [p.index, p.tag_color.to_html(false)])
+		"pick", "lock", "unlock", "char", "swap":
+			_on_pick(c, parts)
+			return
 		"m":
 			var p = c["player"]
 			if game.pause_menu.visible:
@@ -238,11 +259,11 @@ func _on_message(c: Dictionary, msg: String) -> void:
 			if parts.size() >= 2 and parts[1] == "MENU":
 				# The phone's menu button pauses (and unpauses) the game
 				if parts[0] == "d":
-					game.pause_menu.toggle()
+					game.pause_menu.toggle(p.index if p != null else -1)
 				return
 			if game.pause_menu.visible:
 				if parts[0] == "d" and parts.size() >= 2:
-					game.pause_menu.phone_button(parts[1])
+					game.pause_menu.phone_button(parts[1], p.index if p != null else -1)
 				return
 			if parts.size() >= 2:
 				var held: Dictionary = c["held"]
@@ -313,19 +334,129 @@ func _send_cues(c: Dictionary) -> void:
 	var list := []
 	for cu in p.cues:
 		if cu[0] in ["A", "B", "X", "Y"]:
-			# button:verb:hold progress (-1 none):urgent
 			var prog: float = cu[2]
-			list.append("%s:%s:%s:%d:%d" % [cu[0], str(cu[1]).replace(" ", "_").replace(":", ""), ("%.2f" % snappedf(prog, 0.05)) if prog >= 0.0 else "-1", 1 if (cu[3] or cu[5]) else 0, 1 if (p.is_gold(cu) and not cu[5]) else 0])
+			# button:verb:hold progress (-1 none):urgent:gold:alarm
+			list.append("%s:%s:%s:%d:%d:%d" % [cu[0], str(cu[1]).replace(" ", "_").replace(":", "").replace(",", ""), ("%.2f" % snappedf(prog, 0.05)) if prog >= 0.0 else "-1", 1 if (cu[3] or cu[5]) else 0, 1 if (p.is_gold(cu) and not cu[5]) else 0, 1 if cu[5] else 0])
 	var text := "c " + ",".join(list)
 	if text != c["last_cues"]:
 		c["last_cues"] = text
 		(c["ws"] as WebSocketPeer).send_text(text)
-	# Who you are and your job, in the job's colour with its icon
-	var col: Color = UI.ROLE.get(p.role, Color.WHITE)
-	var job := "j %s %s %s" % [p.role, col.to_html(false), (p.char_name + "|" + UI.ROLE_NAME.get(p.role, p.role)).replace(" ", "_")]
-	if job != c.get("last_job", ""):
-		c["last_job"] = job
-		(c["ws"] as WebSocketPeer).send_text(job)
+	_send_state(c)
+
+# ------------------------------------------------------------------ job ticket, lobby and swaps
+
+func _json(c: Dictionary, key: String, d: Dictionary) -> void:
+	var text := JSON.stringify(d)
+	var sent: Dictionary = c.get("sent", {})
+	if sent.get(key, "") == text:
+		return
+	sent[key] = text
+	c["sent"] = sent
+	(c["ws"] as WebSocketPeer).send_text("J " + text)
+
+## Which screen the phone shows: the lobby (picking jobs), the site pick,
+## the game, or the pause menu.
+func screen() -> String:
+	if game.pause_menu != null and game.pause_menu.visible:
+		return "pause"
+	if game.phase == "roles":
+		return "lobby"
+	if game.phase == "select":
+		return "site"
+	return "play"
+
+## Everything the page shows besides the buttons, each sent when it changes.
+func _send_state(c: Dictionary) -> void:
+	var p = c["player"]
+	if p == null or not is_instance_valid(p):
+		return
+	var scr := screen()
+	var sel = game.selector if is_instance_valid(game.selector) else null
+	var st := {"t": "state", "s": scr, "p": p.index, "pc": p.tag_color.to_html(false), "name": p.char_name}
+	if sel != null and scr == "lobby":
+		st["locked"] = bool(sel._ready_p.get(p.index, false))
+		st["count"] = int(ceil(sel._count_t)) if sel._count_t > 0.0 else -1
+	_json(c, "state", st)
+	_json(c, "roster", roster())
+	_json(c, "card", card(p.role))
+	var climb_day: bool = game.climb != null and game.climb.active
+	var now := {"t": "now", "i": -1, "verb": "", "btn": "", "climb": climb_day}
+	if not p.cues.is_empty():
+		var cu: Array = p.cues[0]
+		now["btn"] = cu[0]
+		now["verb"] = str(cu[1])
+		if not climb_day:
+			now["i"] = UI.step_for(p.role, cu[0], str(cu[1]))
+	_json(c, "now", now)
+	if p.role == "pump" and game.line != null and scr == "play":
+		var ln = game.line
+		_json(c, "gauge", {"t": "gauge", "bar": int(ln.pressure / 5.0) * 5, "spike": bool(ln.spike_on), "warn": bool(ln.spike_warn), "tripped": bool(ln.tripped)})
+	_json(c, "nudge", {"t": "nudge", "lvl": int(game.nudge_level(p)) if game.has_method("nudge_level") else 0})
+
+## Who's on every job: {t, r: [{id, name, col, line, p (0: a bot), pc, who, lock}]}.
+func roster() -> Dictionary:
+	var out: Array = []
+	var sel = game.selector if is_instance_valid(game.selector) else null
+	for role in game.crew.ROLES:
+		var q = game.crew.crew[role]
+		out.append({"id": role, "name": UI.ROLE_NAME[role], "col": UI.ROLE[role].to_html(false), "line": UI.ROLE_SHORT[role],
+			"p": 0 if q.bot else q.index, "pc": q.tag_color.to_html(false), "who": q.char_name,
+			"lock": (not q.bot) and sel != null and bool(sel._ready_p.get(q.index, false))})
+	return {"t": "roster", "r": out}
+
+## A job's ticket: its goal, its steps, what to watch for, climb days.
+func card(role: String) -> Dictionary:
+	var jc: Dictionary = UI.JOB_CARD.get(role, {})
+	return {"t": "card", "role": role, "name": UI.ROLE_NAME.get(role, role), "col": UI.ROLE.get(role, Color.WHITE).to_html(false),
+		"goal": jc.get("goal", ""), "steps": UI.how(role), "watch": jc.get("watch", ""),
+		"climb": UI.ROLE_CLIMB.get(role, ""), "climbsteps": UI.how(role, "climb")}
+
+func _toast(c: Dictionary, msg: String) -> void:
+	(c["ws"] as WebSocketPeer).send_text("J " + JSON.stringify({"t": "toast", "msg": msg}))
+
+## The phone's own job picking: in the lobby, tap a job then hold to lock in;
+## on site, swap to a job a bot's doing.
+func _on_pick(c: Dictionary, parts: PackedStringArray) -> void:
+	var p = c["player"]
+	if p == null or not is_instance_valid(p):
+		return
+	var crew = game.crew
+	var sel = game.selector if is_instance_valid(game.selector) else null
+	var role := parts[1] if parts.size() > 1 else ""
+	match parts[0]:
+		"pick":
+			if sel == null or screen() != "lobby" or not crew.crew.has(role):
+				return
+			if bool(sel._ready_p.get(p.index, false)):
+				return
+			if not crew.crew[role].bot and crew.crew[role] != p:
+				_toast(c, "P%d has that job" % crew.crew[role].index)
+				return
+			crew.assign(p.index, role)
+			game.sfx.hit("tink")
+		"lock", "unlock":
+			if sel != null and screen() == "lobby":
+				sel.set_ready(p.index, parts[0] == "lock")
+		"char":
+			if sel != null and screen() == "lobby" and not bool(sel._ready_p.get(p.index, false)):
+				crew.cycle_char(p.index, 1 if role != "-1" else -1)
+				game.sfx.hit("tink")
+		"swap":
+			if screen() != "play" or not crew.crew.has(role):
+				return
+			if not crew.crew[role].bot:
+				_toast(c, "%s's taken" % UI.ROLE_NAME[role])
+				return
+			var why: String = game.swap_blocked(p) if game.has_method("swap_blocked") else ""
+			if why != "":
+				_toast(c, why)
+				return
+			var me: int = p.index
+			if crew.assign(me, role):
+				var q = crew.human(me)
+				game.hud.toast("P%d is on the %s job" % [me, UI.ROLE_NAME[role].to_lower()], 1.6)
+				if q != null:
+					vibrate(q, UI.BUZZ["done"])
 
 ## Control of a chibi moved to another one (a person swapped jobs).
 func retarget(old_p, new_p) -> void:
@@ -336,6 +467,7 @@ func retarget(old_p, new_p) -> void:
 		if c["player"] == old_p:
 			c["player"] = new_p
 			c["last_cues"] = ""
+			c["sent"] = {}
 			(c["ws"] as WebSocketPeer).send_text("p %d %s" % [new_p.index, new_p.tag_color.to_html(false)])
 
 ## A buzz in this person's hand (phones that support it): ms, or a pattern "40,30,40".

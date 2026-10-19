@@ -106,7 +106,7 @@ const GROUND_STATIONS := {
 	"sling": {"pos": Vector3(1.0, 0, 8.6), "label": "LAYDOWN", "color": Color("ff7a1a")},
 	"valve": {"pos": Vector3(16.4, 0, 10.0), "label": "RELEASE VALVE", "color": Color("ff7a1a")},
 }
-const PLAYER_COLORS := [Color("4fa3ff"), Color("7cd992"), Color("ff7ad9"), Color("c49bff")]
+const PLAYER_COLORS := UI.P_COLORS
 const ACTION_NAMES := ["Space", "Enter", "A", "A"]
 const ALT_NAMES := ["E", "R-Ctrl", "X", "X"]
 const LEAVE_NAMES := ["Q", "R-Shift", "B", "B"]
@@ -203,6 +203,7 @@ var _pitch_before := 0.62
 # ------------------------------------------------------------------ setup
 
 func _ready() -> void:
+	UI.install_fonts()
 	var args := OS.get_cmdline_user_args()
 	autotest = args.has("--autotest")
 	var want_kit := ""
@@ -868,6 +869,8 @@ func _apply_kit(which: String) -> void:
 		_use_tut_frame()
 		which = "tower"
 	kit = which
+	if is_instance_valid(selector) and not tutorial and _start_level <= 1:
+		_start_level = selector.start_level
 	line = LineScript.new()
 	add_child(line)
 	if kit == "truck":
@@ -1068,7 +1071,8 @@ func _build_band() -> void:
 	band_chip = PanelContainer.new()
 	var csb := StyleBoxFlat.new()
 	csb.bg_color = UI.ROLE["pump"]
-	csb.corner_radius_bottom_right = 8
+	csb.corner_radius_top_left = 10
+	csb.corner_radius_bottom_right = 12
 	csb.content_margin_left = 10
 	csb.content_margin_right = 12
 	csb.content_margin_top = 4
@@ -1198,9 +1202,10 @@ func _build_insets() -> void:
 		var frame := Panel.new()
 		var fsb := StyleBoxFlat.new()
 		fsb.draw_center = false
-		fsb.set_border_width_all(3)
+		fsb.set_border_width_all(4)
 		fsb.border_color = Color.WHITE
-		fsb.set_corner_radius_all(4)
+		fsb.set_corner_radius_all(10)
+		fsb.anti_aliasing = true
 		frame.add_theme_stylebox_override("panel", fsb)
 		frame.set_anchors_preset(Control.PRESET_FULL_RECT)
 		frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1209,11 +1214,12 @@ func _build_insets() -> void:
 		var chip := PanelContainer.new()
 		var csb := StyleBoxFlat.new()
 		csb.bg_color = Color.WHITE
-		csb.corner_radius_bottom_right = 8
-		csb.content_margin_left = 8
-		csb.content_margin_right = 10
-		csb.content_margin_top = 2
-		csb.content_margin_bottom = 3
+		csb.corner_radius_top_left = 10
+		csb.corner_radius_bottom_right = 12
+		csb.content_margin_left = 10
+		csb.content_margin_right = 12
+		csb.content_margin_top = 3
+		csb.content_margin_bottom = 4
 		chip.add_theme_stylebox_override("panel", csb)
 		chip.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		chip.position = Vector2(0, 0)
@@ -1228,8 +1234,9 @@ func _build_insets() -> void:
 		chip_icon.modulate = Color("0f1b2d")
 		chip_row.add_child(chip_icon)
 		var lab := Label.new()
-		lab.add_theme_font_size_override("font_size", 14)
-		lab.add_theme_color_override("font_color", Color("0f1b2d"))
+		lab.add_theme_font_override("font", UI.font("head"))
+		lab.add_theme_font_size_override("font_size", 16)
+		lab.add_theme_color_override("font_color", Color("111111"))
 		chip_row.add_child(lab)
 		var badge := CueBadge.new()
 		badge.position = Vector2(6, INSET.y - 76)
@@ -1274,8 +1281,9 @@ func _build_gauge_pop(layer: CanvasLayer) -> void:
 	_gauge_frame = StyleBoxFlat.new()
 	_gauge_frame.draw_center = false
 	_gauge_frame.set_border_width_all(4)
-	_gauge_frame.border_color = Color("ff5a5f")
-	_gauge_frame.set_corner_radius_all(6)
+	_gauge_frame.border_color = UI.ALARM
+	_gauge_frame.set_corner_radius_all(10)
+	_gauge_frame.anti_aliasing = true
 	frame.add_theme_stylebox_override("panel", _gauge_frame)
 	frame.set_anchors_preset(Control.PRESET_FULL_RECT)
 	frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1292,8 +1300,9 @@ func _build_gauge_pop(layer: CanvasLayer) -> void:
 	chip.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	gauge_pop.add_child(chip)
 	_gauge_label = Label.new()
-	_gauge_label.add_theme_font_size_override("font_size", 16)
-	_gauge_label.add_theme_color_override("font_color", Color("0f1b2d"))
+	_gauge_label.add_theme_font_override("font", UI.font("head"))
+	_gauge_label.add_theme_font_size_override("font_size", 17)
+	_gauge_label.add_theme_color_override("font_color", Color("111111"))
 	chip.add_child(_gauge_label)
 	_gauge_badge = CueBadge.new()
 	_gauge_badge.position = Vector2(6, GAUGE_POP.y - 76)
@@ -1393,7 +1402,8 @@ func _update_gauge_pop() -> void:
 				r.position.x = right_x
 	gauge_pop.position = r.position
 	var spike: bool = line.spike_on
-	_gauge_frame.border_color = Color("ff5a5f") if spike or line.spike_warn else UI.ROLE["pump"]
+	_gauge_frame.border_color = UI.ALARM if spike or line.spike_warn else UI.ROLE["pump"]
+	_gauge_badge.dot_color = UI.ROLE["pump"]
 	_gauge_label.text = "PRESSURE SPIKE!" if spike else ("PUMP GAUGE" if line.spike_warn else "PUMP OFF")
 	var akey := "A"
 	_gauge_badge.position = Vector2(6, sz.y - 76)
@@ -1592,22 +1602,39 @@ func _level_cfg(level: int) -> Dictionary:
 		c["gusty"] = false
 	return c
 
-func _brief_text() -> String:
-	var lines := ["LEVEL %d · PRE-POUR BRIEFING" % (k + 1), ""]
+## The toolbox talk before a pour: the day's conditions as chips, the pour
+## plan, and each job's first move.
+func _toolbox(wait: bool) -> Dictionary:
+	var chips: Array = []
+	var notes: Array = []
 	var t: int = cfg["temp"]
 	if t >= 31:
-		lines.append("HOT · %d°C. Concrete goes off fast (about %ds to keep an edge wet). Started at first light." % [t, int(cfg["open"])])
+		chips.append(["HOT · %d°C" % t, "hot"])
+		notes.append("Concrete goes off fast: about %ds to keep an edge wet. Started at first light." % int(cfg["open"]))
 	else:
-		lines.append("%d°C. About %ds to keep an edge wet." % [t, int(cfg["open"])])
+		chips.append(["%d°C" % t, ""])
+	chips.append(["EDGE WET ~%ds" % int(cfg["open"]), ""])
 	if cfg["rain"]:
-		lines.append("SHOWER due mid-pour. Stop pumping while it's heavy, or the surface gets marked.")
+		chips.append(["SHOWER DUE", "warn"])
+		notes.append("Shower mid-pour: stop pumping while it's heavy, or the surface gets marked.")
 	if cfg["traffic"] > 1.0:
-		lines.append("TRAFFIC on Kingsford Smith Drive: trucks spaced out, some running old. Check every docket.")
+		chips.append(["TRAFFIC", "warn"])
+		notes.append("Kingsford Smith Drive's jammed: trucks spaced out, some running old. Check every docket.")
 	if cfg["gusty"]:
-		lines.append("GUSTY. The boom parks over %d km/h until it eases." % int(BOOM_WIND))
-	lines.append("")
-	lines.append("Pour plan: %d bays, far end first, back toward the boom. Keep the edge wet." % pour.BAYS)
-	return "\n".join(lines)
+		chips.append(["GUSTY", "warn"])
+		notes.append("The boom parks over %d km/h until it eases." % int(BOOM_WIND))
+	if k in climb_levels():
+		chips.append(["CLIMBED TODAY", ""])
+	var moves: Array = []
+	for role in ["boom", "line", "pump", "hose", "poker", "screed"]:
+		var p = crew.crew[role]
+		var st: Array = UI.how(role, "pour")
+		if st.is_empty():
+			continue
+		moves.append({"role": role, "btn": st[0][0], "text": st[0][1], "p": p.index, "bot": p.bot})
+	return {"title": ("WATER TOWER" if tutorial else "LEVEL %d" % (k + 1)) + " · TOOLBOX TALK",
+		"plan": "%d bays, far end first, back toward the boom. Keep the edge wet." % pour.BAYS,
+		"chips": chips, "notes": notes, "moves": moves, "wait": wait}
 
 # ------------------------------------------------------------------ phases
 
@@ -1655,11 +1682,16 @@ func _start_inspect() -> void:
 	engineer.position = SC + Vector3(-6.0, work_y, -4.0)
 	# A crew with people in it reads the brief and says when they're ready
 	_brief_ok = crew.humans().is_empty() or autotest
-	hud.show_brief(true, _brief_text(), not _brief_ok)
+	_brief_hold = 0.0
+	hud.show_toolbox(_toolbox(not _brief_ok or (autotest and not _cam_roles.is_empty())))
 	_set_phase("inspect")
 
 var _incidents: Array = []   # [{at: fill fraction, kind: "clamp"/"block"}]
-var _brief_ok := true        # someone's pressed A on the pre-pour brief
+var _brief_ok := true        # someone's held A on the toolbox talk (or it ran out)
+var _brief_hold := 0.0       # how long A's been held on it
+const BRIEF_HOLD := 0.8      # s of A to start
+const BRIEF_AUTO := 20.0     # s till it starts itself
+const REPORT_AUTO := 15.0    # s the slab report waits for an A before moving on
 var _human_a := false        # a person pressed A this frame (for the brief and the slab report)
 
 func incident_level() -> int:
@@ -1816,10 +1848,46 @@ func _grade() -> void:
 	var note := "poured in %s  ·  silver: %d%% in %s  ·  gold: %d%% in %s" % [_mmss(pour_clock), int(score.SILVER_Q), _mmss(tg.x), int(score.GOLD_Q), _mmss(tg.y)]
 	if score.bot_tier != was_tier:
 		note += "\nThe bots are working at %s pace now" % score.MEDALS[score.bot_tier].to_lower()
-	hud.show_report("LEVEL %d · SLAB REPORT" % (k + 1), "+%s" % hud._thousands(score.level), "quality %d%%  ·  %s" % [int(quality), verdict], score.report_rows(), rows, 6.0 if crew.humans().is_empty() or autotest else -1.0)
-	hud.show_medal(medal, note)
+	hud.show_slab(_slab_report(quality, verdict, medal, note, rows), -1.0 if not crew.humans().is_empty() and not autotest or "report" in _shot_only else 6.0)
+	_save_medal(medal)
 	if autotest:
 			print("[autotest]   level %d: +%d pts (total %d, %s), quality %.0f, medal %s in %.1fs (bots %s) | %s | %s" % [k + 1, score.level, score.total, score.rank_name(), quality, score.MEDALS[medal], pour_clock, score.MEDALS[was_tier], " | ".join(score.report_rows()), " | ".join(rows)])
+
+## The slab report's contents: the medal, each hard hat's points and what
+## earned them most, the crew star (the person with the most), and what's next.
+func _slab_report(quality: float, verdict: String, medal: int, note: String, losses: Array) -> Dictionary:
+	var crew_rows: Array = []
+	var star := ""
+	var star_pts := 0
+	for role in ["boom", "line", "pump", "hose", "poker", "screed"]:
+		var p = crew.crew[role]
+		var pts := int(score.by_role.get(role, 0))
+		var why: String = score.top_reason(role)
+		crew_rows.append({"role": role, "p": p.index, "bot": p.bot, "name": p.char_name, "pts": pts, "why": why if why != "" else "Kept out of trouble"})
+		if (not p.bot or _cam_roles.has(role)) and pts > star_pts:
+			star_pts = pts
+			star = role
+	var nxt := ""
+	if k + 1 >= floors():
+		nxt = "Top out"
+	elif tutorial:
+		nxt = "The roof slab"
+	else:
+		nxt = "Level %d" % (k + 2) + (" · climb day first" if (k + 1) in climb_levels() else "")
+	return {"title": ("WATER TOWER" if tutorial else "LEVEL %d" % (k + 1)) + " · SLAB REPORT", "points": score.level,
+		"quality": quality, "verdict": verdict, "medal": medal, "medal_note": note, "crew": crew_rows,
+		"star": star, "losses": losses, "next": nxt}
+
+## Keeps the best medal for each of the building's floors, for the site page.
+func _save_medal(medal: int) -> void:
+	if tutorial or autotest:
+		return
+	var m = Settings.value("medals")
+	var arr: Array = (m as Array).duplicate() if m is Array else []
+	while arr.size() <= k:
+		arr.append(-1)
+	arr[k] = maxi(int(arr[k]), medal)
+	Settings.put("medals", arr)
 
 func _mmss(t: float) -> String:
 	return "%d:%02d" % [int(t) / 60, int(t) % 60]
@@ -2072,7 +2140,8 @@ func _process(delta: float) -> void:
 		p.end_frame()
 	if autotest and phase == "columns" and k == 0 and OS.get_cmdline_user_args().has("--skip") and kit == "tower":
 		_dev_skip(CLIMB_LEVELS[0])
-	if autotest and phase == "columns" and k == 0 and _start_level > 1:
+	# (`--startlevel=N`, or a later floor picked on the site page)
+	if phase == "columns" and k == 0 and _start_level > 1:
 		_dev_skip(_start_level - 1)
 	_clear_trucks_of_people()
 	bots.tick(delta)
@@ -2149,8 +2218,16 @@ func _process(delta: float) -> void:
 					if fac:
 						fac.scale.y = maxf(0.01, clampf(phase_t / 0.8, 0.0, 1.0))
 			# The slab report stays up till someone presses A
-			if hud.card_waiting() and ((_human_a and hud.card_age() > 1.0) or hud.card_age() > 45.0):
-				hud.dismiss_card()
+			if hud.card_waiting():
+				hud.set_report_left(1.0 - hud.card_age() / REPORT_AUTO, REPORT_AUTO - hud.card_age())
+				var swap_by := -1
+				for p in players:
+					if not p.bot and p.slow_pressed():
+						swap_by = p.index
+				if swap_by > 0 and hud.card_age() > 1.0:
+					pause_menu.open_on("swap", swap_by)
+				elif (_human_a and hud.card_age() > 1.0) or hud.card_age() > REPORT_AUTO:
+					hud.dismiss_card()
 			if phase_t > 1.4 and not hud.card_waiting():
 				k += 1
 				if k >= floors():
@@ -2192,11 +2269,9 @@ func _process(delta: float) -> void:
 		push_error("[autotest] timed out in phase %s at level %d" % [phase, k + 1])
 		get_tree().quit(1)
 
-## A phone wants to play: the first one takes over P1 if nobody's touched
-## the keyboard, then each new phone gets the next chibi (up to four).
 ## A phone wants to play. The first one takes over P1 if nobody's touched the
 ## keyboard; after that each new phone takes the most useful job a bot is
-## doing (up to four people).
+## doing (up to six people, P1-P6).
 func join_phone():
 	if autotest:
 		return null
@@ -2204,7 +2279,7 @@ func join_phone():
 	if p1 != null and not p1.touched and p1.remote_id < 0:
 		p1.set_driver(crew.human_identity(1, true))
 		return p1
-	if crew.humans().size() >= 4:
+	if crew.humans().size() >= crew.MAX_PEOPLE:
 		return null
 	var p = crew.join(true)
 	if p != null:
@@ -2213,7 +2288,7 @@ func join_phone():
 
 func _join_text() -> String:
 	var t := ""
-	if phones.running and crew.humans().size() < 4:
+	if phones.running and crew.humans().size() < crew.MAX_PEOPLE:
 		t = "Scan to join on your phone\n(same Wi-Fi)\n%s" % phones.url()
 		# (a page that won't load is usually the firewall, or the wrong
 		# network adapter: say so, and give the other addresses to try)
@@ -2221,7 +2296,7 @@ func _join_text() -> String:
 		if not others.is_empty():
 			t += "\nNot loading? Try %s" % " or ".join(others)
 		t += "\nWindows: allow Godot through the firewall"
-	elif not phones.running and crew.humans().size() < 4:
+	elif not phones.running and crew.humans().size() < crew.MAX_PEOPLE:
 		t = "Phones can't join: the network ports are busy"
 	return t
 
@@ -2232,7 +2307,7 @@ func _join_players() -> void:
 			if p != null:
 				hud.toast("P%d joined: %s, %s" % [i, p.char_name, UI.ROLE_NAME[p.role].to_lower()], 2.0)
 	hud.show_join(false)
-	var open_slots: bool = crew.humans().size() < 4 and not autotest
+	var open_slots: bool = crew.humans().size() < crew.MAX_PEOPLE and not autotest
 	hud.set_join(_join_text() if phase != "topout" and phase != "select" and phase != "roles" else "", phones.url() if phones.running and open_slots and phase != "topout" else "")
 
 ## P1's number keys swap jobs on the fly (1 boom, 2 line, 3 pump, 4 poker, 5 screed, 6 pipe guy).
@@ -2280,8 +2355,19 @@ func _update_inspect(delta: float) -> void:
 	engineer.get_node("LegR").rotation.x = -sin(t * 8.0) * 0.5
 	if not defect_fixed:
 		defect.rotation.y += delta
-	if not _brief_ok and ((_human_a and phase_t > 0.8) or phase_t > 45.0):
-		_brief_ok = true
+	if not _brief_ok:
+		var holding := false
+		for p in players:
+			if not p.bot and p.action_held():
+				holding = true
+		_brief_hold = (_brief_hold + delta) if holding and phase_t > 0.5 else maxf(0.0, _brief_hold - delta * 2.0)
+		hud.set_toolbox(_brief_hold / BRIEF_HOLD, 1.0 - phase_t / BRIEF_AUTO, maxf(0.0, BRIEF_AUTO - phase_t))
+		if _brief_hold >= BRIEF_HOLD or phase_t > BRIEF_AUTO:
+			_brief_ok = true
+			sfx.hit("ding")
+			hud.show_brief(false)
+	elif hud.brief.visible and phase_t > 2.5:
+		# (an all-bot crew reads it for a moment, then gets on with it)
 		hud.show_brief(false)
 	if defect_fixed and phase_t > 3.0 and _brief_ok and not signed:
 		signed = true
@@ -2497,7 +2583,7 @@ func _dev_skip(target: int) -> void:
 	for p in players:
 		if p.zone == "deck":
 			p.position.y = work_y
-	hud.toast("Skipped to level %d: climb practice" % (k + 1), 2.0)
+	hud.toast("Level %d: the floors below are poured" % (k + 1), 2.0)
 
 func _on_climb_done() -> void:
 	climb_notes["unclipped"] += climb.unclipped
@@ -3082,24 +3168,90 @@ func _footprints(p) -> void:
 			_foot_toast_t = 8.0
 			hud.toast("Footprints in the finish! Use the scaffold walkway round the slab", 2.4)
 
-## Nobody holds up the room: someone who's gone quiet for COVER_AFTER seconds
-## while their job is waiting on them gets covered by a crewmate (the bot
-## brain for that job) until they press anything.
-const COVER_AFTER := 15.0
+## Nobody holds up the room. When the game's waiting on someone:
+##   at once      their button cue, their hat glows gold on the crew bar and
+##                their phone's edge glows
+##   NUDGE_CALL s a crewmate calls out to them by name; a ghost thumb on
+##                their phone shows the button
+##   COVER_AFTER s the leading hand (the bot brain for that job) does just
+##                that one step for them; they keep the job, and pressing
+##                anything takes it straight back
+const NUDGE_CALL := 8.0
+const COVER_AFTER := 20.0
+const CALL_OUTS := {"boom": "Bay's waiting on the boom!", "line": "Truck's waiting!", "pump": "Pump needs you!",
+	"hose": "Grab the hose!", "poker": "Get the poker in!", "screed": "Screed's waiting!"}
+
+## Is the game waiting on this person right now (their job's flagged, and
+## they've a button to press)?
+func waiting_on(p) -> bool:
+	return not p.bot and int(urgent.get(p.role, 0)) >= 1 and phase in ["inspect", "pour", "climb"] and not p.cues.is_empty()
+
+## 0 nothing, 1 it's their turn, 2 a crewmate's called out, 3 the leading
+## hand's doing this step for them.
+func nudge_level(p) -> int:
+	if p.bot:
+		return 0
+	if p.covering:
+		return 3
+	if not waiting_on(p):
+		return 0
+	return 2 if p.idle_in >= NUDGE_CALL else 1
 
 func _cover(p, delta: float) -> void:
 	if p.bot:
 		return
 	if p.raw_active():
 		p.idle_in = 0.0
+		p.set_meta("called", false)
 		if p.covering:
 			p.uncover()
 			hud.toast("P%d's back on the %s" % [p.index, UI.ROLE_NAME[p.role].to_lower()], 1.4)
 		return
 	p.idle_in += delta
-	if not p.covering and p.idle_in > COVER_AFTER and int(urgent.get(p.role, 0)) >= 1 and phase in ["inspect", "pour", "climb"] and not autotest_human(p):
+	var waiting: bool = waiting_on(p) or (p.covering and int(urgent.get(p.role, 0)) >= 1)
+	if p.covering and not waiting:
+		# That step's done: the job's theirs again
+		p.uncover()
+		p.set_meta("called", false)
+		hud.toast("The leading hand's done that one. P%d's still on the %s." % [p.index, UI.ROLE_NAME[p.role].to_lower()], 2.0)
+		return
+	if not waiting:
+		p.set_meta("called", false)
+		p.idle_in = minf(p.idle_in, 2.0)
+		return
+	if p.idle_in > NUDGE_CALL and not bool(p.get_meta("called", false)) and not autotest_human(p):
+		p.set_meta("called", true)
+		_call_out(p)
+	if not p.covering and p.idle_in > COVER_AFTER and not autotest_human(p):
 		p.covering = true
-		hud.toast("P%d's job is waiting: a crewmate's covering the %s. Press anything to take it back." % [p.index, UI.ROLE_NAME[p.role].to_lower()], 3.0)
+		hud.toast("P%d's job is waiting: the leading hand's doing this step. Press anything to take it back." % p.index, 3.0)
+
+## A crewmate shouts across to someone the job's waiting on, by name.
+func _call_out(p) -> void:
+	var best = null
+	var best_d := INF
+	for q in players:
+		if q == p or not q.bot:
+			continue
+		var d: float = q.global_position.distance_to(p.global_position)
+		if d < best_d:
+			best_d = d
+			best = q
+	var line_text := "%s! %s" % [p.char_name, CALL_OUTS.get(p.role, "You're up!")]
+	if best != null:
+		best.bark(line_text, 2.4)
+	hud.toast(line_text, 2.0)
+	haptic(p, UI.BUZZ["turn"])
+
+## Why this person can't swap jobs right now ("" when they can).
+func swap_blocked(p) -> String:
+	if p.held != null:
+		return "Put down what you're carrying first"
+	if p.tool != "":
+		return "Put the %s down first (B)" % p.tool
+	if p.busy != "":
+		return "Finish up or step off first (B)"
+	return ""
 
 ## `--human=<job>` with `--nocover` keeps a test's idle person idle.
 func autotest_human(_p) -> bool:
@@ -3672,6 +3824,10 @@ func _update_hud() -> void:
 	else:
 		hud.set_floor(k if phase != "topout" else floors() - 1, floors())
 	hud.set_score(score.total, score.rank_name(), score.next_rank(), score.rank_frac(), score.bump)
+	var crew_rows: Array = []
+	for p in players:
+		crew_rows.append({"role": p.role, "p": p.index, "name": p.char_name, "bot": p.bot, "nudge": nudge_level(p)})
+	hud.set_crew(crew_rows, phase in ["columns", "deck", "setup", "climb", "inspect", "pour", "screed"] and not hud.brief.visible)
 	match phase:
 		"columns":
 			hud.set_task("Build · columns and core")
@@ -4078,7 +4234,7 @@ func _update_camera(delta: float) -> void:
 	for i in insets.size():
 		var inset: Dictionary = insets[i]
 		var box: SubViewportContainer = inset["box"]
-		box.visible = i < views.size() and not skyline
+		box.visible = i < views.size() and not skyline and phase != "roles" and phase != "select"
 		var guide = inset["guide"]
 		guide.visible = false
 		if not box.visible:
@@ -4162,7 +4318,7 @@ func _update_camera(delta: float) -> void:
 		# The name chip wraps rather than running off the side of the box
 		var cap_w := sz.x - 44.0
 		var cap_font: Font = lab.get_theme_font("font")
-		if cap_font.get_string_size(lab.text, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x > cap_w:
+		if cap_font.get_string_size(lab.text, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x > cap_w:
 			lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			lab.custom_minimum_size.x = cap_w
 		else:
@@ -4179,6 +4335,7 @@ func _update_camera(delta: float) -> void:
 		(inset["icon"] as TextureRect).texture = Icons.texture(p.role if p != null else "pump", 64)
 		# The player's own button cue, for timing what they see in here
 		var badge = inset["badge"]
+		badge.dot_color = role_col
 		var cue: Array = (p.cues[0] as Array).duplicate() if p != null and (not p.bot or _bot_badges) and v["close"] and not p.cues.is_empty() else []
 		if slump_view and not cue.is_empty():
 			cue[1] = ""   # (just the button: the guide strip says the step)
@@ -4282,6 +4439,8 @@ func _maybe_shot() -> void:
 		key = "grade"
 	elif phase == "inspect" and k == 1 and phase_t > 1.0:
 		key = "inspect"
+	elif phase == "cure" and k == 1 and phase_t > 0.5 and "report" in _shot_only:
+		key = "report"
 	elif climb.active and climb.stage == "guide" and k == 3 and climb.stage_t > 4.0:
 		key = "guide"
 	elif climb.active and climb.stage == "pin" and k == 3 and climb.pin_i == 1 and climb.pin_sub == "drive" and climb.winding and climb.power > 0.45:
@@ -4354,9 +4513,7 @@ func _maybe_shot() -> void:
 		hud.visible = false
 	if key == "pause":
 		pause_menu.visible = true
-		pause_menu._side = "job"
-		pause_menu._show_side()
-		pause_menu._refresh()
+		pause_menu._build_page("main")
 	_shot_wait += 1
 	if _shot_wait < (8 if key == "align" else (7 if key == "strike" else (2 if key.begins_with("trans") else 4))):
 		return

@@ -14,7 +14,10 @@ const DEFAULT_CHAR := Roster.DEFAULT_CHAR
 
 const ROLES := ["boom", "line", "pump", "poker", "screed", "hose"]
 const JOIN_ORDER := ["boom", "hose", "poker", "line", "pump", "screed"]
-const PLAYER_COLORS := [Color("4fa3ff"), Color("7cd992"), Color("ff7ad9"), Color("c49bff")]
+const UI := preload("res://scripts/ui.gd")
+## Up to six people, P1-P6, each with their own tag colour (bots do the rest)
+const MAX_PEOPLE := 6
+const PLAYER_COLORS := UI.P_COLORS
 const INFO := {
 	"boom": {"name": "Boom operator", "hat": Color("ffc72c"), "climb": "dogman",
 		"text": "Steer the placing boom from the radio remote and pump the concrete where it's needed, bay by bay. Keep an eye on the hopper.\n\nClimb days: dogman, whistling the crane in."},
@@ -157,7 +160,8 @@ func join(remote: bool, want_index := -1):
 		return null
 	var idx := want_index
 	if idx < 0:
-		for i in ([3, 4, 2] if remote else [2, 3, 4]):
+		# (phones leave P2 for a second keyboard or pad if they can)
+		for i in ([3, 4, 5, 6, 2] if remote else [2, 3, 4, 5, 6]):
 			if human(i) == null:
 				idx = i
 				break

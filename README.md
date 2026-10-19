@@ -1,6 +1,6 @@
 # Pour Decisions — Godot prototype
 
-Chapter 1, Riverlight at Hamilton Reach: 11 levels, plus a short water tower tutorial, built by a chibi crew of six. Pick who you are and your job, pick the kit, and run the pour day the way it really runs: trucks to the hopper, the pump up a clamped riser, the placing boom over the deck, pokers and a screed board in the concrete, and the boom tower climbing with the building. Each person takes one job and bots work the rest, so it plays solo or with up to four people. Phones work as controllers, like a TV party game.
+Chapter 1, Riverlight at Hamilton Reach: 11 levels, plus a short water tower tutorial, built by a chibi crew of six. Pick who you are and your job, pick the kit, and run the pour day the way it really runs: trucks to the hopper, the pump up a clamped riser, the placing boom over the deck, pokers and a screed board in the concrete, and the boom tower climbing with the building. Each person takes one job and bots work the rest, so it plays solo or with up to six people. Phones work as controllers, like a TV party game.
 
 ![Swapping a weeping clamp on the riser](docs/screenshots/ladder.png)
 
@@ -15,12 +15,16 @@ Chapter 1, Riverlight at Hamilton Reach: 11 levels, plus a short water tower tut
 Run the game on a laptop or PC plugged into the TV. The start screens and the pause menu show a QR code and an address like `http://192.168.1.23:8080`.
 
 1. Each player connects their phone to the **same Wi-Fi** as the computer.
-2. Scan the QR code in the **Join in** card on the crew screen (it's big enough to scan from the couch), or type the address under it into the phone's browser. It's in the pause menu too.
+2. Everyone scans the same QR code on the crew screen (top right; it's big enough to scan from the couch), or types the address under it into the phone's browser. It's in the pause menu too, under **Add a player**.
 3. Tap to join, and turn the phone sideways.
 
 ![Phone controller](docs/screenshots/phone_controller.png)
 
-The phone becomes a controller: a stick on the left and **A B X Y** on the right, with your crew member's name and your job (its icon, in its colour) along the top. Whatever the game wants you to press pulses on your phone and over your chibi on the TV at the same time. On Android the phone also buzzes in your hand: the poker's rumble, each hammer blow, a clamp clunking shut. Buttons squash in, ripple and throw sparks in their own colour when you press them and spring back when you let go; a hold fills a ring round the button in step with the one on the TV, and the stick's rim lights up the way you're pushing. A quick tap always counts, even when the Wi-Fi bunches the press and the release together. The first phone takes over Player 1 if nobody has touched the keyboard; each phone after that takes the most useful job a bot is doing. If a phone drops out, open the page again and it reconnects to the same chibi.
+![Picking a job on the phone](docs/screenshots/phone_lobby.png) ![Swapping jobs on the phone](docs/screenshots/phone_swap.png)
+
+Each phone gets the next player number, P1 to P6, and keeps that tag (its colour is on the phone and over the chibi on the TV). Before the pour the phone shows every job: tap one nobody has (taken jobs are greyed with their P tag), then hold **LOCK IN**. The game starts once everyone's locked in, or 20 seconds after the first person locks in, with bots on the jobs nobody took.
+
+In the game the phone is a controller in three parts, in the Site Kit look the TV uses too: the stick in a zone on the left (it starts wherever your thumb lands, and never covers the middle), your **job ticket** in the middle, and **A B X Y** on the right. The ticket lists your job's steps with their buttons and highlights the one you're on now; the pump operator's ticket has the live line gauge on it. Tap the ticket's header to see the jobs bots are doing, tap one and hold **SWAP** to move onto it. Whatever the game wants you to press pulses on the phone and over your chibi on the TV at once: it breathes while it waits, beats when it's urgent, goes gold with star sparks at the right moment, and fills with concrete while you hold it. The screen edge glows when the game's waiting on you, and on Android each event has its own buzz. If a phone drops out, open the page again and it reconnects to the same chibi.
 
 **Pause from the phone.** The Pause button, top left, pauses the game; the stick, A and B then work the pause menu.
 
@@ -47,7 +51,7 @@ Four buttons and a stick, the same on phones, pads and keyboard:
 
 If you're playing on the keyboard, every button cue over your chibi shows the key too, like **kill the pump [Space]**, so nobody has to remember which key is A.
 
-In the main game there's no step-by-step instruction text: every action is a pulsing button glyph over whoever needs to press it, with a ring that fills on hold actions. (The water tower tutorial has a coach panel that talks you through it.) **Esc** (or a pad's Start, or the Pause button on a phone) pauses (screenshot below): carry on, **Your job** (what every button does in your job, on a pour and on a climb day), controls and phone joining, the settings, start again or quit. Mouse: right-drag to orbit, scroll to zoom. Keys: **F11** full screen (also in the pause menu, and remembered), **Tab** skyline, **R** restart, **F1** skip to the first climb, **F2** screen shake, **F3** sound.
+In the main game there's no step-by-step instruction text: every action is a pulsing button glyph over whoever needs to press it, with a ring that fills on hold actions. (The water tower tutorial has a coach panel that talks you through it.) **Esc** (or a pad's Start, or the Pause button on a phone) calls **smoko**: back to work (the gold default; B does it too), swap jobs, add a player (the QR), settings, start again or knock off, with your job ticket alongside and how the day's going along the bottom. Mouse: right-drag to orbit, scroll to zoom. Keys: **F11** full screen (also in the pause menu, and remembered), **Tab** skyline, **R** restart, **F1** skip to the first climb, **F2** screen shake, **F3** sound.
 
 ![The pause menu](docs/screenshots/pause.png)
 
@@ -90,7 +94,15 @@ Anyone partway up the ladder (the pump operator swapping a clamp halfway up) get
 
 ![Picking the crew](docs/screenshots/roles.png)
 
-Every person picks one of the named crew with the stick (left/right) and a job (up/down), then presses A when they're ready: Macca, Tash, Gus, Priya, Robbo, Jules, Nev or Kiri, each with their own look. The hard hat is always the job's colour with the job's icon big on its crown, and every job's icon is also on the crew cards, the job list, the hand signs, the close-ups, the pause menu and the phone), so jobs are never told apart by colour alone. Once everyone's pressed A there's a three-second count; B, or someone new joining, stops it. Bots are whoever's left, on every job nobody picked, and they work through the same buttons a person presses. The strip along the bottom shows who's on every job. Keyboard P1 can swap jobs mid-game with **1–6**, and keeps their character.
+The crew page is a hat rack: six hard hats, one per job, each tagged with who's wearing it (a P tag) or the bot that is. Every person picks a job with the stick (up/down) and one of the named crew (left/right), then presses A to lock in: Macca, Tash, Gus, Priya, Robbo, Jules, Nev or Kiri, each with their own look. The hard hat is always the job's colour with the job's icon big on its crown, and the icon is on the tickets, hand signs, close-ups and phone too, so jobs are never told apart by colour alone. Once everyone's locked in there's a three-second count (B stops it); if anyone's still choosing, a 20-second ring starts the game anyway. Then the site page shows the tower floor by floor with the medals poured so far and picks the next floor and kit for you; anyone can change it, and it starts on its own after 15 seconds.
+
+Every menu keeps casual players moving the same way: one gold default that any player can press, a countdown that picks it if nobody does, and B to go back. Before each pour a **toolbox talk** shows the day's conditions, the plan and every job's first move; anyone holds A to start, or it starts itself. After it the **slab report** shows the medal, points and quality, one card per hard hat with what earned it most, and a gold **crew star**; A pours the next floor (or it moves on after 15 seconds) and Y swaps jobs.
+
+![Toolbox talk](docs/screenshots/toolbox.png)
+
+![Slab report](docs/screenshots/report.png)
+
+During the pour the crew bar in the bottom left shows all six hats; the one the game's waiting on glows gold. If a person doesn't act, 8 seconds on a crewmate calls them by name, and at 20 seconds the leading hand does just that one step for them; pressing anything takes it back. Keyboard P1 can swap jobs mid-game with **1–6**, and keeps their character.
 
 | Job | On a pour | On a climb day |
 | --- | --- | --- |
