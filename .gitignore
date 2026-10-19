@@ -5,3 +5,6 @@ export/
 # Reference material kept out of git (copyright or too large)
 reference/plans/*.pdf
 reference/elevation/lidar_2019/
+
+# Godot writes these when it imports the fonts
+fonts/*.import
