@@ -64,25 +64,18 @@ var bolt_panel: PanelContainer
 var bolt_title: Label
 var bolt_zone: ColorRect
 var bolt_marker: ColorRect
+var bolt_glyph: PanelContainer
 const BOLT_W := 320.0
 # cards
 var card: PanelContainer
 var _card_t := 0.0
 var _card_hold := false      # the slab report waits for someone to press A
 var _card_age := 0.0
-var _card_hint: HBoxContainer
-var _brief_hint: HBoxContainer
-var _card_title: Label
-var _card_head: Label
-var _card_quality: Label
-var _card_cols: HBoxContainer
-var _medal_row: HBoxContainer
-var _medal_disc: PanelContainer
-var _medal_name: Label
-var _medal_note: Label
+var _card_box: VBoxContainer
+var _card_next: Label
+var _card_fill: ColorRect
+var _card_go: Control
 var brief: PanelContainer
-var _brief_title: Label
-var _brief_lines: VBoxContainer
 var rank_banner: PanelContainer
 var rank_banner_label: Label
 var _rank_t := 0.0
@@ -282,17 +275,23 @@ func _ready() -> void:
 	UI.place(bolt_panel, Vector2(0.5, 1), Vector2(0, -110))
 	var bv := VBoxContainer.new()
 	bolt_panel.add_child(bv)
-	bolt_title = UI.label("", 18, UI.YELLOW)
-	bv.add_child(bolt_title)
+	var bth := HBoxContainer.new()
+	bth.add_theme_constant_override("separation", 8)
+	bv.add_child(bth)
+	bolt_glyph = UI.glyph("A", 30)
+	bth.add_child(bolt_glyph)
+	bolt_title = UI.head("", 22, UI.BONE)
+	bolt_title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	bth.add_child(bolt_title)
 	var bb := Control.new()
 	bb.custom_minimum_size = Vector2(BOLT_W, 18)
 	bv.add_child(bb)
 	var bbg := ColorRect.new()
-	bbg.color = Color(1, 1, 1, 0.15)
+	bbg.color = UI.TRACK
 	bbg.size = Vector2(BOLT_W, 18)
 	bb.add_child(bbg)
 	bolt_zone = ColorRect.new()
-	bolt_zone.color = UI.YELLOW
+	bolt_zone.color = UI.GOLD
 	bolt_zone.size = Vector2(60, 18)
 	bb.add_child(bolt_zone)
 	bolt_marker = ColorRect.new()
@@ -308,67 +307,32 @@ func _ready() -> void:
 	UI.place(ph2, Vector2(0, 1), Vector2(16, -12))
 	_pause_hint = ph2
 
+	# --- The crew: six hard hats, bottom left, the one the game's waiting on glowing
+	_build_crew()
+
 	# --- Slab report
-	card = UI.panel(UI.GLASS_SOLID, 16, UI.YELLOW, 2, Vector4(24, 18, 24, 18))
-	card.custom_minimum_size = Vector2(620, 0)
+	card = UI.panel(UI.CARD, 16, UI.EDGE, 0, Vector4(24, 16, 24, 18))
+	var csb := UI.style(card)
+	csb.border_width_top = 8
+	csb.border_color = UI.GOLD
+	csb.shadow_color = Color(0, 0, 0, 0.5)
+	csb.shadow_size = 18
 	_top.add_child(card)
-	UI.place(card, Vector2(0.5, 0.5), Vector2(0, 30))
-	var cv := VBoxContainer.new()
-	cv.add_theme_constant_override("separation", 8)
-	card.add_child(cv)
-	_card_title = UI.label("", 15, UI.MUTED, 0)
-	cv.add_child(_card_title)
-	var chh := HBoxContainer.new()
-	chh.add_theme_constant_override("separation", 26)
-	cv.add_child(chh)
-	_card_head = UI.label("", 44, UI.YELLOW, 4)
-	chh.add_child(_card_head)
-	_card_quality = UI.label("", 22, UI.WHITE, 3)
-	_card_quality.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	chh.add_child(_card_quality)
-	# The slab's medal: a disc in bronze, silver or gold, and what the next ones take
-	_medal_row = HBoxContainer.new()
-	_medal_row.add_theme_constant_override("separation", 12)
-	cv.add_child(_medal_row)
-	_medal_disc = UI.panel(Color.WHITE, 24, Color(0, 0, 0, 0.35), 3, Vector4(0, 0, 0, 0))
-	_medal_disc.custom_minimum_size = Vector2(48, 48)
-	_medal_row.add_child(_medal_disc)
-	var star := UI.label("★", 26, UI.INK, 0)
-	star.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	star.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_medal_disc.add_child(star)
-	var mv := VBoxContainer.new()
-	mv.add_theme_constant_override("separation", 0)
-	_medal_row.add_child(mv)
-	_medal_name = UI.label("", 26, UI.WHITE, 3)
-	mv.add_child(_medal_name)
-	_medal_note = UI.label("", 15, UI.MUTED, 0)
-	mv.add_child(_medal_note)
-	_medal_row.visible = false
-	_card_cols = HBoxContainer.new()
-	_card_cols.add_theme_constant_override("separation", 30)
-	cv.add_child(_card_cols)
-	_card_hint = UI.hint("A", "next level", 18)
-	_card_hint.alignment = BoxContainer.ALIGNMENT_END
-	cv.add_child(_card_hint)
+	UI.place(card, Vector2(0.5, 0.5), Vector2(0, 20))
+	_card_box = VBoxContainer.new()
+	_card_box.add_theme_constant_override("separation", 10)
+	card.add_child(_card_box)
 	card.visible = false
 
-	# --- Pre-pour briefing
-	brief = UI.panel(UI.GLASS_SOLID, 16, UI.EDGE, 2, Vector4(22, 16, 22, 18))
-	brief.custom_minimum_size = Vector2(520, 0)
+	# --- The toolbox talk before a pour: paper, on its own layer
+	brief = UI.panel(UI.PAPER, 14, UI.EDGE, 0, Vector4(24, 16, 24, 18))
+	style_brief()
+	brief.custom_minimum_size = Vector2(760, 0)
 	_top.add_child(brief)
-	UI.place(brief, Vector2(0.5, 0.5), Vector2(0, 40))
-	var bv2 := VBoxContainer.new()
-	bv2.add_theme_constant_override("separation", 8)
-	brief.add_child(bv2)
-	_brief_title = UI.label("", 15, UI.MUTED, 0)
-	bv2.add_child(_brief_title)
-	_brief_lines = VBoxContainer.new()
-	_brief_lines.add_theme_constant_override("separation", 6)
-	bv2.add_child(_brief_lines)
-	_brief_hint = UI.hint("A", "ready: let's pour", 18)
-	_brief_hint.alignment = BoxContainer.ALIGNMENT_END
-	bv2.add_child(_brief_hint)
+	UI.place(brief, Vector2(0.5, 0.5), Vector2(0, 20))
+	_tb_box = VBoxContainer.new()
+	_tb_box.add_theme_constant_override("separation", 8)
+	brief.add_child(_tb_box)
 	brief.visible = false
 
 	# --- Top out
@@ -389,6 +353,7 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	_place_tickets()
+	_animate_crew(delta)
 	if _toast_t > 0.0:
 		_toast_t -= delta
 		toast_panel.modulate.a = clampf(_toast_t * 2.0, 0.0, 1.0)
@@ -401,8 +366,10 @@ func _process(delta: float) -> void:
 	if _card_hold:
 		card.visible = true
 		card.modulate.a = 1.0
-		# (a gentle pulse on the A, so it's clear what moves things on)
-		_card_hint.modulate.a = 0.65 + 0.35 * sin(_card_age * 4.0)
+		# (the gold A breathes, so it's clear what moves things on)
+		if _card_go != null:
+			_card_go.pivot_offset = _card_go.size * 0.5
+			_card_go.scale = Vector2.ONE * (1.0 + (UI.BREATHE_S - 1.0) * (0.5 - 0.5 * cos(_card_age * TAU / UI.BREATHE_T)))
 	elif _card_t > 0.0:
 		_card_t -= delta
 		card.visible = _card_t > 0.0
@@ -414,6 +381,103 @@ func _process(delta: float) -> void:
 		rank_banner.pivot_offset = rank_banner.size * 0.5
 		rank_banner.scale = Vector2.ONE * (0.6 + 0.4 * ease(u, 0.3) + 0.04 * sin(_rank_t * 12.0))
 		rank_banner.modulate.a = clampf(_rank_t * 2.0, 0.0, 1.0)
+
+# ------------------------------------------------------------------ crew bar
+
+const CREW_ORDER := ["boom", "line", "pump", "hose", "poker", "screed"]
+var crew_bar: PanelContainer
+var _crew: Dictionary = {}     # role -> {hat, tag, label, nudge}
+var _crew_wait: Label
+var _crew_t := 0.0
+var _crew_key := ""
+
+func _build_crew() -> void:
+	crew_bar = UI.panel(UI.GLASS, 12, UI.EDGE, 1, Vector4(10, 6, 12, 6))
+	_root.add_child(crew_bar)
+	UI.place(crew_bar, Vector2(0, 1), Vector2(16, -36))
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 3)
+	crew_bar.add_child(v)
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 6)
+	v.add_child(h)
+	for role in CREW_ORDER:
+		var col := VBoxContainer.new()
+		col.add_theme_constant_override("separation", 1)
+		col.custom_minimum_size = Vector2(40, 0)
+		h.add_child(col)
+		var hat := UI.Hat.new()
+		hat.color = UI.ROLE[role]
+		hat.custom_minimum_size = Vector2(40, 30)
+		col.add_child(hat)
+		var tag := UI.pill(Color("5d606b"), Vector4(5, 0, 5, 0))
+		tag.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		var tl := UI.head("bot", 13, Color("111111"))
+		tl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		tag.add_child(tl)
+		col.add_child(tag)
+		_crew[role] = {"hat": hat, "tag": tag, "label": tl, "nudge": 0}
+	_crew_wait = UI.head("", 16, UI.GOLD)
+	_crew_wait.visible = false
+	v.add_child(_crew_wait)
+	crew_bar.visible = false
+
+## Who's on each job: rows of {role, p (player number), name, bot, nudge}
+## (nudge as main.nudge_level: 1 their turn, 2 called out, 3 covered).
+func set_crew(rows: Array, show := true) -> void:
+	crew_bar.visible = show
+	if not show:
+		return
+	var key := str(rows)
+	if key == _crew_key:
+		return
+	_crew_key = key
+	var wait_txt := ""
+	var wait_lvl := 0
+	for r in rows:
+		var e: Dictionary = _crew.get(r["role"], {})
+		if e.is_empty():
+			continue
+		var bot: bool = r["bot"]
+		var pi: int = r["p"]
+		UI.style(e["tag"]).bg_color = Color("5d606b") if bot else UI.P_COLORS[(pi - 1) % UI.P_COLORS.size()]
+		(e["label"] as Label).text = "bot" if bot else "P%d" % pi
+		(e["hat"] as UI.Hat).dim = false
+		e["nudge"] = int(r["nudge"])
+		if e["nudge"] > wait_lvl:
+			wait_lvl = e["nudge"]
+			var who := "P%d %s" % [pi, String(r["name"]).to_upper()]
+			match wait_lvl:
+				1:
+					wait_txt = "WAITING ON %s" % who
+				2:
+					wait_txt = "%s · THE CREW'S CALLING" % who
+				3:
+					wait_txt = "LEADING HAND'S COVERING %s · PRESS ANYTHING" % who
+	_crew_wait.text = wait_txt
+	_crew_wait.visible = wait_txt != ""
+	_crew_wait.add_theme_color_override("font_color", UI.GOLD if wait_lvl < 3 else UI.BONE)
+	crew_bar.reset_size()
+
+func _animate_crew(delta: float) -> void:
+	if crew_bar == null or not crew_bar.visible:
+		return
+	_crew_t += delta
+	for role in _crew:
+		var e: Dictionary = _crew[role]
+		var hat: UI.Hat = e["hat"]
+		var n: int = e["nudge"]
+		var period: float = UI.URGENT_T if n >= 2 else UI.BREATHE_T
+		var pl := 0.5 - 0.5 * cos(_crew_t * TAU / period)
+		var g := 0.0
+		if n == 1 or n == 2:
+			g = 0.55 + 0.45 * pl
+		elif n == 3:
+			g = 0.35
+		if absf(hat.glow - g) > 0.02:
+			hat.glow = g
+		hat.pivot_offset = hat.size * Vector2(0.5, 1.0)
+		hat.scale = Vector2.ONE * (1.0 + (0.12 if n == 2 else 0.06) * pl) if n in [1, 2] else Vector2.ONE
 
 # ------------------------------------------------------------------ top bar
 
@@ -453,6 +517,7 @@ func set_bottom_inset(h: float) -> void:
 	UI.place(signal_panel, Vector2(0.5, 1), Vector2(0, -36 - h))
 	UI.place(bolt_panel, Vector2(0.5, 1), Vector2(0, -110 - h))
 	UI.place(_pause_hint, Vector2(0, 1), Vector2(16, -12 - h))
+	UI.place(crew_bar, Vector2(0, 1), Vector2(16, -36 - h))
 	if facts != null:
 		UI.place(facts, Vector2(0.5, 1), Vector2(0, -60 - h))
 
@@ -585,11 +650,17 @@ func set_signal(text: String, color := Color.WHITE) -> void:
 func show_bolt(on: bool, bolt := 1, total := 4, zone_from := 0.6, zone_w := 0.18, marker := 0.0) -> void:
 	show_meter(on, "BOLT %d / %d" % [bolt, total], "", zone_from, zone_w, marker)
 
-func show_meter(on: bool, title := "", _hint := "", zone_from := 0.6, zone_w := 0.18, marker := 0.0) -> void:
+func show_meter(on: bool, title := "", _hint := "", zone_from := 0.6, zone_w := 0.18, marker := 0.0, button := "A") -> void:
 	bolt_panel.visible = on
 	if not on:
 		return
 	bolt_title.text = title
+	(bolt_glyph.get_meta("label") as Label).text = button
+	UI.style(bolt_glyph).bg_color = UI.GLYPH.get(button, UI.GLYPH["A"])
+	UI.style(bolt_glyph).shadow_color = UI.LIP.get(button, UI.LIP["A"])
+	# In the gold: the whole zone brightens, so the moment reads at a glance
+	var inz := marker >= zone_from and marker <= zone_from + zone_w
+	bolt_zone.color = UI.GOLD.lightened(0.35) if inz else UI.GOLD
 	bolt_zone.position.x = BOLT_W * zone_from
 	bolt_zone.size.x = BOLT_W * zone_w
 	bolt_marker.position.x = BOLT_W * clampf(marker, 0.0, 1.0) - 2.5
@@ -607,52 +678,158 @@ func set_join(text: String, url := "") -> void:
 
 # ------------------------------------------------------------------ cards
 
-## Old-style card (title, headline, body text).
-func show_card(title: String, headline: String, body: String, seconds := 5.0) -> void:
-	show_report(title, headline, "", Array(body.split("\n")), [], seconds)
-
-## The slab report: points, quality, what earned them, what cost quality.
-func show_report(title: String, headline: String, quality_text: String, gains: Array, losses: Array, seconds := 6.0) -> void:
-	_card_title.text = title
-	_card_head.text = headline
-	_card_quality.text = quality_text
-	_medal_row.visible = false
-	for c in _card_cols.get_children():
-		_card_cols.remove_child(c)
+## The slab report. `d` is {title, points, quality, verdict, medal (0-2),
+## medal_note, crew: [{role, p, bot, name, pts, why}], star (the role of
+## the crew star, "" for none), losses: [text], next (what's up next)}.
+## `seconds` < 0: it stays up till someone presses A (dismiss_card), with
+## the countdown set_report_left moves.
+func show_slab(d: Dictionary, seconds := 6.0) -> void:
+	for c in _card_box.get_children():
+		_card_box.remove_child(c)
 		c.queue_free()
-	var left := VBoxContainer.new()
-	left.add_theme_constant_override("separation", 2)
-	_card_cols.add_child(left)
-	# (the biggest few, and the rest summed, so the card never overflows)
-	var shown := 0
-	var rest := 0
-	for r in gains:
-		if String(r) == "":
-			continue
-		if shown < 6:
-			left.add_child(_row(r, UI.WHITE))
-			shown += 1
-		else:
-			var tail := String(r).rsplit("   ", true, 1)
-			if tail.size() > 1:
-				rest += int(tail[1].strip_edges().replace("+", ""))
-	if rest != 0:
-		left.add_child(_row("Everything else   %s%d" % ["+" if rest > 0 else "", rest], UI.MUTED))
+	var mcols := [Color("d0884a"), Color("d6dde6"), Color("ffd23f")]
+	var mnames := ["BRONZE", "SILVER", "GOLD"]
+	var m: int = clampi(int(d.get("medal", 0)), 0, 2)
+	# The medal, the points and the quality
+	var top := HBoxContainer.new()
+	top.add_theme_constant_override("separation", 16)
+	_card_box.add_child(top)
+	var disc := UI.panel(mcols[m], 36, Color(1, 1, 1, 0.85), 3, Vector4(0, 0, 0, 0))
+	disc.custom_minimum_size = Vector2(72, 72)
+	disc.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var star := UI.head("★", 40, Color(0, 0, 0, 0.55))
+	star.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	star.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	disc.add_child(star)
+	top.add_child(disc)
+	var tv := VBoxContainer.new()
+	tv.add_theme_constant_override("separation", 0)
+	tv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	top.add_child(tv)
+	tv.add_child(UI.head(String(d.get("title", "")), 16, UI.DIM))
+	var hl := HBoxContainer.new()
+	hl.add_theme_constant_override("separation", 18)
+	tv.add_child(hl)
+	hl.add_child(UI.head(mnames[m], 44, mcols[m]))
+	hl.add_child(UI.head("+" + _thousands(int(d.get("points", 0))), 44, UI.GOLD))
+	var q := UI.head("QUALITY %d%%  ·  %s" % [int(d.get("quality", 0)), String(d.get("verdict", "")).to_upper()], 20, UI.BONE)
+	q.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	hl.add_child(q)
+	var note := UI.label(String(d.get("medal_note", "")), 14, UI.DIM, 0)
+	tv.add_child(note)
+	# The crew: one card per hard hat
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	_card_box.add_child(row)
+	for r in d.get("crew", []):
+		row.add_child(_hat_card(r, String(r["role"]) == String(d.get("star", ""))))
+	# What cost quality
+	var losses: Array = d.get("losses", [])
 	if not losses.is_empty():
-		var right := VBoxContainer.new()
-		right.add_theme_constant_override("separation", 2)
-		_card_cols.add_child(right)
-		right.add_child(UI.label("QUALITY KNOCKED BACK BY", 12, UI.MUTED, 0))
-		for r in losses:
-			right.add_child(_row(r, Color("ff9a9a")))
+		var lf := HFlowContainer.new()
+		lf.add_theme_constant_override("h_separation", 8)
+		lf.add_theme_constant_override("v_separation", 4)
+		lf.custom_minimum_size = Vector2(860, 0)
+		_card_box.add_child(lf)
+		var lh := UI.head("QUALITY KNOCKED BACK BY", 14, UI.DIM)
+		lh.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		lf.add_child(lh)
+		for l in losses.slice(0, 4):
+			var pl := UI.pill(Color(UI.ALARM, 0.16), Vector4(10, 2, 10, 3), Color(UI.ALARM, 0.5), 1)
+			pl.add_child(UI.label(String(l).replace("   ", "  "), 14, Color("ffb3ad"), 0))
+			lf.add_child(pl)
+	# Up next, the countdown, and the buttons
+	_card_hold = seconds < 0.0
+	_card_go = null
+	var foot := HBoxContainer.new()
+	foot.add_theme_constant_override("separation", 14)
+	_card_box.add_child(foot)
+	var nv := VBoxContainer.new()
+	nv.add_theme_constant_override("separation", 3)
+	nv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	foot.add_child(nv)
+	_card_next = UI.head("UP NEXT · " + String(d.get("next", "")).to_upper(), 18, UI.BONE)
+	nv.add_child(_card_next)
+	var bh := Control.new()
+	bh.custom_minimum_size = Vector2(380, 6)
+	nv.add_child(bh)
+	var tr := ColorRect.new()
+	tr.color = UI.TRACK
+	tr.size = Vector2(380, 6)
+	bh.add_child(tr)
+	_card_fill = ColorRect.new()
+	_card_fill.color = UI.GOLD
+	_card_fill.size = Vector2(380, 6)
+	bh.add_child(_card_fill)
+	bh.visible = _card_hold
+	if _card_hold:
+		foot.add_child(_kit_button("Y", "SWAP HATS", false))
+		_card_go = _kit_button("A", "NEXT POUR", true)
+		foot.add_child(_card_go)
 	card.visible = true
 	card.modulate.a = 1.0
-	# seconds < 0: it stays up till someone presses A (dismiss_card)
-	_card_hold = seconds < 0.0
 	_card_t = maxf(0.0, seconds)
 	_card_age = 0.0
-	_card_hint.visible = _card_hold
 	_refit_card()
+
+## How much of the report's countdown is left (0..1), and the seconds.
+func set_report_left(left: float, _secs: float) -> void:
+	if _card_fill == null or not _card_hold:
+		return
+	_card_fill.size.x = 380.0 * clampf(left, 0.0, 1.0)
+
+## A crew member's hard hat card on the report: their points and what
+## earned them most; the crew star gets a gold frame and a ribbon.
+func _hat_card(r: Dictionary, star: bool) -> PanelContainer:
+	var col: Color = UI.ROLE.get(r["role"], UI.WHITE)
+	var c := UI.panel(Color(1, 1, 1, 0.05), 10, UI.GOLD if star else Color(1, 1, 1, 0.08), 2 if star else 1, Vector4(8, 8, 8, 8))
+	UI.style(c).border_width_top = 5
+	if not star:
+		UI.style(c).border_color = col
+	c.custom_minimum_size = Vector2(138, 0)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 3)
+	c.add_child(v)
+	var th := HBoxContainer.new()
+	th.add_theme_constant_override("separation", 6)
+	v.add_child(th)
+	var hat := UI.Hat.new()
+	hat.color = col
+	hat.custom_minimum_size = Vector2(36, 30)
+	hat.dim = bool(r["bot"])
+	th.add_child(hat)
+	var tag := UI.ptag(int(r["p"]), 14, bool(r["bot"]))
+	tag.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	th.add_child(tag)
+	var jn := UI.head(UI.ROLE_NAME.get(r["role"], "").to_upper(), 15, col)
+	jn.clip_text = true
+	jn.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	v.add_child(jn)
+	var pts := int(r["pts"])
+	v.add_child(UI.head(("+" if pts >= 0 else "") + _thousands(pts), 26, UI.GOLD if star else UI.BONE))
+	var why := UI.label(String(r["why"]), 13, UI.DIM, 0)
+	why.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	why.custom_minimum_size = Vector2(122, 34)
+	why.max_lines_visible = 2
+	v.add_child(why)
+	if star:
+		var rib := UI.pill(UI.GOLD, Vector4(8, 1, 8, 2))
+		rib.add_child(UI.head("★ CREW STAR", 14, Color("2a1d00")))
+		rib.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+		v.add_child(rib)
+	return c
+
+## A Site Kit button with its word: the gold one is the default.
+func _kit_button(btn: String, text: String, gold: bool) -> PanelContainer:
+	var p := UI.pill(UI.GOLD if gold else Color(1, 1, 1, 0.08), Vector4(8, 5, 16, 5), Color(1, 1, 1, 0.9) if gold else Color(0, 0, 0, 0), 2 if gold else 0)
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 8)
+	p.add_child(h)
+	h.add_child(UI.glyph(btn, 30))
+	var l := UI.head(text, 22, Color("2a1d00") if gold else UI.BONE)
+	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	h.add_child(l)
+	return p
 
 func card_waiting() -> bool:
 	return _card_hold
@@ -762,10 +939,10 @@ class Gauge extends Control:
 	func _draw() -> void:
 		var c := Vector2(size.x * 0.5, size.y - 6.0)
 		var r := minf(size.x * 0.5 - 6.0, size.y - 12.0)
-		if spike and fmod(_t, 0.3) < 0.15:
-			draw_rect(Rect2(Vector2.ZERO, size), Color(1.0, 0.2, 0.2, 0.35))
+		if spike and fmod(_t, UI.SHAKE_T * 2.0) < UI.SHAKE_T:
+			draw_rect(Rect2(Vector2.ZERO, size), Color(UI.ALARM, 0.3))
 		# green to 120 bar, amber to 180, red above
-		var bands := [[0.0, 120.0, Color("7cd992")], [120.0, 180.0, Color("ffc72c")], [180.0, MAX_BAR, Color("ff4d4d")]]
+		var bands := [[0.0, 120.0, UI.DONE], [120.0, 180.0, Color("f2b51f")], [180.0, MAX_BAR, UI.ALARM]]
 		for b in bands:
 			var a0 := PI + PI * float(b[0]) / MAX_BAR
 			var a1 := PI + PI * float(b[1]) / MAX_BAR
@@ -777,12 +954,24 @@ class Gauge extends Control:
 		var tip := c + Vector2(cos(ang), sin(ang)) * (r - 4.0)
 		draw_line(c, tip, Color.WHITE, 3.5, true)
 		draw_circle(c, 5.0, Color.WHITE)
-		var font := get_theme_default_font()
-		var txt := "SPIKE!  A: KILL IT" if spike else ("TRIPPED · RESTART" if tripped else "%d bar" % int(bar))
-		var col := Color("ff6b6b") if spike else (Color("ffc72c") if tripped else Color("9fb0c6"))
-		var fs := 15
+		var font := UI.font("head")
+		var txt := "KILL IT" if spike else ("TRIPPED · RESTART" if tripped else "%d bar" % int(bar))
+		var col := Color("ff6b5f") if spike else (Color("f2b51f") if tripped else Color("c9c6bd"))
+		var fs := 18
 		var tw := font.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
-		draw_string(font, Vector2(c.x - tw * 0.5, c.y - r * 0.35), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, col)
+		var gw := 26.0 if spike else 0.0
+		var x0 := c.x - (tw + gw) * 0.5
+		var ty := c.y - r * 0.35
+		if spike:
+			# The A to press, as the Site Kit button
+			var gc := Vector2(x0 + 10.0, ty - fs * 0.32)
+			var k := 1.0 + 0.1 * (0.5 - 0.5 * cos(_t * TAU / UI.GOLD_T))
+			draw_circle(gc + Vector2(0, 1), 12.0 * k, Color.WHITE, true, -1.0, true)
+			draw_circle(gc + Vector2(0, 2.5), 10.5 * k, UI.LIP["A"], true, -1.0, true)
+			draw_circle(gc, 10.5 * k, UI.GLYPH["A"], true, -1.0, true)
+			var aw := font.get_string_size("A", HORIZONTAL_ALIGNMENT_LEFT, -1, 15).x
+			draw_string(font, gc + Vector2(-aw * 0.5, 5.5), "A", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, UI.GLYPH_INK["A"])
+		draw_string(font, Vector2(x0 + gw, ty), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, col)
 
 ## A docket gauge: the scale, the accepted band in green, and a marker.
 class DocketBar extends Control:
@@ -803,67 +992,170 @@ class DocketBar extends Control:
 		var mc := (Color("1f6f3a") if inside else Color("c0392b")) if help else Color("0f1b2d")
 		draw_rect(Rect2(x - 3, 0, 6, h), mc)
 
-## Adds the slab's medal to the report that's showing.
-func show_medal(m: int, note: String) -> void:
-	var cols := [Color("d0884a"), Color("d6dde6"), Color("ffd23f")]
-	var names := ["BRONZE", "SILVER", "GOLD"]
-	UI.style(_medal_disc).bg_color = cols[m]
-	_medal_name.text = names[m]
-	_medal_name.add_theme_color_override("font_color", cols[m])
-	_medal_note.text = note
-	_medal_row.visible = true
-	_refit_card()
-
 ## Grow (or shrink) the report card round whatever's in it now.
 func _refit_card() -> void:
-	UI.place(card, Vector2(0.5, 0.5), Vector2(0, 30))
+	UI.place(card, Vector2(0.5, 0.5), Vector2(0, 20))
 	card.reset_size()
 
-func _row(text: String, col: Color) -> HBoxContainer:
-	var h := HBoxContainer.new()
-	h.add_theme_constant_override("separation", 14)
-	var parts := text.rsplit("   ", true, 1)
-	h.custom_minimum_size = Vector2(340, 0)
-	var a := UI.label(parts[0].strip_edges(), 18, col, 0)
-	a.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	a.clip_text = true
-	a.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	h.add_child(a)
-	if parts.size() > 1:
-		var b := UI.label(parts[1].strip_edges(), 18, UI.YELLOW if col == UI.WHITE else col, 0)
-		b.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		b.custom_minimum_size = Vector2(60, 0)
-		h.add_child(b)
-	return h
+## The toolbox talk: what the day's like, the pour plan, and each job's
+## first move with its button and who's on it. `d` is {title, plan, chips:
+## [[text, "hot"/"warn"/""]], moves: [{role, btn, text, p, bot}], wait}.
+## With `wait` it shows the hold-A bar (anyone can hold it) and the
+## countdown till it starts itself; set_toolbox moves them.
+var _tb_box: VBoxContainer
+var _tb_fill: ColorRect
+var _tb_hold: HoldGlyph
+var _tb_left: Label
 
-## Pre-pour briefing: a title line, then one row per point.
-## `wait`: it shows "A: ready" and the engineer waits for it (see main).
-func show_brief(on: bool, text := "", wait := false) -> void:
-	brief.visible = on
+func style_brief() -> void:
+	var sb := UI.style(brief)
+	sb.border_width_top = 8
+	sb.border_color = UI.GOLD
+	sb.shadow_color = Color(0, 0, 0, 0.45)
+	sb.shadow_size = 18
+
+func show_brief(on: bool, _text := "", _wait := false) -> void:
 	if not on:
-		return
-	_brief_hint.visible = wait
-	var lines := Array(text.split("\n"))
-	_brief_title.text = lines[0] if not lines.is_empty() else ""
-	for c in _brief_lines.get_children():
-		_brief_lines.remove_child(c)
+		brief.visible = false
+
+func show_toolbox(d: Dictionary) -> void:
+	for c in _tb_box.get_children():
+		_tb_box.remove_child(c)
 		c.queue_free()
-	for l in lines.slice(1):
-		var s := String(l)
-		if s.strip_edges() == "":
-			continue
-		var warn := s.begins_with("HOT") or s.begins_with("SHOWER") or s.begins_with("TRAFFIC") or s.begins_with("GUSTY")
+	var ink := Color("1d1a14")
+	var soft := Color("6b6252")
+	_tb_box.add_child(UI.head(String(d.get("title", "")), 16, soft))
+	var plan := UI.head(String(d.get("plan", "")), 30, ink)
+	plan.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	plan.custom_minimum_size = Vector2(712, 0)
+	_tb_box.add_child(plan)
+	var chips := HFlowContainer.new()
+	chips.add_theme_constant_override("h_separation", 8)
+	chips.add_theme_constant_override("v_separation", 6)
+	_tb_box.add_child(chips)
+	for ch in d.get("chips", []):
+		var kind: String = ch[1]
+		var bg: Color = UI.ALARM if kind == "hot" else (UI.GOLD if kind == "warn" else Color("e2dccb"))
+		var fg: Color = Color.WHITE if kind == "hot" else (Color("2a1d00") if kind == "warn" else ink)
+		var pill := UI.pill(bg, Vector4(12, 3, 12, 4))
+		pill.add_child(UI.head(String(ch[0]), 17, fg))
+		chips.add_child(pill)
+	var notes: Array = d.get("notes", [])
+	for n in notes:
+		var nl := UI.label(String(n), 15, soft, 0)
+		nl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		nl.custom_minimum_size = Vector2(712, 0)
+		_tb_box.add_child(nl)
+	var rule := ColorRect.new()
+	rule.color = Color("d9d0bb")
+	rule.custom_minimum_size = Vector2(712, 2)
+	_tb_box.add_child(rule)
+	_tb_box.add_child(UI.head("FIRST MOVES", 15, soft))
+	var grid := GridContainer.new()
+	grid.columns = 2
+	grid.add_theme_constant_override("h_separation", 22)
+	grid.add_theme_constant_override("v_separation", 8)
+	_tb_box.add_child(grid)
+	for m in d.get("moves", []):
 		var row := HBoxContainer.new()
-		row.add_theme_constant_override("separation", 10)
-		var dot := ColorRect.new()
-		dot.color = UI.YELLOW if warn else UI.MUTED
-		dot.custom_minimum_size = Vector2(4, 20)
-		row.add_child(dot)
-		var lab := UI.label(s, 19, UI.WHITE, 0)
-		lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		lab.custom_minimum_size = Vector2(460, 0)
-		row.add_child(lab)
-		_brief_lines.add_child(row)
+		row.add_theme_constant_override("separation", 8)
+		row.custom_minimum_size = Vector2(345, 0)
+		var hat := UI.Hat.new()
+		hat.color = UI.ROLE.get(m["role"], UI.WHITE).darkened(0.08)
+		hat.custom_minimum_size = Vector2(34, 28)
+		hat.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+		row.add_child(hat)
+		var v := VBoxContainer.new()
+		v.add_theme_constant_override("separation", 2)
+		row.add_child(v)
+		var top := HBoxContainer.new()
+		top.add_theme_constant_override("separation", 6)
+		v.add_child(top)
+		top.add_child(UI.head(UI.ROLE_NAME.get(m["role"], m["role"]).to_upper(), 17, ink))
+		var tag := UI.ptag(int(m["p"]), 13, bool(m["bot"]))
+		tag.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		top.add_child(tag)
+		var how := HBoxContainer.new()
+		how.add_theme_constant_override("separation", 6)
+		v.add_child(how)
+		var g := UI.glyph(String(m["btn"]), 22)
+		g.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+		how.add_child(g)
+		var t := UI.label(String(m["text"]), 14, ink, 0)
+		t.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		t.custom_minimum_size = Vector2(270, 0)
+		how.add_child(t)
+		grid.add_child(row)
+	_tb_hold = null
+	if d.get("wait", false):
+		var bar_holder := Control.new()
+		bar_holder.custom_minimum_size = Vector2(712, 6)
+		_tb_box.add_child(bar_holder)
+		var track := ColorRect.new()
+		track.color = Color("e2dccb")
+		track.size = Vector2(712, 6)
+		bar_holder.add_child(track)
+		_tb_fill = ColorRect.new()
+		_tb_fill.color = UI.GOLD.darkened(0.08)
+		_tb_fill.size = Vector2(712, 6)
+		bar_holder.add_child(_tb_fill)
+		var foot := HBoxContainer.new()
+		foot.add_theme_constant_override("separation", 10)
+		_tb_box.add_child(foot)
+		_tb_left = UI.head("STARTS ITSELF IN 20s", 16, soft)
+		_tb_left.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		_tb_left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		foot.add_child(_tb_left)
+		_tb_hold = HoldGlyph.new()
+		_tb_hold.custom_minimum_size = Vector2(46, 46)
+		foot.add_child(_tb_hold)
+		var go := UI.head("ANYONE: HOLD A TO START", 24, ink)
+		go.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		foot.add_child(go)
+	brief.visible = true
+	brief.reset_size()
+	UI.place(brief, Vector2(0.5, 0.5), Vector2(0, 20))
+
+## The toolbox talk's hold (0..1) and how much of its countdown is left (0..1).
+func set_toolbox(hold: float, left: float, secs: float) -> void:
+	if _tb_hold == null or not brief.visible:
+		return
+	_tb_hold.prog = hold
+	_tb_fill.size.x = 712.0 * clampf(left, 0.0, 1.0)
+	_tb_left.text = "STARTS ITSELF IN %ds" % int(ceil(secs))
+
+## A Site Kit A that fills with concrete while it's held, ringed in gold.
+class HoldGlyph extends Control:
+	var prog := 0.0
+	var _t := 0.0
+	func _process(delta: float) -> void:
+		_t += delta
+		queue_redraw()
+	func _draw() -> void:
+		var c := size * 0.5
+		var pl := 0.5 - 0.5 * cos(_t * TAU / (UI.URGENT_T if prog > 0.0 else UI.BREATHE_T))
+		var k := 1.0 + (UI.URGENT_S - 1.0 if prog > 0.0 else UI.BREATHE_S - 1.0) * pl
+		var r := minf(size.x, size.y) * 0.34 * k
+		draw_arc(c, r + 7.0, 0, TAU, 40, UI.TRACK, 4.0, true)
+		if prog > 0.0:
+			draw_arc(c, r + 7.0, -PI * 0.5, -PI * 0.5 + TAU * clampf(prog, 0.0, 1.0), 40, UI.GOLD, 4.0, true)
+		draw_circle(c + Vector2(0, 1.5), r + 2.0, Color.WHITE, true, -1.0, true)
+		draw_circle(c + Vector2(0, 3.0), r, UI.LIP["A"], true, -1.0, true)
+		draw_circle(c, r, UI.GLYPH["A"], true, -1.0, true)
+		if prog > 0.0:
+			var top := r - 2.0 * r * clampf(prog, 0.0, 1.0)
+			var pts := PackedVector2Array()
+			for i in 33:
+				var a := TAU * i / 32.0
+				var p := Vector2(cos(a), sin(a)) * r
+				if p.y < top:
+					p.y = top
+				pts.append(c + p)
+			draw_colored_polygon(pts, Color(0.62, 0.61, 0.58, 0.75))
+		var f := UI.font("head")
+		var fs := int(r * 1.25)
+		var w := f.get_string_size("A", HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+		draw_string(f, c + Vector2(-w * 0.5, fs * 0.36), "A", HORIZONTAL_ALIGNMENT_LEFT, -1, fs, UI.GLYPH_INK["A"])
 
 func show_topout(text: String) -> void:
 	banner.visible = true

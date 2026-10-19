@@ -12,6 +12,8 @@ const CrewInfo := preload("res://scripts/roster.gd")
 const F := preload("res://scripts/factory.gd")
 const Icons := preload("res://scripts/icons.gd")
 const CUE := preload("res://shaders/cue.gdshader")
+const PILL := preload("res://shaders/pill.gdshader")
+const UI := preload("res://scripts/ui.gd")
 const BALLOON := preload("res://shaders/balloon.gdshader")
 const BARK_SIZE := 30
 const BARK_WRAP := 330.0    # px of text before a spoken line wraps
@@ -93,6 +95,7 @@ func setup(i: int, color: Color) -> void:
 	hand_l.position = Vector3(0, -0.46, 0)
 	model.get_node("ArmL").add_child(hand_l)
 	tag = F.label3d("P%d" % i, 50, color)
+	tag.font = UI.font("head")
 	tag.position = Vector3(0, 2.2, 0)
 	add_child(tag)
 	prompt = F.label3d("", 30, Color.WHITE)
@@ -113,42 +116,36 @@ func setup(i: int, color: Color) -> void:
 		quad.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		n.add_child(quad)
 		var letter := F.label3d("A", 64, Color("0f1b2d"))
+		letter.font = UI.font("head")
 		letter.outline_size = 0
 		letter.render_priority = 31
 		letter.pixel_size = 0.0085
 		n.add_child(letter)
+		# The verb tag: a dark pill with the job's dot, the words on it
+		var pill := MeshInstance3D.new()
+		pill.mesh = QuadMesh.new()
+		var pm := ShaderMaterial.new()
+		pm.shader = PILL
+		pm.render_priority = 30
+		pill.material_override = pm
+		pill.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		n.add_child(pill)
 		var verb := F.label3d("", 44, Color.WHITE)
+		verb.font = UI.font("head")
+		verb.outline_size = 0
 		verb.position = Vector3(0.75, 0, 0)
 		verb.render_priority = 31
 		n.add_child(verb)
 		n.visible = false
 		add_child(n)
-		for v in [quad, letter, verb]:
+		for v in [quad, letter, verb, pill]:
 			v.layers = 2
-		var sp := CPUParticles3D.new()
-		sp.amount = 16
-		sp.lifetime = 0.45
-		sp.emitting = false
-		sp.local_coords = true
-		sp.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE_SURFACE
-		sp.emission_sphere_radius = 0.45
-		sp.direction = Vector3(0, 1, 0)
-		sp.spread = 180.0
-		sp.initial_velocity_min = 0.8
-		sp.initial_velocity_max = 1.6
-		sp.gravity = Vector3(0, -2.0, 0)
-		var sbm := BoxMesh.new()
-		sbm.size = Vector3(0.06, 0.06, 0.06)
-		var spm := StandardMaterial3D.new()
-		spm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		spm.albedo_color = Color("ffd23f")
-		spm.no_depth_test = true
-		spm.render_priority = 32
-		sbm.material = spm
-		sp.mesh = sbm
-		sp.layers = 2
+		# Gold: 14 star sparks the moment it goes gold, then a trickle
+		var sp := _star_sparks(14, 0.55, true)
+		var tr := _star_sparks(5, 0.5, false)
 		n.add_child(sp)
-		_cue_nodes.append({"node": n, "mat": m, "letter": letter, "verb": verb, "sparks": sp})
+		n.add_child(tr)
+		_cue_nodes.append({"node": n, "mat": m, "letter": letter, "verb": verb, "pill": pill, "pmat": pm, "sparks": sp, "trickle": tr, "pressed_at": -9.0, "was_down": false})
 	tag.layers = 2
 	prompt.layers = 2
 	ring = MeshInstance3D.new()
@@ -211,6 +208,53 @@ func setup(i: int, color: Color) -> void:
 	_sweat.position = Vector3(0, 1.4, 0)
 	model.add_child(_sweat)
 
+static var _star_tex: Texture2D
+
+## The Site Kit's gold star sparks (the phone throws the same ones).
+func _star_sparks(amount: int, life: float, burst: bool) -> CPUParticles3D:
+	var sp := CPUParticles3D.new()
+	sp.amount = amount
+	sp.lifetime = life
+	sp.emitting = false
+	sp.one_shot = burst
+	sp.explosiveness = 1.0 if burst else 0.0
+	sp.local_coords = true
+	sp.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE_SURFACE
+	sp.emission_sphere_radius = 0.42
+	sp.direction = Vector3(0, 1, 0)
+	sp.spread = 180.0
+	sp.initial_velocity_min = 1.4 if burst else 0.5
+	sp.initial_velocity_max = 2.4 if burst else 0.9
+	sp.damping_min = 2.0
+	sp.damping_max = 3.0
+	sp.gravity = Vector3(0, -1.5, 0)
+	sp.angle_min = 0.0
+	sp.angle_max = 90.0
+	sp.angular_velocity_min = -240.0
+	sp.angular_velocity_max = 240.0
+	sp.scale_amount_min = 0.7
+	sp.scale_amount_max = 1.2
+	var curve := Curve.new()
+	curve.add_point(Vector2(0, 1))
+	curve.add_point(Vector2(1, 0))
+	sp.scale_amount_curve = curve
+	var qm := QuadMesh.new()
+	qm.size = Vector2(0.16, 0.16)
+	var spm := StandardMaterial3D.new()
+	spm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	spm.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	spm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	spm.albedo_color = UI.GOLD
+	if _star_tex == null:
+		_star_tex = UI.star_texture(48)
+	spm.albedo_texture = _star_tex
+	spm.no_depth_test = true
+	spm.render_priority = 32
+	qm.material = spm
+	sp.mesh = qm
+	sp.layers = 2
+	return sp
+
 # ------------------------------------------------------------------ who's driving
 
 ## Who is driving this chibi: a person (keyboard, pad or phone) or a bot.
@@ -257,7 +301,7 @@ func refresh_tag() -> void:
 		tag.font_size = 30
 		ring.visible = false
 	else:
-		tag.text = "P%d %s" % [index, char_name.to_upper()]
+		tag.text = "P%d · %s" % [index, char_name]
 		tag.modulate = tag_color
 		tag.font_size = 44
 		ring.visible = true
@@ -529,11 +573,14 @@ func show_cues(cam_right: Vector3, t: float, cam_pos := Vector3.ZERO) -> void:
 		return
 	if cam_pos != Vector3.ZERO:
 		k_size = clampf(global_position.distance_to(cam_pos) / 15.0, 0.9, 3.2)
+	var on_keys: bool = not ai and not bot and KEYS.has(prefix) and bool(get_parent().on_keys.get(prefix, prefix == "p1_"))
 	for k in _cue_nodes.size():
 		var c: Dictionary = _cue_nodes[k]
 		var n: Node3D = c["node"]
 		n.visible = k < cues.size()
 		if not n.visible:
+			_was_gold[k] = false
+			(c["trickle"] as CPUParticles3D).emitting = false
 			continue
 		var cu: Array = cues[k]
 		var btn: String = cu[0]
@@ -541,42 +588,95 @@ func show_cues(cam_right: Vector3, t: float, cam_pos := Vector3.ZERO) -> void:
 		# Small, just beside the head, so the name tag above stays readable
 		var gk := k_size * 0.55
 		n.position = Vector3(0, 1.5 + 0.2 * gk - k * 1.05 * gk, 0) + cam_right * (0.45 + 0.55 * gk)
+		# Alarm: a hard shake, 0.15 s a cycle
 		if alarm:
-			n.position += Vector3(sin(t * 57.0), sin(t * 49.0 + 1.0), 0) * 0.04 * gk
+			var w := t * TAU / UI.SHAKE_T
+			n.position += Vector3(sin(w), sin(w * 0.8 + 1.0), 0) * 0.05 * gk
 		n.scale = Vector3.ONE * gk
 		var m: ShaderMaterial = c["mat"]
 		var tinted: bool = cu.size() > 7 and cu[7] is Color
-		var col: Color = Color("ff2d2d") if alarm else (cu[7] if tinted else BTN_COLORS.get(btn, Color.WHITE))
+		var col: Color = UI.ALARM if alarm else (cu[7] if tinted else BTN_COLORS.get(btn, Color.WHITE))
+		var lip: Color = col.darkened(0.45) if alarm or tinted else UI.LIP.get(btn, col.darkened(0.45))
 		m.set_shader_parameter("color", col)
+		m.set_shader_parameter("lip", lip)
 		m.set_shader_parameter("progress", cu[2])
 		m.set_shader_parameter("zone", cu[4] if cu.size() > 4 else Vector2(-1, -1))
-		var zv: Vector2 = cu[4] if cu.size() > 4 else Vector2(-1, -1)
 		var in_zone: bool = is_gold(cu) and not alarm
 		# (the assist, as against a hold's own gold band)
 		var assisted: bool = in_zone and cu.size() > 6 and cu[6]
 		m.set_shader_parameter("assist", 1.0 if assisted else 0.0)
-		(c["sparks"] as CPUParticles3D).emitting = in_zone
-		if in_zone and not _was_gold[k] and not bot:
-			# A little buzz in the hand the moment it goes gold
-			get_parent().haptic(self, "15")
+		m.set_shader_parameter("gold_on", 1.0 if in_zone else 0.0)
+		var tr: CPUParticles3D = c["trickle"]
+		tr.emitting = in_zone
+		if in_zone and not _was_gold[k]:
+			(c["sparks"] as CPUParticles3D).restart()
+			if not bot:
+				# A little buzz in the hand the moment it goes gold
+				get_parent().haptic(self, UI.BUZZ["gold"])
 		_was_gold[k] = in_zone
-		if in_zone:
-			col = col.lerp(GOLD, 0.75)
-			m.set_shader_parameter("color", col)
-		var speed_p := 18.0 if alarm or in_zone else (9.0 if cu[3] else 5.0)
-		var pl := 0.5 + 0.5 * sin(t * speed_p + k)
-		m.set_shader_parameter("pulse", (0.7 + 0.3 * pl) if alarm else (0.4 + 0.6 * pl))
-		m.set_shader_parameter("scale_mul", (1.0 + (0.2 if alarm or in_zone else 0.08) * pl) * gk * (1.25 if in_zone else 1.0))
-		(c["letter"] as Label3D).text = btn
-		(c["letter"] as Label3D).position = Vector3(0, 0, 0.01)
+		# The press squash: 90 ms down onto the lip, then a springy overshoot
+		var what: String = BTN.find_key(btn) if BTN.values().has(btn) else ""
+		var down := what != "" and not bot and _held(what)
+		if down and not c["was_down"]:
+			c["pressed_at"] = t
+		c["was_down"] = down
+		var since: float = t - float(c["pressed_at"])
+		var squash := 0.0
+		var press_k := 1.0
+		if since < 0.09:
+			squash = since / 0.09
+			press_k = 1.0 - 0.12 * squash
+		elif since < 0.6:
+			squash = maxf(0.0, 1.0 - (since - 0.09) / 0.08)
+			press_k = 1.0 - 0.12 * cos((since - 0.09) * 22.0) * exp(-(since - 0.09) * 12.0)
+		if down and float(cu[2]) >= 0.0:
+			squash = maxf(squash, 0.6)
+		m.set_shader_parameter("squash", squash)
+		# Motion: ready breathes, press-now pulses, gold beats fast
+		var period := UI.BREATHE_T
+		var amp := UI.BREATHE_S - 1.0
+		if alarm:
+			period = UI.SHAKE_T * 2.0
+			amp = 0.08
+		elif in_zone:
+			period = UI.GOLD_T
+			amp = 0.1
+		elif cu[3]:
+			period = UI.URGENT_T
+			amp = UI.URGENT_S - 1.0
+		var pl := 0.5 - 0.5 * cos(t * TAU / period + k)
+		m.set_shader_parameter("pulse", (0.7 + 0.3 * pl) if alarm or in_zone else (0.25 + 0.5 * pl * (1.0 if cu[3] else 0.4)))
+		m.set_shader_parameter("scale_mul", (1.0 + amp * pl) * press_k * gk * (1.18 if in_zone else 1.0))
+		var letter: Label3D = c["letter"]
+		letter.text = btn
+		letter.position = Vector3(0, 0.035 * (1.0 - 0.7 * squash), 0.01)
+		letter.modulate = Color("2a1d00") if in_zone else (Color.WHITE if alarm else UI.GLYPH_INK.get(btn, Color("0f1b2d")))
+		letter.scale = Vector3.ONE * (1.0 + amp * pl) * press_k * (1.18 if in_zone else 1.0)
 		var verb: Label3D = c["verb"]
-		verb.text = cu[1]
-		if not ai and not bot and KEYS.has(prefix) and bool(get_parent().on_keys.get(prefix, prefix == "p1_")):
+		var words: String = cu[1]
+		if in_zone and words != "":
+			words = words.to_upper()
+		if on_keys:
 			var key: String = KEYS[prefix].get(btn, "")
-			verb.text = ("%s  [%s]" % [cu[1], key]) if cu[1] != "" else "[%s]" % key
+			words = ("%s  [%s]" % [words, key]) if words != "" else "[%s]" % key
+		verb.text = words
 		verb.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-		verb.position = cam_right * 0.75
-		verb.modulate = Color("ff6b6b") if alarm else (Color("ffd23f") if in_zone else (Color("9fd6ff") if tinted else Color.WHITE))
+		verb.modulate = Color("ff6b5f") if alarm else (UI.GOLD if in_zone else (Color("9fd6ff") if tinted else UI.BONE))
+		# The pill under the words, sized to them, with the job's dot
+		var pill: MeshInstance3D = c["pill"]
+		pill.visible = words != ""
+		if words != "":
+			var tw := UI.font("head").get_string_size(words, HORIZONTAL_ALIGNMENT_LEFT, -1, verb.font_size).x * verb.pixel_size
+			var h := verb.font_size * verb.pixel_size * 1.25
+			var left := 0.58
+			var bw := tw + h * 1.35
+			verb.position = cam_right * (left + h * 0.95)
+			pill.position = cam_right * (left + bw * 0.5) + Vector3(0, 0, -0.01)
+			(pill.mesh as QuadMesh).size = Vector2(bw, h) * gk
+			var pm: ShaderMaterial = c["pmat"]
+			pm.set_shader_parameter("box", Vector2(bw, h))
+			pm.set_shader_parameter("dot_color", UI.ALARM if alarm else UI.ROLE.get(role, tag_color))
+			pm.set_shader_parameter("edge", Color(UI.GOLD, 0.9) if in_zone else (Color(UI.ALARM, 0.9) if alarm else Color(0, 0, 0, 0)))
 
 # ------------------------------------------------------------------ carrying
 

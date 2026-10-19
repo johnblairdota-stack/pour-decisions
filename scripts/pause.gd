@@ -1,30 +1,36 @@
-## Esc (or a pad's Start) pauses the whole site. The menu: carry on, your job
-## (what each button does in it, pour and climb day), the controls and phone
-## joining, the settings (incidents, UI size, labels in the world, sound,
-## shake), start again, or quit. Settings are kept between sessions.
+## Esc (or a pad's Start, or the phone's menu button) calls smoko: the whole
+## site stops. Back to work is the gold default (A, or B from anywhere on the
+## first page); from here people swap jobs, add a player off the QR, change
+## the settings, start again or knock off. On the right, the job ticket of
+## whoever's playing (or the QR while "Add a player" is picked), and how the
+## day's going along the bottom. Settings are kept between sessions.
 extends CanvasLayer
 
 const UI := preload("res://scripts/ui.gd")
 const QR := preload("res://scripts/qr.gd")
-const Icons := preload("res://scripts/icons.gd")
 const Settings := preload("res://scripts/settings.gd")
 
 const SCALES := [1.0, 1.25, 1.5]
+const MAIN := [["Back to work", "resume"], ["Swap jobs", "swap"], ["Add a player", "join"], ["Settings", "settings"],
+	["Start again", "restart"], ["Knock off", "quit"]]
+const SETTINGS := ["incidents", "gold_assist", "docket_help", "ui_scale", "world_text", "split", "fullscreen", "sound", "shake",
+	"real_names", "cam_test", "back"]
+const PAGE_TITLE := {"main": "SMOKO", "settings": "SETTINGS", "swap": "SWAP JOBS"}
 
 var game
-var _items: Array = []         # {button, action}
+var _items: Array = []         # {button, action, label}
 var _index := 0
-var _panel: PanelContainer
+var _page := "main"            # main, settings or swap
+var _who := 1                  # the player whose menu press it was (swaps move them)
+var _title: Label
+var _sub: Label
 var _list: VBoxContainer
-var _controls: PanelContainer
-var _job: PanelContainer
-var _job_box: VBoxContainer
 var _note: Label
-var _qr: TextureRect
-var _join: Label
+var _right: VBoxContainer
+var _stats: HBoxContainer
 var _qr_url := ""
 var _cool := 0.0
-var _side := "job"             # which card is open on the right: job or controls
+var _t := 0.0
 
 static func apply_ui_scale(tree: SceneTree) -> void:
 	tree.root.content_scale_factor = float(Settings.value("ui_scale"))
@@ -35,86 +41,59 @@ func setup(owner_game) -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	visible = false
 	var shade := ColorRect.new()
-	shade.color = Color(0.02, 0.04, 0.08, 0.66)
+	shade.color = Color(0.02, 0.03, 0.05, 0.72)
 	shade.set_anchors_preset(Control.PRESET_FULL_RECT)
 	shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(shade)
+	var outer := VBoxContainer.new()
+	outer.add_theme_constant_override("separation", 14)
+	add_child(outer)
+	UI.place(outer, Vector2(0.5, 0.5), Vector2(0, 0))
 	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 24)
-	add_child(row)
-	UI.place(row, Vector2(0.5, 0.5), Vector2(0, 0))
-	_panel = UI.panel(UI.GLASS_SOLID, 18, UI.YELLOW, 2, Vector4(26, 20, 26, 22))
-	_panel.custom_minimum_size = Vector2(360, 0)
-	row.add_child(_panel)
+	row.add_theme_constant_override("separation", 22)
+	outer.add_child(row)
+	var left := UI.panel(UI.CARD, 16, UI.EDGE, 1, Vector4(22, 16, 22, 18))
+	left.custom_minimum_size = Vector2(350, 0)
+	left.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	row.add_child(left)
 	var v := VBoxContainer.new()
-	v.add_theme_constant_override("separation", 10)
-	_panel.add_child(v)
-	v.add_child(UI.label("PAUSED", 44, UI.YELLOW))
+	v.add_theme_constant_override("separation", 8)
+	left.add_child(v)
+	var th := HBoxContainer.new()
+	th.add_theme_constant_override("separation", 10)
+	v.add_child(th)
+	var cup := UI.Hat.new()
+	cup.color = UI.GOLD
+	cup.custom_minimum_size = Vector2(44, 36)
+	th.add_child(cup)
+	var tv := VBoxContainer.new()
+	tv.add_theme_constant_override("separation", -4)
+	th.add_child(tv)
+	_title = UI.head("SMOKO", 46, UI.GOLD)
+	tv.add_child(_title)
+	_sub = UI.head("", 16, UI.DIM)
+	tv.add_child(_sub)
 	_list = VBoxContainer.new()
 	_list.add_theme_constant_override("separation", 5)
 	v.add_child(_list)
-	var rows := [["Carry on", "resume"], ["Your job", "job"], ["Controls & joining", "controls"],
-		["", "incidents"], ["", "gold_assist"], ["", "real_names"], ["", "split"], ["", "cam_test"], ["", "docket_help"], ["", "ui_scale"], ["", "world_text"], ["", "fullscreen"], ["", "sound"], ["", "shake"],
-		["Start again", "restart"], ["Quit", "quit"]]
-	for it in rows:
-		var b := Button.new()
-		b.text = it[0]
-		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
-		b.add_theme_font_size_override("font_size", 21)
-		b.custom_minimum_size = Vector2(308, 40)
-		b.focus_mode = Control.FOCUS_NONE
-		for st in ["normal", "hover", "pressed", "focus"]:
-			var sb := StyleBoxFlat.new()
-			sb.bg_color = Color(1, 1, 1, 0.05)
-			sb.set_corner_radius_all(10)
-			sb.content_margin_left = 14
-			b.add_theme_stylebox_override(st, sb)
-		b.pressed.connect(_do.bind(it[1]))
-		b.mouse_entered.connect(_select.bind(_items.size()))
-		_list.add_child(b)
-		_items.append({"button": b, "action": it[1]})
-	_note = UI.label("", 14, UI.MUTED, 0)
+	_note = UI.label("", 14, UI.DIM, 0)
 	_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_note.custom_minimum_size = Vector2(308, 38)
+	_note.custom_minimum_size = Vector2(306, 0)
 	v.add_child(_note)
-	v.add_child(UI.hint("A", "choose      Esc  carry on", 15))
-
-	# Your job: one card per person playing
-	_job = UI.panel(UI.GLASS_SOLID, 18, UI.EDGE, 2, Vector4(22, 18, 22, 18))
-	_job.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
-	row.add_child(_job)
-	_job_box = VBoxContainer.new()
-	_job_box.add_theme_constant_override("separation", 12)
-	_job.add_child(_job_box)
-
-	# Controls & joining
-	_controls = UI.panel(UI.GLASS_SOLID, 18, UI.EDGE, 2, Vector4(22, 18, 22, 18))
-	_controls.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
-	row.add_child(_controls)
-	var cv := VBoxContainer.new()
-	cv.add_theme_constant_override("separation", 8)
-	_controls.add_child(cv)
-	cv.add_child(UI.label("CONTROLS", 16, UI.MUTED, 0))
-	for b2 in [["A", "do the job · hold to work"], ["B", "put down · step off"], ["X", "the job's second action"], ["Y", "hand signal"]]:
-		cv.add_child(UI.hint(b2[0], b2[1], 17))
-	var keys := UI.label("Keyboard P1  WASD move · Space A · Q B · E X · F Y · 1–6 swap job\nKeyboard P2  arrows · Enter A · Shift B · Ctrl X · Alt Y\nF11 full screen · Tab skyline view · right-drag to turn the camera · wheel to zoom", 14, UI.MUTED, 0)
-	cv.add_child(keys)
-	cv.add_child(UI.label("JOIN ON A PHONE", 16, UI.MUTED, 0))
-	var jr := HBoxContainer.new()
-	jr.add_theme_constant_override("separation", 12)
-	cv.add_child(jr)
-	_qr = TextureRect.new()
-	_qr.custom_minimum_size = Vector2(200, 200)
-	_qr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	_qr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	jr.add_child(_qr)
-	_join = UI.label("", 18, UI.WHITE, 0)
-	_join.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_join.custom_minimum_size = Vector2(220, 0)
-	_join.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	jr.add_child(_join)
-	_select(0)
-	_show_side()
+	var hints := HBoxContainer.new()
+	hints.add_theme_constant_override("separation", 16)
+	v.add_child(hints)
+	hints.add_child(UI.hint("A", "CHOOSE", 15))
+	hints.add_child(UI.hint("B", "BACK", 15))
+	_right = VBoxContainer.new()
+	_right.add_theme_constant_override("separation", 10)
+	_right.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	row.add_child(_right)
+	_stats = HBoxContainer.new()
+	_stats.add_theme_constant_override("separation", 10)
+	_stats.alignment = BoxContainer.ALIGNMENT_CENTER
+	outer.add_child(_stats)
+	_build_page("main")
 
 func _unhandled_input(event: InputEvent) -> void:
 	if game == null or game.autotest:
@@ -128,131 +107,277 @@ func _unhandled_input(event: InputEvent) -> void:
 	var esc: bool = event is InputEventKey and event.pressed and not event.echo and (event as InputEventKey).keycode == KEY_ESCAPE
 	var start: bool = event is InputEventJoypadButton and event.pressed and (event as InputEventJoypadButton).button_index == JOY_BUTTON_START
 	if esc or start:
+		if esc:
+			_who = 1
 		toggle()
 		get_viewport().set_input_as_handled()
 
-func toggle() -> void:
+func toggle(who := -1) -> void:
 	if visible:
 		close()
 	else:
+		if who > 0:
+			_who = who
 		open()
 
 func open() -> void:
 	visible = true
 	get_tree().paused = true
 	_cool = 0.2
-	_select(0)
-	_refresh()
+	_build_page("main")
 
 func close() -> void:
 	visible = false
 	get_tree().paused = false
 
-func _show_side() -> void:
-	_job.visible = _side == "job"
-	_controls.visible = _side == "controls"
+## Opens straight on a page ("swap" from the slab report's Y).
+func open_on(page: String, who := -1) -> void:
+	toggle(who)
+	if visible and page != "main":
+		_build_page(page)
 
-func _build_jobs() -> void:
-	for c in _job_box.get_children():
+# ------------------------------------------------------------------ pages
+
+func _build_page(page: String) -> void:
+	_page = page
+	for c in _list.get_children():
+		_list.remove_child(c)
 		c.queue_free()
-	_job_box.add_child(UI.label("YOUR JOB", 16, UI.MUTED, 0))
-	var people: Array = game.humans() if game.has_method("humans") else game.crew.humans()
-	if people.is_empty() and game.crew:
-		people = [game.crew.crew["boom"]]
-	var grid := GridContainer.new()
-	grid.columns = 2 if people.size() > 2 else 1
-	grid.add_theme_constant_override("h_separation", 14)
-	grid.add_theme_constant_override("v_separation", 12)
-	_job_box.add_child(grid)
-	for p in people:
-		grid.add_child(_job_card(p, people.size() > 1))
+	_items.clear()
+	var rows: Array = []
+	match page:
+		"main":
+			rows = MAIN
+		"settings":
+			for a in SETTINGS:
+				rows.append(["", a])
+		"swap":
+			for role in game.crew.ROLES:
+				rows.append(["", "role:" + role])
+			rows.append(["Back", "back"])
+	for it in rows:
+		_items.append(_make_row(it[0], it[1]))
+	_title.text = PAGE_TITLE.get(page, "SMOKO")
+	_index = 0
+	if page == "swap":
+		# (start on the first job a bot's doing)
+		for i in _items.size():
+			var a: String = _items[i]["action"]
+			if a.begins_with("role:") and game.crew.is_bot(a.substr(5)):
+				_index = i
+				break
+	_refresh()
 
-func _job_card(p, compact: bool) -> PanelContainer:
-	var col: Color = UI.ROLE.get(p.role, UI.WHITE)
-	var card := UI.panel(Color(1, 1, 1, 0.04), 12, col, 2, Vector4(14, 10, 14, 12))
-	card.custom_minimum_size = Vector2(330 if compact else 400, 0)
-	var v := VBoxContainer.new()
-	v.add_theme_constant_override("separation", 4)
-	card.add_child(v)
-	var top := HBoxContainer.new()
-	top.add_theme_constant_override("separation", 10)
-	v.add_child(top)
-	var ic := TextureRect.new()
-	ic.texture = Icons.texture(p.role, 96)
-	ic.modulate = col
-	ic.custom_minimum_size = Vector2(44, 44)
-	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	top.add_child(ic)
-	var tv := VBoxContainer.new()
-	tv.add_theme_constant_override("separation", 0)
-	top.add_child(tv)
-	var who: String = p.char_name if p.char_name != "" else "You"
-	tv.add_child(UI.label("%s · %s" % [who, UI.ROLE_NAME.get(p.role, p.role)], 19, col, 0))
-	var short := UI.label(UI.ROLE_SHORT.get(p.role, ""), 13, UI.MUTED, 0)
-	tv.add_child(short)
-	var how: Dictionary = UI.ROLE_HOW.get(p.role, {})
-	for part in [["ON A POUR", "pour"], [UI.ROLE_CLIMB.get(p.role, "").replace("Climb days: ", "CLIMB DAYS: ").to_upper(), "climb"]]:
-		if part[0] == "" or not how.has(part[1]):
-			continue
-		v.add_child(UI.label(part[0], 12, UI.MUTED, 0))
-		for h in how[part[1]]:
-			if h[0] == "stick":
-				var r := HBoxContainer.new()
-				r.add_theme_constant_override("separation", 8)
-				var st := UI.label("◎", 16, UI.WHITE, 0)
-				st.custom_minimum_size = Vector2(24, 0)
-				st.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-				r.add_child(st)
-				r.add_child(UI.label(h[1], 14, UI.WHITE, 0))
-				v.add_child(r)
-			else:
-				v.add_child(UI.hint(h[0], h[1], 14))
-	return card
+func _make_row(text: String, action: String) -> Dictionary:
+	var b := PanelContainer.new()
+	var sb := StyleBoxFlat.new()
+	sb.set_corner_radius_all(10)
+	sb.content_margin_left = 12
+	sb.content_margin_right = 12
+	sb.content_margin_top = 5
+	sb.content_margin_bottom = 5
+	sb.anti_aliasing = true
+	b.add_theme_stylebox_override("panel", sb)
+	b.custom_minimum_size = Vector2(306, 38)
+	b.mouse_filter = Control.MOUSE_FILTER_STOP
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 10)
+	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.add_child(h)
+	var lead: Control = null
+	if action.begins_with("role:"):
+		var hat := UI.Hat.new()
+		hat.color = UI.ROLE[action.substr(5)]
+		hat.custom_minimum_size = Vector2(30, 24)
+		lead = hat
+	elif action == "resume":
+		lead = UI.glyph("A", 26)
+	elif action == "quit":
+		lead = UI.glyph("B", 26)
+	if lead != null:
+		lead.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		h.add_child(lead)
+	var l := UI.head(text, 22, UI.BONE)
+	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	h.add_child(l)
+	var tag_box := HBoxContainer.new()
+	tag_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	h.add_child(tag_box)
+	var idx := _items.size()
+	b.gui_input.connect(func(e: InputEvent):
+		if e is InputEventMouseMotion:
+			_select(idx)
+		elif e is InputEventMouseButton and e.pressed and (e as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
+			_select(idx)
+			_do(action))
+	_list.add_child(b)
+	return {"button": b, "action": action, "label": l, "tags": tag_box, "style": sb}
 
 func _refresh() -> void:
+	var lvl: int = game.k + 1
+	_sub.text = ("SITE'S STOPPED · LEVEL %d" % lvl) if _page == "main" else ("P%d · PICK A JOB A BOT'S DOING" % _who if _page == "swap" else "KEPT FOR NEXT TIME")
 	for e in _items:
-		var b: Button = e["button"]
-		match e["action"]:
+		var l: Label = e["label"]
+		var a: String = e["action"]
+		var tags: HBoxContainer = e["tags"]
+		for c in tags.get_children():
+			tags.remove_child(c)
+			c.queue_free()
+		match a:
 			"gold_assist":
-				b.text = "Gold assist: %s" % ("on" if Settings.value("gold_assist") else "off")
+				l.text = "Gold assist: %s" % ("on" if Settings.value("gold_assist") else "off")
 			"split":
-				b.text = "Split screen: %s" % ("auto" if Settings.value("split") else "off")
+				l.text = "Split screen: %s" % ("auto" if Settings.value("split") else "off")
 			"cam_test":
-				b.text = "Camera test: %s" % Settings.CAM_TESTS[Settings.cam_test][0]
+				l.text = "Camera test: %s" % Settings.CAM_TESTS[Settings.cam_test][0]
 			"real_names":
-				b.text = "Brand names: %s" % ("real" if Settings.value("real_names") else "lookalike")
+				l.text = "Brand names: %s" % ("real" if Settings.value("real_names") else "lookalike")
 			"fullscreen":
-				b.text = "Full screen: %s" % ("on" if Settings.value("fullscreen") else "off")
+				l.text = "Full screen: %s" % ("on" if Settings.value("fullscreen") else "off")
 			"sound":
-				b.text = "Sound: %s" % ("off" if game.sfx.muted else "on")
+				l.text = "Sound: %s" % ("off" if game.sfx.muted else "on")
 			"shake":
-				b.text = "Screen shake: %s" % ("on" if game.shake_on else "off")
+				l.text = "Screen shake: %s" % ("on" if game.shake_on else "off")
 			"incidents":
-				b.text = "Incidents: %s" % Settings.INCIDENT_NAMES[int(Settings.value("incidents"))]
+				l.text = "Incidents: %s" % Settings.INCIDENT_NAMES[int(Settings.value("incidents"))]
 			"docket_help":
-				b.text = "Load call help: %s" % ("on" if Settings.value("docket_help") else "off")
+				l.text = "Load call help: %s" % ("on" if Settings.value("docket_help") else "off")
 			"ui_scale":
-				b.text = "Screen text: %d%%" % int(round(float(Settings.value("ui_scale")) * 100.0))
+				l.text = "Screen text: %d%%" % int(round(float(Settings.value("ui_scale")) * 100.0))
 			"world_text":
-				b.text = "Names & labels: %d%%" % int(round(float(Settings.value("world_text")) * 100.0))
-			"job":
-				b.text = "Your job  %s" % ("▸" if _side == "job" else "")
-			"controls":
-				b.text = "Controls & joining  %s" % ("▸" if _side == "controls" else "")
+				l.text = "Names & labels: %d%%" % int(round(float(Settings.value("world_text")) * 100.0))
+			"back":
+				l.text = "Back"
+			"join":
+				var full: bool = game.crew.humans().size() >= game.crew.MAX_PEOPLE
+				l.text = "Add a player" + ("  (crew's full)" if full else "")
+			_:
+				if a.begins_with("role:"):
+					var role := a.substr(5)
+					var p = game.crew.crew[role]
+					l.text = UI.ROLE_NAME[role]
+					var tag := UI.ptag(p.index, 15, p.bot)
+					tag.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+					tags.add_child(tag)
+	_select(_index)
+	_build_right()
+	_build_stats()
+
+func _select(i: int) -> void:
+	if i < 0 or i >= _items.size():
+		return
+	var changed := i != _index
+	_index = i
+	for k in _items.size():
+		var e: Dictionary = _items[k]
+		var sb: StyleBoxFlat = e["style"]
+		var on := k == _index
+		var a: String = e["action"]
+		var gold := a == "resume"
+		sb.bg_color = UI.GOLD if gold else (Color(1, 1, 1, 0.12) if on else Color(1, 1, 1, 0.04))
+		sb.border_color = Color.WHITE if on else Color(0, 0, 0, 0)
+		sb.set_border_width_all(2 if on else 0)
+		var col: Color = Color("2a1d00") if gold else (Color("ff8a84") if a == "quit" else UI.BONE)
+		if a.begins_with("role:") and not game.crew.is_bot(a.substr(5)):
+			col = UI.DIM
+		(e["label"] as Label).add_theme_color_override("font_color", col)
 	_note.text = _note_for(_items[_index]["action"])
-	if _side == "job":
-		_build_jobs()
+	if changed:
+		_build_right()
+
+# ------------------------------------------------------------------ right side
+
+func _build_right() -> void:
+	for c in _right.get_children():
+		_right.remove_child(c)
+		c.queue_free()
+	var a: String = _items[_index]["action"] if not _items.is_empty() else ""
+	if a == "join":
+		_right.add_child(_join_card())
+		return
+	var climb: bool = game.k in game.climb_levels() if game.has_method("climb_levels") else false
+	var people: Array = game.crew.humans()
+	if _page == "swap" and a.begins_with("role:"):
+		var role := a.substr(5)
+		var p = game.crew.crew[role]
+		_right.add_child(UI.head("THE JOB", 16, UI.DIM))
+		_right.add_child(UI.job_ticket(role, p.char_name, 0 if p.bot else p.index, false, climb, 400))
+		return
+	if people.is_empty():
+		people = [game.crew.crew["boom"]]
+	_right.add_child(UI.head("YOUR JOB" if people.size() == 1 else "YOUR JOBS", 16, UI.DIM))
+	var grid := GridContainer.new()
+	grid.columns = 1 if people.size() == 1 else 2
+	grid.add_theme_constant_override("h_separation", 12)
+	grid.add_theme_constant_override("v_separation", 10)
+	_right.add_child(grid)
+	var compact: bool = people.size() > 2
+	for p in people.slice(0, 4):
+		grid.add_child(UI.job_ticket(p.role, p.char_name, 0 if p.bot else p.index, compact, climb and people.size() == 1, 400 if people.size() == 1 else 300))
+	if people.size() > 4:
+		_right.add_child(UI.label("+%d more on the crew" % (people.size() - 4), 14, UI.DIM, 0))
+
+func _join_card() -> PanelContainer:
+	var card := UI.panel(UI.PAPER, 12, UI.EDGE, 0, Vector4(18, 14, 18, 16))
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 8)
+	card.add_child(v)
+	v.add_child(UI.head("SCAN TO JOIN", 26, Color("1d1a14")))
 	var url: String = game.hud.join_url
 	var text: String = game.hud.join_text
-	_join.text = text if text != "" else "Everyone's in (4 players)." if game.crew.humans().size() >= 4 else "Keyboard P2: press Enter.\nPads: press A."
 	if url != _qr_url:
 		_qr_url = url
-		_qr.texture = QR.texture(url, 4) if url != "" else null
-	_qr.visible = _qr.texture != null
+	if url != "":
+		var qr := TextureRect.new()
+		qr.texture = QR.texture(url, 4)
+		qr.custom_minimum_size = Vector2(220, 220)
+		qr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		qr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		v.add_child(qr)
+		v.add_child(UI.head(url.replace("http://", ""), 18, Color("1d1a14")))
+	var full: bool = game.crew.humans().size() >= game.crew.MAX_PEOPLE
+	var msg := text if text != "" else ("Everyone's in (%d players)." % game.crew.MAX_PEOPLE if full else "")
+	msg += ("\n" if msg != "" else "") + "Pads: press A. Keyboard P2: press Enter. A new player takes the busiest job a bot's doing."
+	var l := UI.label(msg, 15, Color("6b6252"), 0)
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	l.custom_minimum_size = Vector2(300, 0)
+	v.add_child(l)
+	return card
+
+## How the day's going: level, points, rank, the pour clock and the crew.
+func _build_stats() -> void:
+	for c in _stats.get_children():
+		_stats.remove_child(c)
+		c.queue_free()
+	var bits := [["LEVEL", "%d / %d" % [game.k + 1, game.floors()]], ["POINTS", UI.thousands(game.score.total)],
+		["RANK", game.score.rank_name()], ["POUR CLOCK", "%d:%02d" % [int(game.pour_clock) / 60, int(game.pour_clock) % 60]],
+		["CREW", "%d people · %d bots" % [game.crew.humans().size(), game.crew.ROLES.size() - game.crew.humans().size()]]]
+	for b in bits:
+		var p := UI.pill(Color(UI.CARD, 0.9), Vector4(14, 4, 14, 5))
+		var h := HBoxContainer.new()
+		h.add_theme_constant_override("separation", 8)
+		p.add_child(h)
+		var k := UI.head(b[0], 14, UI.DIM)
+		k.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		h.add_child(k)
+		h.add_child(UI.head(b[1], 18, UI.BONE))
+		_stats.add_child(p)
 
 func _note_for(action: String) -> String:
 	match action:
+		"resume":
+			return "Everyone back on the tools. Anyone can press it."
+		"swap":
+			return "Move onto a job a bot's doing. The bot takes yours."
+		"join":
+			return "Another phone scans the code and gets a P tag and a job."
+		"settings":
+			return "Incidents, gold assist, text size, sound and the rest."
+		"restart":
+			return "Back to the crew page. Points so far are lost."
+		"quit":
+			return "Knock off for the day: closes the game."
 		"incidents":
 			return ["Nothing goes wrong on the line. Just pour.",
 				"One clamp or blockage per pour, like a normal day.",
@@ -280,31 +405,42 @@ func _note_for(action: String) -> String:
 			return "On: a button lights up gold the moment it's the right time, or you're in the right spot, to press it. Off: read the job yourself."
 		"fullscreen":
 			return "Fill the whole screen. F11 flips it any time."
+		"sound":
+			return "Site noise, the pump, the radio calls."
+		"shake":
+			return "The camera kicks on a burst or a whip."
+		"back":
+			return ""
+	if action.begins_with("role:"):
+		var role := action.substr(5)
+		var p = game.crew.crew[role]
+		if not p.bot:
+			return "P%d's on this one." % p.index if p.index != _who else "That's your job now."
+		var why: String = game.swap_blocked(game.crew.human(_who)) if game.crew.human(_who) != null else ""
+		return why if why != "" else "Hold on: A swaps P%d onto it." % _who
 	return ""
 
-func _select(i: int) -> void:
-	if i < 0:
-		return
-	_index = i
-	for k in _items.size():
-		var b: Button = _items[k]["button"]
-		var on := k == _index
-		for st in ["normal", "hover", "pressed", "focus"]:
-			var sb: StyleBoxFlat = b.get_theme_stylebox(st)
-			sb.bg_color = Color(1, 0.78, 0.17, 0.95) if on else Color(1, 1, 1, 0.05)
-		b.add_theme_color_override("font_color", UI.INK if on else UI.WHITE)
-		b.add_theme_color_override("font_hover_color", UI.INK if on else UI.WHITE)
-	if _note:
-		_note.text = _note_for(_items[_index]["action"])
+# ------------------------------------------------------------------ doing
 
 func _do(action: String) -> void:
+	if action.begins_with("role:"):
+		_swap_to(action.substr(5))
+		return
 	match action:
 		"resume":
 			close()
 			return
-		"job", "controls":
-			_side = action
-			_show_side()
+		"swap":
+			_build_page("swap")
+			return
+		"settings":
+			_build_page("settings")
+			return
+		"back":
+			_build_page("main")
+			return
+		"join":
+			pass
 		"incidents":
 			Settings.cycle("incidents", [0, 1, 2, 3])
 		"docket_help":
@@ -341,12 +477,31 @@ func _do(action: String) -> void:
 			return
 	_refresh()
 
+func _swap_to(role: String) -> void:
+	var me = game.crew.human(_who)
+	if me == null or not game.crew.is_bot(role):
+		return
+	var why: String = game.swap_blocked(me)
+	if why != "":
+		_note.text = why
+		return
+	if game.crew.assign(_who, role):
+		game.hud.toast("P%d is on the %s job" % [_who, UI.ROLE_NAME[role].to_lower()], 1.6)
+		if game.has_method("haptic"):
+			game.haptic(game.crew.crew[role], UI.BUZZ["done"])
+		_build_page("main")
+
+# ------------------------------------------------------------------ input
+
 var phone_y := 0.0
 var _phone_a := false
 var _phone_b := false
 
-## A phone's buttons while the menu's up: A chooses, B carries on.
-func phone_button(b: String) -> void:
+## A phone's buttons while the menu's up: A chooses, B goes back. `who` is
+## the phone's player number, so a swap moves them.
+func phone_button(b: String, who := -1) -> void:
+	if who > 0:
+		_who = who
 	if b == "A":
 		_phone_a = true
 	elif b == "B":
@@ -356,15 +511,24 @@ func _process(delta: float) -> void:
 	if not visible:
 		phone_y = 0.0
 		return
+	_t += delta
 	_cool = maxf(0.0, _cool - delta)
 	var y := 0.0
 	var pressed := false
 	var back := false
-	for p in ["p1_", "p2_", "p3_", "p4_"]:
-		if InputMap.has_action(p + "up"):
-			y += Input.get_axis(p + "up", p + "down")
-			pressed = pressed or Input.is_action_just_pressed(p + "action")
-			back = back or Input.is_action_just_pressed(p + "leave")
+	for i in range(1, 7):
+		var p := "p%d_" % i
+		if not InputMap.has_action(p + "up"):
+			continue
+		var ay := Input.get_axis(p + "up", p + "down")
+		var pa := Input.is_action_just_pressed(p + "action")
+		var pb := Input.is_action_just_pressed(p + "leave")
+		if absf(ay) > 0.5 or pa or pb:
+			if game.crew.human(i) != null:
+				_who = i
+		y += ay
+		pressed = pressed or pa
+		back = back or pb
 	# Phones steer the menu too (their stick and buttons arrive here)
 	y += phone_y
 	pressed = pressed or _phone_a
@@ -377,5 +541,17 @@ func _process(delta: float) -> void:
 	if pressed and _cool <= 0.0:
 		_cool = 0.2
 		_do(_items[_index]["action"])
-	elif back:
-		close()
+	elif back and _cool <= 0.0:
+		_cool = 0.2
+		if _page == "main":
+			close()
+		else:
+			_build_page("main")
+	# The gold default breathes, like every gold button
+	if not _items.is_empty():
+		var b: Control = _items[0]["button"]
+		if _page == "main":
+			b.pivot_offset = b.size * 0.5
+			b.scale = Vector2.ONE * (1.0 + 0.025 * (0.5 - 0.5 * cos(_t * TAU / UI.BREATHE_T)))
+		else:
+			b.scale = Vector2.ONE

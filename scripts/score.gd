@@ -49,6 +49,7 @@ var level := 0                 # this slab's points so far
 var by_role := {}              # role -> points this slab
 var by_person := {}            # "P1" etc -> points over the chapter
 var log_rows := {}             # what earned them this slab: label -> points
+var role_rows := {}            # role -> {label -> points} this slab
 var rank_i := 0
 var bump := 0.0                # HUD counter bump after a gain
 var _pops: Array = []          # {label, t, who, amount}
@@ -64,6 +65,7 @@ func start_level() -> void:
 	level = 0
 	by_role = {}
 	log_rows = {}
+	role_rows = {}
 
 ## [silver time, gold time] for this slab.
 func targets(kit: String, k: int, people := 0) -> Vector2:
@@ -106,6 +108,9 @@ func award(who, pts: int, why: String, at := Vector3.INF) -> void:
 	var role: String = who.role if who != null else "crew"
 	by_role[role] = int(by_role.get(role, 0)) + pts
 	log_rows[why] = int(log_rows.get(why, 0)) + pts
+	var rr: Dictionary = role_rows.get(role, {})
+	rr[why] = int(rr.get(why, 0)) + pts
+	role_rows[role] = rr
 	if who != null and not who.bot and not who.get("covering"):
 		var key := "P%d" % who.index
 		by_person[key] = int(by_person.get(key, 0)) + pts
@@ -194,3 +199,14 @@ func report_rows() -> Array:
 		var v: int = log_rows[k]
 		rows.append("%s   %s%d" % [k, "+" if v > 0 else "", v])
 	return rows
+
+## What earned this job the most this slab ("" if nothing).
+func top_reason(role: String) -> String:
+	var rr: Dictionary = role_rows.get(role, {})
+	var best := ""
+	var best_v := 0
+	for k in rr:
+		if int(rr[k]) > best_v:
+			best_v = int(rr[k])
+			best = k
+	return best

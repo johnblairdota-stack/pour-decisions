@@ -1,8 +1,19 @@
-## The phone controller page served by phones.gd: a stick and A / B / X / Y,
-## in landscape, with the buttons the game is asking for pulsing.
+## The phone controller page served by phones.gd, in the Site Kit look (the
+## TV's button prompts use the same colours, shapes, motion and buzzes).
+##
+##   Lobby    pick your job (jobs other people have are greyed with their P
+##            tag), hold LOCK IN; then today's crew and the countdown.
+##   On site  the Job Ticket: a stick zone on the left that never covers
+##            anything else, your job ticket in the middle with the step
+##            you're on lit up, A / B / X / Y on the right. Tap the ticket's
+##            header to flip it and swap to a job a bot's doing (hold to
+##            confirm). The pump operator's ticket carries the live gauge.
+##   Nudges   the edge glows when the game's waiting on you, then a ghost
+##            thumb shows which button, then the leading hand helps.
+## (No backslashes in here: GDScript would read them as escapes.)
 extends RefCounted
 
-const MANIFEST := '{"name": "Pour Decisions controller", "short_name": "Pour Decisions", "start_url": "/", "display": "fullscreen", "orientation": "landscape", "background_color": "#06060a", "theme_color": "#06060a", "icons": [{"src": "/icon.png", "sizes": "192x192", "type": "image/png"}]}'
+const MANIFEST := '{"name": "Pour Decisions controller", "short_name": "Pour Decisions", "start_url": "/", "display": "fullscreen", "orientation": "landscape", "background_color": "#0b0c10", "theme_color": "#0b0c10", "icons": [{"src": "/icon.png", "sizes": "192x192", "type": "image/png"}]}'
 
 static func html(ws_port: int) -> String:
 	return PAGE.replace("__WS_PORT__", str(ws_port))
@@ -12,7 +23,7 @@ const PAGE := """<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<meta name="theme-color" content="#06060a">
+<meta name="theme-color" content="#0b0c10">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -21,230 +32,480 @@ const PAGE := """<!doctype html>
 <link rel="apple-touch-icon" href="/icon.png">
 <title>Pour Decisions controller</title>
 <style>
-:root{--bg:#06060a;--ink:#14121c;--ring:rgba(255,120,160,.28);--txt:#f4f2ff;--muted:#8c87a3}
+@font-face{font-family:"Barlow Condensed";src:url(/font/head.ttf) format("truetype");font-weight:800;font-display:swap}
+@font-face{font-family:"Barlow";src:url(/font/body.ttf) format("truetype");font-weight:600;font-display:swap}
+:root{--bg:#0b0c10;--card:#15171d;--track:#1a1d24;--bone:#f4f2ec;--muted:#9a978f;--dim:#5d606b;--gold:#ffd23f;--alarm:#ff3b2f;--done:#4fb36b;--paper:#f3efe4;--job:#ffc72c;--me:#3d8bff}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;touch-action:none}
-html,body{margin:0;height:100%;background:var(--bg);color:var(--txt);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overflow:hidden}
-body{background:radial-gradient(60% 80% at 50% 0%,rgba(150,20,60,.22),transparent 70%),radial-gradient(50% 60% at 85% 70%,rgba(70,40,160,.18),transparent 70%),var(--bg)}
-#pad{position:fixed;inset:0;display:grid;grid-template-columns:1fr 1fr}
-#left,#right{position:relative}
-#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:5}
-#flash{position:fixed;inset:0;pointer-events:none;opacity:0;z-index:4}
-#flash.go{animation:flash .32s ease-out}
-@keyframes flash{0%{opacity:1}100%{opacity:0}}
-/* stick */
-#base{position:absolute;width:44vmin;height:44vmin;border-radius:50%;border:1.5px solid var(--ring);left:50%;top:55%;transform:translate(-50%,-50%);transition:border-color .2s,box-shadow .2s;background:radial-gradient(circle,rgba(255,255,255,.035),transparent 70%)}
-#base.on{border-color:rgba(255,255,255,.55);box-shadow:0 0 0 1.5vmin rgba(255,255,255,.04),inset 0 0 6vmin rgba(160,140,255,.18)}
-#wedge{position:absolute;inset:-1px;border-radius:50%;opacity:0;background:conic-gradient(from -30deg,rgba(190,170,255,.55),transparent 60deg,transparent 360deg);-webkit-mask:radial-gradient(farthest-side,transparent 62%,#000 64%);mask:radial-gradient(farthest-side,transparent 62%,#000 64%)}
-#knob{position:absolute;width:19vmin;height:19vmin;border-radius:50%;background:radial-gradient(circle at 40% 35%,#ffffff,#e4dcff 55%,#cfc4f5);box-shadow:0 0 0 4px rgba(255,255,255,.9),0 8px 24px rgba(0,0,0,.6);left:50%;top:50%;transform:translate(-50%,-50%);transition:width .12s,height .12s,box-shadow .12s}
-#base.on #knob{width:21vmin;height:21vmin;box-shadow:0 0 0 4px #fff,0 0 5vmin rgba(190,170,255,.7),0 10px 26px rgba(0,0,0,.6)}
-/* buttons */
-.btn{position:absolute;border-radius:50%;--p:0;--s:1;--y:0px}
-.face{position:absolute;inset:0;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:900;color:var(--ink);background:var(--bg-b);box-shadow:inset 0 -6px 12px rgba(0,0,0,.25),inset 0 6px 10px rgba(255,255,255,.35),0 1.6vmin 0 var(--rim),0 2.6vmin 22px rgba(0,0,0,.55);transform:translateY(var(--y)) scale(var(--s));transition:transform .22s cubic-bezier(.3,1.8,.5,1),box-shadow .12s,filter .12s}
-.face span{font-size:9vmin;line-height:1;transition:transform .2s cubic-bezier(.3,2,.5,1)}
-.btn.down .face{--s:.88;--y:1.4vmin;transition:transform .05s ease-out,box-shadow .05s,filter .05s;filter:brightness(1.25) saturate(1.2);box-shadow:inset 0 -2px 6px rgba(0,0,0,.25),inset 0 4px 14px rgba(255,255,255,.55),0 .2vmin 0 var(--rim),0 0 6vmin var(--glow)}
-.btn.down .face span{transform:scale(1.18)}
-.btn.boing .face{animation:boing .38s cubic-bezier(.3,1.6,.5,1)}
-@keyframes boing{0%{transform:translateY(1.4vmin) scale(.88)}45%{transform:translateY(-.6vmin) scale(1.08)}100%{transform:translateY(0) scale(1)}}
-.ring{position:absolute;inset:-2.4vmin;border-radius:50%;opacity:0;transition:opacity .15s;background:conic-gradient(var(--hi) calc(var(--p) * 1turn),rgba(255,255,255,.1) 0);-webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 1.3vmin),#000 calc(100% - 1.2vmin));mask:radial-gradient(farthest-side,transparent calc(100% - 1.3vmin),#000 calc(100% - 1.2vmin))}
-.btn.hold .ring{opacity:1}
-.ripple{position:absolute;left:50%;top:50%;width:100%;height:100%;border-radius:50%;border:1vmin solid var(--hi);transform:translate(-50%,-50%) scale(1);opacity:.9;pointer-events:none;animation:ripple .5s ease-out forwards}
-@keyframes ripple{to{transform:translate(-50%,-50%) scale(2.1);opacity:0;border-width:.2vmin}}
-.verb{position:absolute;left:50%;top:100%;margin-top:3vmin;padding:.6vmin 2vmin;border-radius:3vmin;background:rgba(10,10,18,.8);border:1.5px solid var(--hi);font-size:3.4vmin;font-weight:800;color:var(--txt);white-space:nowrap;opacity:0;transform:translate(-50%,-1.5vmin) scale(.8);transition:opacity .15s,transform .2s cubic-bezier(.3,1.8,.5,1);text-shadow:0 2px 6px #000}
-.btn.cue .verb{opacity:1;transform:translate(-50%,0) scale(1)}
-.btn.cue .face{animation:pulse .9s ease-in-out infinite}
-.btn.cue.urgent .face{animation:pulse .45s ease-in-out infinite,shake .45s linear infinite}
-.btn.cue.urgent .verb{background:rgba(120,10,20,.9)}
-#pad .btn.down .face{animation:none}
-#pad .btn.boing .face{animation:boing .38s cubic-bezier(.3,1.6,.5,1)}
-@keyframes pulse{0%,100%{box-shadow:inset 0 -6px 12px rgba(0,0,0,.25),inset 0 6px 10px rgba(255,255,255,.35),0 1.6vmin 0 var(--rim),0 0 0 0 var(--glow)}50%{box-shadow:inset 0 -6px 12px rgba(0,0,0,.25),inset 0 6px 10px rgba(255,255,255,.35),0 1.6vmin 0 var(--rim),0 0 0 3.4vmin var(--glow)}}
-@keyframes shake{0%,100%{transform:rotate(0)}25%{transform:rotate(-5deg)}75%{transform:rotate(5deg)}}
-#pad .btn.gold .face{animation:goldpulse .55s ease-in-out infinite;filter:brightness(1.12) saturate(1.15)}
-#pad .btn.gold.down .face{animation:none;box-shadow:inset 0 -2px 6px rgba(0,0,0,.25),inset 0 4px 14px rgba(255,255,255,.55),0 .2vmin 0 var(--rim),0 0 0 1.2vmin #ffd23f,0 0 8vmin rgba(255,210,63,.9)}
-#pad .btn.gold .verb{border-color:#ffd23f;color:#ffd23f;background:rgba(40,30,0,.88)}
-#pad .btn.gold .face span{color:#3a2a00}
-@keyframes goldpulse{0%,100%{transform:scale(1.03);box-shadow:inset 0 -6px 12px rgba(0,0,0,.25),inset 0 6px 10px rgba(255,255,255,.45),0 1.6vmin 0 var(--rim),0 0 0 1vmin #ffd23f,0 0 5vmin rgba(255,210,63,.6)}50%{transform:scale(1.11);box-shadow:inset 0 -6px 12px rgba(0,0,0,.25),inset 0 6px 10px rgba(255,255,255,.45),0 1.6vmin 0 var(--rim),0 0 0 1.6vmin #ffe680,0 0 9vmin rgba(255,210,63,.95)}}
-#Y{width:18vmin;height:18vmin;left:42%;top:14%;--bg-b:radial-gradient(circle at 40% 30%,#ffe27a,#f5a524);--rim:#a8650e;--hi:#ffd23f;--glow:rgba(255,190,60,.45)}
-#B{width:18vmin;height:18vmin;left:70%;top:8%;--bg-b:radial-gradient(circle at 40% 30%,#ff8f7a,#e5383b);--rim:#8e1c22;--hi:#ff6a5f;--glow:rgba(255,90,95,.45)}
-#X{width:18vmin;height:18vmin;left:26%;top:46%;--bg-b:radial-gradient(circle at 40% 30%,#c4a6ff,#8a5cf6);--rim:#4b2aa3;--hi:#b18cff;--glow:rgba(155,107,255,.48)}
-#A{width:26vmin;height:26vmin;left:57%;top:38%;--bg-b:radial-gradient(circle at 40% 30%,#8ff5e4,#27c4ac);--rim:#137a6a;--hi:#5ff0d6;--glow:rgba(63,224,197,.48)}
-#A .face span{font-size:12vmin}
-#top{position:fixed;left:27%;top:3vmin;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:1.5vmin;z-index:6;pointer-events:none}
-#badge{width:12vmin;height:12vmin;border-radius:50%;border:1.5px solid rgba(255,255,255,.25);display:flex;align-items:center;justify-content:center;font-weight:900;font-size:4.6vmin;background:#1b1826;transition:transform .3s cubic-bezier(.3,1.8,.5,1)}
-#badge.hi{transform:scale(1.25)}
-#status{font-size:3vmin;color:var(--muted)}
-#job{display:none;align-items:center;gap:1.6vmin;padding:1vmin 2.6vmin 1vmin 1.4vmin;border-radius:4vmin;border:2px solid currentColor;background:rgba(10,14,24,.85);font-size:4vmin;font-weight:800}
-#jicon{width:6.5vmin;height:6.5vmin}
-#rotate,#gate{position:fixed;inset:0;background:var(--bg);display:none;align-items:center;justify-content:center;flex-direction:column;gap:3vmin;text-align:center;padding:6vmin;font-size:5vmin;z-index:10}
-#gate{display:flex;cursor:pointer}
-#gate b{font-size:8vmin;color:#ffc23d}
-#ios{display:none;max-width:80vmin;font-size:3.6vmin;color:#c9c4e0;line-height:1.4;border:1.5px solid rgba(255,255,255,.18);border-radius:3vmin;padding:2.4vmin 3vmin;background:rgba(255,255,255,.04)}
-#ios b{font-size:3.6vmin;color:#ffc23d}
-#fs{position:fixed;right:3vmin;top:3vmin;width:9vmin;height:9vmin;border-radius:2.4vmin;border:1.5px solid rgba(255,255,255,.25);background:rgba(20,18,30,.7);color:#f4f2ff;display:none;align-items:center;justify-content:center;z-index:7}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--bone);font-family:Barlow,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-weight:600;overflow:hidden}
+.hd{font-family:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;font-weight:800}
+button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer}
+.screen{position:fixed;inset:0;display:none}
+.screen.on{display:block}
+#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:30}
+/* --- the edge glow: the game's waiting on you (job colour), gold moment, alarm */
+#edge{position:fixed;inset:0;pointer-events:none;z-index:25;opacity:0;transition:opacity .3s;box-shadow:inset 0 0 0 .8vmin var(--glow,var(--job)),inset 0 0 7vmin var(--glow,var(--job))}
+#edge.on{opacity:1;animation:edge 1.2s ease-in-out infinite}
+#edge.alarm{--glow:var(--alarm);opacity:1;animation:edgefast .3s linear infinite}
+@keyframes edge{0%,100%{opacity:.45}50%{opacity:1}}
+@keyframes edgefast{0%,100%{opacity:.3}50%{opacity:1}}
+/* --- toast */
+#toast{position:fixed;left:50%;top:2vmin;transform:translate(-50%,-160%);background:var(--card);border:2px solid #3a3d47;border-radius:99px;padding:1.4vmin 3.4vmin;font-size:3.6vmin;z-index:40;transition:transform .3s cubic-bezier(.3,1.5,.5,1)}
+#toast.on{transform:translate(-50%,0)}
+/* --- top bar bits */
+.pausebtn{position:absolute;left:2vmin;top:2.6vmin;width:11vmin;height:10vmin;border-radius:2.6vmin;border:1px solid #3a3d47;background:var(--card);display:flex;align-items:center;justify-content:center;z-index:12}
+.pausebtn svg{width:4.6vmin;height:4.6vmin}
+.pausebtn.down{transform:scale(.92);background:#2a2d36}
+#fs{position:fixed;right:2vmin;top:2.6vmin;width:10vmin;height:10vmin;border-radius:2.6vmin;border:1px solid #3a3d47;background:rgba(21,23,29,.8);display:none;align-items:center;justify-content:center;z-index:12}
 #fs svg{width:5vmin;height:5vmin}
-#menu{position:fixed;left:3vmin;top:3vmin;height:9vmin;padding:0 2.6vmin;border-radius:2.4vmin;border:1.5px solid rgba(255,255,255,.25);background:rgba(20,18,30,.7);color:#f4f2ff;display:flex;align-items:center;gap:1.4vmin;font-size:3.4vmin;font-weight:700;z-index:7}
-#menu i{display:block;width:4.4vmin;height:.6vmin;background:currentColor;border-radius:1vmin;box-shadow:0 1.4vmin 0 currentColor,0 -1.4vmin 0 currentColor}
-#menu.down{transform:scale(.92);background:rgba(60,56,80,.9)}
-#Y .verb{top:50%;left:auto;right:100%;margin:0 2.4vmin 0 0;transform:translate(0,-50%) scale(.8)}
+/* --- play: stick zone */
+#zone{position:absolute;left:1.6vw;top:18vh;width:31vw;bottom:3vh;border:2px dashed #23262e;border-radius:5vmin}
+#zone .lbl{position:absolute;left:3vmin;bottom:2.4vmin;font-size:2.6vmin;color:#3a3e4a;letter-spacing:.08em;text-transform:uppercase}
+#zone.off{opacity:.35}
+#base{position:absolute;width:38vmin;height:38vmin;border-radius:50%;border:2px solid #3a3e4a;left:50%;top:50%;transform:translate(-50%,-50%);transition:border-color .2s,box-shadow .2s;pointer-events:none}
+#base.on{border-color:rgba(255,255,255,.55);box-shadow:inset 0 0 6vmin rgba(255,255,255,.08)}
+#wedge{position:absolute;inset:-2px;border-radius:50%;opacity:0;background:conic-gradient(from -30deg,var(--job),transparent 60deg,transparent 360deg);-webkit-mask:radial-gradient(farthest-side,transparent 82%,#000 84%);mask:radial-gradient(farthest-side,transparent 82%,#000 84%)}
+#knob{position:absolute;width:16vmin;height:16vmin;border-radius:50%;background:radial-gradient(circle at 40% 35%,#ffffff,#d9d5cb);box-shadow:0 1.2vmin 0 #8f8a7e,0 2vmin 4vmin rgba(0,0,0,.6);left:50%;top:50%;transform:translate(-50%,-50%)}
+/* --- play: the ticket */
+#ticket{position:absolute;left:34vw;width:33vw;top:2.6vmin;bottom:2.6vmin;border-radius:4.6vmin;background:var(--paper);color:#1b1a17;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 3vmin 7vmin rgba(0,0,0,.5);transition:transform .45s cubic-bezier(.3,1.3,.5,1)}
+#thead{display:flex;align-items:center;gap:2.4vmin;background:var(--job);color:#111;padding:2.2vmin 2.8vmin;text-align:left;width:100%}
+#thead svg.hat{width:8vmin;height:7vmin;flex-shrink:0}
+#thead .tt{display:flex;flex-direction:column;line-height:1;flex-grow:1;min-width:0}
+#thead .k{font-size:3vmin;letter-spacing:.08em;opacity:.8}
+#thead .n{font-size:6.4vmin;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#thead .sw{display:flex;align-items:center;gap:1vmin;font-size:3vmin;background:rgba(0,0,0,.12);padding:1.4vmin 2vmin;border-radius:2.4vmin;flex-shrink:0}
+#thead .sw svg{width:3.8vmin;height:3.8vmin}
+#thead:active{filter:brightness(1.1)}
+#goal{padding:1.6vmin 2.8vmin;font-size:3.3vmin;border-bottom:1px dashed #c9c4b5}
+#steps{padding:1.6vmin 2.4vmin;display:flex;flex-direction:column;gap:1.3vmin;flex-grow:1;overflow:hidden}
+.st{display:flex;gap:1.8vmin;align-items:flex-start;font-size:3.3vmin;line-height:1.25;padding:.6vmin;border-radius:2.6vmin;border:2px solid transparent}
+.st .k{min-width:5.6vmin;height:5.6vmin;padding:0 1vmin;border-radius:99px;display:flex;align-items:center;justify-content:center;font-family:"Barlow Condensed",sans-serif;font-weight:800;font-size:3.4vmin;flex-shrink:0}
+.st.now{background:#fff6d6;border-color:var(--gold);font-weight:700;animation:nowpulse 1.4s ease-in-out infinite}
+.st.past{color:#8c887d}
+.st .v{display:block;font-size:2.8vmin;color:#7a5a00;margin-top:.4vmin}
+@keyframes nowpulse{0%,100%{box-shadow:0 0 0 0 rgba(255,210,63,0)}50%{box-shadow:0 0 0 1vmin rgba(255,210,63,.3)}}
+#tfoot{padding:1.4vmin 2.8vmin 2vmin;background:#e6e0d0;font-size:2.8vmin;color:#4d4a42}
+#tfoot b{color:#1b1a17}
+/* pump: the live gauge on the ticket */
+#gauge{display:none;position:relative;width:34vmin;height:25vmin;margin:1.4vmin auto 0}
+#gauge svg{width:100%;height:20vmin;display:block}
+#gauge .read{position:absolute;left:0;right:0;bottom:0;text-align:center;font-size:4.6vmin;line-height:1}
+#needle{transform-origin:50px 50px;transition:transform .15s}
+.pump #gauge{display:block}
+.pump #steps{gap:.6vmin}
+.pump #goal{display:none}
+/* --- play: the buttons */
+#pad{position:absolute;left:68vw;right:0;top:0;bottom:0}
+.btn{position:absolute;--p:-1;--s:1;--face:#3fe0c5;--lip:#1b8a6e;--ink:#04281f;--hi:#3fe0c5}
+.face{position:absolute;inset:0;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:"Barlow Condensed",sans-serif;font-weight:800;color:var(--ink);background:radial-gradient(circle at 40% 30%,color-mix(in srgb,var(--face) 60%,#fff),var(--face) 62%);box-shadow:0 1.4vmin 0 var(--lip),0 2.6vmin 4vmin rgba(0,0,0,.5);transform:translateY(0) scale(var(--s));transition:transform .2s cubic-bezier(.3,1.8,.5,1);overflow:hidden}
+.face span{position:relative;font-size:9vmin;line-height:1;z-index:2}
+.face .wet{position:absolute;left:0;right:0;bottom:0;height:0;background:linear-gradient(#b9b5ac,#8f8b82);opacity:.75;z-index:1;transition:height .1s linear}
+.face .wet::before{content:"";position:absolute;left:-10%;right:-10%;top:-1.2vmin;height:2.4vmin;border-radius:50%;background:#b9b5ac}
+.btn.down .face{transform:translateY(1.1vmin) scale(.9);box-shadow:0 .3vmin 0 var(--lip),0 0 6vmin color-mix(in srgb,var(--face) 50%,transparent);transition:transform .09s ease-out,box-shadow .09s}
+.btn.boing .face{animation:boing .38s cubic-bezier(.3,1.6,.5,1)}
+@keyframes boing{0%{transform:translateY(1.1vmin) scale(.9)}45%{transform:translateY(-.5vmin) scale(1.06)}100%{transform:translateY(0) scale(1)}}
+.ring{position:absolute;inset:-2.6vmin;border-radius:50%;opacity:0;background:conic-gradient(var(--ringc,#fff) calc(var(--p) * 1turn),var(--track) 0);-webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 1.4vmin),#000 calc(100% - 1.3vmin));mask:radial-gradient(farthest-side,transparent calc(100% - 1.4vmin),#000 calc(100% - 1.3vmin))}
+.btn.hold .ring{opacity:1}
+.verb{position:absolute;left:50%;top:100%;margin-top:3.2vmin;display:flex;align-items:center;gap:1.2vmin;padding:.8vmin 2.4vmin .8vmin 1.6vmin;border-radius:99px;background:rgba(26,29,36,.94);font-family:"Barlow Condensed",sans-serif;font-weight:800;font-size:3.6vmin;color:var(--bone);white-space:nowrap;opacity:0;transform:translate(-50%,-1.5vmin) scale(.85);transition:opacity .15s,transform .2s cubic-bezier(.3,1.8,.5,1);pointer-events:none}
+.verb i{width:2vmin;height:2vmin;border-radius:50%;background:var(--job);flex-shrink:0}
+.btn.cue .verb{opacity:1;transform:translate(-50%,0) scale(1)}
+.btn.cue .face{animation:breathe 2.4s ease-in-out infinite}
+.btn.cue.urgent .face{animation:urgent .5s ease-in-out infinite}
+.btn.cue.alarm{--face:#ff3b2f;--lip:#8e1c14;--ink:#fff}
+.btn.cue.alarm .face{animation:shake .15s linear infinite}
+.btn.cue.alarm .verb{color:#ff8b80;box-shadow:0 0 0 2px var(--alarm)}
+.btn.cue.alarm .verb i{background:var(--alarm)}
+.btn.gold{--face:#ffd23f;--lip:#b17a00;--ink:#2a1d00;--ringc:#ffd23f}
+.btn.gold .face{animation:goldbeat .3s ease-in-out infinite;box-shadow:0 1.4vmin 0 var(--lip),0 0 0 1.2vmin rgba(255,210,63,.35),0 0 8vmin rgba(255,210,63,.8)}
+.btn.gold .verb{color:var(--gold);box-shadow:0 0 0 2px var(--gold);text-transform:uppercase}
+.btn.down .face,.btn.boing .face{animation-name:none}
+.btn.down.gold .face{animation:none}
+.btn.dim .face{filter:saturate(.5) brightness(.6)}
+@keyframes breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
+@keyframes urgent{0%,100%{transform:scale(1)}50%{transform:scale(1.14)}}
+@keyframes goldbeat{0%,100%{transform:scale(1.04)}50%{transform:scale(1.14)}}
+@keyframes shake{0%,100%{transform:translate(0,0)}25%{transform:translate(-.6vmin,.3vmin)}50%{transform:translate(.4vmin,-.4vmin)}75%{transform:translate(-.4vmin,.4vmin)}}
+#Y{width:17vmin;height:17vmin;left:36%;top:6%;--face:#ffc23d;--lip:#b17a00;--ink:#2a1d00}
+#B{width:17vmin;height:17vmin;left:70%;top:20%;--face:#ff5a5f;--lip:#9b2525;--ink:#2b0606}
+#X{width:17vmin;height:17vmin;left:2%;top:36%;--face:#9b6bff;--lip:#5a35b0;--ink:#1b0d3a}
+#A{width:27vmin;height:27vmin;left:30%;top:43%;--face:#3fe0c5;--lip:#1b8a6e;--ink:#04281f}
+#A .face span{font-size:13vmin}
+#Y .verb{top:50%;left:auto;right:100%;margin:0 3vmin 0 0;transform:translate(0,-50%) scale(.85)}
 #Y.cue .verb{transform:translate(0,-50%) scale(1)}
+#B .verb{left:auto;right:-2vmin;transform:translate(0,-1.5vmin) scale(.85)}
+#B.cue .verb{transform:translate(0,0) scale(1)}
+#X .verb{left:0;transform:translate(0,-1.5vmin) scale(.85)}
+#X.cue .verb{transform:translate(0,0) scale(1)}
+/* a hint of a thumb, tapping the button the game's waiting on */
+#ghost{position:fixed;width:16vmin;height:16vmin;pointer-events:none;z-index:26;display:none}
+#ghost.on{display:block;animation:tap 1.1s ease-in-out infinite}
+#ghost div{position:absolute;left:30%;top:20%;width:40%;height:62%;border-radius:45% 45% 40% 40%;background:rgba(255,255,255,.55);border:.5vmin solid rgba(255,255,255,.9);box-shadow:0 0 4vmin rgba(255,255,255,.5)}
+@keyframes tap{0%,100%{transform:translate(4vmin,6vmin) scale(1);opacity:.2}45%{transform:translate(0,0) scale(.92);opacity:1}60%{transform:translate(0,0) scale(.86);opacity:1}}
+#helping{position:absolute;left:34vw;width:33vw;bottom:4vmin;z-index:14;background:#2a2410;border:2px solid var(--gold);color:var(--bone);border-radius:3vmin;padding:1.6vmin 2.4vmin;font-size:3.1vmin;display:none}
+#helping.on{display:block}
+/* --- swap panel */
+#swap{position:absolute;left:20vw;width:60vw;top:2.6vmin;bottom:2.6vmin;border-radius:4.6vmin;background:#1b1e26;border:2px solid #3a3e4a;padding:3vmin;display:none;flex-direction:column;gap:2vmin;box-shadow:0 4vmin 9vmin rgba(0,0,0,.6);z-index:15;animation:flip .45s cubic-bezier(.3,1.3,.5,1) both}
+#swap.on{display:flex}
+@keyframes flip{0%{transform:perspective(160vmin) rotateY(-90deg)}100%{transform:perspective(160vmin) rotateY(0)}}
+#swap .top{display:flex;align-items:center;gap:2vmin}
+#swap .top .t{font-size:6vmin;flex-grow:1}
+#swap .x{width:10vmin;height:10vmin;border-radius:2.6vmin;border:1px solid #3a3d47;display:flex;align-items:center;justify-content:center}
+#swap .x svg{width:4.4vmin;height:4.4vmin}
+#jobs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1.8vmin;flex-grow:1}
+.job{display:flex;flex-direction:column;justify-content:center;gap:.6vmin;border-radius:3vmin;padding:1.6vmin 2vmin;text-align:left;border:2px solid var(--c);background:color-mix(in srgb,var(--c) 12%,#14161b)}
+.job .n{font-family:"Barlow Condensed",sans-serif;font-weight:800;font-size:4.6vmin;color:var(--c);display:flex;align-items:center;gap:1.4vmin}
+.job .n svg{width:6vmin;height:5vmin;flex-shrink:0}
+.job .w{font-size:2.8vmin;color:#b9b6ad}
+.job.pick{box-shadow:0 0 0 1vmin color-mix(in srgb,var(--c) 35%,transparent);transform:translateY(-.5vmin)}
+.job.mine{opacity:.85}
+.job.taken{border-color:#23262e;background:#14161b;opacity:.5}
+.job.taken .n{color:#9a978f}
+.ptag{font-family:"Barlow Condensed",sans-serif;font-weight:800;font-size:2.8vmin;padding:.2vmin 1.4vmin;border-radius:99px;color:#111;margin-left:auto}
+.holdbtn{position:relative;overflow:hidden;border-radius:3vmin;background:#2a2d36;color:#fff;font-family:"Barlow Condensed",sans-serif;font-weight:800;font-size:4.8vmin;letter-spacing:.04em;padding:2.4vmin 5vmin;min-width:44vmin;box-shadow:0 1vmin 0 #15171d}
+.holdbtn .fill{position:absolute;left:0;top:0;bottom:0;width:0;background:linear-gradient(90deg,#8f8b82,#b9b5ac)}
+.holdbtn span{position:relative}
+.holdbtn:disabled{opacity:.35}
+.holdbtn.down{transform:translateY(.6vmin);box-shadow:0 .4vmin 0 #15171d}
+#swap .bottom{display:flex;align-items:center;gap:3vmin}
+#swap .note{font-size:3vmin;color:#9a978f;flex-grow:1}
+/* --- lobby */
+#lobby{padding:3vmin 4vmin;flex-direction:column;gap:2.4vmin}
+#lobby.on,#locked.on{display:flex}
+.row{display:flex;align-items:center;gap:2.4vmin}
+.pdisc{width:9vmin;height:9vmin;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:"Barlow Condensed",sans-serif;font-weight:800;font-size:4vmin;color:#111;flex-shrink:0;box-shadow:0 .8vmin 0 rgba(0,0,0,.35)}
+#lobby .t{font-size:6.6vmin;flex-grow:1}
+#lobby .sub{font-size:3.4vmin;color:#b9b6ad}
+#ljobs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:2vmin;flex-grow:1}
+#ljobs .job{background:#1a1c23;border-color:#2c2f39}
+#ljobs .job .n{color:var(--bone)}
+#ljobs .job .n .sq{width:7vmin;height:7vmin;border-radius:2vmin;background:var(--c);display:flex;align-items:center;justify-content:center;color:#111;flex-shrink:0}
+#ljobs .job .n .sq svg{width:5vmin;height:4.2vmin}
+#ljobs .job.mine{background:#22242c;border:3px solid var(--me);box-shadow:0 0 0 1vmin color-mix(in srgb,var(--me) 25%,transparent);transform:translateY(-.5vmin);opacity:1}
+#ljobs .job.taken{opacity:.45}
+.charpick{display:flex;align-items:center;gap:1.4vmin;font-size:4.2vmin}
+.charpick button{width:9vmin;height:9vmin;border-radius:2.4vmin;background:#1a1c23;border:1px solid #2c2f39;font-size:4vmin}
+#locked{padding:5vmin 6vmin;gap:6vmin;align-items:center;background:radial-gradient(100% 120% at 25% 55%,color-mix(in srgb,var(--job) 25%,#0d0f14) 0%,#0d0f14 65%)}
+#locked .left{display:flex;flex-direction:column;align-items:center;gap:2vmin;width:56vmin;flex-shrink:0}
+#lhat{width:40vmin;height:33vmin;color:var(--job);animation:drop .7s cubic-bezier(.3,1.4,.5,1) both}
+@keyframes drop{0%{transform:translateY(-40vmin) rotate(-25deg)}55%{transform:translateY(2vmin) rotate(4deg) scaleY(.82) scaleX(1.12)}75%{transform:translateY(-1.4vmin) scale(1)}100%{transform:translateY(0)}}
+#locked .k{font-size:3.6vmin;letter-spacing:.14em;color:var(--me)}
+#locked .n{font-size:9vmin;line-height:1;text-align:center}
+#locked .right{flex-grow:1;display:flex;flex-direction:column;gap:1.8vmin}
+#crewlist{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1.6vmin}
+.cl{display:flex;align-items:center;gap:2vmin;background:#1a1c23;border-radius:2.6vmin;padding:1.6vmin 2.4vmin;font-size:3.4vmin}
+.cl i{width:2.6vmin;height:7vmin;border-radius:1vmin;flex-shrink:0}
+.cl span{flex-grow:1}
+.cl.bot{background:#15171c;color:#9a978f}
+.cl.me{border:2px solid var(--me)}
+#count{font-size:10vmin;color:var(--gold);line-height:1}
+/* --- joined splash */
+#joined{position:fixed;inset:0;z-index:35;background:radial-gradient(120% 140% at 30% 50%,#1d2230 0%,#0d0f14 70%);display:none;align-items:center;gap:10vmin;padding:0 12vmin}
+#joined.on{display:flex}
+#joined .big{width:36vmin;height:36vmin;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:"Barlow Condensed",sans-serif;font-weight:800;font-size:18vmin;color:#111;box-shadow:0 2.4vmin 0 rgba(0,0,0,.35);animation:pop .7s cubic-bezier(.3,1.6,.5,1) both;flex-shrink:0}
+@keyframes pop{0%{transform:scale(.2) rotate(-20deg)}60%{transform:scale(1.15) rotate(4deg)}100%{transform:scale(1) rotate(0)}}
+#joined .k{font-size:4vmin;letter-spacing:.14em;text-transform:uppercase}
+#joined .t{font-size:12vmin;line-height:.95}
+#joined .s{font-size:3.8vmin;color:#b9b6ad;max-width:80vmin;margin-top:2vmin}
+#pdots{display:flex;gap:2vmin;margin-top:3vmin}
+#pdots div{width:9.6vmin;height:9.6vmin;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:"Barlow Condensed",sans-serif;font-weight:800;font-size:4vmin;color:#111;border:2px dashed #4a4d57}
+/* --- gate, rotate */
+#rotate,#gate{position:fixed;inset:0;background:var(--bg);display:none;align-items:center;justify-content:center;flex-direction:column;gap:3vmin;text-align:center;padding:6vmin;font-size:5vmin;z-index:50}
+#gate{display:flex;cursor:pointer}
+#gate b{font-family:"Barlow Condensed",sans-serif;font-weight:800;font-size:10vmin;color:var(--gold)}
+#gate .go{font-family:"Barlow Condensed",sans-serif;font-weight:800;background:var(--gold);color:#2a1d00;border-radius:3vmin;padding:2.4vmin 6vmin;box-shadow:0 1.2vmin 0 #b17a00}
+#ios{display:none;max-width:80vmin;font-size:3.6vmin;color:#c9c6bd;line-height:1.4;border:1.5px solid rgba(255,255,255,.18);border-radius:3vmin;padding:2.4vmin 3vmin}
+#status{position:fixed;right:3vmin;bottom:2vmin;font-size:2.6vmin;color:var(--dim);z-index:12}
 @media (orientation:portrait){#rotate{display:flex}}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.01s!important;animation-iteration-count:1!important}}
 </style>
 </head>
 <body>
-<canvas id="fx"></canvas><div id="flash"></div>
-<div id="pad">
-  <div id="left"><div id="base"><div id="wedge"></div><div id="knob"></div></div></div>
-  <div id="right">
-    <div class="btn" id="Y"><div class="ring"></div><div class="face"><span>Y</span></div><div class="verb"></div></div>
-    <div class="btn" id="B"><div class="ring"></div><div class="face"><span>B</span></div><div class="verb"></div></div>
-    <div class="btn" id="X"><div class="ring"></div><div class="face"><span>X</span></div><div class="verb"></div></div>
-    <div class="btn" id="A"><div class="ring"></div><div class="face"><span>A</span></div><div class="verb"></div></div>
+<canvas id="fx"></canvas>
+<div id="edge"></div>
+<div id="toast" class="hd"></div>
+
+<div id="play" class="screen">
+  <button class="pausebtn" aria-label="Pause"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M9 5v14M15 5v14"/></svg></button>
+  <div id="zone"><div class="lbl">Stick</div><div id="base"><div id="wedge"></div><div id="knob"></div></div></div>
+  <div id="ticket">
+    <button id="thead" aria-label="Your job, tap to swap">
+      <svg class="hat" viewBox="0 0 24 20"><path d="M1 16h22v2H1z M3.5 16v-3a8.5 8.5 0 0 1 17 0v3z" fill="currentColor"/></svg>
+      <span class="tt hd"><span class="k" id="tk">YOUR JOB</span><span class="n" id="tn">…</span></span>
+      <span class="sw hd" id="tsw"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4L3 8l4 4"/><path d="M3 8h14"/><path d="M17 20l4-4-4-4"/><path d="M21 16H7"/></svg>SWAP</span>
+    </button>
+    <div id="goal"></div>
+    <div id="gauge"><svg viewBox="0 0 100 56"><path d="M8 50 A42 42 0 0 1 92 50" fill="none" stroke="#1a1d24" stroke-width="9"/><path id="g1" fill="none" stroke-width="9"/><path id="g2" fill="none" stroke-width="9"/><path id="g3" fill="none" stroke-width="9"/><line id="needle" x1="50" y1="50" x2="50" y2="12" stroke="#1b1a17" stroke-width="3.4" stroke-linecap="round"/><circle cx="50" cy="50" r="5" fill="#1b1a17"/></svg><div class="read hd" id="gread">STEADY</div></div>
+    <div id="steps"></div>
+    <div id="tfoot"></div>
+  </div>
+  <div id="helping">The leading hand's helping with this step. Press anything to take it back.</div>
+  <div id="pad">
+    <div class="btn" id="Y"><div class="ring"></div><div class="face"><div class="wet"></div><span>Y</span></div><div class="verb"><i></i><b></b></div></div>
+    <div class="btn" id="B"><div class="ring"></div><div class="face"><div class="wet"></div><span>B</span></div><div class="verb"><i></i><b></b></div></div>
+    <div class="btn" id="X"><div class="ring"></div><div class="face"><div class="wet"></div><span>X</span></div><div class="verb"><i></i><b></b></div></div>
+    <div class="btn" id="A"><div class="ring"></div><div class="face"><div class="wet"></div><span>A</span></div><div class="verb"><i></i><b></b></div></div>
+  </div>
+  <div id="swap">
+    <div class="top"><div class="t hd">Swap to a free job</div><button class="x" id="swapx" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div id="jobs"></div>
+    <div class="bottom"><div class="note" id="swapnote">Tap a job a bot's doing, then hold to swap. Your chibi stands still while this is open.</div><button class="holdbtn" id="swapgo" disabled><div class="fill"></div><span>HOLD TO SWAP</span></button></div>
   </div>
 </div>
-<div id="top"><div id="badge">··</div><div id="job"><svg id="jicon" viewBox="0 0 128 128"></svg><span id="jname"></span></div><div id="status">connecting…</div></div>
-<div id="rotate">Turn your phone sideways<br><small style="color:#8c87a3">the controller works in landscape</small></div>
-<div id="gate"><b>POUR DECISIONS</b>Tap to join the crew<div id="ios"><b>Full screen on iPhone:</b> tap the Share button, then <b>Add to Home Screen</b>. Open Pour Decisions from your home screen and it fills the whole screen, like an app.</div></div>
-<div id="menu"><i></i>Pause</div>
-<div id="fs" title="Full screen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></div>
+
+<div id="lobby" class="screen">
+  <div class="row"><div class="pdisc" id="lp">P?</div><div class="t hd">Pick your job</div><div class="sub" id="lsub"></div></div>
+  <div id="ljobs"></div>
+  <div class="row">
+    <div class="charpick"><button id="cprev" aria-label="Previous character" class="hd">&lt;</button><span class="hd" id="cname">…</span><button id="cnext" aria-label="Next character" class="hd">&gt;</button></div>
+    <div class="sub" style="flex-grow:1">Tap a job, then hold LOCK IN. Greyed jobs belong to another player.</div>
+    <button class="holdbtn" id="lockgo"><div class="fill"></div><span>HOLD TO LOCK IN</span></button>
+  </div>
+</div>
+
+<div id="locked" class="screen">
+  <div class="left">
+    <svg id="lhat" viewBox="0 0 24 20"><path d="M1 16h22v2H1z M3.5 16v-3a8.5 8.5 0 0 1 17 0v3z" fill="currentColor"/></svg>
+    <div class="k hd" id="lk">P? · LOCKED IN</div>
+    <div class="n hd" id="ln">…</div>
+    <button class="holdbtn" id="unlock" style="min-width:0;font-size:3.6vmin;padding:1.6vmin 4vmin;background:#1a1c23"><span>Change job</span></button>
+  </div>
+  <div class="right">
+    <div class="hd" style="font-size:5vmin;color:#b9b6ad">Today's crew</div>
+    <div id="crewlist"></div>
+    <div class="row"><div id="count" class="hd"></div><div class="sub" id="cnote" style="font-size:3.4vmin;color:#b9b6ad">Waiting for the rest of the crew to lock in. Once you're on site you can swap to any job a bot is doing.</div></div>
+  </div>
+</div>
+
+<div id="joined"><div class="big" id="jbig">P?</div><div><div class="k hd" id="jk">You're on the crew</div><div class="t hd" id="jt">You are Player ?</div><div class="s">Look for your tag on the TV. Everyone scans the same code; the next phone gets the next number.</div><div id="pdots"></div></div></div>
+<div id="ghost"><div></div></div>
+<div id="rotate">Turn your phone sideways<br><small style="color:#9a978f">the controller works in landscape</small></div>
+<div id="gate"><b>POUR DECISIONS</b><span class="go">TAP TO JOIN THE CREW</span><div id="ios"><b>Full screen on iPhone:</b> tap Share, then <b>Add to Home Screen</b>, and open Pour Decisions from your home screen.</div></div>
+<button id="fs" aria-label="Full screen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+<div id="status">connecting…</div>
 <script>
 const PORT = __WS_PORT__;
-// The job icons, the same drawings as on the TV
-const S = 'stroke="currentColor" stroke-linecap="round" fill="none"';
-const ICONS = {
-  boom: '<path d="M18 110 L52 36 L108 52" stroke-width="16" ' + S + '/><path d="M108 52 L108 92" stroke-width="9" ' + S + '/><circle cx="52" cy="36" r="11" fill="currentColor"/><rect x="6" y="106" width="32" height="12" rx="3" fill="currentColor"/>',
-  line: '<circle cx="64" cy="64" r="32" stroke-width="18" ' + S + '/><rect x="50" y="10" width="28" height="20" rx="3" fill="currentColor"/><rect x="50" y="98" width="28" height="20" rx="3" fill="currentColor"/>',
-  pump: '<rect x="8" y="48" width="32" height="36" rx="5" fill="currentColor"/><ellipse cx="78" cy="58" rx="38" ry="24" fill="currentColor"/><rect x="10" y="79" width="112" height="10" rx="2" fill="currentColor"/><circle cx="26" cy="98" r="10" fill="currentColor"/><circle cx="74" cy="98" r="10" fill="currentColor"/><circle cx="100" cy="98" r="10" fill="currentColor"/>',
-  poker: '<path d="M64 10 L64 100" stroke-width="14" ' + S + '/><rect x="54" y="96" width="20" height="24" rx="4" fill="currentColor"/><path d="M40 80 Q30 92 40 104 M26 74 Q12 92 26 110 M88 80 Q98 92 88 104 M102 74 Q116 92 102 110" stroke-width="7" ' + S + '/>',
-  hose: '<path d="M22 12 C26 40 50 50 66 58 C80 66 88 80 88 96" stroke-width="18" ' + S + '/><rect x="77" y="96" width="24" height="16" rx="3" fill="currentColor"/><circle cx="80" cy="122" r="4.5" fill="currentColor"/><circle cx="98" cy="120" r="4.5" fill="currentColor"/>',
-  screed: '<rect x="6" y="69" width="116" height="14" rx="3" fill="currentColor"/><path d="M36 70 L30 34 M92 70 L98 34" stroke-width="10" ' + S + '/><path d="M22 34 L38 34 M90 34 L106 34" stroke-width="12" ' + S + '/><circle cx="28" cy="98" r="7" fill="currentColor"/><circle cx="52" cy="98" r="7" fill="currentColor"/><circle cx="76" cy="98" r="7" fill="currentColor"/><circle cx="100" cy="98" r="7" fill="currentColor"/>'
-};
+const $ = (id) => document.getElementById(id);
+const HAT = '<svg viewBox="0 0 24 20"><path d="M1 16h22v2H1z M3.5 16v-3a8.5 8.5 0 0 1 17 0v3z" fill="currentColor"/></svg>';
+const LOCK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" style="width:4vmin;height:4vmin"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
+// The Site Kit's buttons and buzzes: the same numbers as the TV
+const KEY = {A: ['#3fe0c5', '#04281f'], B: ['#ff5a5f', '#2b0606'], X: ['#9b6bff', '#1b0d3a'], Y: ['#ffc23d', '#2a1d00'], stick: ['#3a3d47', '#ffffff']};
+const BUZZ = {press: 12, turn: [30, 60, 30], gold: 15, missed: 120, alarm: [90, 60, 90], done: [10, 40, 10]};
+const P_COL = ['3d8bff', 'ff4f6d', 'ff8a3d', '7cd992', 'c49bff', '2fd3e8'];
 let token = null;
 try { token = localStorage.getItem('pd_token'); } catch (e) {}
 if (!token) { token = Math.random().toString(36).slice(2, 10); try { localStorage.setItem('pd_token', token); } catch (e) {} }
-let ws = null, ready = false;
-const status = document.getElementById('status'), badge = document.getElementById('badge');
-function connect() {
-  ws = new WebSocket('ws://' + location.hostname + ':' + PORT);
-  ws.onopen = () => { ready = true; ws.send('hello ' + token); status.textContent = 'connected'; };
-  ws.onclose = () => { ready = false; status.textContent = 'reconnecting…'; setTimeout(connect, 1000); };
-  ws.onmessage = (ev) => {
-    const m = ev.data.split(' ');
-    if (m[0] === 'p') {
-      badge.textContent = 'P' + m[1];
-      badge.style.background = '#' + m[2];
-      badge.style.color = '#14121c';
-      status.textContent = 'you are player ' + m[1];
-      badge.classList.add('hi'); setTimeout(() => badge.classList.remove('hi'), 300);
-    } else if (m[0] === 'j') {
-      // Your job: its icon and name in the job's colour
-      const job = document.getElementById('job');
-      job.style.display = 'flex';
-      job.style.color = '#' + m[2];
-      const parts = (m[3] || '').replace(/_/g, ' ').split('|');
-      document.getElementById('jname').textContent = parts[0] + ' · ' + (parts[1] || '');
-      document.getElementById('jicon').innerHTML = ICONS[m[1]] || '';
-    } else if (m[0] === 'v') {
-      // Haptics: the poker's rumble, a hammer blow, a clamp closing
-      buzz((m[1] || '30').split(',').map(Number));
-    } else if (m[0] === 'full') {
-      status.textContent = 'the crew is full (4 players)';
-    } else if (m[0] === 'c') {
-      // What the game is asking for: button:verb:hold progress:urgent
-      const want = {};
-      (m[1] || '').split(',').forEach(s => { if (s) { const f = s.split(':'); want[f[0]] = {verb: (f[1] || '').replace(/_/g, ' '), p: parseFloat(f[2] || '-1'), urgent: f[3] === '1', gold: f[4] === '1'}; } });
-      ['A', 'B', 'X', 'Y'].forEach(b => {
-        const el = document.getElementById(b), w = want[b];
-        el.classList.toggle('cue', !!w);
-        el.classList.toggle('urgent', !!(w && w.urgent));
-        el.classList.toggle('hold', !!(w && w.p >= 0));
-        const g = !!(w && w.gold);
-        if (g && !el.classList.contains('gold')) { goldBurst(el); buzz(15); }
-        el.classList.toggle('gold', g);
-        if (w && w.p >= 0) el.style.setProperty('--p', Math.min(1, w.p));
-        if (w && w.verb) el.querySelector('.verb').textContent = w.verb;
-        // A hold finishing: a big burst
-        if (w && w.p >= 0.99 && !el.dataset.done) { el.dataset.done = '1'; burst(el, 34, 1.6); buzz([20, 30, 40]); }
-        if (!w || w.p < 0.5) delete el.dataset.done;
-      });
-    }
-  };
-}
+let ws = null, ready = false, me = {p: 0, pc: '3d8bff'}, screen = '', roster = [], card = null, now = {i: -1}, picked = '', locked = false, nudge = 0;
+const status = $('status');
+function esc(t) { return String(t).replace(/[&<>]/g, (ch) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;'})[ch]); }
 function send(t) { if (ready) ws.send(t); }
 let haptics = true;
 function buzz(p) { if (haptics && navigator.vibrate) { try { navigator.vibrate(p); } catch (e) {} } }
-// Sparks: a little canvas of particles over everything
-const fx = document.getElementById('fx'), g = fx.getContext('2d');
+function connect() {
+  ws = new WebSocket('ws://' + location.hostname + ':' + PORT);
+  ws.onopen = () => { ready = true; ws.send('hello ' + token); status.textContent = ''; };
+  ws.onclose = () => { ready = false; status.textContent = 'reconnecting…'; setTimeout(connect, 1000); };
+  ws.onmessage = (ev) => {
+    const d = ev.data;
+    if (d.startsWith('J ')) { try { onJson(JSON.parse(d.slice(2))); } catch (e) {} return; }
+    const m = d.split(' ');
+    if (m[0] === 'p') onPlayer(parseInt(m[1]), m[2]);
+    else if (m[0] === 'v') buzz((m[1] || '30').split(',').map(Number));
+    else if (m[0] === 'full') { status.textContent = 'the crew is full (6 players): watch, or wait for a spot'; }
+    else if (m[0] === 'c') onCues(m[1] || '');
+  };
+}
+function onPlayer(p, col) {
+  const first = me.p !== p;
+  me.p = p; me.pc = col;
+  document.documentElement.style.setProperty('--me', '#' + col);
+  if (first) showJoined();
+}
+function showJoined() {
+  $('jbig').textContent = 'P' + me.p; $('jbig').style.background = '#' + me.pc;
+  $('jk').style.color = '#' + me.pc; $('jt').textContent = 'You are Player ' + me.p;
+  $('pdots').innerHTML = P_COL.map((c, i) => {
+    const on = roster.some(r => r.p === i + 1) || i + 1 === me.p;
+    return '<div style="' + (on ? 'background:#' + c + ';border:0' : '') + (i + 1 === me.p ? ';outline:3px solid #fff;outline-offset:2px' : '') + '">' + (on ? '' : '') + 'P' + (i + 1) + '</div>';
+  }).join('');
+  $('joined').classList.add('on'); buzz(BUZZ.done);
+  setTimeout(() => $('joined').classList.remove('on'), 1800);
+}
+function onJson(j) {
+  if (j.t === 'state') {
+    me.name = j.name;
+    if (j.s !== screen) { screen = j.s; showScreen(); }
+    $('cname').textContent = j.name || '';
+    if (j.s === 'lobby') { if (!!j.locked !== locked) { locked = !!j.locked; showScreen(); if (locked) buzz(BUZZ.done); } setCount(j.count); }
+  } else if (j.t === 'roster') { roster = j.r; drawLobby(); drawSwap(); }
+  else if (j.t === 'card') { card = j; drawTicket(); drawLobby(); }
+  else if (j.t === 'now') { now = j; drawSteps(); }
+  else if (j.t === 'gauge') drawGauge(j);
+  else if (j.t === 'nudge') setNudge(j.lvl);
+  else if (j.t === 'toast') toast(j.msg);
+}
+function showScreen() {
+  const lobby = screen === 'lobby';
+  $('lobby').classList.toggle('on', lobby && !locked);
+  $('locked').classList.toggle('on', lobby && locked);
+  $('play').classList.toggle('on', !lobby);
+  if (!lobby) closeSwap();
+  drawTicket();
+}
+let toastT = null;
+function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), 2200); buzz(BUZZ.missed); }
+// ---------------------------------------------------------------- the ticket
+function chip(k) { const c = KEY[k] || KEY.stick; return '<span class="k" style="background:' + c[0] + ';color:' + c[1] + '">' + (k === 'stick' ? 'STICK' : k) + '</span>'; }
+function mine() { return roster.find(r => r.p === me.p); }
+function drawTicket() {
+  if (!card) return;
+  const col = '#' + card.col;
+  document.documentElement.style.setProperty('--job', col);
+  const t = $('ticket');
+  let name = card.name, goal = card.goal, foot = '';
+  t.classList.toggle('pump', card.role === 'pump' && screen === 'play' && !now.climb);
+  if (screen === 'site') { $('tk').textContent = 'P' + me.p + ' · NEXT UP'; name = 'Pick the site'; goal = 'The first player picks the site and the kit on the TV: stick to choose, A to start, B back to the crew.'; }
+  else if (screen === 'pause') { $('tk').textContent = 'P' + me.p + ' · SMOKO'; name = 'Paused'; goal = 'Steer the menu on the TV: stick up and down, A to choose, B to get back to work.'; }
+  else { $('tk').textContent = 'P' + me.p + ' · YOUR JOB'; foot = (card.watch ? '<b>Watch for:</b> ' + esc(card.watch) + ' ' : '') + esc(card.climb || ''); }
+  $('tn').textContent = name;
+  $('goal').textContent = goal;
+  $('tfoot').innerHTML = foot;
+  $('tsw').style.display = screen === 'play' ? 'flex' : 'none';
+  drawSteps();
+}
+let lastStep = -1;
+function drawSteps() {
+  if (!card) return;
+  const el = $('steps');
+  if (screen !== 'play') { el.innerHTML = ''; return; }
+  const steps = now.climb && card.climbsteps.length ? card.climbsteps : card.steps;
+  const pump = $('ticket').classList.contains('pump');
+  let html = '';
+  steps.forEach((s, i) => {
+    const on = i === now.i;
+    if (pump && now.i >= 0 && !on && i !== now.i + 1) return;
+    html += '<div class="st' + (on ? ' now' : '') + '">' + chip(s[0]) + '<span>' + esc(s[1]) + (on && now.verb ? '<span class="v">Now: ' + esc(now.verb) + '</span>' : '') + '</span></div>';
+  });
+  if (now.i < 0 && now.verb) html = '<div class="st now">' + chip(now.btn || 'A') + '<span>' + esc(now.verb) + '</span></div>' + (pump ? '' : html);
+  el.innerHTML = html;
+  if (now.i !== lastStep && now.i >= 0) buzz(BUZZ.press);
+  lastStep = now.i;
+}
+// The pump gauge, the same dial and bands as the TV (green, amber, red)
+(function () {
+  const arc = (a0, a1) => { const p = (a) => [50 - 42 * Math.cos(a), 50 - 42 * Math.sin(a)]; const s = p(a0), e = p(a1); return 'M' + s[0] + ' ' + s[1] + ' A42 42 0 0 1 ' + e[0] + ' ' + e[1]; };
+  const M = 250, f = (b) => Math.PI * b / M;
+  $('g1').setAttribute('d', arc(f(0), f(120))); $('g1').setAttribute('stroke', '#4fb36b');
+  $('g2').setAttribute('d', arc(f(120), f(180))); $('g2').setAttribute('stroke', '#f2b51f');
+  $('g3').setAttribute('d', arc(f(180), f(250))); $('g3').setAttribute('stroke', '#ff3b2f');
+})();
+let wasSpike = false;
+function drawGauge(g) {
+  const v = Math.max(0, Math.min(1, g.bar / 250));
+  $('needle').style.transform = 'rotate(' + (-90 + 180 * v) + 'deg)';
+  const r = $('gread');
+  r.textContent = g.spike ? 'SPIKE: KILL IT' : (g.tripped ? 'OFF · RESTART' : (g.warn ? 'WATCH IT…' : g.bar + ' bar'));
+  r.style.color = g.spike ? '#ff3b2f' : (g.tripped ? '#b17a00' : (g.warn ? '#b17a00' : '#2a7a3e'));
+  if (g.spike && !wasSpike) buzz(BUZZ.alarm);
+  wasSpike = g.spike;
+}
+// ---------------------------------------------------------------- nudges
+function setNudge(l) {
+  if (l === nudge) return;
+  if (l >= 1 && nudge < 1) buzz(BUZZ.turn);
+  nudge = l;
+  $('edge').classList.toggle('on', l >= 1 && screen === 'play');
+  $('helping').classList.toggle('on', l >= 3);
+  placeGhost();
+}
+function placeGhost() {
+  const g = $('ghost');
+  const b = document.querySelector('.btn.cue');
+  if (nudge >= 2 && nudge < 3 && b && screen === 'play') {
+    const r = b.getBoundingClientRect();
+    g.style.left = (r.left + r.width / 2 - g.offsetWidth * 0.3) + 'px'; g.style.top = (r.top + r.height / 2 - g.offsetHeight * 0.25) + 'px';
+    g.classList.add('on');
+  } else g.classList.remove('on');
+}
+// ---------------------------------------------------------------- button cues
+let anyAlarm = false;
+function onCues(s) {
+  const want = {};
+  s.split(',').forEach(x => { if (x) { const f = x.split(':'); want[f[0]] = {verb: (f[1] || '').replace(/_/g, ' '), p: parseFloat(f[2] || '-1'), urgent: f[3] === '1', gold: f[4] === '1', alarm: f[5] === '1'}; } });
+  let alarm = false;
+  ['A', 'B', 'X', 'Y'].forEach(b => {
+    const el = $(b), w = want[b];
+    el.classList.toggle('cue', !!w);
+    el.classList.toggle('urgent', !!(w && w.urgent));
+    const wasAlarm = el.classList.contains('alarm');
+    el.classList.toggle('alarm', !!(w && w.alarm));
+    if (w && w.alarm && !wasAlarm) buzz(BUZZ.alarm);
+    alarm = alarm || !!(w && w.alarm);
+    el.classList.toggle('hold', !!(w && w.p >= 0));
+    const g = !!(w && w.gold);
+    if (g && !el.classList.contains('gold')) { stars(el, 14); buzz(BUZZ.gold); }
+    el.classList.toggle('gold', g);
+    el.style.setProperty('--p', w && w.p >= 0 ? Math.min(1, w.p) : 0);
+    el.querySelector('.wet').style.height = (w && w.p >= 0 ? Math.min(1, w.p) * 100 : 0) + '%';
+    if (w) el.querySelector('.verb b').textContent = w.verb || b;
+    el.querySelector('.verb').style.display = w && w.verb ? 'flex' : 'none';
+    if (w && w.p >= 0.99 && !el.dataset.done) { el.dataset.done = '1'; stars(el, 20); buzz(BUZZ.done); }
+    if (!w || w.p < 0.5) delete el.dataset.done;
+  });
+  if (alarm !== anyAlarm) { anyAlarm = alarm; $('edge').classList.toggle('alarm', alarm); }
+  placeGhost();
+}
+// ---------------------------------------------------------------- star sparks
+const fx = $('fx'), g = fx.getContext('2d');
 let parts = [], dpr = 1;
 function resize() { dpr = Math.min(2, window.devicePixelRatio || 1); fx.width = innerWidth * dpr; fx.height = innerHeight * dpr; }
-addEventListener('resize', resize); resize();
-function colorOf(el) { return getComputedStyle(el).getPropertyValue('--hi').trim() || '#fff'; }
-function burst(el, n, k) {
-  const r = el.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2, col = colorOf(el);
-  for (let i = 0; i < n; i++) {
-    const a = Math.random() * Math.PI * 2, sp = (180 + Math.random() * 420) * k;
-    parts.push({x: cx + Math.cos(a) * r.width * .45, y: cy + Math.sin(a) * r.width * .45, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 80, life: 0, max: .35 + Math.random() * .35, size: (2 + Math.random() * 4) * k, col: Math.random() < .25 ? '#ffffff' : col, star: Math.random() < .3});
-  }
-}
-// Gold: the moment (or the spot) to press it. A shower of gold sparks, then a
-// gentle trickle for as long as it stays gold
-function goldBurst(el) {
+addEventListener('resize', () => { resize(); placeGhost(); }); resize();
+function stars(el, n) {
   const r = el.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
-  for (let i = 0; i < 26; i++) {
-    const a = Math.random() * Math.PI * 2, sp = 160 + Math.random() * 360;
-    parts.push({x: cx + Math.cos(a) * r.width * .5, y: cy + Math.sin(a) * r.width * .5, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 120, life: 0, max: .4 + Math.random() * .4, size: 2 + Math.random() * 4, col: Math.random() < .3 ? '#ffffff' : '#ffd23f', star: Math.random() < .5});
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * Math.PI * 2, sp = 180 + Math.random() * 300;
+    parts.push({x: cx + Math.cos(a) * r.width * .45, y: cy + Math.sin(a) * r.width * .45, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 80, life: 0, max: .45 + Math.random() * .3, size: 5 + Math.random() * 5, rot: Math.random() * 6});
   }
 }
 setInterval(() => {
   document.querySelectorAll('.btn.gold').forEach(el => {
     const r = el.getBoundingClientRect(), a = Math.random() * Math.PI * 2;
-    parts.push({x: r.left + r.width / 2 + Math.cos(a) * r.width * .55, y: r.top + r.height / 2 + Math.sin(a) * r.width * .55, vx: Math.cos(a) * 60, vy: -90 - Math.random() * 60, life: 0, max: .5, size: 2.5, col: '#ffd23f', star: true});
+    parts.push({x: r.left + r.width / 2 + Math.cos(a) * r.width * .55, y: r.top + r.height / 2 + Math.sin(a) * r.width * .55, vx: Math.cos(a) * 50, vy: -70 - Math.random() * 50, life: 0, max: .5, size: 5, rot: 0});
   });
-}, 70);
+}, 100);
 let last = performance.now();
-function frame(now) {
-  const dt = Math.min(.05, (now - last) / 1000); last = now;
+function frame(t) {
+  const dt = Math.min(.05, (t - last) / 1000); last = t;
   g.setTransform(dpr, 0, 0, dpr, 0, 0);
   g.clearRect(0, 0, innerWidth, innerHeight);
-  g.globalCompositeOperation = 'lighter';
   parts = parts.filter(q => (q.life += dt) < q.max);
   for (const q of parts) {
-    q.vx *= 1 - 4 * dt; q.vy = q.vy * (1 - 4 * dt) + 600 * dt;
-    q.x += q.vx * dt; q.y += q.vy * dt;
-    const t = 1 - q.life / q.max;
-    g.globalAlpha = t; g.fillStyle = q.col;
-    if (q.star) { g.save(); g.translate(q.x, q.y); g.rotate(q.life * 9); g.fillRect(-q.size * t * 1.4, -q.size * .25, q.size * t * 2.8, q.size * .5); g.fillRect(-q.size * .25, -q.size * t * 1.4, q.size * .5, q.size * t * 2.8); g.restore(); }
-    else { g.beginPath(); g.arc(q.x, q.y, q.size * (.4 + .6 * t), 0, 6.283); g.fill(); }
+    q.vx *= 1 - 3 * dt; q.vy = q.vy * (1 - 3 * dt) + 400 * dt;
+    q.x += q.vx * dt; q.y += q.vy * dt; q.rot += dt * 6;
+    const k = 1 - q.life / q.max, r = q.size * (.4 + .6 * k);
+    g.globalAlpha = k; g.fillStyle = '#ffd23f';
+    g.beginPath();
+    for (let i = 0; i < 8; i++) { const a = q.rot + Math.PI / 4 * i, rr = i % 2 ? r * .32 : r; g.lineTo(q.x + Math.cos(a) * rr, q.y + Math.sin(a) * rr); }
+    g.closePath(); g.fill();
   }
-  g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
+  g.globalAlpha = 1;
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
-const flash = document.getElementById('flash');
-function flashCol(el) {
-  flash.style.background = 'radial-gradient(120% 120% at ' + (el.id === 'A' || el.id === 'B' ? '75%' : '60%') + ' 50%,transparent 55%,' + colorOf(el) + '55 100%)';
-  flash.classList.remove('go'); void flash.offsetWidth; flash.classList.add('go');
-}
-// Buttons: squash in, ripple, sparks and a buzz on the way down; spring back up
+// ---------------------------------------------------------------- buttons
 ['A', 'B', 'X', 'Y'].forEach(b => {
-  const el = document.getElementById(b);
+  const el = $(b);
   const down = (e) => {
     e.preventDefault();
     try { el.setPointerCapture(e.pointerId); } catch (err) {}
     if (el.classList.contains('down')) return;
     el.classList.remove('boing'); el.classList.add('down');
     send('d ' + b);
-    const rp = document.createElement('div'); rp.className = 'ripple'; el.appendChild(rp);
-    rp.addEventListener('animationend', () => rp.remove());
-    burst(el, b === 'A' ? 18 : 12, 1);
-    flashCol(el);
-    buzz(b === 'A' ? 18 : 12);
+    buzz(BUZZ.press);
   };
-  const up = (e) => {
+  const up = () => {
     if (!el.classList.contains('down')) return;
     el.classList.remove('down');
     void el.offsetWidth; el.classList.add('boing');
     send('u ' + b);
-    burst(el, 5, .6);
-    buzz(6);
   };
   el.addEventListener('pointerdown', down);
   el.addEventListener('pointerup', up);
@@ -252,34 +513,38 @@ function flashCol(el) {
   el.addEventListener('lostpointercapture', up);
   el.addEventListener('animationend', (e) => { if (e.animationName === 'boing') el.classList.remove('boing'); });
 });
-// Stick: touch anywhere on the left half, it centres under your thumb
-const left = document.getElementById('left'), base = document.getElementById('base'), knob = document.getElementById('knob'), wedge = document.getElementById('wedge');
-let sid = null, ox = 0, oy = 0, lastSend = 0, vx = 0, vy = 0, atEdge = false;
+document.querySelectorAll('.pausebtn').forEach(pb => {
+  pb.addEventListener('pointerdown', (e) => { e.preventDefault(); pb.classList.add('down'); send('d MENU'); buzz(BUZZ.press); });
+  pb.addEventListener('pointerup', () => pb.classList.remove('down'));
+});
+// ---------------------------------------------------------------- the stick: only inside its zone, so it never covers the ticket
+const zone = $('zone'), base = $('base'), knob = $('knob'), wedge = $('wedge');
+let sid = null, ox = 0, oy = 0, lastSend = 0, vx = 0, vy = 0, atEdge = false, stickTimer = null;
 function radius() { return base.getBoundingClientRect().width / 2; }
 function setKnob(dx, dy) { knob.style.transform = 'translate(calc(-50% + ' + dx + 'px), calc(-50% + ' + dy + 'px))'; }
-let stickTimer = null;
 function sendStick(force) {
-  const now = performance.now();
-  if (force || now - lastSend > 33) {
-    lastSend = now;
+  const t = performance.now();
+  if (force || t - lastSend > 33) {
+    lastSend = t;
     if (stickTimer) { clearTimeout(stickTimer); stickTimer = null; }
     send('m ' + vx.toFixed(2) + ' ' + vy.toFixed(2));
   } else if (!stickTimer) {
-    // (a move inside the throttle still gets there: the last position
-    // always arrives, so the boom stops where your thumb stopped)
-    stickTimer = setTimeout(() => { stickTimer = null; sendStick(true); }, 34 - (now - lastSend));
+    // (the last position always gets there, so the boom stops where your thumb stopped)
+    stickTimer = setTimeout(() => { stickTimer = null; sendStick(true); }, 34 - (t - lastSend));
   }
 }
-left.addEventListener('pointerdown', (e) => {
-  e.preventDefault(); sid = e.pointerId; left.setPointerCapture(sid);
-  const r = left.getBoundingClientRect();
-  ox = e.clientX; oy = e.clientY;
+zone.addEventListener('pointerdown', (e) => {
+  if (swapOpen) return;
+  e.preventDefault(); sid = e.pointerId; zone.setPointerCapture(sid);
+  const r = zone.getBoundingClientRect(), R = radius();
+  // Centre the stick under the thumb, kept inside the zone
+  ox = Math.max(r.left + R * .6, Math.min(r.right - R * .6, e.clientX));
+  oy = Math.max(r.top + R * .6, Math.min(r.bottom - R * .6, e.clientY));
   base.style.left = (ox - r.left) + 'px'; base.style.top = (oy - r.top) + 'px';
   base.classList.add('on');
-  buzz(8);
+  moveStick(e);
 });
-left.addEventListener('pointermove', (e) => {
-  if (e.pointerId !== sid) return;
+function moveStick(e) {
   const R = radius();
   let dx = e.clientX - ox, dy = e.clientY - oy;
   const d = Math.hypot(dx, dy);
@@ -287,49 +552,105 @@ left.addEventListener('pointermove', (e) => {
   setKnob(dx, dy);
   vx = dx / R; vy = dy / R;
   const mag = Math.min(1, d / R);
-  // The rim lights up the way you're pushing
   wedge.style.opacity = mag;
   wedge.style.transform = 'rotate(' + (Math.atan2(dy, dx) * 180 / Math.PI + 90) + 'deg)';
   if (mag >= 1 && !atEdge) { atEdge = true; buzz(5); }
   if (mag < .9) atEdge = false;
   sendStick(false);
-});
+}
+zone.addEventListener('pointermove', (e) => { if (e.pointerId === sid) moveStick(e); });
 function endStick(e) {
-  if (e.pointerId !== sid) return;
+  if (e && e.pointerId !== sid) return;
   sid = null; vx = 0; vy = 0; setKnob(0, 0); sendStick(true);
-  base.style.left = '50%'; base.style.top = '55%';
+  base.style.left = '50%'; base.style.top = '50%';
   base.classList.remove('on'); wedge.style.opacity = 0;
 }
-left.addEventListener('pointerup', endStick);
-left.addEventListener('pointercancel', endStick);
-// Full screen: Android goes full screen on a tap; an iPhone can't from a web
-// page, so it's opened from the home screen instead, where it runs like an app
+zone.addEventListener('pointerup', endStick);
+zone.addEventListener('pointercancel', endStick);
+// ---------------------------------------------------------------- hold-to-confirm buttons: fill with concrete, then set
+function holdButton(el, ms, done) {
+  let t0 = 0, raf = 0;
+  const fill = el.querySelector('.fill');
+  const tick = () => {
+    const k = Math.min(1, (performance.now() - t0) / ms);
+    if (fill) fill.style.width = (k * 100) + '%';
+    if (k >= 1) { stop(false); stars(el, 16); buzz(BUZZ.done); done(); return; }
+    raf = requestAnimationFrame(tick);
+  };
+  const stop = (reset) => { cancelAnimationFrame(raf); t0 = 0; el.classList.remove('down'); if (fill && reset !== false) fill.style.width = '0'; };
+  el.addEventListener('pointerdown', (e) => { e.preventDefault(); if (el.disabled) return; try { el.setPointerCapture(e.pointerId); } catch (err) {} t0 = performance.now(); el.classList.add('down'); buzz(BUZZ.press); tick(); });
+  el.addEventListener('pointerup', () => stop());
+  el.addEventListener('pointercancel', () => stop());
+}
+// ---------------------------------------------------------------- lobby
+function jobCard(r, cls, extra) {
+  return '<button class="job ' + cls + '" data-id="' + r.id + '" style="--c:#' + r.col + '"><span class="n"><span class="sq">' + HAT + '</span>' + esc(r.name) + extra + '</span><span class="w">' + esc(r.line) + '</span></button>';
+}
+function drawLobby() {
+  if (!roster.length) return;
+  $('lp').textContent = 'P' + me.p; $('lp').style.background = '#' + me.pc;
+  const people = roster.filter(r => r.p > 0), lockedN = people.filter(r => r.lock).length;
+  $('lsub').textContent = lockedN + ' of ' + people.length + ' locked · bots take the rest';
+  $('ljobs').innerHTML = roster.map(r => {
+    if (r.p === me.p) return jobCard(r, 'mine', '<span class="ptag" style="background:#' + r.pc + '">P' + r.p + '</span>');
+    if (r.p > 0) return jobCard(r, 'taken', '<span class="ptag" style="background:#' + r.pc + '">P' + r.p + (r.lock ? ' ' + LOCK : '') + '</span>');
+    return jobCard(r, '', '');
+  }).join('');
+  const m = mine();
+  if (m) { $('ln').textContent = m.name; document.documentElement.style.setProperty('--job', '#' + m.col); }
+  $('lk').textContent = 'P' + me.p + ' · LOCKED IN';
+  $('crewlist').innerHTML = roster.map(r => '<div class="cl' + (r.p === me.p ? ' me' : (r.p ? '' : ' bot')) + '"><i style="background:#' + r.col + '"></i><span>' + esc(r.name) + '</span>' + (r.p ? '<span class="ptag" style="background:#' + r.pc + '">P' + r.p + (r.p === me.p ? ' · you' : '') + '</span>' : '<span style="font-size:3vmin;flex-grow:0">bot · ' + esc(r.who) + '</span>') + '</div>').join('');
+}
+$('ljobs').addEventListener('pointerdown', (e) => {
+  const b = e.target.closest('.job'); if (!b || b.classList.contains('taken')) { if (b) buzz(BUZZ.missed); return; }
+  send('pick ' + b.dataset.id); buzz(BUZZ.press);
+});
+holdButton($('lockgo'), 800, () => send('lock'));
+$('unlock').addEventListener('pointerdown', (e) => { e.preventDefault(); send('unlock'); buzz(BUZZ.press); });
+$('cprev').addEventListener('pointerdown', (e) => { e.preventDefault(); send('char -1'); buzz(BUZZ.press); });
+$('cnext').addEventListener('pointerdown', (e) => { e.preventDefault(); send('char 1'); buzz(BUZZ.press); });
+function setCount(c) {
+  $('count').textContent = c > 0 ? c : '';
+  $('cnote').textContent = c > 0 ? 'Everyone’s in. Starting the pour. Once you’re on site you can swap to any job a bot is doing.' : 'Waiting for the rest of the crew to lock in. Once you’re on site you can swap to any job a bot is doing.';
+}
+// ---------------------------------------------------------------- swap jobs on site
+let swapOpen = false, swapPick = '';
+$('thead').addEventListener('pointerdown', (e) => { e.preventDefault(); if (screen === 'play') openSwap(); });
+$('swapx').addEventListener('pointerdown', (e) => { e.preventDefault(); closeSwap(); });
+function openSwap() { swapOpen = true; swapPick = ''; endStick(); $('swap').classList.add('on'); $('zone').classList.add('off'); drawSwap(); buzz(BUZZ.press); }
+function closeSwap() { swapOpen = false; $('swap').classList.remove('on'); $('zone').classList.remove('off'); }
+function drawSwap() {
+  if (!swapOpen) return;
+  $('jobs').innerHTML = roster.map(r => {
+    if (r.p === me.p) return '<div class="job mine" style="--c:#' + r.col + '"><span class="n">' + HAT + esc(r.name) + '</span><span class="w">you, P' + r.p + '</span></div>';
+    if (r.p > 0) return '<div class="job taken" style="--c:#' + r.col + '"><span class="n">' + LOCK + esc(r.name) + '<span class="ptag" style="background:#' + r.pc + '">P' + r.p + '</span></span><span class="w">' + esc(r.who) + '</span></div>';
+    return '<button class="job' + (r.id === swapPick ? ' pick' : '') + '" data-id="' + r.id + '" style="--c:#' + r.col + '"><span class="n">' + HAT + esc(r.name) + '</span><span class="w">bot ' + esc(r.who) + ' · ' + esc(r.line) + '</span></button>';
+  }).join('');
+  const free = roster.filter(r => !r.p).length;
+  $('swapgo').disabled = !swapPick;
+  $('swapnote').textContent = free ? 'Tap a job a bot’s doing, then hold to swap. Your chibi stands still while this is open.' : 'Every job has a player on it right now.';
+}
+$('jobs').addEventListener('pointerdown', (e) => { const b = e.target.closest('button.job'); if (!b) return; swapPick = b.dataset.id; drawSwap(); buzz(BUZZ.press); });
+holdButton($('swapgo'), 700, () => { if (swapPick) send('swap ' + swapPick); closeSwap(); });
+// ---------------------------------------------------------------- full screen and the first tap
 const de = document.documentElement;
 const standalone = (window.navigator.standalone === true) || matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches;
 const canFs = !!(de.requestFullscreen || de.webkitRequestFullscreen);
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-if (isIOS && !standalone) document.getElementById('ios').style.display = 'block';
+if (isIOS && !standalone) $('ios').style.display = 'block';
 function goFull() {
   if (standalone) return;
   const f = de.requestFullscreen || de.webkitRequestFullscreen;
   if (f) { try { const r = f.call(de, {navigationUI: 'hide'}); if (r && r.catch) r.catch(() => {}); } catch (e) {} }
-  if (screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(() => {});
+  const so = window.screen.orientation; if (so && so.lock) so.lock('landscape').catch(() => {});
 }
-const fsBtn = document.getElementById('fs');
+const fsBtn = $('fs');
 function fsShow() { fsBtn.style.display = (canFs && !isIOS && !standalone && !(document.fullscreenElement || document.webkitFullscreenElement)) ? 'flex' : 'none'; }
 document.addEventListener('fullscreenchange', fsShow);
 document.addEventListener('webkitfullscreenchange', fsShow);
 fsBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); goFull(); });
-// Pause: the game's menu, steered from here with the stick, A and B
-const menuBtn = document.getElementById('menu');
-menuBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); menuBtn.classList.add('down'); send('d MENU'); buzz(15); });
-menuBtn.addEventListener('pointerup', () => { menuBtn.classList.remove('down'); });
-// First tap: go full screen and join
-document.getElementById('gate').addEventListener('pointerdown', () => {
-  document.getElementById('gate').style.display = 'none';
-  goFull();
-  setTimeout(fsShow, 400);
-});
+$('gate').addEventListener('pointerdown', () => { $('gate').style.display = 'none'; goFull(); setTimeout(fsShow, 400); });
+if (location.search.includes('nogate')) $('gate').style.display = 'none';
 connect();
 </script>
 </body>
