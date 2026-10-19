@@ -2089,6 +2089,7 @@ func _process(delta: float) -> void:
 		tip_target = tip_target.lerp(Vector3(5.0, 0, 0), minf(1.0, delta * 0.8))
 	tip_pos = tip_pos.lerp(tip_target, minf(1.0, delta * 4.0))
 	tip_kick = tip_kick.lerp(Vector3.ZERO, minf(1.0, delta * 3.0))
+	_update_whip(delta)
 	_update_boom()
 	_update_stream()
 	_update_hoist(delta)
@@ -2300,6 +2301,17 @@ func _update_pour(delta: float) -> void:
 	if ops.primed and not ops.busy():
 		pumping = q > 0.0
 	var hose_local := _pour_local(discharge())
+	if q > 0.0 and _whip > 0.2:
+		# The hose whipping about: some of it's flung off in lumps, metres away
+		var fling := q * 0.6 * _whip
+		q -= fling
+		_lump_t += delta
+		var a := randf() * TAU
+		var lump := hose_local + Vector3(cos(a), 0, sin(a)) * randf_range(1.5, 3.5) * _whip
+		pour.deposit(lump, fling)
+		if _lump_t > 0.25:
+			_lump_t = 0.0
+			sfx.hit("plop")
 	if q > 0.0:
 		pour.deposit(hose_local, q)
 		# A wet load bleeds where it lands: a weak, watery patch in the slab
@@ -2597,13 +2609,18 @@ func _handle_player(p, delta: float) -> void:
 			tip_target += Vector3(v.x, 0, v.y).rotated(Vector3.UP, cam_yaw) * 7.0 * delta * p.pace
 			v = Vector2.ZERO
 		var mag := clampf((v.length() - BOOM_DEAD) / (1.0 - BOOM_DEAD), 0.0, 1.0)
-		var dir := Vector3(v.x, 0, v.y).normalized().rotated(Vector3.UP, cam_yaw) if mag > 0.0 else Vector3.ZERO
-		var spd := BOOM_SPEED * mag * mag * (BOOM_POUR_K if line.pumping else 1.0)
+		var dir := _pad_dir(v) if mag > 0.0 else Vector3.ZERO
+		# Held hard over for a while, it winds up: faster and faster, until
+		# the hose starts to whip
+		_boom_hold_t = _boom_hold_t + delta if mag > 0.85 and not (p.bot or p.covering) else 0.0
+		var wind_up := 1.0 + (BOOM_RUSH_K - 1.0) * clampf((_boom_hold_t - BOOM_RUSH_AFTER) / BOOM_RUSH_T, 0.0, 1.0)
+		var spd := BOOM_SPEED * mag * mag * (BOOM_POUR_K if line.pumping else 1.0) * wind_up
 		tip_target += dir * spd * delta * p.pace
 		var lead := tip_target - tip_pos
 		lead.y = 0.0
-		if lead.length() > BOOM_LEAD and not (p.bot or p.covering):
-			tip_target = tip_pos + lead.normalized() * BOOM_LEAD + Vector3(0, tip_target.y - tip_pos.y, 0)
+		var lead_max := BOOM_LEAD * wind_up * wind_up
+		if lead.length() > lead_max and not (p.bot or p.covering):
+			tip_target = tip_pos + lead.normalized() * lead_max + Vector3(0, tip_target.y - tip_pos.y, 0)
 		if mag == 0.0 and not (p.bot or p.covering):
 			# Let go: it settles where the hose is, no drifting on
 			tip_target = tip_target.lerp(Vector3(tip_pos.x, tip_target.y, tip_pos.z), minf(1.0, delta * 6.0))
@@ -3012,6 +3029,56 @@ const BOOM_SPEED := 4.5     # m/s at full stick (it was 7 with a lag: too quick 
 const BOOM_DEAD := 0.14     # stick dead zone
 const BOOM_POUR_K := 0.7    # slower while pumping, for placing
 const BOOM_LEAD := 1.15     # m the aim can run ahead of the hose (it follows at 4/s)
+const BOOM_RUSH_AFTER := 1.0  # s of full stick before the boom starts to wind up
+const BOOM_RUSH_T := 1.5      # s more to reach full rush
+const BOOM_RUSH_K := 2.0      # full rush: twice the speed
+const WHIP_FROM := 5.2        # m/s of the boom tip where the hose starts to whip
+const WHIP_FULL := 3.0        # m/s more to a full whip
+var _boom_hold_t := 0.0
+var _whip := 0.0              # 0..1: how hard the end hose is whipping about
+var _whip_prev := Vector3.ZERO
+var _lump_t := 0.0
+
+## The boom stick, mapped onto the slab: left and right run along the slab's
+## edge that reads left to right on screen, up and down from its far edge to
+## its near one, whichever way the camera's turned.
+func _pad_dir(v: Vector2) -> Vector3:
+	var r := Vector3(1, 0, 0).rotated(Vector3.UP, cam_yaw)    # screen right, on the ground
+	var d := Vector3(0, 0, 1).rotated(Vector3.UP, cam_yaw)    # screen down
+	var right := Vector3(signf(r.x), 0, 0) if absf(r.x) >= absf(r.z) else Vector3(0, 0, signf(r.z))
+	var down := Vector3(0, 0, signf(d.z)) if absf(r.x) >= absf(r.z) else Vector3(signf(d.x), 0, 0)
+	return (right * v.x + down * v.y).normalized()
+
+## The end hose whipping about when the boom's flung round too fast: lumps of
+## concrete fly off it across the slab, and whoever's on the end gets swung
+## off their feet (they hang on).
+func _update_whip(delta: float) -> void:
+	var v := tip_pos - _whip_prev
+	v.y = 0.0
+	_whip_prev = tip_pos
+	var spd := v.length() / maxf(delta, 0.0001)
+	# (only a person flings it round like that: the bots keep it steady)
+	var person := false
+	for q in players:
+		if q.busy == "boom" and not q.bot and not q.covering:
+			person = true
+	var want := clampf((spd - WHIP_FROM) / WHIP_FULL, 0.0, 1.0) if phase == "pour" and person else 0.0
+	_whip = move_toward(_whip, want, delta * (3.0 if want > _whip else 1.2))
+	var h = hose_holder
+	if h != null and is_instance_valid(h) and h.busy == "hose" and _whip > 0.02:
+		# A pendulum off the end of the hose, legs and arms going everywhere
+		var sw := sin(phase_t * 5.5)
+		h.model.position.y = 1.3 * _whip * absf(sw)
+		h.model.rotation.z = 0.8 * _whip * sw
+		var fl := sin(phase_t * 17.0) * _whip
+		h.pose_arms(Vector3(-2.6 + 0.8 * fl, 0, -0.6 - 0.5 * fl), Vector3(-2.6 - 0.8 * fl, 0, 0.6 - 0.5 * fl))
+		h.model.get_node("LegL").rotation.x = 1.1 * fl
+		h.model.get_node("LegR").rotation.x = -1.1 * fl
+		if _whip > 0.6 and fmod(phase_t, 1.6) < delta:
+			h.bark(["Whoa!", "Easy!", "Aaagh!"][randi() % 3], 0.8)
+	elif h != null and is_instance_valid(h):
+		h.model.position.y = move_toward(h.model.position.y, 0.0, delta * 4.0)
+		h.model.rotation.z = move_toward(h.model.rotation.z, 0.0, delta * 4.0)
 
 var ops                         # the start-up and the washout (ops.gd)
 var hose_holder = null          # the pipe guy on the end hose, if anyone
@@ -3049,6 +3116,9 @@ func take_hose(p) -> void:
 	(tip.get_node("Hose") as Node3D).visible = false
 
 func drop_hose() -> void:
+	if hose_holder != null and is_instance_valid(hose_holder):
+		hose_holder.model.position.y = 0.0
+		hose_holder.model.rotation.z = 0.0
 	if hose_holder != null and is_instance_valid(hose_holder) and hose_holder.busy == "hose":
 		hose_holder.busy = ""
 	hose_holder = null
@@ -3121,6 +3191,8 @@ func _draw_hose() -> void:
 	var a: Vector3 = tip.global_position
 	var b := discharge()
 	var mid := (a + b) * 0.5 + Vector3(0, -0.8, 0)
+	# (whipping: the belly of the hose thrashes about)
+	mid += Vector3(sin(phase_t * 9.0), 0.4 * cos(phase_t * 7.0), cos(phase_t * 8.0)) * 1.3 * _whip
 	var prev := a
 	for i in _hose_segs.size():
 		var u := float(i + 1) / _hose_segs.size()

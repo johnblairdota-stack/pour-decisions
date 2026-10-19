@@ -523,7 +523,8 @@ func _make_load() -> void:
 		load.queue_free()
 	load = F.lattice_section(LS, LW)
 	add_child(load)
-	_hand_off = Vector2(randf_range(-2.6, 2.6), randf_range(-0.5, 2.0))
+	# (handed over in close to the scaffold edge, so the tag line's in reach)
+	_hand_off = Vector2(randf_range(-2.2, 2.2), randf_range(-1.6, -0.8))
 	# Every section is picked off the laydown on the street: the crane drops
 	# its hook over it and waits for the slinger (the truck hand on climb
 	# days) to sling it before it lifts
@@ -1891,7 +1892,8 @@ func tag_ready() -> bool:
 	# for (the big slab: the load swings in a long way off the tag spot)
 	if Vector2(c.x - spot.x, c.z - spot.z).length() > TAG_FAR:
 		return false
-	return _deck_within(c, TAG_EDGE)
+	var mid: Vector3 = load.global_position
+	return _deck_within(c, TAG_EDGE) or _deck_within(mid, TAG_EDGE + LW * 0.75)
 
 ## True if there's deck or scaffold walkway within `r` m (across) of `at`.
 func _deck_within(at: Vector3, r: float) -> bool:
