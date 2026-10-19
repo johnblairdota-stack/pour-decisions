@@ -1677,9 +1677,11 @@ func _next_queued() -> Variant:
 func _wants_test(t: Dictionary) -> bool:
 	# (sampling goes by volume: the truck pump's smaller slabs only need the
 	# first; and its one spot at the hopper can't spare the time)
-	if _backed_in == 1 or kit == "tower":
-		t["why"] = "first load" if _backed_in == 1 else "every load's tested"
+	if _backed_in == 1:
+		t["why"] = "first load"
 		return true
+	if kit == "tower":
+		return true   # (every load, as routine: no reason to give)
 	match _verdict(t):
 		"stiff", "wet":
 			# (the driver can see it's off, not which way: that's the test)
@@ -1901,7 +1903,7 @@ func update(delta: float, in_pour: bool) -> void:
 		_reverser = null
 
 	# The slump cone only stands out while a load is being tested
-	if needs_check() == null or not in_pour:
+	if (needs_check() == null or not in_pour) and not _fetching():
 		slump_cone.visible = false
 	# The spotting readout only shows while someone's waving a truck back
 	if not _spot_shown:
@@ -2605,6 +2607,12 @@ func _joint_work(p, j: int, delta: float) -> bool:
 
 	return true
 
+## Someone's off at a chute with the slump tray (the rig stays shown: the
+## tray's in their hands).
+func _fetching() -> bool:
+	var t = needs_check()
+	return t != null and slump.step_of(t) == "fetch"
+
 ## The readout over a spotted truck's tail while it backs in: the gap to the
 ## stop line in big type, white, then amber as it creeps, then a flashing
 ## green STOP when the chute's over the hopper (and red past it). The stop
@@ -2638,7 +2646,8 @@ func _spot_show(t: Dictionary, su: float, in_band: bool, past: bool) -> void:
 ## water or reject. With a truck already discharging, the next one backs in
 ## alongside and gets tested there, ready to go the moment the first is empty.
 func _bay(p, delta: float) -> void:
-	slump_cone.visible = false
+	if not _fetching():
+		slump_cone.visible = false
 	# Spotting a truck back: hold A to wave it on, let go on the mark
 	for tr in trucks:
 		if tr.get("spotter") == p and tr["state"] in ["called", "approach"]:
