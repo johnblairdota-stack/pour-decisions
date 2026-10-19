@@ -3607,8 +3607,8 @@ var _shot_cam: Array = []
 func _who(p) -> String:
 	return (("P%d " % p.index) if not p.bot else "") + p.char_name.to_upper()
 
-## The hoist and the boom tower (with its riser and ladder) stand on the
-## street side of the deck, right where the camera looks in. Where one's
+## The hoist and the boom tower (with its riser, ladder and the boom's first
+## arm) stand on the street side of the deck, right where the camera looks in. Where one's
 ## between the camera and someone at work, a soft-edged circle round the work
 ## is cut out of it (shaders/cutaway.gdshaderinc), clear in the middle and
 ## fading back to solid at the rim; the rest of it stays as it is.
@@ -3645,6 +3645,12 @@ func _update_see_through(delta: float) -> void:
 		for r in roots:
 			if r != null and is_instance_valid(r):
 				_give_cut(r)
+		# (and the boom's first arm and the ball at its foot; the outer arm
+		# stays solid, it's what's being steered)
+		if arm1 != null and is_instance_valid(arm1):
+			for ch in arm1.get_children():
+				if ch is GeometryInstance3D:
+					_give_cut(ch)
 	# The work: whatever the close-ups are on (a small circle: they're right
 	# up close), then anyone on the deck and where the concrete's going in
 	# (those not on a climb day, when the climbing frame and riser are the work)
