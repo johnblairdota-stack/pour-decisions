@@ -12,6 +12,9 @@ var _boom_ok := true    # the boom bot's own say on pumping now
 var _tap_y := -1.0
 var _scr := {"mode": "seek", "x": 0.0, "dir": 1.0, "end": 0.0, "t": 0.0}
 var _spot_tries := {}   # patch -> {n, at, p}: spot pulls tried on it
+var _strip_runs := {}   # strip x -> {n, at}: pulls down that strip lately
+const STRIP_AGAIN := 2     # pulls down one strip before it's left a while
+const STRIP_REST := 25.0   # s a well-worked strip is left before going back
 var _barked := {}
 var _naive_dog := OS.get_cmdline_user_args().has("--naive-dog")
 var _pk_target := Vector3(INF, 0, 0)
@@ -746,7 +749,7 @@ func _bay(p, urgent_only: bool) -> bool:
 				if float(t["read_t"]) < READ_T[game.score.bot_tier]:
 					return true
 				var call: String = line.right_call(t)
-				if t["state"] == "docket" and call == "reject":
+				if t.get("mix_wrong", "") != "" and call == "reject":
 					# (a bot doesn't always spot the wrong mix on the docket)
 					if not t.has("bot_saw"):
 						t["bot_saw"] = randf() > [0.3, 0.15, 0.05][game.score.bot_tier]
@@ -858,6 +861,7 @@ func _screed_inner(p, delta: float) -> void:
 		return
 	if g.phase != "pour" or g.climb.active:
 		_spot_tries.clear()
+		_strip_runs.clear()
 		_scr = {"mode": "seek", "x": 0.0, "dir": 1.0, "end": 0.0, "t": 0.0}
 		if p.busy == "":
 			go(p, "deck", _deck("screed") + Vector3(3.2, 0, 8.2))
@@ -897,8 +901,8 @@ func _screed_inner(p, delta: float) -> void:
 			var dir := 1.0 if tgt.z < 0.0 else -1.0
 			if pour.round_r > 0.0:
 				x = clampf(x, -pour.round_r + 1.2, pour.round_r - 1.2)
-			if pour.strip_work(x - strip * 0.5, x + strip * 0.5) >= 14 and absf(tgt.x - x) < 1.3:
-				_scr = {"mode": "approach", "x": x, "dir": dir, "end": _half_at(x, half_d) * dir, "t": 0.0}
+			if pour.strip_work(x - strip * 0.5, x + strip * 0.5) >= 14 and absf(tgt.x - x) < 1.3 and not _strip_worn(x):
+				_scr = _strip_pull(x, dir, half_d)
 			else:
 				# Odd bits (a corner, an edge, a patch a strip can't reach): stand
 				# inside it, board on the patch, and pull it in toward the middle
@@ -936,7 +940,7 @@ func _screed_inner(p, delta: float) -> void:
 			var dir: float = _scr["dir"]
 			# Walking backwards, the board trails behind: start right at the form so
 			# it's dragged in over the edge row, and finish at the far form
-			var start := Vector3(_scr["x"], 0, -_half_at(float(_scr["x"]), half_d) * dir)
+			var start := Vector3(_scr["x"], 0, float(_scr.get("start", -_half_at(float(_scr["x"]), half_d) * dir)))
 			var at: Vector3 = pour.position + start
 			at.y = wy
 			_scr["t"] += delta
@@ -971,14 +975,53 @@ func _screed_inner(p, delta: float) -> void:
 						var cx: float = clampf(cand, -lim, lim)
 						if absf(cx - float(_scr["x"])) < 1.0:
 							continue
-						if pour.strip_work(cx - strip * 0.5, cx + strip * 0.5) >= 8:
+						if pour.strip_work(cx - strip * 0.5, cx + strip * 0.5) >= 8 and not _strip_worn(cx):
 							nx = cx
 							break
 				if nx > -INF:
-					_scr = {"mode": "approach", "x": nx, "dir": -dir2, "end": _half_at(nx, half_d) * -dir2, "t": 0.0, "hold": true}
+					_scr = _strip_pull(nx, -dir2, half_d)
+					_scr["hold"] = true
 				else:
 					p.ai_action = false
 					_scr = {"mode": "seek", "x": 0.0, "dir": 1.0, "end": 0.0, "t": 0.0}
+
+## A pull down the strip at `x`, only as far as there's concrete wanting it:
+## from the form (or just short of the first rough bit) to just past the last.
+func _strip_pull(x: float, dir: float, half_d: float) -> Dictionary:
+	var pour = game.pour
+	var strip: float = game.screed.BOARD - 0.3
+	var half := _half_at(x, half_d)
+	var band: Vector2 = pour.strip_band(x - strip * 0.5, x + strip * 0.5)
+	var start := -half * dir
+	var end := half * dir
+	if band.x != INF:
+		if dir > 0.0:
+			start = maxf(-half, band.x - 1.5)
+			end = minf(half, band.y + 1.5)
+		else:
+			start = minf(half, band.y + 1.5)
+			end = maxf(-half, band.x - 1.5)
+	# (a start within a couple of metres of the form goes right to it, to catch the edge)
+	if absf(start) > half - 2.0:
+		start = -half * dir
+	if absf(end) > half - 2.0:
+		end = half * dir
+	var key := int(roundf(x * 2.0))
+	var run: Dictionary = _strip_runs.get(key, {"n": 0, "at": 0.0})
+	_strip_runs[key] = {"n": int(run["n"]) + 1, "at": game.phase_t}
+	return {"mode": "approach", "x": x, "dir": dir, "start": start, "end": end, "t": 0.0}
+
+## A strip that's been pulled a couple of times lately: what's left on it is
+## odd bits (low spots, fresh top-ups), better done as spot work or later.
+func _strip_worn(x: float) -> bool:
+	var key := int(roundf(x * 2.0))
+	if not _strip_runs.has(key):
+		return false
+	var run: Dictionary = _strip_runs[key]
+	if game.phase_t - float(run["at"]) > STRIP_REST:
+		_strip_runs.erase(key)
+		return false
+	return int(run["n"]) >= STRIP_AGAIN
 
 ## Concrete in front of the screeder, where the board would land (or just
 ## inside it, so a pull that starts at the form still catches the edge row).
