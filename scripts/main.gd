@@ -381,8 +381,21 @@ func _build_world() -> void:
 	Surrounds.build(world)
 	# Site hardstand around the pump and truck bay, north of the west wing,
 	# and into the notch at the boom tower's foot
-	add_child(F.box(Vector3(26.5, 0.06, 11.3), F.mat("podium"), Vector3(21.75, 0.03, 7.35), false))
-	add_child(F.box(Vector3(5.9, 0.06, 2.9), F.mat("podium"), Vector3(11.35, 0.03, 0.25), false))
+	var hard := F.color_mat(Color("8f908c"))
+	add_child(F.box(Vector3(26.5, 0.06, 11.3), hard, Vector3(21.75, 0.03, 7.35), false))
+	add_child(F.box(Vector3(5.9, 0.06, 2.9), hard, Vector3(11.35, 0.03, 0.25), false))
+	# Wet slurry under the hopper and the chutes, a wash-out run to the
+	# settling tank, tyre tracks down the truck lane and a kerb on the street
+	var wet := F.color_mat(Color("6f7275"))
+	for at in [Vector3(22.3, 0, 6.0), Vector3(25.6, 0, 4.4), Vector3(25.6, 0, 7.6)]:
+		var patch := F.cylinder(1.6, 0.012, wet, at + Vector3(0, 0.079, 0), 16)
+		patch.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(patch)
+	add_child(F.box(Vector3(5.0, 0.012, 0.7), wet, Vector3(17.0, 0.079, 7.6), false))
+	var track := F.color_mat(Color("7c7e7b"))
+	for z in [3.6, 5.2, 6.8, 8.4]:
+		add_child(F.box(Vector3(11.0, 0.01, 0.45), track, Vector3(29.5, 0.065, z), false))
+	add_child(F.box(Vector3(26.5, 0.15, 0.3), F.color_mat(Color("c8c4ba")), Vector3(21.75, 0.075, 13.05), false))
 
 	rain = CPUParticles3D.new()
 	rain.amount = 700
@@ -1827,16 +1840,18 @@ func _lock_slab(level: int, instant := false) -> void:
 	var slab := F.box(Vector3(BW + 0.6, 0.3, BD + 0.6), F.color_mat(Color("b5b6b3")), Vector3(SC.x, FH - 0.15, SC.z))
 	floor_nodes[level].add_child(slab)
 	_other_crew_floor(level, instant)
-	if level >= 1:
-		var fac := F.box(Vector3(BW - 0.4, FH - 0.3, BD - 0.4), F.window_mat(Color("eef0ec"), 0.0, 0.0, Color("4e6878")), Vector3(SC.x, (FH - 0.3) * 0.5, SC.z))
-		fac.name = "Facade"
-		fac.scale.y = 1.0 if instant else 0.01
-		floor_nodes[level - 1].add_child(fac)
+	# The storeys under the deck are open frame (dark, no skin yet); the
+	# cladding and glass follow a few floors behind, like on the real job
+	floor_nodes[level].add_child(F.box(Vector3(BW - 3.0, FH - 0.3, BD - 3.0), F.color_mat(Color("3a3f45")), Vector3(SC.x, (FH - 0.3) * 0.5, SC.z)))
+	if level >= FACADE_LAG:
+		_glaze(level - FACADE_LAG, instant)
 
 ## Riverlight's floor plan east of this slab (game x/z, from the map data's
 ## footprint): the narrow link the boom tower stands against, and the west
 ## wing out to its rounded end. Another crew pours it, a level at a time,
 ## alongside ours.
+const FACADE_LAG := 3   # storeys of open frame under the deck before the skin
+var _other_stacks: Node3D
 const OTHER_WING := [Vector2(8.3, -12.1), Vector2(10.7, -12.1), Vector2(10.6, -19.7), Vector2(59.0, -20.0),
 	Vector2(55.0, -10.1), Vector2(49.6, -10.2), Vector2(47.1, -3.5), Vector2(47.7, 1.6), Vector2(14.3, 1.8),
 	Vector2(14.3, -1.15), Vector2(8.3, -1.15)]
@@ -1848,18 +1863,49 @@ func _other_crew_floor(level: int, instant: bool) -> void:
 	var plan := PackedVector2Array(OTHER_WING)
 	var plate := F.prism(plan, FH - 0.3, 0.3, F.color_mat(Color("b5b6b3")))
 	floor_nodes[level].add_child(plate)
-	if level >= 1:
-		# (flush with our facade where the two meet)
-		var wall := plan.duplicate()
-		wall[0].x = 7.6
-		wall[wall.size() - 1].x = 7.6
-		var inset: Array = Geometry2D.offset_polygon(wall, -0.2)
-		if inset.is_empty():
-			return
-		var fac := F.prism(inset[0], 0.0, FH - 0.3, F.window_mat(Color("eef0ec"), 0.0, 0.0, Color("4e6878")), false)
-		fac.name = "OtherFacade"
-		fac.scale.y = 1.0 if instant else 0.01
-		floor_nodes[level - 1].add_child(fac)
+	var core: Array = Geometry2D.offset_polygon(plan, -1.5)
+	if not core.is_empty():
+		floor_nodes[level].add_child(F.prism(core[0], 0.0, FH - 0.3, F.color_mat(Color("3a3f45")), false))
+	# Their deck's always mid-job: ply and bar bundles, props and a couple of
+	# formwork crates, up on whichever level they're on
+	if _other_stacks == null:
+		_other_stacks = Node3D.new()
+		building.add_child(_other_stacks)
+		var rng := RandomNumberGenerator.new()
+		rng.seed = 7
+		var kinds := [[Vector3(2.4, 0.5, 1.2), "c48d55"], [Vector3(6.0, 0.3, 0.8), "6b4a32"], [Vector3(1.2, 1.1, 1.2), "8a929c"], [Vector3(3.0, 0.8, 1.4), "d9b03a"]]
+		for i in 9:
+			var at := Vector2(rng.randf_range(16.0, 52.0), rng.randf_range(-17.5, -1.0))
+			if not Geometry2D.is_point_in_polygon(at, plan):
+				continue
+			var kd: Array = kinds[i % kinds.size()]
+			var sz: Vector3 = kd[0]
+			var st := F.box(sz, F.color_mat(Color(kd[1])), Vector3(at.x, sz.y * 0.5, at.y))
+			st.rotation.y = rng.randf_range(-0.3, 0.3)
+			_other_stacks.add_child(st)
+	_other_stacks.position.y = (level + 1) * FH
+	_other_stacks.visible = phase != "topout"
+
+## Clad storey `level` of both wings, a few floors behind the deck, with
+## the dark recessed slot where the two wings meet
+func _glaze(level: int, instant: bool) -> void:
+	if tutorial or level < 0 or level >= floor_nodes.size() or floor_nodes[level].has_node("Facade"):
+		return
+	var fac := F.box(Vector3(BW - 0.4, FH - 0.3, BD - 0.4), F.riverlight_mat(), Vector3(SC.x, (FH - 0.3) * 0.5, SC.z))
+	fac.name = "Facade"
+	fac.scale.y = 1.0 if instant else 0.01
+	floor_nodes[level].add_child(fac)
+	# (the other wing's skin starts past the link, which stays a dark slot)
+	var wall := PackedVector2Array(OTHER_WING).slice(1)
+	wall.append(Vector2(10.7, -1.15))
+	var inset: Array = Geometry2D.offset_polygon(wall, -0.2)
+	if not inset.is_empty():
+		var ofac := F.prism(inset[0], 0.0, FH - 0.3, F.riverlight_mat(), false)
+		ofac.name = "OtherFacade"
+		ofac.scale.y = 1.0 if instant else 0.01
+		floor_nodes[level].add_child(ofac)
+	var slot := F.box(Vector3(3.0, FH - 0.3, 8.0), F.color_mat(Color("2f3538")), Vector3(9.25, (FH - 0.3) * 0.5, -6.6))
+	floor_nodes[level].add_child(slot)
 
 func _top_out() -> void:
 	_set_phase("topout")
@@ -1871,6 +1917,12 @@ func _top_out() -> void:
 	confetti.position = SC + Vector3(0, floors() * FH + 2.0, 0)
 	confetti.restart()
 	confetti.emitting = true
+	if not tutorial:
+		for i in floor_nodes.size():
+			_glaze(i, true)
+		if _other_stacks != null:
+			_other_stacks.visible = false
+		_build_roof()
 	var tally := [0, 0, 0]
 	for m in score.medals:
 		tally[m] += 1
@@ -1894,6 +1946,34 @@ func _top_out() -> void:
 		Settings.branded("Main contractor: Watpac Construction\n\n") +
 		"Your crew: %s points · %s\n%s%s" % [hud._thousands(score.total), score.rank_name(), medal_line, _people_line()] +
 		"Press R to pour it again · Tab to toggle the skyline view")
+
+## The finished roof of both wings: grey membrane, a white parapet, plant
+## rooms, the lift overrun and rows of solar panels
+func _build_roof() -> void:
+	var top := floors() * FH
+	var roof := Node3D.new()
+	roof.position.y = top
+	building.add_child(roof)
+	var membrane := F.color_mat(Color("a9adb1"))
+	var white := F.color_mat(Color("ecebe8"))
+	var plant := F.color_mat(Color("c4c9cc"))
+	var solar := F.color_mat(Color("2c3e5c"))
+	roof.add_child(F.box(Vector3(BW, 0.06, BD), membrane, Vector3(SC.x, 0.03, SC.z), false))
+	roof.add_child(F.prism(PackedVector2Array(OTHER_WING), 0.0, 0.06, membrane))
+	for side in [-1.0, 1.0]:
+		roof.add_child(F.box(Vector3(BW + 0.6, 1.1, 0.25), white, Vector3(SC.x, 0.55, SC.z + side * (BD * 0.5 + 0.2))))
+		roof.add_child(F.box(Vector3(0.25, 1.1, BD + 0.6), white, Vector3(SC.x + side * (BW * 0.5 + 0.2), 0.55, SC.z)))
+	roof.add_child(F.prism(PackedVector2Array(OTHER_WING), 0.0, 1.1, white, false))
+	var core := _core_xz()
+	roof.add_child(F.box(Vector3(3.0, 3.5, 3.0), plant, Vector3(SC.x + core.x, 1.75, SC.z + core.y)))
+	for at in [Vector3(SC.x - 8.0, 0, SC.z + 4.0), Vector3(31.0, 0, -9.0), Vector3(44.0, 0, -13.0)]:
+		roof.add_child(F.box(Vector3(6.0, 2.5, 4.0), plant, at + Vector3(0, 1.25, 0)))
+	for row in 3:
+		for x0 in [SC.x + 2.0, 20.0]:
+			for i in 8:
+				var p := F.box(Vector3(1.0, 0.05, 1.7), solar, Vector3(x0 + i * 1.1, 0.45, (SC.z - 8.0 if x0 < 15.0 else -15.0) + row * 2.4), false)
+				p.rotation.x = deg_to_rad(10.0)
+				roof.add_child(p)
 
 func _people_line() -> String:
 	var parts := []
@@ -2063,9 +2143,9 @@ func _process(delta: float) -> void:
 				sfx.hit("ding")
 				_set_phase("cure")
 		"cure":
-			if k >= 1:
+			if k >= FACADE_LAG:
 				for fname in ["Facade", "OtherFacade"]:
-					var fac := floor_nodes[k - 1].get_node_or_null(fname) as Node3D
+					var fac := floor_nodes[k - FACADE_LAG].get_node_or_null(fname) as Node3D
 					if fac:
 						fac.scale.y = maxf(0.01, clampf(phase_t / 0.8, 0.0, 1.0))
 			# The slab report stays up till someone presses A

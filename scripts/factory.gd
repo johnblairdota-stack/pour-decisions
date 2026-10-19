@@ -84,6 +84,13 @@ static func window_mat(frame: Color, lit_ratio: float, glow := 1.2, glass := Col
 	m.set_shader_parameter("glow", glow)
 	return m
 
+## Riverlight's own facade (white slab bands, dark glass, charcoal panels)
+static func riverlight_mat() -> ShaderMaterial:
+	var m := window_mat(Color("ecebe8"), 0.0, 0.0, Color("55605f"))
+	m.set_shader_parameter("riverlight", true)
+	m.set_shader_parameter("cell", Vector2(1.5, 3.0))
+	return m
+
 static func flat_mat(c: Color) -> StandardMaterial3D:
 	var m := StandardMaterial3D.new()
 	m.albedo_color = c
