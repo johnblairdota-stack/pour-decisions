@@ -405,9 +405,9 @@ func fetch_tick(t: Dictionary, chute: Vector3, delta: float) -> void:
 	root.visible = true
 	st["u"] = float(st["u"]) + delta
 	var stand := _stand()
-	var at := Vector3(chute.x, 0, chute.z)
-	var off := Vector3(stand.x - at.x, 0, stand.z - at.z)
-	at += off.normalized() * 1.0 if off.length() > 0.1 else Vector3.ZERO
+	if not st.has("at"):
+		st["at"] = _fetch_spot(chute, stand)
+	var at: Vector3 = st["at"]
 	var tray_full := false
 	st["fetch_t"] = float(st.get("fetch_t", 0.0)) + delta
 	match st["leg"]:
@@ -446,6 +446,26 @@ func fetch_tick(t: Dictionary, chute: Vector3, delta: float) -> void:
 	if st["leg"] != "scoop":
 		p.pose_arms(Vector3(-1.1, 0, -0.25), Vector3(-1.1, 0, 0.25))
 
+## Where to stand to fill the tray off the chute: right beside it, on
+## ground you can walk on (never in the hopper's footprint or a truck's, and
+## out from behind the trucks backing in).
+func _fetch_spot(chute: Vector3, stand: Vector3) -> Vector3:
+	var c := Vector3(chute.x, 0, chute.z)
+	var to_stand := Vector3(stand.x - c.x, 0, stand.z - c.z).normalized()
+	for off in [Vector3(1.3, 0, 0), Vector3(1.3, 0, 0.5), Vector3(1.3, 0, -0.5), Vector3(1.8, 0, 0), to_stand * 1.5, to_stand * 2.5]:
+		var pt: Vector3 = c + off
+		if game._walkable(pt, "ground") and not _behind_a_truck(pt):
+			return pt
+	return Vector3(stand.x, 0, stand.z)
+
+func _behind_a_truck(pt: Vector3) -> bool:
+	for t in line.trucks:
+		if t["state"] in ["called", "approach", "back"]:
+			var rear: Vector3 = (t["node"] as Node3D).global_transform * Vector3(-5.6, 0, 0)
+			if Vector2(pt.x - rear.x, pt.z - rear.z).length() < 2.2:
+				return true
+	return false
+
 ## Walks a tester toward `to` (their own legs, or straight there if
 ## something's in the way). True once they're there.
 func _walk_to(p, to: Vector3, u: float, delta: float) -> bool:
@@ -455,8 +475,11 @@ func _walk_to(p, to: Vector3, u: float, delta: float) -> bool:
 	if u < 2.5:
 		p.run_to = Vector3(to.x, p.position.y, to.z)
 	else:
-		p.position.x = move_toward(p.position.x, to.x, 4.0 * delta)
-		p.position.z = move_toward(p.position.z, to.z, 4.0 * delta)
+		# (stuck on something: step straight there, but never into anywhere
+		# you couldn't walk out of)
+		var nx := Vector3(move_toward(p.position.x, to.x, 4.0 * delta), p.position.y, move_toward(p.position.z, to.z, 4.0 * delta))
+		if game._walkable(nx, p.zone):
+			p.position = nx
 		p.face(Vector3(to.x, p.global_position.y, to.z))
 	return u > 6.0
 
