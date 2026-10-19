@@ -2519,7 +2519,13 @@ func _update_pour(delta: float) -> void:
 			_fin_t = 0.0
 		else:
 			_fin_t += delta
-		if (_fin_t > FINISH_STALL or pour_clock - _full_at > FINISH_MAX) and left_sum > 0.0:
+		# (a person on the screed gets to finish the last of it themselves:
+		# longer before the crew steps in, and every last bit counts)
+		var sc_p = crew.crew.get("screed") if crew else null
+		var person_scr: bool = sc_p != null and not sc_p.bot and not sc_p.covering
+		var stall: float = FINISH_STALL_PERSON if person_scr else FINISH_STALL
+		var most: float = FINISH_MAX_PERSON if person_scr else FINISH_MAX
+		if (_fin_t > stall or pour_clock - _full_at > most) and left_sum > 0.0:
 			var n: int = pour.finish_by_hand()
 			if n > 0:
 				hud.toast("The concreters finish the last bits by hand", 2.2)
@@ -2527,7 +2533,7 @@ func _update_pour(delta: float) -> void:
 				if autotest:
 					print("[autotest]   finished %d cells by hand after %.1fs" % [n, pour_clock - _full_at])
 			_left = pour.work_left()
-		if _left.x <= 0.01 and _left.y <= 0.02 and ops.washed:
+		if _left.x <= 0.01 and _left.y <= (0.0 if person_scr else 0.02) and ops.washed:
 			if autotest:
 				print("[autotest]   finishing (vibrate + screed after the last load) took %.1fs" % (pour_clock - _full_at))
 			_full_at = -1.0
@@ -3149,7 +3155,9 @@ var _foot_toast_t := 0.0
 func _footprints(p) -> void:
 	_foot_toast_t = maxf(0.0, _foot_toast_t - get_process_delta_time())
 	# (the pipe guy goes where the hose takes them: the boom drags them about)
-	if p.bot or phase != "pour" or p.zone != "deck" or p.busy in ["boom", "rigger", "dogman", "hose"]:
+	# (nor the screeder with the board down: it takes their prints out behind them)
+	var screeding: bool = p.tool == "screed" and p.action_held()
+	if p.bot or phase != "pour" or p.zone != "deck" or p.busy in ["boom", "rigger", "dogman", "hose"] or screeding:
 		p.set_meta("foot_at", p.position)
 		return
 	var last: Vector3 = p.get_meta("foot_at") if p.has_meta("foot_at") else p.position
@@ -3532,6 +3540,8 @@ var _fin_best := 9.0   # least work left seen while finishing
 var _fin_t := 0.0      # how long it's gone without getting smaller
 const FINISH_STALL := 12.0   # s with no progress before the concreters finish it by hand
 const FINISH_MAX := 45.0     # s after the last load, at the very most
+const FINISH_STALL_PERSON := 25.0   # (a person screeding: more time to get to the last bits)
+const FINISH_MAX_PERSON := 150.0
 var _signed_keys := {}
 var _sign_red := false
 var _sign_focus := Vector3.ZERO
