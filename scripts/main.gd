@@ -2220,7 +2220,6 @@ func _update_pour(delta: float) -> void:
 		var dv: Vector2 = pour.debug_volume()
 		print("[autotest]     on slab %.1f, spilled %.1f, p90 depth %.2f m, boom held off %s, pumping %.0fs" % [dv.x, pour.spilled, dv.y, str(bots.stop_t), _pump_t])
 		if OS.get_cmdline_user_args().has("--dbg"):
-			print("[autotest]     ghost %s" % str(_ghost))
 			var dl := _pour_local(discharge())
 			print("[autotest]     goal %s tip %s disch %s under %.2f strip %s hoser %s" % [str(bots._boom_goal), str(_pour_local(tip_target)), str(dl), pour.height_at(dl), str(pour.leading_strip(pour.cur_bay)), str(hose_holder.position) if hose_holder != null else "-"])
 		bots.stop_t = {}
@@ -3608,12 +3607,18 @@ var _shot_cam: Array = []
 func _who(p) -> String:
 	return (("P%d " % p.index) if not p.bot else "") + p.char_name.to_upper()
 
-## The hoist and the boom tower stand on the street side of the deck, right
-## where the camera looks in from: when one's between the camera and the work
-## (the people on the deck, or where the concrete's going) it fades to a
-## ghost, so nobody loses the pour behind it.
-const SEE_THROUGH := 0.8      # how far it fades (1 = gone)
-var _ghost := {"hoist": 0.0, "tower": 0.0}
+## The hoist and the boom tower (with its riser and ladder) stand on the
+## street side of the deck, right where the camera looks in. Where one's
+## between the camera and someone at work, a soft-edged circle round the work
+## is cut out of it (shaders/cutaway.gdshaderinc), clear in the middle and
+## fading back to solid at the rim; the rest of it stays as it is.
+const CUT_R := 4.0            # m, the see-through circle round each bit of work
+const CUT_R_CLOSE := 1.1      # ...and round what a close-up's on
+var _close_targets: Array = []   # what the close-ups looked at this frame
+const TOON_CUT := preload("res://shaders/toon_cut.gdshader")
+const OUTLINE_CUT := preload("res://shaders/outline_cut.gdshader")
+var _cut_mats := {}           # a part's own material -> its cut-away copy
+var _cut_t := 0.0
 
 func _update_see_through(delta: float) -> void:
 	if hoist_mast == null:
@@ -3623,87 +3628,99 @@ func _update_see_through(delta: float) -> void:
 	var mast_h := maxf(4.0, work_y + 3.5)
 	hoist_mast.scale.y = mast_h
 	hoist_mast.position.y = mast_h * 0.5
-	if tutorial or kit != "tower":
-		return
-	var cam := camera.global_position
-	var pts: Array = [cam_focus]
-	for p in humans():
-		if p.zone == "deck":
-			pts.append(p.position + Vector3(0, 1.0, 0))
-	if phase == "pour":
-		pts.append(discharge())
-	var top := head.position.y + 2.5
-	# (a ghost stays one over a slightly wider stretch, so it doesn't flicker
-	# in and out as the camera drifts along the edge)
-	var hr := 1.4 * (1.3 if _ghost["hoist"] > 0.0 else 1.0)
-	var tr := 3.0 * (1.3 if _ghost["tower"] > 0.0 else 1.0)
-	var want := {
-		"hoist": _in_the_way(cam, pts, Vector2(hoist_mast.position.x + 0.5, hoist_mast.position.z), hr, mast_h),
-		# (not on a climb day: the climbing frame's where the work is)
-		"tower": not climb.active and _in_the_way(cam, pts, Vector2(head.position.x, head.position.z), tr, top),
-	}
-	for key in _ghost:
-		var was: float = _ghost[key]
-		_ghost[key] = move_toward(was, SEE_THROUGH if want[key] else 0.0, delta * 3.0)
-		# (while it's a ghost, keep at it: the tower grows a section a level)
-		if _ghost[key] == 0.0 and was == 0.0:
-			continue
-		var roots: Array = [hoist_mast, hoist_cage] if key == "hoist" else [lattice, climb.platform, yaw_node.get_child(0)] + head_deco
+	# (the tower grows a section a level, the riser's rebuilt after a climb:
+	# every so often, give any new parts the cut-away material)
+	_cut_t -= delta
+	if _cut_t <= 0.0:
+		_cut_t = 0.5
+		var roots: Array = [hoist_mast, hoist_cage, lattice, yaw_node.get_child(0)] + head_deco
+		if climb != null:
+			roots.append(climb.platform)
+		if line != null:
+			roots += line.ladder_rails + line.brackets + [line.ladder_rungs]
+			for sec in line.sections:
+				roots.append(sec["node"])
+			for c in line.clamps:
+				roots.append(c["node"])
 		for r in roots:
 			if r != null and is_instance_valid(r):
-				_fade(r, _ghost[key])
+				_give_cut(r)
+	# The work: whatever the close-ups are on (a small circle: they're right
+	# up close), then anyone on the deck and where the concrete's going in
+	# (those not on a climb day, when the climbing frame and riser are the work)
+	var ps: Array = []
+	for q in _close_targets:
+		if ps.size() < 2:
+			ps.append(Vector4(q.x, q.y, q.z, CUT_R_CLOSE))
+	_close_targets.clear()
+	if not climb.active:
+		for p in humans():
+			if p.zone == "deck" and ps.size() < 5:
+				ps.append(Vector4(p.position.x, p.position.y + 1.0, p.position.z, CUT_R))
+		if phase == "pour":
+			var d := discharge()
+			ps.append(Vector4(d.x, d.y, d.z, CUT_R))
+	var n := ps.size()
+	while ps.size() < 6:
+		ps.append(Vector4.ZERO)
+	for m in _cut_mats.values():
+		(m as ShaderMaterial).set_shader_parameter("cut_n", n)
+		(m as ShaderMaterial).set_shader_parameter("cut_p", ps)
 
-## True when something standing at `c` (radius `r`, up to height `top`) is
-## between the camera and any of `pts`.
-func _in_the_way(cam: Vector3, pts: Array, c: Vector2, r: float, top: float) -> bool:
-	var a := Vector2(cam.x, cam.z)
-	for pt in pts:
-		var b := Vector2(pt.x, pt.z)
-		# (not when the work's right at it: someone on the hoist, the boom head)
-		if b.distance_to(c) < r + 1.0:
-			continue
-		var ab := b - a
-		var l2 := ab.length_squared()
-		if l2 < 0.01:
-			continue
-		var t := clampf((c - a).dot(ab) / l2, 0.0, 1.0)
-		if (a + ab * t).distance_to(c) < r and lerpf(cam.y, pt.y, t) < top:
-			return true
-	return false
+## Dev: whether the work's showing through `at` (on the hoist or tower) on screen.
+func _cut_showing(at: Vector3) -> bool:
+	var d := discharge()
+	if camera.is_position_behind(at) or camera.is_position_behind(d):
+		return false
+	var near: bool = camera.global_position.distance_to(at) < camera.global_position.distance_to(d) - 3.0
+	return near and camera.unproject_position(at).distance_to(camera.unproject_position(d)) < 60.0
 
-## Fades `n` and everything under it: a see-through copy of each part's
-## colour stands in for its material while it's a ghost (works the same on
-## every renderer, toon shader or not).
-func _fade(n: Node, amount: float) -> void:
-	if n is MeshInstance3D:
-		var mi := n as MeshInstance3D
-		if amount <= 0.0:
-			if mi.has_meta("ghost"):
-				mi.material_override = mi.get_meta("ghost_was")
-				mi.remove_meta("ghost")
-		else:
-			if not mi.has_meta("ghost"):
-				mi.set_meta("ghost_was", mi.material_override)
-				var src: Material = mi.material_override
-				if src == null and mi.mesh != null and mi.mesh.get_surface_count() > 0:
-					src = mi.mesh.surface_get_material(0)
-				var c := Color(0.85, 0.87, 0.9)
-				if src is ShaderMaterial and (src as ShaderMaterial).get_shader_parameter("albedo") != null:
-					c = (src as ShaderMaterial).get_shader_parameter("albedo")
-				elif src is BaseMaterial3D:
-					c = (src as BaseMaterial3D).albedo_color
-				var g := StandardMaterial3D.new()
-				g.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-				g.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-				g.albedo_color = c
-				mi.set_meta("ghost", g)
-			var gm: StandardMaterial3D = mi.get_meta("ghost")
-			gm.albedo_color.a = 1.0 - amount
-			mi.material_override = gm
-	elif n is Label3D:
-		(n as Label3D).modulate.a = 1.0 - amount
+## Swaps the cut-away copy of its own material onto `n` and everything under it.
+func _give_cut(n: Node) -> void:
+	if n is GeometryInstance3D:
+		var gi := n as GeometryInstance3D
+		var src: Material = gi.material_override
+		if src == null:
+			var mesh: Mesh = null
+			if gi is MeshInstance3D:
+				mesh = (gi as MeshInstance3D).mesh
+			elif gi is MultiMeshInstance3D and (gi as MultiMeshInstance3D).multimesh != null:
+				mesh = (gi as MultiMeshInstance3D).multimesh.mesh
+			if mesh != null and mesh.get_surface_count() > 0:
+				src = mesh.surface_get_material(0)
+		var cut := _cut_of(src)
+		if cut != null:
+			gi.material_override = cut
 	for ch in n.get_children():
-		_fade(ch, amount)
+		_give_cut(ch)
+
+func _cut_of(src: Material) -> Material:
+	if src == null:
+		return null
+	if _cut_mats.values().has(src):
+		return src
+	if _cut_mats.has(src):
+		return _cut_mats[src]
+	if not (src is ShaderMaterial and (src as ShaderMaterial).shader == F.TOON):
+		return null
+	var m := ShaderMaterial.new()
+	m.shader = TOON_CUT
+	for k in ["albedo", "emission_color", "rim_amount"]:
+		var v = (src as ShaderMaterial).get_shader_parameter(k)
+		if v != null:
+			m.set_shader_parameter(k, v)
+	var nxt := src.next_pass
+	if nxt is ShaderMaterial and (nxt as ShaderMaterial).shader == F.OUTLINE:
+		var o := ShaderMaterial.new()
+		o.shader = OUTLINE_CUT
+		for k in ["color", "thickness"]:
+			var v = (nxt as ShaderMaterial).get_shader_parameter(k)
+			if v != null:
+				o.set_shader_parameter(k, v)
+		m.next_pass = o
+		_cut_mats[nxt] = o
+	_cut_mats[src] = m
+	return m
 
 func _update_camera(delta: float) -> void:
 	# Who's up top and who's down on the street. While the deck's low, one
@@ -3994,11 +4011,14 @@ func _update_camera(delta: float) -> void:
 			cam.position = cam.position.lerp(eye, minf(1.0, delta * 4.0))
 		inset["key"] = key
 		cam.look_at(target, Vector3.UP)
-		# Close-ups clip away anything between the lens and the last stretch
-		# before the work (a hard hat, a tower lacing bar), so it's never hidden
-		cam.near = clampf(cam.position.distance_to(target) - 0.8, 0.05, 4.0) if v["close"] else 0.05
+		# Close-ups clip away only what's right at the lens (a hard hat going
+		# past); the tower, the riser or the hoist in front of the work get the
+		# soft see-through circle round it instead (_update_see_through)
+		cam.near = clampf(cam.position.distance_to(target) - 1.2, 0.05, 1.4) if v["close"] else 0.05
 		if v["close"] and _slump_of(p) != null:
 			cam.near = 0.3   # (nothing in the way: the whole plate's in shot)
+		if v["close"]:
+			_close_targets.append(target)
 	_update_gauge_pop()
 
 # ------------------------------------------------------------------ autotest
@@ -4043,10 +4063,10 @@ func _maybe_shot() -> void:
 		key = "remote"
 	elif "highlow" in _shot_only and phase == "pour" and speed_advice["want"] != "" and speed_advice["level"] >= 1 and _filled_ratio() > 0.2 and not _shots_taken.has("highlow"):
 		key = "highlow"
-	elif "ghost" in _shot_only and phase == "pour" and _ghost["tower"] >= SEE_THROUGH and not _shots_taken.has("ghost"):
-		key = "ghost"
-	elif "ghosthoist" in _shot_only and phase == "pour" and _ghost["hoist"] >= SEE_THROUGH and not _shots_taken.has("ghosthoist"):
-		key = "ghosthoist"
+	elif "cut" in _shot_only and phase == "pour" and _cut_showing(Vector3(head.position.x, head.position.y - 2.0, head.position.z)) and not _shots_taken.has("cut"):
+		key = "cut"
+	elif "cuthoist" in _shot_only and phase == "pour" and _cut_showing(Vector3(hoist_mast.position.x, work_y, hoist_mast.position.z)) and not _shots_taken.has("cuthoist"):
+		key = "cuthoist"
 	elif phase == "select":
 		key = "select"
 	elif phase == "roles":
