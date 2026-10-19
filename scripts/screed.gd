@@ -10,9 +10,11 @@ const F := preload("res://scripts/factory.gd")
 
 var BOARD := 3.0            # m (a longer board on a bigger slab, set in build)
 const REACH := 0.85         # board ahead of the hands
-const SPEED_K := 0.8        # walking speed while screeding (the bots)
-const PERSON_K := 0.5       # a person screeding: a slow, steady pull, not a jog
-const CARRY_K := 0.85       # a person carrying the board about
+const SPEED_K := 0.95       # walking speed while screeding (the bots)
+const PERSON_K := 0.68      # a person screeding: a steady pull, not a jog (quicker on the big slab)
+const CARRY_K := 1.0        # a person carrying the board about
+const BOTTOM := 0.07        # board centre above its bottom edge
+const TILT := 0.12          # rad the board tips, the near (leading) edge up
 const MAX_CARRY := 0.35     # m³ the roll can hold before it spills past the ends
 
 var _gold_t := 0.0     # the board finished something just now (gold cue)
@@ -310,10 +312,15 @@ func _pose(p, delta: float) -> void:
 	var saw := sin(_saw) * 0.14 if _working else 0.0
 	var up_pos := Vector3(-0.42, 1.42, 0.16)
 	var up_rot := Quaternion(Vector3(0, 0, 1), PI * 0.5)
-	var lift := 0.0 if _over_concrete or not _working else 0.05
-	var dn_pos := Vector3(saw, 0.12 + lift, REACH)
+	# Down, the board rides on the concrete: its bottom edge on the finished
+	# level (or on the deck where there's none yet), tipped a little so the
+	# leading edge is up and the back edge cuts, the way it's held on site
+	var c: Vector3 = _board_center(p) - pour.position
+	var surf: float = maxf(pour.height_at(c), pour.SLAB if _over_concrete else 0.0)
+	var dn_y: float = pour.global_position.y + surf + BOTTOM - p.global_position.y
+	var dn_pos := Vector3(saw, dn_y, REACH)
 	board.position = up_pos.lerp(dn_pos, e)
-	board.quaternion = up_rot.slerp(Quaternion.IDENTITY, e)
+	board.quaternion = up_rot.slerp(Quaternion(Vector3.RIGHT, TILT), e)
 	var arm_up_r := Vector3(-0.25, 0, -0.15)
 	var arm_up_l := Vector3(0.05, 0, 0.1)
 	var sw := sin(_saw) if _working else 0.0
