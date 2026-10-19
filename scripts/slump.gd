@@ -407,12 +407,21 @@ func fetch_tick(t: Dictionary, chute: Vector3, delta: float) -> void:
 	var stand := _stand()
 	if not st.has("at"):
 		st["at"] = _fetch_spot(chute, stand)
+		# (round the trucks, not through them: across to the lane beside the
+		# hopper first, then along it)
+		var at0: Vector3 = st["at"]
+		st["via"] = Vector3(at0.x, 0, stand.z - 0.8)
 	var at: Vector3 = st["at"]
+	var via: Vector3 = st["via"]
 	var tray_full := false
 	st["fetch_t"] = float(st.get("fetch_t", 0.0)) + delta
 	match st["leg"]:
 		"go":
-			if _walk_to(p, at, float(st["u"]), delta):
+			if not st.get("passed", false):
+				if _walk_to(p, via, float(st["u"]), delta) or float(st["u"]) > 3.0:
+					st["passed"] = true
+					st["u"] = 0.0
+			elif _walk_to(p, at, float(st["u"]), delta):
 				st["leg"] = "scoop"
 				st["u"] = 0.0
 		"scoop":
@@ -425,7 +434,11 @@ func fetch_tick(t: Dictionary, chute: Vector3, delta: float) -> void:
 				st["u"] = 0.0
 		"back":
 			tray_full = true
-			if _walk_to(p, stand, float(st["u"]), delta):
+			if st.get("passed", false):
+				if _walk_to(p, via, float(st["u"]), delta) or float(st["u"]) > 3.0:
+					st["passed"] = false
+					st["u"] = 0.0
+			elif _walk_to(p, stand, float(st["u"]), delta):
 				st["step"] = "fill"
 				st["draw"] = "fill"
 				st["u"] = 0.0
@@ -452,11 +465,16 @@ func fetch_tick(t: Dictionary, chute: Vector3, delta: float) -> void:
 func _fetch_spot(chute: Vector3, stand: Vector3) -> Vector3:
 	var c := Vector3(chute.x, 0, chute.z)
 	var to_stand := Vector3(stand.x - c.x, 0, stand.z - c.z).normalized()
-	for off in [Vector3(1.3, 0, 0), Vector3(1.3, 0, 0.5), Vector3(1.3, 0, -0.5), Vector3(1.8, 0, 0), to_stand * 1.5, to_stand * 2.5]:
+	var first := Vector3.INF
+	for off in [Vector3(1.15, 0, 0), Vector3(1.15, 0, 0.5), Vector3(1.15, 0, -0.5), Vector3(1.3, 0, 0), to_stand * 1.5, to_stand * 2.5]:
 		var pt: Vector3 = c + off
-		if game._walkable(pt, "ground") and not _behind_a_truck(pt):
-			return pt
-	return Vector3(stand.x, 0, stand.z)
+		if game._walkable(pt, "ground"):
+			if not _behind_a_truck(pt):
+				return pt
+			if first == Vector3.INF:
+				first = pt
+	# (a truck backing in right there: it waits a moment while you're behind it)
+	return first if first != Vector3.INF else Vector3(stand.x, 0, stand.z)
 
 func _behind_a_truck(pt: Vector3) -> bool:
 	for t in line.trucks:
