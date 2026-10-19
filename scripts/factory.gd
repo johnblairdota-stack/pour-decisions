@@ -89,6 +89,7 @@ static func riverlight_mat() -> ShaderMaterial:
 	var m := window_mat(Color("ecebe8"), 0.0, 0.0, Color("55605f"))
 	m.set_shader_parameter("riverlight", true)
 	m.set_shader_parameter("cell", Vector2(1.5, 3.0))
+	m.set_shader_parameter("panel_color", Color("33373d"))
 	return m
 
 static func flat_mat(c: Color) -> StandardMaterial3D:
