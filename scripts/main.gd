@@ -2079,8 +2079,8 @@ func _process(delta: float) -> void:
 					_start_floor()
 		"topout":
 			# (the vista shots wait for 1.5s, so hang on for them)
-			var vistas: bool = "vista" in _shot_only or "vista2" in _shot_only
-			if autotest and phase_t > (2.5 if vistas else 1.0):
+			var vistas: bool = "vista" in _shot_only or "vista2" in _shot_only or _next_ext() != ""
+			if autotest and phase_t > (2.5 + 0.3 * EXT_SHOTS.size() if vistas else 1.0):
 				print("[autotest] TOPPED OUT with %d points (%s) in %d frames (kit %s)" % [score.total, score.rank_name(), _frames, kit])
 				get_tree().quit(0)
 
@@ -3583,7 +3583,7 @@ func _tickets() -> Array:
 	return out
 
 func _update_hud() -> void:
-	hud.visible = phase != "roles" and phase != "select"
+	hud.visible = phase != "roles" and phase != "select" and not EXT_SHOTS.has(_shot_key_now)
 	hud.set_tickets(_tickets(), phase_t)
 	# (no docket card: the slump test and its reading are in the close-up)
 	hud.show_docket({})
@@ -3685,6 +3685,20 @@ func _unhandled_input(event: InputEvent) -> void:
 		cam_pitch = clampf(cam_pitch + mm.relative.y * 0.004, 0.15, 1.25)
 
 var _shot_only: Array = []
+var _shot_key_now := ""   # (the HUD hides for a shot of the building)
+# Dev shots of the whole building from round about (yaw, pitch, focus height,
+# distance); game +z is north, +x is west
+const EXT_SHOTS := {
+	"ext_n": [0.0, -0.05, 12.0, 70.0], "ext_w": [PI * 0.5, -0.05, 12.0, 80.0],
+	"ext_s": [PI, -0.05, 12.0, 75.0], "ext_e": [-PI * 0.5, -0.05, 12.0, 80.0],
+	"ext_sw": [PI * 0.75, 0.05, 14.0, 85.0], "ext_ne": [-PI * 0.25, 0.05, 14.0, 85.0],
+	"aerial": [PI * 0.9, 1.25, 0.0, 130.0],
+}
+func _next_ext() -> String:
+	for k in EXT_SHOTS:
+		if k in _shot_only and not _shots_taken.has(k):
+			return k
+	return ""
 var _shot_cam: Array = []
 
 func _who(p) -> String:
@@ -4202,6 +4216,8 @@ func _maybe_shot() -> void:
 		key = "vista"
 	elif phase == "topout" and phase_t > 1.5 and "vista2" in _shot_only and not _shots_taken.has("vista2"):
 		key = "vista2"
+	elif phase in ["pour", "topout"] and (phase == "topout" and phase_t > 1.5 or phase == "pour" and _filled_ratio() > 0.4 and not "ext_at_end" in _shot_only) and _next_ext() != "":
+		key = _next_ext()
 	elif phase == "topout" and phase_t > 0.6:
 		key = "topout"
 	if key != "" and not _shot_only.is_empty() and not (key in _shot_only):
@@ -4249,6 +4265,13 @@ func _maybe_shot() -> void:
 		cam_yaw = 1.4 if key == "vista" else -0.99
 		cam_pitch = 0.08
 		_shot_cam = [-REAL_ORIGIN + Vector3(0, 30, 0), 60.0]
+	if EXT_SHOTS.has(key):
+		var e: Array = EXT_SHOTS[key]
+		cam_yaw = e[0]
+		cam_pitch = e[1]
+		_shot_cam = [-REAL_ORIGIN + Vector3(0, e[2], 0), e[3]]
+		_shot_key_now = key
+		hud.visible = false
 	if key == "pause":
 		pause_menu.visible = true
 		pause_menu._side = "job"
@@ -4262,6 +4285,7 @@ func _maybe_shot() -> void:
 	var img := get_viewport().get_texture().get_image()
 	if pause_menu.visible:
 		pause_menu.visible = false
+	_shot_key_now = ""
 	img.save_png(shot_dir.path_join(key + ".png"))
 	print("[autotest] saved screenshot ", key)
 
