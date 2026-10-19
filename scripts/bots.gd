@@ -300,11 +300,6 @@ func _station(key: String) -> Vector3:
 func _boom(p, delta: float) -> void:
 	var g = game
 	var wy: float = g.work_y
-	# Fixing a defect falls to the boom op if the screeder's a person and slow
-	if g.phase == "inspect" and not g.defect_fixed and not g.crew.is_bot("screed") and g.phase_t > 6.0:
-		if go(p, "deck", Vector3(g.defect.position.x, wy, g.defect.position.z), 0.6):
-			p.ai_action = true
-		return
 	if g.climb.active:
 		# Dogman: stand where the load and the crane driver can both be seen
 		if go(p, "deck", _deck("dogman"), 0.5):
@@ -421,9 +416,24 @@ var _hose_goal_t := 0.0
 ## the slurry and the washout, and on the pour put it where the boom can't
 ## quite: the low spots in the leading strip, right out to the forms and into
 ## the corners.
+## Fixing a defect falls to the pipe guy (or the poker hand, if the pipe guy's
+## a person too) when the screeder's a person and slow. (Not the boom op: they
+## work off the scaffold and can't step onto the pad.)
+func _cover_defect(p) -> bool:
+	var g = game
+	if g.phase != "inspect" or g.defect_fixed or g.crew.is_bot("screed") or g.phase_t <= 6.0:
+		return false
+	if p.role == "poker" and g.crew.is_bot("hose"):
+		return false
+	if go(p, "deck", Vector3(g.defect.position.x, g.work_y, g.defect.position.z), 0.6):
+		p.ai_action = true
+	return true
+
 func _hose(p, delta: float) -> void:
 	var g = game
 	var pour = g.pour
+	if _cover_defect(p):
+		return
 	if g.climb.active or g.phase != "pour":
 		if p.busy == "" and g.phase != "pour":
 			go(p, "deck", _deck("poker") + Vector3(-2.0, 0, -2.0), 0.6)
@@ -785,6 +795,8 @@ func _poker(p, _delta: float) -> void:
 			return
 		if go(p, "deck", _deck("tag"), 0.45):
 			p.ai_action = g.climb.tag_ready() and g.climb.tag_hand == null
+		return
+	if _cover_defect(p):
 		return
 	if g.phase != "pour":
 		if p.busy == "":
