@@ -597,8 +597,9 @@ func _build_site() -> void:
 	add_child(call_marker)
 
 	# Builder's hoist on the south face: the quick way between deck and ground
-	var mast_h := FLOORS * FH + 4.0
-	hoist_mast = F.box(Vector3(0.5, mast_h, 0.5), F.mat("steel"), Vector3(HOIST_X - 1.0, mast_h * 0.5, HOIST_Z))
+	# (built 1 m tall and stretched to just above the deck as the building
+	# climbs: _update_see_through)
+	hoist_mast = F.box(Vector3(0.5, 1.0, 0.5), F.mat("steel"), Vector3(HOIST_X - 1.0, 0.5, HOIST_Z))
 	add_child(hoist_mast)
 	hoist_cage = Node3D.new()
 	hoist_cage.add_child(F.box(Vector3(1.6, 0.1, 1.6), F.mat("navy"), Vector3(0, 0.05, 0)))
@@ -1953,6 +1954,7 @@ func _process(delta: float) -> void:
 				selector.pick(2 if tutorial else (0 if _auto_kit == "tower" else 1))
 				_auto_kit = ""
 		_update_camera(delta)
+		_update_see_through(delta)
 		return
 
 	pumping = false
@@ -2097,6 +2099,7 @@ func _process(delta: float) -> void:
 	_update_hud()
 	coach.update(delta)
 	_update_camera(delta)
+	_update_see_through(delta)
 	shake = maxf(0.0, shake - delta * 1.6)
 	# A hang shows up as one phase that never ends; the whole run's budget is
 	# only a backstop (a full tower runs 30 to 40 minutes, give or take the
@@ -3604,6 +3607,127 @@ var _shot_cam: Array = []
 func _who(p) -> String:
 	return (("P%d " % p.index) if not p.bot else "") + p.char_name.to_upper()
 
+## The hoist and the boom tower (with its riser, ladder and the boom's first
+## arm) stand on the street side of the deck, right where the camera looks in. Where one's
+## between the camera and someone at work, a soft-edged circle round the work
+## is cut out of it (shaders/cutaway.gdshaderinc), clear in the middle and
+## fading back to solid at the rim; the rest of it stays as it is.
+const CUT_R := 4.0            # m, the see-through circle round each bit of work
+const CUT_R_CLOSE := 1.1      # ...and round what a close-up's on
+var _close_targets: Array = []   # what the close-ups looked at this frame
+const TOON_CUT := preload("res://shaders/toon_cut.gdshader")
+const OUTLINE_CUT := preload("res://shaders/outline_cut.gdshader")
+var _cut_mats := {}           # a part's own material -> its cut-away copy
+var _cut_t := 0.0
+
+func _update_see_through(delta: float) -> void:
+	if hoist_mast == null:
+		return
+	# A real hoist mast is extended a section at a time as the building goes
+	# up, a little past the deck, not to the full height from day one
+	var mast_h := maxf(4.0, work_y + 3.5)
+	hoist_mast.scale.y = mast_h
+	hoist_mast.position.y = mast_h * 0.5
+	# (the tower grows a section a level, the riser's rebuilt after a climb:
+	# every so often, give any new parts the cut-away material)
+	_cut_t -= delta
+	if _cut_t <= 0.0:
+		_cut_t = 0.5
+		var roots: Array = [hoist_mast, hoist_cage, lattice, yaw_node.get_child(0)] + head_deco
+		if climb != null:
+			roots.append(climb.platform)
+		if line != null:
+			roots += line.ladder_rails + line.brackets + [line.ladder_rungs]
+			for sec in line.sections:
+				roots.append(sec["node"])
+			for c in line.clamps:
+				roots.append(c["node"])
+		for r in roots:
+			if r != null and is_instance_valid(r):
+				_give_cut(r)
+		# (and the boom's first arm and the ball at its foot; the outer arm
+		# stays solid, it's what's being steered)
+		if arm1 != null and is_instance_valid(arm1):
+			for ch in arm1.get_children():
+				if ch is GeometryInstance3D:
+					_give_cut(ch)
+	# The work: whatever the close-ups are on (a small circle: they're right
+	# up close), then anyone on the deck and where the concrete's going in
+	# (those not on a climb day, when the climbing frame and riser are the work)
+	var ps: Array = []
+	for q in _close_targets:
+		if ps.size() < 2:
+			ps.append(Vector4(q.x, q.y, q.z, CUT_R_CLOSE))
+	_close_targets.clear()
+	if not climb.active:
+		for p in humans():
+			if p.zone == "deck" and ps.size() < 5:
+				ps.append(Vector4(p.position.x, p.position.y + 1.0, p.position.z, CUT_R))
+		if phase == "pour":
+			var d := discharge()
+			ps.append(Vector4(d.x, d.y, d.z, CUT_R))
+	var n := ps.size()
+	while ps.size() < 6:
+		ps.append(Vector4.ZERO)
+	for m in _cut_mats.values():
+		(m as ShaderMaterial).set_shader_parameter("cut_n", n)
+		(m as ShaderMaterial).set_shader_parameter("cut_p", ps)
+
+## Dev: whether the work's showing through `at` (on the hoist or tower) on screen.
+func _cut_showing(at: Vector3) -> bool:
+	var d := discharge()
+	if camera.is_position_behind(at) or camera.is_position_behind(d):
+		return false
+	var near: bool = camera.global_position.distance_to(at) < camera.global_position.distance_to(d) - 3.0
+	return near and camera.unproject_position(at).distance_to(camera.unproject_position(d)) < 60.0
+
+## Swaps the cut-away copy of its own material onto `n` and everything under it.
+func _give_cut(n: Node) -> void:
+	if n is GeometryInstance3D:
+		var gi := n as GeometryInstance3D
+		var src: Material = gi.material_override
+		if src == null:
+			var mesh: Mesh = null
+			if gi is MeshInstance3D:
+				mesh = (gi as MeshInstance3D).mesh
+			elif gi is MultiMeshInstance3D and (gi as MultiMeshInstance3D).multimesh != null:
+				mesh = (gi as MultiMeshInstance3D).multimesh.mesh
+			if mesh != null and mesh.get_surface_count() > 0:
+				src = mesh.surface_get_material(0)
+		var cut := _cut_of(src)
+		if cut != null:
+			gi.material_override = cut
+	for ch in n.get_children():
+		_give_cut(ch)
+
+func _cut_of(src: Material) -> Material:
+	if src == null:
+		return null
+	if _cut_mats.values().has(src):
+		return src
+	if _cut_mats.has(src):
+		return _cut_mats[src]
+	if not (src is ShaderMaterial and (src as ShaderMaterial).shader == F.TOON):
+		return null
+	var m := ShaderMaterial.new()
+	m.shader = TOON_CUT
+	for k in ["albedo", "emission_color", "rim_amount"]:
+		var v = (src as ShaderMaterial).get_shader_parameter(k)
+		if v != null:
+			m.set_shader_parameter(k, v)
+	var nxt := src.next_pass
+	if nxt is ShaderMaterial and (nxt as ShaderMaterial).shader == F.OUTLINE:
+		var o := ShaderMaterial.new()
+		o.shader = OUTLINE_CUT
+		for k in ["color", "thickness"]:
+			var v = (nxt as ShaderMaterial).get_shader_parameter(k)
+			if v != null:
+				o.set_shader_parameter(k, v)
+		m.next_pass = o
+		_cut_mats[nxt] = o
+	_cut_mats[src] = m
+	return m
+
 func _update_camera(delta: float) -> void:
 	# Who's up top and who's down on the street. While the deck's low, one
 	# camera takes in everyone. Once it's up past SPLIT_Y with people at both
@@ -3893,11 +4017,14 @@ func _update_camera(delta: float) -> void:
 			cam.position = cam.position.lerp(eye, minf(1.0, delta * 4.0))
 		inset["key"] = key
 		cam.look_at(target, Vector3.UP)
-		# Close-ups clip away anything between the lens and the last stretch
-		# before the work (a hard hat, a tower lacing bar), so it's never hidden
-		cam.near = clampf(cam.position.distance_to(target) - 0.8, 0.05, 4.0) if v["close"] else 0.05
+		# Close-ups clip away only what's right at the lens (a hard hat going
+		# past); the tower, the riser or the hoist in front of the work get the
+		# soft see-through circle round it instead (_update_see_through)
+		cam.near = clampf(cam.position.distance_to(target) - 1.2, 0.05, 1.4) if v["close"] else 0.05
 		if v["close"] and _slump_of(p) != null:
 			cam.near = 0.3   # (nothing in the way: the whole plate's in shot)
+		if v["close"]:
+			_close_targets.append(target)
 	_update_gauge_pop()
 
 # ------------------------------------------------------------------ autotest
@@ -3942,6 +4069,10 @@ func _maybe_shot() -> void:
 		key = "remote"
 	elif "highlow" in _shot_only and phase == "pour" and speed_advice["want"] != "" and speed_advice["level"] >= 1 and _filled_ratio() > 0.2 and not _shots_taken.has("highlow"):
 		key = "highlow"
+	elif "cut" in _shot_only and phase == "pour" and _cut_showing(Vector3(head.position.x, head.position.y - 2.0, head.position.z)) and not _shots_taken.has("cut"):
+		key = "cut"
+	elif "cuthoist" in _shot_only and phase == "pour" and _cut_showing(Vector3(hoist_mast.position.x, work_y, hoist_mast.position.z)) and not _shots_taken.has("cuthoist"):
+		key = "cuthoist"
 	elif phase == "select":
 		key = "select"
 	elif phase == "roles":
