@@ -138,11 +138,15 @@ func setup(i: int, color: Color) -> void:
 		n.add_child(verb)
 		n.visible = false
 		add_child(n)
+		# (layer 4: the main views show them; the close-ups and the small
+		# views of someone off screen leave them out and show the badge)
 		for v in [quad, letter, verb, pill]:
-			v.layers = 2
+			v.layers = 8
 		# Gold: 14 star sparks the moment it goes gold, then a trickle
 		var sp := _star_sparks(14, 0.55, true)
 		var tr := _star_sparks(5, 0.5, false)
+		sp.layers = 8
+		tr.layers = 8
 		n.add_child(sp)
 		n.add_child(tr)
 		_cue_nodes.append({"node": n, "mat": m, "letter": letter, "verb": verb, "pill": pill, "pmat": pm, "sparks": sp, "trickle": tr, "pressed_at": -9.0, "was_down": false})

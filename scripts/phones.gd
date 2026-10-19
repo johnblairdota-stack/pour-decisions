@@ -447,10 +447,6 @@ func _on_pick(c: Dictionary, parts: PackedStringArray) -> void:
 			if not crew.crew[role].bot:
 				_toast(c, "%s's taken" % UI.ROLE_NAME[role])
 				return
-			var why: String = game.swap_blocked(p) if game.has_method("swap_blocked") else ""
-			if why != "":
-				_toast(c, why)
-				return
 			var me: int = p.index
 			if crew.assign(me, role):
 				var q = crew.human(me)
