@@ -31,6 +31,140 @@ var _gate := 0.0
 var _events: Array = []     # [kind, age_seconds]
 var _hiss := 0.0
 
+# ------------------------------------------------------------------ the Site Band
+# While the concrete's going in, the site plays a tune built out of its own
+# noises, one part per job, on the pump's beat (one stroke a beat, 75 BPM):
+#   pump     the stroke thump grows a kick drum
+#   hose     the end hose's slap is the snare, on 2 and 4
+#   poker    the drive unit's drone becomes the bass line
+#   screed   the board's rasp is the hi-hat
+#   line     the truck's reversing beeper plays the hook
+#   boom     the boom's hydraulics hum the chords
+# Each part plays only while that job's working (main sets band[lane] each
+# frame), so a job that's gone quiet drops out of the mix: you hear who's idle.
+# A part can be a recorded sound instead: drop res://sounds/band/<lane>.wav
+# (or .ogg) into the project and it plays on that part's beats in place of
+# the made-up one.
+const BEAT := 0.8
+const LANES := ["pump", "hose", "poker", "screed", "line", "boom"]
+# Am, F, C, G: a bar each. Bass roots, and the pad's three notes.
+const ROOTS := [55.0, 43.65, 65.41, 49.0]
+const CHORDS := [[220.0, 261.63, 329.63], [174.61, 220.0, 261.63], [261.63, 329.63, 392.0], [196.0, 246.94, 293.66]]
+# The beeper's hook over two bars of eighths (0: a rest), A minor pentatonic
+const HOOK := [659.25, 0.0, 587.33, 659.25, 783.99, 0.0, 659.25, 587.33, 523.25, 0.0, 440.0, 523.25, 587.33, 0.0, 0.0, 0.0]
+var band_on := true
+var band := {}              # lane -> 0..1, how hard that job's working right now
+var band_live := false      # the band plays at all (the concrete's on)
+var _lv := PackedFloat32Array([0, 0, 0, 0, 0, 0])
+var _master := 0.0
+var _bt := 0.0              # the beat clock (the pump's stroke runs on it)
+var _hp := 0.0              # last noise sample, for the hi-hat's high pass
+var _samples := {}          # lane -> AudioStreamPlayer for a recorded part
+var _queued: Array = []     # [seconds from now, lane] recorded hits waiting to sound
+
+## How loud each part is in the mix right now (0..1), for the crew bar.
+func band_level(lane: String) -> float:
+	var i := LANES.find(lane)
+	return _lv[i] * _master if i >= 0 else 0.0
+
+## Where the beat is, 0 on the beat to 1 just before the next.
+func beat_phase() -> float:
+	return fmod(_bt, BEAT) / BEAT
+
+func _load_samples() -> void:
+	for lane in LANES:
+		for ext in ["wav", "ogg"]:
+			var path := "res://sounds/band/%s.%s" % [lane, ext]
+			if ResourceLoader.exists(path):
+				var pl := AudioStreamPlayer.new()
+				pl.stream = load(path)
+				add_child(pl)
+				_samples[lane] = pl
+				break
+
+## Which eighth notes of the four-bar loop each part plays on (0..31).
+static func _hits_on(lane: String, step: int) -> bool:
+	var e := step % 8
+	match lane:
+		"pump":
+			return e % 2 == 0
+		"hose":
+			return e == 2 or e == 6
+		"poker":
+			return true
+		"screed":
+			return true
+		"line":
+			return HOOK[step % 16] > 0.0
+		"boom":
+			return e == 0
+	return false
+
+## One sample of the band at beat-clock time `bt`.
+func _band_sample(bt: float) -> float:
+	var s := 0.0
+	var b := bt / BEAT
+	var bar := int(b / 4.0) % 4
+	var e8 := fmod(b * 2.0, 1.0) * BEAT * 0.5   # s since the last eighth
+	var step := int(b * 2.0) % 32
+	var x := fmod(b, 1.0) * BEAT                # s since the last beat
+	# Kick: a falling sine on every beat
+	var l := _lv[0]
+	if l > 0.005 and not _samples.has("pump"):
+		s += sin(TAU * (48.0 + 70.0 * exp(-x * 30.0)) * x) * exp(-x * 9.0) * 0.32 * l
+	# Snare on 2 and 4: a noise burst with a body
+	l = _lv[1]
+	if l > 0.005 and not _samples.has("hose") and int(b) % 2 == 1:
+		s += ((randf() * 2.0 - 1.0) * exp(-x * 20.0) * 0.16 + sin(TAU * 190.0 * x) * exp(-x * 28.0) * 0.14) * l
+	# Bass: a soft triangle on the chord's root in eighths, up the octave on the off-beats
+	l = _lv[2]
+	if l > 0.005 and not _samples.has("poker"):
+		var f: float = ROOTS[bar] * (2.0 if step % 4 == 3 else 1.0)
+		var ph := fmod(f * bt, 1.0)
+		s += (1.0 - 4.0 * absf(ph - 0.5)) * exp(-e8 * 5.0) * 0.17 * l
+	# Hi-hat: high-passed noise, the off-beats louder
+	l = _lv[3]
+	if l > 0.005 and not _samples.has("screed"):
+		var n := randf() * 2.0 - 1.0
+		var hp := n - _hp
+		_hp = n
+		s += hp * exp(-e8 * 70.0) * (0.06 if step % 2 == 1 else 0.035) * l
+	# The hook, in the reversing beeper's square wave
+	l = _lv[4]
+	if l > 0.005 and not _samples.has("line"):
+		var hf: float = HOOK[step % 16]
+		if hf > 0.0 and e8 < 0.3:
+			s += (1.0 if fmod(hf * bt, 1.0) < 0.5 else -1.0) * minf(1.0, e8 * 200.0) * exp(-e8 * 7.0) * 0.035 * l
+	# Pad: the chord, held, swelling in each bar
+	l = _lv[5]
+	if l > 0.005 and not _samples.has("boom"):
+		var swell := minf(1.0, fmod(b, 4.0) * 1.5) * (1.0 - 0.3 * fmod(b, 4.0) / 4.0)
+		for cf in CHORDS[bar]:
+			s += sin(TAU * cf * bt) * 0.028 * swell * l
+	return s * _master
+
+## Recorded parts: work out which of their beats fall in the stretch of
+## audio just made, and play each when that audio reaches the speakers.
+func _queue_samples(t0: float, t1: float, latency: float) -> void:
+	if _samples.is_empty() or _master < 0.05:
+		return
+	var s0 := int(ceil(t0 / (BEAT * 0.5)))
+	var s1 := int(floor(t1 / (BEAT * 0.5)))
+	for st in range(s0, s1 + 1):
+		for lane in _samples:
+			var i := LANES.find(lane)
+			if _lv[i] > 0.1 and _hits_on(lane, st % 32):
+				_queued.append([latency + st * BEAT * 0.5 - t0, lane])
+
+func _play_queued(delta: float) -> void:
+	for q in _queued:
+		q[0] -= delta
+		if q[0] <= 0.0:
+			var pl: AudioStreamPlayer = _samples[q[1]]
+			pl.volume_db = linear_to_db(maxf(0.001, _lv[LANES.find(q[1])] * _master)) + volume_db + 8.0
+			pl.play()
+	_queued = _queued.filter(func(q): return q[0] > 0.0)
+
 func _ready() -> void:
 	var gen := AudioStreamGenerator.new()
 	gen.mix_rate = RATE
@@ -39,6 +173,7 @@ func _ready() -> void:
 	volume_db = -14.0
 	play()
 	_playback = get_stream_playback() as AudioStreamGeneratorPlayback
+	_load_samples()
 
 ## kind: "bang", "clank", "thunk", "buzz", "ding", "clang", "tink", "hiss",
 ## "knock", "ring", "thud", "beep", "whip", "rain",
@@ -59,6 +194,8 @@ func hit(kind: String) -> void:
 func toggle_mute() -> void:
 	muted = not muted
 	volume_db = -80.0 if muted else -14.0
+	for lane in _samples:
+		(_samples[lane] as AudioStreamPlayer).volume_db = -80.0
 
 func _whistle_on(code: String, a: float) -> bool:
 	var t := 0.0
@@ -68,9 +205,10 @@ func _whistle_on(code: String, a: float) -> bool:
 		t += seg[0] + seg[1]
 	return false
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	if _playback == null:
 		return
+	_play_queued(delta)
 	var n := _playback.get_frames_available()
 	if n <= 0:
 		return
@@ -78,13 +216,27 @@ func _process(_delta: float) -> void:
 	buf.resize(n)
 	var dt := 1.0 / RATE
 	var r2 := rattle * rattle
+	# The parts ease in and out over about a second, and the whole band
+	# fades with the pour
+	var want_m := 1.0 if band_on and band_live else 0.0
+	var tgt := PackedFloat32Array()
+	for lane in LANES:
+		tgt.append(clampf(float(band.get(lane, 0.0)), 0.0, 1.0))
+	# (what's already buffered plays before this stretch does)
+	_queue_samples(_bt, _bt + n * dt, maxf(0.0, (0.12 * RATE - n) / RATE))
 	for f in n:
 		_t += dt
+		_bt += dt
 		var s := 0.0
+		if f % 64 == 0:
+			_master += (want_m - _master) * 0.01
+			for i in 6:
+				_lv[i] += (tgt[i] - _lv[i]) * 0.012
+		if _master > 0.002:
+			s += _band_sample(_bt)
 		if pumping:
-			_stroke += dt
-			if _stroke > 0.8:
-				_stroke -= 0.8
+			# (on the beat clock, so the band's kick lands on the stroke)
+			_stroke = fmod(_bt, BEAT)
 			# The stroke's thump, with its 2nd and 3rd harmonics so TV and
 			# laptop speakers (which can't play 46 Hz) still carry it, and a
 			# short hydraulic "chuff" on top

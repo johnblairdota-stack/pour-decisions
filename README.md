@@ -343,6 +343,20 @@ The boom's gold is judged where the tip is, not the boom, so the two of you are 
 
 The bots play through the same buttons as people. They find their way round anything in the way with a route search over whatever is walkable on their level, the deck or the ground, and they read every work spot off the site's stations instead of fixed coordinates. A bot that's pushing the stick but going nowhere sidesteps and re-plans. The screed bot works the slab in rows from form to form, and every row gets checked, including the ones right against the formwork; it only drops the board where there's concrete. Whatever a row can't reach (a corner, an edge, a patch the strips missed, or the curve of the round slab) it finishes with short pulls: it stands inside the patch, puts the board on it and pulls it in toward the middle, coming at it from another angle if the first pull didn't finish it. The boom bot pours the way a boom operator keeps a live edge: the bay is taken in strips from the far end back toward the boom, and the hose works the lowest spot in the leading strip until it's full, so each load goes against the last and the wet edge stays at the front, instead of filling low spots anywhere in the bay and leaving concrete behind to go off. The pump operator bot keeps its eyes on the gauge, kills the spike, grabs its own part on the way to the joint, fixes it and restarts the pump; the truck hand bot runs the truck bay.
 
+## The Site Band
+
+While the concrete's going in, the site plays a tune made out of its own noises, on the pump's beat (one stroke a beat). Each job has a part: the pump's stroke grows a kick drum, the pipe guy's hose is the snare, the poker's drone is the bass line, the screed board's rasp is the hi-hat, the truck's reversing beeper plays the hook, and the boom's hydraulics hum the chords. A part plays only while that job's working, so when a job goes quiet its part drops out and you can hear who's idle. Each hat in the crew bar has a little level that bounces with its part. Site Band is a setting in the pause menu (on by default).
+
+Every part is made in code (`scripts/sfx.gd`), like the rest of the sound. To use a recorded sound for a part instead, drop `sounds/band/<part>.wav` (or `.ogg`) into the project, where the part is `pump`, `hose`, `poker`, `screed`, `line` or `boom`: it plays on that part's beats in place of the made-up one.
+
+## The dawn pour
+
+Level 8 is a big pour, so it starts before sunrise: the first truck at 5:10 am under the floodlights, with the river still black. The sun comes up over Bulimba as the slab fills, so the sky is the pour clock (the time shows on the pour line of the HUD). At 5:38 the sun's up and the floodlights go off; by full morning the slab should be in. The trucks beat the traffic and it's cool before sunrise, so a dawn pour never has traffic and the concrete stays workable a little longer.
+
+## Sign the slab
+
+When the top slab's screeded, before it goes off, everyone signs it. The crew gets a square each, one per job, in the corner of the roof slab nearest the camera. People draw on their phone with a finger (CLEAR starts again, PRESS IT IN finishes), or with the stick and A on a keyboard or pad (X when done). Bots, and anyone who doesn't draw, leave a handprint, and each square has its name pressed in under it. Then a CityCat comes down the river past Riverlight: the camera rides behind it, lifts off the water and flies up the tower to the signed corner of the roof before the top-out card (A skips it).
+
 ## Project layout
 
 | File | What it does |
@@ -400,6 +414,7 @@ Each slab prints its points and report, and the run ends with `TOPPED OUT with N
 | `--collidetest` | Sets each section down against the tower to check it bounces off |
 | `--uitest` | (without `--autotest`) clicks through the crew and kit screens and starts the game |
 | `--startlevel=N` | Jumps straight to level N |
+| `--dawn` | Makes the start level a dawn pour (level 8 always is one) |
 | `--cam=boom,pump` | The camera treats those bots as the people playing (to see the split screen in a test) |
 | `--midclamp` | The clamp that fails is the one halfway up |
 | `--tutorial` | Plays the water tower tutorial |

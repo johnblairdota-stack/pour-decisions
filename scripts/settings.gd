@@ -8,6 +8,7 @@
 ##   gold_assist buttons light up gold when it's the moment (or the spot) to press them
 ##   real_names  the real company, building and equipment names, or made-up lookalikes
 ##   split       the screen splits (deck on top, street below) when the crew are far apart
+##   band        the Site Band: the pour plays a tune out of the site's own noises
 ##   medals      the best medal (0 bronze, 1 silver, 2 gold; -1 not poured) for
 ##               each of Riverlight's floors, for the site page
 extends RefCounted
@@ -15,7 +16,7 @@ extends RefCounted
 const PATH := "user://settings.cfg"
 const INCIDENT_NAMES := ["None", "Normal", "Busy", "Chaos"]
 
-static var data := {"incidents": 1, "ui_scale": 1.25, "world_text": 1.25, "docket_help": false, "fullscreen": false, "gold_assist": true, "real_names": true, "split": true, "ver": 2, "medals": []}
+static var data := {"incidents": 1, "ui_scale": 1.25, "world_text": 1.25, "docket_help": false, "fullscreen": false, "gold_assist": true, "real_names": true, "split": true, "band": true, "ver": 2, "medals": []}
 static var _loaded := false
 
 ## Camera test (not saved: it's for trying out the multiplayer cameras on

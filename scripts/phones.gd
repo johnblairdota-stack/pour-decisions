@@ -12,10 +12,11 @@
 ## Messages from a phone (text): "hello <token>", "m <x> <y>", "d <A|B|X|Y|MENU>",
 ## "u <A|B|X|Y>", and for picking jobs "pick <job>", "lock", "unlock",
 ## "char <1|-1>" (in the lobby) and "swap <job>" (on site, to a job a bot's
-## doing). To a phone: "p <player number> <colour hex>",
+## doing), and for signing the top slab "ink <x> <y>" (0..1 across your
+## square), "inkup", "inkclr" and "inkok". To a phone: "p <player number> <colour hex>",
 ## "c <button:verb:hold progress:urgent:gold,...>", "v <ms pattern>", "full",
 ## and "J <json>" for the rest: {t: state} lobby / site / play / pause,
-## {t: roster} who's on each job, {t: card} your job ticket, {t: now} the
+## {t: roster} who's on each job, {t: state, s: sign, left} signing the slab, {t: card} your job ticket, {t: now} the
 ## ticket's live step, {t: gauge} the pump gauge (pump operator), {t: nudge}
 ## how long the game's been waiting on you, {t: toast} a short note.
 ## The token lets a phone that drops out reconnect to the same chibi.
@@ -243,6 +244,15 @@ func _on_message(c: Dictionary, msg: String) -> void:
 		"pick", "lock", "unlock", "char", "swap":
 			_on_pick(c, parts)
 			return
+		"ink":
+			if parts.size() >= 3 and c["player"] != null:
+				game.ink_point(c["player"], Vector2(parts[1].to_float(), parts[2].to_float()))
+		"inkup":
+			game.ink_up(c["player"])
+		"inkclr":
+			game.ink_clear(c["player"])
+		"inkok":
+			game.ink_done(c["player"])
 		"m":
 			var p = c["player"]
 			if game.pause_menu.visible:
@@ -363,6 +373,8 @@ func screen() -> String:
 		return "lobby"
 	if game.phase == "select":
 		return "site"
+	if game.phase == "sign":
+		return "sign"
 	return "play"
 
 ## Everything the page shows besides the buttons, each sent when it changes.
@@ -376,6 +388,9 @@ func _send_state(c: Dictionary) -> void:
 	if sel != null and scr == "lobby":
 		st["locked"] = bool(sel._ready_p.get(p.index, false))
 		st["count"] = int(ceil(sel._count_t)) if sel._count_t > 0.0 else -1
+	if scr == "sign":
+		st["left"] = int(ceil(game.ink_left()))
+		st["done"] = bool(game._ink_done.get(p, false))
 	_json(c, "state", st)
 	_json(c, "roster", roster())
 	_json(c, "card", card(p.role))

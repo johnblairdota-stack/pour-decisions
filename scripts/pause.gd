@@ -13,7 +13,7 @@ const Settings := preload("res://scripts/settings.gd")
 const SCALES := [1.0, 1.25, 1.5]
 const MAIN := [["Back to work", "resume"], ["Swap jobs", "swap"], ["Add a player", "join"], ["Settings", "settings"],
 	["Start again", "restart"], ["Knock off", "quit"]]
-const SETTINGS := ["incidents", "gold_assist", "docket_help", "ui_scale", "world_text", "split", "fullscreen", "sound", "shake",
+const SETTINGS := ["incidents", "gold_assist", "docket_help", "ui_scale", "world_text", "split", "fullscreen", "sound", "band", "shake",
 	"real_names", "cam_test", "back"]
 const PAGE_TITLE := {"main": "SMOKO", "settings": "SETTINGS", "swap": "SWAP JOBS"}
 
@@ -237,6 +237,8 @@ func _refresh() -> void:
 				l.text = "Full screen: %s" % ("on" if Settings.value("fullscreen") else "off")
 			"sound":
 				l.text = "Sound: %s" % ("off" if game.sfx.muted else "on")
+			"band":
+				l.text = "Site Band: %s" % ("on" if Settings.value("band") else "off")
 			"shake":
 				l.text = "Screen shake: %s" % ("on" if game.shake_on else "off")
 			"incidents":
@@ -407,6 +409,8 @@ func _note_for(action: String) -> String:
 			return "Fill the whole screen. F11 flips it any time."
 		"sound":
 			return "Site noise, the pump, the radio calls."
+		"band":
+			return "On: while the concrete's going in, every job that's working plays its part of a tune made from the site's own noises. A job that stops drops out of the band."
 		"shake":
 			return "The camera kicks on a burst or a whip."
 		"back":
@@ -465,6 +469,8 @@ func _do(action: String) -> void:
 			Settings.toggle_fullscreen()
 		"sound":
 			game.sfx.toggle_mute()
+		"band":
+			Settings.put("band", not bool(Settings.value("band")))
 		"shake":
 			game.shake_on = not game.shake_on
 		"restart":

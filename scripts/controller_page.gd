@@ -214,6 +214,19 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 #gate b{font-family:"Barlow Condensed",sans-serif;font-weight:800;font-size:10vmin;color:var(--gold)}
 #gate .go{font-family:"Barlow Condensed",sans-serif;font-weight:800;background:var(--gold);color:#2a1d00;border-radius:3vmin;padding:2.4vmin 6vmin;box-shadow:0 1.2vmin 0 #b17a00}
 #ios{display:none;max-width:80vmin;font-size:3.6vmin;color:#c9c6bd;line-height:1.4;border:1.5px solid rgba(255,255,255,.18);border-radius:3vmin;padding:2.4vmin 3vmin}
+/* --- sign the slab: draw in the wet concrete with a finger */
+#sign{background:radial-gradient(120% 120% at 50% 0%,#2a2c33 0%,#0b0c10 70%)}
+#sign .side{position:absolute;left:4vmin;top:5vmin;bottom:5vmin;width:calc(100vw - 100vmin);min-width:30vmin;display:flex;flex-direction:column;gap:2.4vmin}
+#sign .k{font-size:3.6vmin;letter-spacing:.14em;color:var(--gold)}
+#sign .t{font-size:9vmin;line-height:.92}
+#sign .s{font-size:3.4vmin;color:#c9c6bd;line-height:1.35}
+#sign .left{font-size:6vmin;margin-top:auto}
+#sign .row{display:flex;gap:2vmin}
+#sign .row button{flex:1;min-height:12vmin;border-radius:3vmin;font-family:"Barlow Condensed",sans-serif;font-weight:800;font-size:5vmin;background:var(--card);border:1px solid #3a3d47}
+#sign .row button.go{background:#3fe0c5;color:#04281f;border:0;box-shadow:0 1vmin 0 #1b8a6e}
+#sign .row button:disabled{opacity:.4}
+#slab{position:absolute;right:4vmin;top:5vmin;width:90vmin;height:90vmin;border-radius:4vmin;background:radial-gradient(80% 80% at 40% 35%,#a39d92 0%,#8a857b 60%,#6f6a61 100%);box-shadow:inset 0 0 0 .6vmin rgba(255,255,255,.08)}
+#slab.done{opacity:.6}
 #status{position:fixed;right:3vmin;bottom:2vmin;font-size:2.6vmin;color:var(--dim);z-index:12}
 @media (orientation:portrait){#rotate{display:flex}}
 @media (prefers-reduced-motion:reduce){*{animation-duration:.01s!important;animation-iteration-count:1!important}}
@@ -276,6 +289,16 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
   </div>
 </div>
 
+<div id="sign" class="screen">
+  <div class="side">
+    <div class="k hd" id="sgk">TOP-OUT · LEVEL 11</div>
+    <div class="t hd">Sign the slab</div>
+    <div class="s" id="sgs">Draw your initials, a hand, anything. It goes in the roof of Riverlight.</div>
+    <div class="left hd" id="sgleft"></div>
+    <div class="row"><button id="sgclr">CLEAR</button><button class="go" id="sgok">PRESS IT IN</button></div>
+  </div>
+  <canvas id="slab"></canvas>
+</div>
 <div id="joined"><div class="big" id="jbig">P?</div><div><div class="k hd" id="jk">You're on the crew</div><div class="t hd" id="jt">You are Player ?</div><div class="s">Look for your tag on the TV. Everyone scans the same code; the next phone gets the next number.</div><div id="pdots"></div></div></div>
 <div id="ghost"><div></div></div>
 <div id="rotate">Turn your phone sideways<br><small style="color:#9a978f">the controller works in landscape</small></div>
@@ -335,6 +358,7 @@ function onJson(j) {
     me.name = j.name;
     if (j.s !== screen) { screen = j.s; showScreen(); }
     $('cname').textContent = j.name || '';
+    if (j.s === 'sign') { $('sgleft').textContent = j.done ? 'Pressed in. Nice.' : (j.left + ' s left'); signDone = !!j.done; $('slab').classList.toggle('done', signDone); $('sgok').disabled = signDone; $('sgclr').disabled = signDone; }
     if (j.s === 'lobby') { if (!!j.locked !== locked) { locked = !!j.locked; showScreen(); if (locked) buzz(BUZZ.done); } setCount(j.count); }
   } else if (j.t === 'roster') { roster = j.r; drawLobby(); drawSwap(); }
   else if (j.t === 'card') { card = j; drawTicket(); drawLobby(); }
@@ -345,9 +369,12 @@ function onJson(j) {
 }
 function showScreen() {
   const lobby = screen === 'lobby';
+  const sign = screen === 'sign';
   $('lobby').classList.toggle('on', lobby && !locked);
   $('locked').classList.toggle('on', lobby && locked);
-  $('play').classList.toggle('on', !lobby);
+  $('play').classList.toggle('on', !lobby && !sign);
+  $('sign').classList.toggle('on', sign);
+  if (sign) startSign();
   if (!lobby) closeSwap();
   drawTicket();
 }
@@ -633,6 +660,41 @@ function drawSwap() {
 }
 $('jobs').addEventListener('pointerdown', (e) => { const b = e.target.closest('button.job'); if (!b) return; swapPick = b.dataset.id; drawSwap(); buzz(BUZZ.press); });
 holdButton($('swapgo'), 700, () => { if (swapPick) send('swap ' + swapPick); closeSwap(); });
+// ---------------------------------------------------------------- sign the slab
+// The square on the phone is the player's square in the slab: points go to
+// the game 0..1 across it, a few a second, and it draws the grooves.
+let signDone = false, inkLast = null, inkSent = 0;
+const slab = $('slab'), sctx = slab.getContext('2d');
+function startSign() {
+  const r = slab.getBoundingClientRect(), d = Math.min(2, window.devicePixelRatio || 1);
+  slab.width = r.width * d; slab.height = r.height * d;
+  sctx.clearRect(0, 0, slab.width, slab.height);
+  signDone = false; inkLast = null; buzz(BUZZ.turn);
+}
+function inkAt(e) { const r = slab.getBoundingClientRect(); return [Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)), Math.max(0, Math.min(1, (e.clientY - r.top) / r.height))]; }
+function inkLine(a, b) {
+  const w = slab.width;
+  sctx.lineCap = 'round'; sctx.lineJoin = 'round';
+  sctx.strokeStyle = 'rgba(205,199,188,.9)'; sctx.lineWidth = w * 0.05;
+  sctx.beginPath(); sctx.moveTo(a[0] * w + w * 0.006, a[1] * w + w * 0.006); sctx.lineTo(b[0] * w + w * 0.006, b[1] * w + w * 0.006); sctx.stroke();
+  sctx.strokeStyle = 'rgba(92,87,79,.95)'; sctx.lineWidth = w * 0.04;
+  sctx.beginPath(); sctx.moveTo(a[0] * w, a[1] * w); sctx.lineTo(b[0] * w, b[1] * w); sctx.stroke();
+}
+slab.addEventListener('pointerdown', (e) => { if (signDone) return; e.preventDefault(); slab.setPointerCapture(e.pointerId); inkLast = inkAt(e); inkLine(inkLast, inkLast); send('ink ' + inkLast[0].toFixed(3) + ' ' + inkLast[1].toFixed(3)); buzz(BUZZ.press); });
+slab.addEventListener('pointermove', (e) => {
+  if (signDone || !inkLast) return;
+  const p = inkAt(e);
+  if (Math.hypot(p[0] - inkLast[0], p[1] - inkLast[1]) < 0.012) return;
+  inkLine(inkLast, p); inkLast = p;
+  const t = performance.now();
+  if (t - inkSent > 25) { inkSent = t; send('ink ' + p[0].toFixed(3) + ' ' + p[1].toFixed(3)); }
+});
+function inkUp() { if (inkLast) { send('ink ' + inkLast[0].toFixed(3) + ' ' + inkLast[1].toFixed(3)); send('inkup'); } inkLast = null; }
+slab.addEventListener('pointerup', inkUp);
+slab.addEventListener('pointercancel', inkUp);
+$('sgclr').addEventListener('click', () => { if (signDone) return; sctx.clearRect(0, 0, slab.width, slab.height); send('inkclr'); buzz(BUZZ.press); });
+$('sgok').addEventListener('click', () => { if (signDone) return; send('inkok'); signDone = true; buzz(BUZZ.done); });
+
 // ---------------------------------------------------------------- full screen and the first tap
 const de = document.documentElement;
 const standalone = (window.navigator.standalone === true) || matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches;
