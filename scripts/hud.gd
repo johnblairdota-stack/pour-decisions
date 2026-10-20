@@ -71,6 +71,7 @@ var card: PanelContainer
 var _card_t := 0.0
 var _card_hold := false      # the slab report waits for someone to press A
 var _card_age := 0.0
+var card_away := false        # the slab report waits, out of sight (while the top slab's signed)
 var _card_box: VBoxContainer
 var _card_next: Label
 var _card_fill: ColorRect
@@ -362,8 +363,11 @@ func _process(delta: float) -> void:
 	if _alert != "":
 		toast_panel.visible = true
 		toast_panel.modulate.a = 1.0
-	_card_age += delta
-	if _card_hold:
+	if not card_away:
+		_card_age += delta
+	if card_away:
+		card.visible = false
+	elif _card_hold:
 		card.visible = true
 		card.modulate.a = 1.0
 		# (the gold A breathes, so it's clear what moves things on)
@@ -416,7 +420,16 @@ func _build_crew() -> void:
 		tl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		tag.add_child(tl)
 		col.add_child(tag)
-		_crew[role] = {"hat": hat, "tag": tag, "label": tl, "nudge": 0}
+		# (the job's part in the Site Band: a little level that bounces on
+		# the beat while it's playing)
+		var eq := ColorRect.new()
+		eq.color = UI.ROLE[role]
+		eq.custom_minimum_size = Vector2(28, 7)
+		eq.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		eq.pivot_offset = Vector2(14, 7)
+		eq.visible = false
+		col.add_child(eq)
+		_crew[role] = {"hat": hat, "tag": tag, "label": tl, "nudge": 0, "eq": eq}
 	_crew_wait = UI.head("", 16, UI.GOLD)
 	_crew_wait.visible = false
 	v.add_child(_crew_wait)
@@ -458,6 +471,16 @@ func set_crew(rows: Array, show := true) -> void:
 	_crew_wait.visible = wait_txt != ""
 	_crew_wait.add_theme_color_override("font_color", UI.GOLD if wait_lvl < 3 else UI.BONE)
 	crew_bar.reset_size()
+
+## Each job's level in the Site Band (sfx.gd), on its hat in the crew bar.
+func set_band(sfx, show: bool) -> void:
+	var beat: float = sfx.beat_phase()
+	for role in _crew:
+		var eq: ColorRect = _crew[role]["eq"]
+		var lvl: float = sfx.band_level(role)
+		eq.visible = show
+		eq.scale.y = maxf(0.12, lvl * (1.0 - 0.65 * beat))
+		eq.modulate.a = 0.35 + 0.65 * lvl
 
 func _animate_crew(delta: float) -> void:
 	if crew_bar == null or not crew_bar.visible:

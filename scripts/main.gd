@@ -339,11 +339,16 @@ func _setup_input() -> void:
 		e.keycode = pair[1]
 		InputMap.action_add_event(pair[0], e)
 
+var env: Environment
+var sky_mat: ProceduralSkyMaterial
+var sun: DirectionalLight3D
+
 func _build_environment() -> void:
-	var env := Environment.new()
+	env = Environment.new()
 	env.background_mode = Environment.BG_SKY
 	var sky := Sky.new()
 	var sm := ProceduralSkyMaterial.new()
+	sky_mat = sm
 	# A pour-day morning in Brisbane: clear sky, the haze over the river, a
 	# high, hard sun from the north-east
 	sm.sky_top_color = Color("3a78c9")
@@ -364,13 +369,459 @@ func _build_environment() -> void:
 	var we := WorldEnvironment.new()
 	we.environment = env
 	add_child(we)
-	var sun := DirectionalLight3D.new()
+	sun = DirectionalLight3D.new()
 	sun.light_color = Color("fff2df")
 	sun.light_energy = 1.2
 	sun.shadow_enabled = true
 	sun.directional_shadow_max_distance = 160.0
 	sun.rotation_degrees = Vector3(-42, -24, 0)
+	_day_q = sun.quaternion
 	add_child(sun)
+
+# ------------------------------------------------------------------ the dawn pour
+
+## Big pours start before sunrise, so the trucks aren't stuck in the morning
+## traffic and the slab's in before the heat. Level 8 is one: the first truck
+## at 5:10 under the floodlights, the river still black, and the sun comes up
+## over Bulimba (east-south-east, across the river) as the slab fills, so the
+## sky's the pour clock. `--dawn` makes the start level a dawn pour.
+const DAWN_LEVEL := 7
+const DAWN_FROM := 5 * 60 + 10   # 5:10 am, in minutes
+const DAWN_LEN := 55.0           # ...to 6:05, full morning, over the pour
+const SUNRISE_U := 0.5           # 5:38
+## [u, sky top, horizon, sun colour, sun energy, ambient, sun elevation (deg)]
+const DAWN_KEYS := [
+	[0.0, Color("070b1e"), Color("1a2140"), Color("ff8c50"), 0.0, 0.12, -6.0],
+	[0.3, Color("162250"), Color("c97a62"), Color("ff8c50"), 0.15, 0.22, 0.0],
+	[0.5, Color("2f4f8e"), Color("f0a868"), Color("ffb070"), 0.6, 0.35, 6.0],
+	[0.75, Color("3568b0"), Color("e6cdb0"), Color("ffdcb0"), 0.95, 0.5, 20.0],
+	[1.0, Color("3a78c9"), Color("cfdfe8"), Color("fff2df"), 1.2, 0.6, 42.0],
+]
+var _day_u := 1.0
+var _day_shown := -1.0
+var _day_q := Quaternion.IDENTITY   # the sun's usual morning angle
+var _floods: Array = []             # {light, head, deck}
+var _floods_on := false
+var _dawn_flag := OS.get_cmdline_user_args().has("--dawn")
+
+func is_dawn() -> bool:
+	return bool(cfg.get("dawn", false))
+
+## The clock on a dawn pour, as "5:38 AM".
+func dawn_clock() -> String:
+	var m := DAWN_FROM + int(_day_u * DAWN_LEN)
+	return "%d:%02d AM" % [m / 60, m % 60]
+
+func _build_floods() -> void:
+	var lamp := StandardMaterial3D.new()
+	lamp.albedo_color = Color("fff6dc")
+	lamp.emission_enabled = true
+	lamp.emission = Color("fff1d0")
+	lamp.emission_energy_multiplier = 4.0
+	var mast := F.mat("steel")
+	# Two on the scaffold at the deck's corners (they climb with it), two on
+	# towers over the truck bay and the pump
+	var spots := [
+		[Vector3(SC.x - BW * 0.5 - 1.2, 0, SC.z + BD * 0.5 + 1.2), true],
+		[Vector3(SC.x + BW * 0.5 + 1.2, 0, SC.z - BD * 0.5 - 1.2), true],
+		[Vector3(-22.0, 0, 18.0), false],
+		[Vector3(12.0, 0, 18.0), false],
+	]
+	for sp in spots:
+		var at: Vector3 = sp[0]
+		var deck: bool = sp[1]
+		var n := Node3D.new()
+		n.position = at
+		add_child(n)
+		var h := 6.0 if deck else 10.0
+		n.add_child(F.box(Vector3(0.18, h, 0.18), mast, Vector3(0, h * 0.5, 0)))
+		var head := F.box(Vector3(1.4, 0.7, 0.3), lamp, Vector3(0, h, 0))
+		n.add_child(head)
+		var l := SpotLight3D.new()
+		l.light_color = Color("fff1d6")
+		l.light_energy = 7.0
+		l.spot_range = 60.0
+		l.spot_angle = 58.0
+		l.shadow_enabled = false
+		l.position = Vector3(0, h + 0.2, 0)
+		n.add_child(l)
+		var aim: Vector3 = (Vector3(SC.x, 0, SC.z) if deck else Vector3(-4.0, 0, 26.0)) - at
+		l.look_at_from_position(l.global_position, l.global_position + Vector3(aim.x, -h * (0.9 if deck else 1.4), aim.z), Vector3.UP)
+		head.look_at_from_position(head.global_position, head.global_position + Vector3(aim.x, -h, aim.z), Vector3.UP)
+		n.visible = false
+		_floods.append({"node": n, "light": l, "deck": deck})
+
+## Lights the world for `u` of the way from 5:10 am (0) to full morning (1).
+func _apply_daylight(u: float) -> void:
+	if absf(u - _day_shown) < 0.002:
+		return
+	_day_shown = u
+	var i := 0
+	while i < DAWN_KEYS.size() - 2 and u > DAWN_KEYS[i + 1][0]:
+		i += 1
+	var a: Array = DAWN_KEYS[i]
+	var b: Array = DAWN_KEYS[i + 1]
+	var w := clampf((u - a[0]) / (b[0] - a[0]), 0.0, 1.0)
+	var horizon: Color = (a[2] as Color).lerp(b[2], w)
+	sky_mat.sky_top_color = (a[1] as Color).lerp(b[1], w)
+	sky_mat.sky_horizon_color = horizon
+	sky_mat.ground_horizon_color = horizon
+	sky_mat.ground_bottom_color = horizon
+	env.fog_light_color = horizon
+	env.ambient_light_energy = lerpf(a[5], b[5], w)
+	sun.light_color = (a[3] as Color).lerp(b[3], w)
+	sun.light_energy = lerpf(a[4], b[4], w)
+	var elev := deg_to_rad(lerpf(a[6], b[6], w))
+	var east := Vector3(-1.0, 0.0, -0.45).normalized()
+	var to_sun := east * cos(elev) + Vector3.UP * sin(elev)
+	var q := Basis.looking_at(-to_sun, Vector3.UP).get_rotation_quaternion()
+	# (from the low dawn sun round to the usual morning one over the last quarter)
+	sun.quaternion = q.slerp(_day_q, clampf((u - 0.75) / 0.25, 0.0, 1.0))
+
+func _update_daylight(delta: float) -> void:
+	if not is_dawn():
+		if _day_u < 1.0:
+			_day_u = move_toward(_day_u, 1.0, delta * 0.5)
+	else:
+		match phase:
+			"pour":
+				_day_u = maxf(_day_u, minf(1.0, _filled_ratio()))
+			"screed", "cure", "topout":
+				_day_u = move_toward(_day_u, 1.0, delta * 0.25)
+			_:
+				_day_u = 0.0
+	_apply_daylight(_day_u)
+	var want := is_dawn() and _day_u < SUNRISE_U and phase in ["columns", "deck", "inspect", "pour"]
+	if want != _floods_on:
+		if _floods.is_empty():
+			_build_floods()
+		_floods_on = want
+		for f in _floods:
+			(f["node"] as Node3D).visible = want
+		if not want and phase == "pour":
+			sfx.hit("thunk")
+			hud.toast("%s · sun's up over Bulimba. Floodlights off." % dawn_clock(), 3.0)
+	if _floods_on:
+		for f in _floods:
+			if f["deck"]:
+				(f["node"] as Node3D).position.y = work_y
+
+# ------------------------------------------------------------------ sign the slab
+
+## The top slab's last wet corner, before it goes off: everyone signs it. A
+## square each, one per job: people draw on their phone (or with the stick and
+## A on a keyboard or pad, X when done), bots and anyone who doesn't draw leave
+## a handprint, and each square gets its name pressed in under it. It stays in
+## the roof for the fly-past and the skyline view.
+const INK_PX := Vector2i(768, 512)
+const INK_SIZE := Vector2(6.0, 4.0)        # m on the slab
+const INK_TIME := 35.0                     # s at most
+const INK_BOTS := 3.0                      # s for an all-bot crew
+const INK_R := 7                           # px, the groove's radius
+const INK_ROLES := ["boom", "line", "pump", "hose", "poker", "screed"]
+var _ink_rim: Image                        # the light edge each groove throws up
+var _ink_cut: Image                        # the groove itself
+var _ink_img: Image
+var _ink_tex: ImageTexture
+var _ink_node: Node3D
+var _ink_dirty := false
+var _ink_last := {}                        # player -> last point (cell 0..1), or absent
+var _ink_drew := {}                        # player -> they've drawn something
+var _ink_done := {}                        # player -> said they're finished
+var _ink_cursor := {}                      # player -> cursor for stick drawing (cell 0..1)
+var _ink_marks := {}                       # player -> MeshInstance3D, the stick cursor
+var _ink_saved := []                       # [cam_pitch, cam_yaw] before the close-up
+
+func ink_centre() -> Vector3:
+	# (the front corner away from the boom tower, clear of the end hose
+	# where the boom rests)
+	return Vector3(SC.x - BW * 0.5 + INK_SIZE.x * 0.5 + 2.0, floors() * FH + 0.07, SC.z + BD * 0.5 - INK_SIZE.y * 0.5 - 1.0)
+
+func ink_left() -> float:
+	return maxf(0.0, (INK_BOTS if crew.humans().is_empty() else INK_TIME) - phase_t) if phase == "sign" else 0.0
+
+func _ink_cell(p) -> Rect2i:
+	var i := INK_ROLES.find(p.role)
+	var w := INK_PX.x / 3
+	var h := INK_PX.y / 2
+	return Rect2i((i % 3) * w, (i / 3) * h, w, h)
+
+func _start_sign() -> void:
+	_ink_rim = Image.create(INK_PX.x, INK_PX.y, false, Image.FORMAT_RGBA8)
+	_ink_cut = Image.create(INK_PX.x, INK_PX.y, false, Image.FORMAT_RGBA8)
+	_ink_img = Image.create(INK_PX.x, INK_PX.y, false, Image.FORMAT_RGBA8)
+	_ink_tex = ImageTexture.create_from_image(_ink_img)
+	_ink_node = Node3D.new()
+	_ink_node.position = ink_centre()
+	building.add_child(_ink_node)
+	var q := MeshInstance3D.new()
+	var pm := PlaneMesh.new()
+	pm.size = INK_SIZE
+	q.mesh = pm
+	var m := StandardMaterial3D.new()
+	m.albedo_texture = _ink_tex
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.roughness = 1.0
+	q.material_override = m
+	_ink_node.add_child(q)
+	# Each square's name, pressed in along its bottom edge
+	for p in players:
+		var cell := _ink_cell(p)
+		var lab := Label3D.new()
+		lab.text = String(p.char_name).to_upper()
+		lab.font_size = 64
+		lab.pixel_size = 0.004
+		lab.modulate = Color("5f5a52")
+		lab.outline_size = 0
+		lab.rotation_degrees = Vector3(-90, 0, 0)
+		var cx := (cell.position.x + cell.size.x * 0.5) / float(INK_PX.x) - 0.5
+		var cz := (cell.position.y + cell.size.y * 0.9) / float(INK_PX.y) - 0.5
+		lab.position = Vector3(cx * INK_SIZE.x, 0.01, cz * INK_SIZE.y)
+		_ink_node.add_child(lab)
+	_ink_last = {}
+	_ink_drew = {}
+	_ink_done = {}
+	_ink_cursor = {}
+	for p in players:
+		if p.bot:
+			_ink_done[p] = true
+	_ink_saved = [cam_pitch, cam_yaw]
+	# (the slab report comes up once it's signed)
+	hud.card_away = true
+	hud.toast("Sign the slab! Draw on your phone (keyboard: stick and A, X when done)", 4.0)
+	sfx.hit("chime")
+	_set_phase("sign")
+
+## A point of someone's drawing, 0..1 across their square (as the phone's
+## square), into the part of it above the name.
+func _ink_map(at: Vector2) -> Vector2:
+	return Vector2(0.04 + clampf(at.x, 0.0, 1.0) * 0.92, 0.04 + clampf(at.y, 0.0, 1.0) * 0.8)
+
+## A point of someone's drawing, `at` 0..1 across their square.
+func ink_point(p, at: Vector2) -> void:
+	if phase != "sign" or p == null or _ink_done.get(p, false):
+		return
+	var cell := _ink_cell(p)
+	at = _ink_map(at)
+	var px := Vector2(cell.position) + at * Vector2(cell.size)
+	var last = _ink_last.get(p)
+	if last == null:
+		_ink_stamp(px)
+	else:
+		var a: Vector2 = Vector2(cell.position) + (last as Vector2) * Vector2(cell.size)
+		var n := maxi(1, int(a.distance_to(px) / 2.0))
+		for i in n:
+			_ink_stamp(a.lerp(px, float(i + 1) / n))
+	_ink_last[p] = at
+	_ink_drew[p] = true
+
+func ink_up(p) -> void:
+	_ink_last.erase(p)
+
+func ink_clear(p) -> void:
+	if phase != "sign" or p == null or _ink_done.get(p, false):
+		return
+	var cell := _ink_cell(p)
+	_ink_rim.fill_rect(cell, Color(0, 0, 0, 0))
+	_ink_cut.fill_rect(cell, Color(0, 0, 0, 0))
+	_ink_last.erase(p)
+	_ink_drew.erase(p)
+	_ink_dirty = true
+
+func ink_done(p) -> void:
+	if phase == "sign" and p != null:
+		_ink_done[p] = true
+		_ink_last.erase(p)
+
+## One dab of the groove: a light rim thrown up down-right, the cut darker.
+func _ink_stamp(c: Vector2) -> void:
+	var r := INK_R
+	for dy in range(-r - 2, r + 3):
+		for dx in range(-r - 2, r + 3):
+			var x := int(c.x) + dx
+			var y := int(c.y) + dy
+			if x < 0 or y < 0 or x >= INK_PX.x or y >= INK_PX.y:
+				continue
+			var d := Vector2(dx, dy).length()
+			if d <= r - 1:
+				_ink_cut.set_pixel(x, y, Color(0.36, 0.34, 0.31, 0.92))
+			var dr := Vector2(dx - 2, dy - 2).length()
+			if dr <= r:
+				_ink_rim.set_pixel(x, y, Color(0.80, 0.78, 0.74, 0.85))
+	_ink_dirty = true
+
+## A handprint in the middle of someone's square.
+func _ink_hand(p) -> void:
+	var cell := _ink_cell(p)
+	var c := Vector2(cell.position) + Vector2(cell.size) * Vector2(0.5, 0.5)
+	var rot := randf_range(-0.4, 0.4)
+	var parts := [[Vector2(0, 18), Vector2(34, 40)], [Vector2(-34, -38), Vector2(8, 22)], [Vector2(-13, -52), Vector2(8, 24)],
+		[Vector2(10, -53), Vector2(8, 24)], [Vector2(31, -42), Vector2(7, 20)], [Vector2(48, 8), Vector2(7, 18)]]
+	for part in parts:
+		var at: Vector2 = c + (part[0] as Vector2).rotated(rot)
+		var rr: Vector2 = part[1]
+		var step := 6.0
+		var y := -rr.y
+		while y <= rr.y:
+			var x := -rr.x
+			while x <= rr.x:
+				if (x * x) / (rr.x * rr.x) + (y * y) / (rr.y * rr.y) <= 1.0:
+					_ink_stamp(at + Vector2(x, y).rotated(rot))
+				x += step
+			y += step
+
+func _update_sign(delta: float) -> void:
+	# Close in over the square, looking down on it
+	cam_pitch = lerpf(cam_pitch, 1.05, minf(1.0, delta * 2.0))
+	if autotest and shot_dir != "":
+		# (dev: the boom bot "draws" a star, so a screenshot shows a drawing
+		# beside the handprints)
+		var pb = crew.crew["boom"]
+		var u := clampf(phase_t / 2.0, 0.0, 1.0)
+		var pts: Array = []
+		for i in 6:
+			var a := -PI * 0.5 + i * TAU * 2.0 / 5.0
+			pts.append(Vector2(0.5, 0.5) + Vector2(cos(a), sin(a)) * 0.42)
+		var at: float = u * 5.0
+		var seg := mini(4, int(at))
+		_ink_done[pb] = false
+		ink_point(pb, (pts[seg] as Vector2).lerp(pts[seg + 1], at - seg))
+		_ink_done[pb] = true
+	# Stick drawing for everyone not on a phone
+	for p in humans():
+		if p.remote_id >= 0 or _ink_done.get(p, false):
+			if _ink_marks.has(p):
+				(_ink_marks[p] as Node3D).visible = false
+			continue
+		var cur: Vector2 = _ink_cursor.get(p, Vector2(0.5, 0.5))
+		var mv: Vector2 = p.move_input()
+		cur = (cur + mv * delta * 0.6).clamp(Vector2.ZERO, Vector2.ONE)
+		_ink_cursor[p] = cur
+		if p.action_held():
+			ink_point(p, cur)
+		else:
+			ink_up(p)
+		if p.alt_pressed():
+			ink_done(p)
+		if not _ink_marks.has(p):
+			var mk := MeshInstance3D.new()
+			var sm := SphereMesh.new()
+			sm.radius = 0.09
+			sm.height = 0.18
+			mk.mesh = sm
+			mk.material_override = F.color_mat(p.tag_color)
+			_ink_node.add_child(mk)
+			_ink_marks[p] = mk
+		var cell := _ink_cell(p)
+		var uv := (Vector2(cell.position) + _ink_map(cur) * Vector2(cell.size)) / Vector2(INK_PX)
+		(_ink_marks[p] as Node3D).visible = true
+		(_ink_marks[p] as Node3D).position = Vector3((uv.x - 0.5) * INK_SIZE.x, 0.08, (uv.y - 0.5) * INK_SIZE.y)
+		p.cue("A", "Draw", -1.0, false)
+		p.cue("X", "Done", -1.0, false)
+	var all_done := true
+	for p in humans():
+		if not _ink_done.get(p, false):
+			all_done = false
+	if all_done and phase_t > (INK_BOTS if crew.humans().is_empty() else 1.0) or ink_left() <= 0.0:
+		_end_sign()
+	if _ink_dirty:
+		_ink_dirty = false
+		_ink_img.copy_from(_ink_rim)
+		_ink_img.blend_rect(_ink_cut, Rect2i(Vector2i.ZERO, INK_PX), Vector2i.ZERO)
+		_ink_tex.update(_ink_img)
+
+func _end_sign() -> void:
+	for p in players:
+		if not _ink_drew.get(p, false):
+			_ink_hand(p)
+	for p in _ink_marks:
+		(_ink_marks[p] as Node3D).queue_free()
+	_ink_marks = {}
+	_ink_img.copy_from(_ink_rim)
+	_ink_img.blend_rect(_ink_cut, Rect2i(Vector2i.ZERO, INK_PX), Vector2i.ZERO)
+	_ink_tex.update(_ink_img)
+	if not _ink_saved.is_empty():
+		cam_pitch = _ink_saved[0]
+	hud.card_away = false
+	sfx.hit("ding")
+	_finish_screed()
+
+## The screed's done: the slab goes off and the report comes up.
+func _finish_screed() -> void:
+	_lock_slab(k)
+	pour.visible = false
+	sfx.hit("ding")
+	_set_phase("cure")
+
+# ------------------------------------------------------------------ the fly-past
+
+## Topped out: a CityCat comes down the river past Riverlight, the camera
+## rides behind it, then lifts off the water, up the tower to the signed
+## corner of the roof. Any A skips it.
+const FLY_T := 18.0
+## [s, camera (surroundings frame: from Riverlight's middle, x west, z north)]
+## (the first two ride behind the boat and out on the river side, so it's
+## in the shot, between the camera and the tower)
+const FLY_BOAT := Vector3(420, 0, -400)    # where the boat starts, going downstream at 12 m/s
+const FLY_KEYS := [[0.0, Vector3(445, 9, -422)], [6.0, Vector3(373, 9, -422)], [10.0, Vector3(170, 20, -300)],
+	[14.0, Vector3(50, 42, -95)], [18.0, Vector3(0, 0, 0)]]
+var _fly_on := false
+var _fly_t := 0.0
+var _fly_boat: Node3D
+var _topout_text := ""
+
+func _start_fly() -> void:
+	_fly_on = true
+	_fly_t = 0.0
+	_fly_boat = Node3D.new()
+	var navy := F.mat("citycat_blue")
+	for z in [-2.6, 2.6]:
+		_fly_boat.add_child(F.box(Vector3(25, 1.6, 1.8), navy, Vector3(0, 0.6, z)))
+	_fly_boat.add_child(F.box(Vector3(24, 1.4, 7.0), F.mat("white"), Vector3(0, 1.9, 0)))
+	_fly_boat.add_child(F.box(Vector3(18, 1.3, 6.4), F.color_mat(Color("2a3a48")), Vector3(-1.0, 3.2, 0)))
+	_fly_boat.add_child(F.box(Vector3(19, 0.35, 6.8), F.mat("white"), Vector3(-1.0, 4.0, 0)))
+	_fly_boat.add_child(F.box(Vector3(24.2, 0.4, 7.05), navy, Vector3(0, 2.3, 0)))
+	# (heading downstream, east: -x)
+	_fly_boat.rotation.y = PI
+	add_child(_fly_boat)
+	hud.toast("Topped out! Press A to skip", 3.0)
+
+func _fly_point(t: float) -> Vector3:
+	var keys: Array = FLY_KEYS.duplicate(true)
+	keys[keys.size() - 1][1] = ink_centre() + REAL_ORIGIN + Vector3(5.0, 8.0, 7.0)
+	var i := 0
+	while i < keys.size() - 2 and t > keys[i + 1][0]:
+		i += 1
+	var u := clampf((t - keys[i][0]) / (keys[i + 1][0] - keys[i][0]), 0.0, 1.0)
+	var p0: Vector3 = keys[maxi(0, i - 1)][1]
+	var p1: Vector3 = keys[i][1]
+	var p2: Vector3 = keys[i + 1][1]
+	var p3: Vector3 = keys[mini(keys.size() - 1, i + 2)][1]
+	# (Catmull-Rom, so it never stops dead at a key)
+	var u2 := u * u
+	var u3 := u2 * u
+	return -REAL_ORIGIN + 0.5 * (2.0 * p1 + (p2 - p0) * u + (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * u2 + (3.0 * p1 - p0 - 3.0 * p2 + p3) * u3)
+
+func _update_fly(delta: float) -> void:
+	_fly_t += delta
+	if _fly_boat != null:
+		_fly_boat.position = -REAL_ORIGIN + FLY_BOAT + Vector3(-12.0 * _fly_t, 0.0, 0.0)
+	if _fly_t >= FLY_T or (_human_a and _fly_t > 0.5):
+		_end_fly()
+
+func _fly_camera() -> void:
+	camera.position = _fly_point(_fly_t)
+	var tower := -REAL_ORIGIN + Vector3(0, floors() * FH * 0.7, 0)
+	var look := tower.lerp(ink_centre(), smoothstep(12.0, 17.0, _fly_t))
+	camera.look_at(look, Vector3.UP)
+
+func _end_fly() -> void:
+	_fly_on = false
+	if _fly_boat != null:
+		_fly_boat.queue_free()
+		_fly_boat = null
+	skyline = true
+	hud.show_topout(_topout_text)
 
 func _build_world() -> void:
 	# The real place: the river, the park, the neighbours, Bulimba over the
@@ -1591,6 +2042,13 @@ func _level_cfg(level: int) -> Dictionary:
 	c["defect"] = level == 1 or (level >= 2 and randf() < 0.35)
 	c["gusty"] = level >= 4 and randf() < 0.2
 	c["gust_at"] = randf_range(12.0, 30.0)
+	c["dawn"] = level == DAWN_LEVEL or (_dawn_flag and level == maxi(0, _start_level - 1))
+	if c["dawn"]:
+		# (the trucks run before the traffic, and it's cool before sunrise)
+		c["traffic"] = 1.0
+		c["late"] = 0.0
+		c["temp"] = mini(temp, 22)
+		c["open"] = 44.0 - (c["temp"] - 21) * 1.0
 	if tutorial:
 		# A mild, still day with nothing extra going on
 		c["temp"] = 22
@@ -1600,6 +2058,7 @@ func _level_cfg(level: int) -> Dictionary:
 		c["late"] = 0.0
 		c["defect"] = false
 		c["gusty"] = false
+		c["dawn"] = false
 	return c
 
 ## The toolbox talk before a pour: the day's conditions as chips, the pour
@@ -1608,6 +2067,9 @@ func _toolbox(wait: bool) -> Dictionary:
 	var chips: Array = []
 	var notes: Array = []
 	var t: int = cfg["temp"]
+	if is_dawn():
+		chips.append(["DAWN POUR · 5:10 AM", "warn"])
+		notes.append("Big pour, so it starts in the dark under the floodlights. The sun comes up over Bulimba as the slab fills: by full light it should be in.")
 	if t >= 31:
 		chips.append(["HOT · %d°C" % t, "hot"])
 		notes.append("Concrete goes off fast: about %ds to keep an edge wet. Started at first light." % int(cfg["open"]))
@@ -1748,6 +2210,8 @@ func _start_pour() -> void:
 	line._arrive_t = line.interval
 	ops.start_pour()
 	hud.show_brief(false)
+	if is_dawn():
+		hud.toast("%s · first truck, under the floodlights" % dawn_clock(), 3.0)
 	engineer.visible = false
 	defect.visible = false
 	_set_phase("pour")
@@ -2007,13 +2471,18 @@ func _top_out() -> void:
 	var kit_line := Settings.branded("SCP kit: Putzmeister MX42 placing boom on a free-standing lattice tower, 10 sections to a 41.4 m free-stand, with SCP's self-climbing frame")
 	if kit == "truck":
 		kit_line = Settings.branded("You ran a truck boom. SCP actually used a Putzmeister MX42 placing boom on a 41.4 m free-standing lattice tower here.")
-	hud.show_topout(
+	_topout_text = (
 		Settings.branded("Riverlight, Hamilton Reach Stage 7 · completed 2018\n") +
 		"11 levels · 10,000 m³ pumped · 57 m vertical pumping\n" +
 		kit_line + "\n" +
 		Settings.branded("Main contractor: Watpac Construction\n\n") +
 		"Your crew: %s points · %s\n%s%s" % [hud._thousands(score.total), score.rank_name(), medal_line, _people_line()] +
 		"Press R to pour it again · Tab to toggle the skyline view")
+	if _ink_node != null:
+		# (the signed square's bare concrete, left clear of the membrane)
+		_ink_node.add_child(F.box(Vector3(INK_SIZE.x + 0.3, 0.012, INK_SIZE.y + 0.3), F.color_mat(Color("a8a49b")), Vector3(0, -0.008, 0), false))
+	skyline = false
+	_start_fly()
 
 ## The finished roof of both wings: grey membrane, a white parapet, plant
 ## rooms, the lift overrun and rows of solar panels
@@ -2118,7 +2587,8 @@ func _process(delta: float) -> void:
 		var tired: float = 0.75 if _weary_all else 0.0
 		p.weary = move_toward(p.weary, tired, delta * 0.6)
 		p.speed = 6.0 * screed.speed_k(p) * poker.speed_k(p) * (HOSE_WALK_K if p.busy == "hose" else 1.0)
-		p.walk(delta, Callable(self, "_walkable").bind(p), cam_yaw)
+		if phase != "sign":
+			p.walk(delta, Callable(self, "_walkable").bind(p), cam_yaw)
 		if tutorial and p.zone == "deck" and p.busy == "" and not _walkable(p.position, "deck"):
 			# Never left standing off the edge of the round deck
 			var flat := Vector2(p.position.x, p.position.z)
@@ -2136,7 +2606,8 @@ func _process(delta: float) -> void:
 		_cover(p, delta)
 		if not p.bot and not p.covering and p.action_pressed():
 			_human_a = true
-		_handle_player(p, delta)
+		if phase != "sign":
+			_handle_player(p, delta)
 		p.end_frame()
 	if autotest and phase == "columns" and k == 0 and OS.get_cmdline_user_args().has("--skip") and kit == "tower":
 		_dev_skip(CLIMB_LEVELS[0])
@@ -2151,6 +2622,7 @@ func _process(delta: float) -> void:
 	line.update(delta, phase == "pour")
 	poker.update(delta)
 	screed.update(delta)
+	_update_site_band(delta)
 	var see_p := false
 	var see_s := false
 	for h in humans():
@@ -2207,10 +2679,12 @@ func _process(delta: float) -> void:
 				pour.screed(1.0, delta)
 				pour.set_cured(clampf((phase_t - 1.6) / 0.7, 0.0, 1.0))
 			if phase_t > 2.4:
-				_lock_slab(k)
-				pour.visible = false
-				sfx.hit("ding")
-				_set_phase("cure")
+				if k == floors() - 1 and not tutorial:
+					_start_sign()
+				else:
+					_finish_screed()
+		"sign":
+			_update_sign(delta)
 		"cure":
 			if k >= FACADE_LAG:
 				for fname in ["Facade", "OtherFacade"]:
@@ -2235,9 +2709,12 @@ func _process(delta: float) -> void:
 				else:
 					_start_floor()
 		"topout":
+			if _fly_on:
+				_update_fly(delta)
 			# (the vista shots wait for 1.5s, so hang on for them)
 			var vistas: bool = "vista" in _shot_only or "vista2" in _shot_only or _next_ext() != ""
-			if autotest and phase_t > (2.5 + 0.3 * EXT_SHOTS.size() if vistas else 1.0):
+			var fly_shots: bool = "fly1" in _shot_only or "fly2" in _shot_only or "fly3" in _shot_only
+			if autotest and not (_fly_on and fly_shots) and phase_t > (2.5 + 0.3 * EXT_SHOTS.size() if vistas else 1.0):
 				print("[autotest] TOPPED OUT with %d points (%s) in %d frames (kit %s)" % [score.total, score.rank_name(), _frames, kit])
 				get_tree().quit(0)
 
@@ -2255,6 +2732,7 @@ func _process(delta: float) -> void:
 	_update_stations()
 	_update_signs(delta)
 	_update_hud()
+	_update_daylight(delta)
 	coach.update(delta)
 	_update_camera(delta)
 	_update_see_through(delta)
@@ -2550,6 +3028,41 @@ var _frame_ms := 0.0
 var _frame_us := 0
 var _weary_all := OS.get_cmdline_user_args().has("--weary")
 var _bot_badges := OS.get_cmdline_user_args().has("--botcues")   # dev: show bots' cues in the close-ups
+
+## The Site Band (sfx.gd): each job's part plays while that job's working,
+## and keeps going a moment after, so a short pause doesn't stutter.
+const BAND_HOLD := 2.5
+var _band_hold := {}
+var _band_tip := Vector3.ZERO
+
+func _update_site_band(delta: float) -> void:
+	sfx.band_on = bool(Settings.value("band"))
+	sfx.band_live = phase == "pour" and ops != null and ops.primed
+	# (the stroke's thump and a worn clamp's rattle)
+	sfx.pumping = line != null and line.pumping and phase == "pour"
+	sfx.rattle = line.wear if line != null and line.fail_i >= 0 and line.pumping else 0.0
+	var tip_v := (tip_pos - _band_tip).length() / maxf(delta, 0.001)
+	_band_tip = tip_pos
+	var th = crew.crew.get("line")
+	var truck_busy := false
+	for t in line.trucks:
+		if t["state"] in ["back", "check", "water"]:
+			truck_busy = true
+	var working := {
+		"pump": line.pumping,
+		"hose": hose_holder != null and hose_call,
+		"poker": sfx.rumble > 0.05,
+		"screed": screed._working,
+		"line": truck_busy or (th != null and (th._moving or th.busy != "")),
+		"boom": tip_v > 0.25,
+	}
+	for lane in working:
+		var hold: float = _band_hold.get(lane, 0.0)
+		hold = BAND_HOLD if working[lane] else maxf(0.0, hold - delta)
+		_band_hold[lane] = hold
+		sfx.band[lane] = 1.0 if hold > 0.0 else 0.0
+	if hud != null:
+		hud.set_band(sfx, sfx.band_on and phase == "pour")
 
 func _on_whip() -> void:
 	# Air in the line lets go at the hose: the end hose thrashes and sprays
@@ -3869,10 +4382,17 @@ func _update_hud() -> void:
 				hud.set_task("Start-up · prime the line", ("%s · %s" % [tk2[0], tk2[1]]) if not tk2.is_empty() else "")
 				hud.set_progress(float(tk2[3]) if not tk2.is_empty() else 0.0)
 			else:
-				hud.set_task("Pour · bay %d of %d" % [pour.cur_bay + 1, pour.BAYS], sub)
+				hud.set_task(("%s · " % dawn_clock() if is_dawn() else "") + "Pour · bay %d of %d" % [pour.cur_bay + 1, pour.BAYS], sub)
 				hud.set_progress(_filled_ratio())
 		"screed", "cure":
 			hud.set_task("")   # (the slab report's up)
+		"sign":
+			var left := 0
+			for p in humans():
+				if not _ink_done.get(p, false):
+					left += 1
+			hud.set_task("Sign the slab · %ds" % int(ceil(ink_left())), "Draw on your phone. Keyboard or pad: stick and A to draw, X when done." if left > 0 else "Pressing it in...")
+			hud.set_progress(1.0 - ink_left() / INK_TIME)
 		"topout":
 			hud.set_task("Topped out")
 			hud.set_progress(1.0)
@@ -4091,7 +4611,7 @@ func _update_camera(delta: float) -> void:
 		apart = work_y >= SPLIT_Y or ua.distance_to(da) > SPLIT_DIST
 	# (and not while the slab report's up: it needs the whole screen)
 	var split_on: bool = Settings.value("split")
-	var want_split := split_on and apart and not skyline and not (phase in ["roles", "select", "topout", "screed", "cure"])
+	var want_split := split_on and apart and not skyline and not (phase in ["roles", "select", "topout", "screed", "sign", "cure"])
 	_split = move_toward(_split, 1.0 if want_split else 0.0, delta * 1.4)
 	var split_e := ease(_split, -1.8)
 	var main_follow: Array = []
@@ -4172,6 +4692,8 @@ func _update_camera(delta: float) -> void:
 		cam_focus = _shot_cam[0]
 		camera.position = cam_focus + off.normalized() * float(_shot_cam[1])
 	camera.look_at(cam_focus, Vector3.UP)
+	if _fly_on:
+		_fly_camera()
 	# The deck view shifts up into the top part of the screen as the band opens
 	camera.v_offset = -0.34 * split_e * camera.position.distance_to(cam_focus) * tan(deg_to_rad(camera.fov * 0.5))
 	_update_band(delta, down, mid, split_e)
@@ -4454,6 +4976,22 @@ func _maybe_shot() -> void:
 		key = "align"
 	elif climb.active and climb.stage == "jack" and k == 9 and climb.lifted > 2.0:
 		key = "jack"
+	elif "dawn1" in _shot_only and phase == "pour" and is_dawn() and _filled_ratio() > 0.06 and not _shots_taken.has("dawn1"):
+		key = "dawn1"
+	elif "dawn2" in _shot_only and phase == "pour" and is_dawn() and _filled_ratio() > 0.5 and not _shots_taken.has("dawn2"):
+		key = "dawn2"
+	elif "dawn3" in _shot_only and phase == "pour" and is_dawn() and _filled_ratio() > 0.93 and not _shots_taken.has("dawn3"):
+		key = "dawn3"
+	elif "sign" in _shot_only and phase == "sign" and phase_t > 2.5 and not _shots_taken.has("sign"):
+		key = "sign"
+	elif "signed" in _shot_only and phase == "cure" and _ink_node != null and phase_t > 0.3 and not _shots_taken.has("signed"):
+		key = "signed"
+	elif _fly_on and "fly1" in _shot_only and _fly_t > 3.5 and not _shots_taken.has("fly1"):
+		key = "fly1"
+	elif _fly_on and "fly2" in _shot_only and _fly_t > 10.0 and not _shots_taken.has("fly2"):
+		key = "fly2"
+	elif _fly_on and "fly3" in _shot_only and _fly_t > 16.8 and not _shots_taken.has("fly3"):
+		key = "fly3"
 	elif phase == "topout" and phase_t > 1.5 and "vista" in _shot_only and not _shots_taken.has("vista"):
 		key = "vista"
 	elif phase == "topout" and phase_t > 1.5 and "vista2" in _shot_only and not _shots_taken.has("vista2"):
@@ -4489,6 +5027,8 @@ func _maybe_shot() -> void:
 		_shot_cam = [subject.global_position + Vector3(0, 1.2, 0), dist]
 	if key == "layout":
 		_shot_cam = [Vector3(19.5, 0.0, 7.0), 24.0]
+	if key in ["sign", "signed"]:
+		_shot_cam = [ink_centre(), 8.5]
 	if key in ["startup", "washout"] and _cam_roles.is_empty():
 		_shot_cam = [ops.bin_world() + Vector3(-1.5, -0.5, 1.0), 12.0]
 	if key == "hose":
