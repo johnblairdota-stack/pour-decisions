@@ -36,7 +36,7 @@ const PAGE := """<!doctype html>
 @font-face{font-family:"Barlow";src:url(/font/body.ttf) format("truetype");font-weight:600;font-display:swap}
 :root{--bg:#0b0c10;--card:#15171d;--track:#1a1d24;--bone:#f4f2ec;--muted:#9a978f;--dim:#5d606b;--gold:#ffd23f;--alarm:#ff3b2f;--done:#4fb36b;--paper:#f3efe4;--job:#ffc72c;--me:#3d8bff}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;touch-action:none}
-html,body{margin:0;height:100%;background:var(--bg);color:var(--bone);font-family:Barlow,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-weight:600;overflow:hidden}
+html,body{margin:0;height:100%;touch-action:none;-webkit-text-size-adjust:100%;text-size-adjust:100%;overscroll-behavior:none;position:fixed;inset:0;width:100%;background:var(--bg);color:var(--bone);font-family:Barlow,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-weight:600;overflow:hidden}
 .hd{font-family:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;font-weight:800}
 button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer}
 .screen{position:fixed;inset:0;display:none}
@@ -745,6 +745,32 @@ document.addEventListener('fullscreenchange', () => { if (!(document.fullscreenE
 document.addEventListener('pointerdown', keepAwake, {passive: true});
 $('gate').addEventListener('pointerdown', () => { $('gate').style.display = 'none'; $('gate').dataset.done = '1'; goFull(); keepAwake(); setTimeout(fsShow, 400); });
 if (location.search.includes('nogate')) { $('gate').style.display = 'none'; $('gate').dataset.done = '1'; }
+// ---------------------------------------------------------------- no zooming (iPhone)
+// Safari on iOS ignores "user-scalable=no", so two thumbs on the screen at
+// once (the stick and a button) read as a pinch, and a quick double press
+// as a double-tap zoom: either zooms the controller off the edge. Block
+// both, and if the page ever does end up zoomed, snap it back.
+const vpMeta = document.querySelector('meta[name=viewport]');
+for (const ev of ['gesturestart', 'gesturechange', 'gestureend']) document.addEventListener(ev, (e) => e.preventDefault(), {passive: false});
+document.addEventListener('dblclick', (e) => e.preventDefault(), {passive: false});
+let lastTouchEnd = 0;
+document.addEventListener('touchend', (e) => { const now = Date.now(); if (now - lastTouchEnd < 350 && e.cancelable) e.preventDefault(); lastTouchEnd = now; }, {passive: false});
+document.addEventListener('touchmove', (e) => { if ((e.scale !== undefined && e.scale !== 1) && e.cancelable) e.preventDefault(); }, {passive: false});
+let zoomedAt = 0;
+function unzoom() {
+  const vv = window.visualViewport;
+  if (!vv || vv.scale <= 1.01) { zoomedAt = 0; return; }
+  // Still stuck after a few tries: reload. The page keeps its player token,
+  // so it rejoins as the same player on the same chibi.
+  if (!zoomedAt) zoomedAt = Date.now();
+  else if (Date.now() - zoomedAt > 2500) { zoomedAt = 0; location.reload(); return; }
+  // (re-setting the viewport tag makes Safari drop back to 1x)
+  const c = vpMeta.getAttribute('content');
+  vpMeta.setAttribute('content', c.replace('maximum-scale=1', 'maximum-scale=1.01'));
+  setTimeout(() => { vpMeta.setAttribute('content', c); window.scrollTo(0, 0); }, 50);
+}
+if (window.visualViewport) { visualViewport.addEventListener('resize', unzoom); visualViewport.addEventListener('scroll', unzoom); }
+setInterval(unzoom, 1000);
 connect();
 </script>
 </body>
