@@ -240,7 +240,8 @@ func _ready() -> void:
 	hud.visible = false   # (the front end comes first)
 	camera = Camera3D.new()
 	camera.fov = 50.0
-	camera.far = 3200.0   # the CBD and the Gateway Bridge are out in the haze
+	camera.near = 0.5      # (the default 5 cm loses the map's ground to the depth buffer this far out)
+	camera.far = 16000.0   # the CBD 6.4 km up the river, Mt Coot-tha at 13 km
 	add_child(camera)
 	sfx = SfxScript.new()
 	add_child(sfx)
@@ -363,7 +364,7 @@ func _build_environment() -> void:
 	env.glow_enabled = true
 	env.glow_intensity = 0.3
 	env.fog_enabled = true
-	env.fog_density = 0.0008
+	env.fog_density = 0.00015   # (a light haze: the city 6 km off still shows)
 	env.fog_light_color = Color("cfdfe8")
 	env.fog_sky_affect = 0.0
 	var we := WorldEnvironment.new()
@@ -491,6 +492,8 @@ func _update_daylight(delta: float) -> void:
 			_:
 				_day_u = 0.0
 	_apply_daylight(_day_u)
+	if pour != null and pour.smat != null:
+		pour.smat.set_shader_parameter("low_light", 1.0 - smoothstep(0.35, 0.8, _day_u))
 	var want := is_dawn() and _day_u < SUNRISE_U and phase in ["columns", "deck", "inspect", "pour"]
 	if want != _floods_on:
 		if _floods.is_empty():
@@ -4174,8 +4177,16 @@ func _update_stations() -> void:
 		# start-up's sign over the bin)
 		(st["label"] as Node3D).visible = (on or near) and not _signed_keys.has(key) and not (key == "bin" and ops.wants_bin())
 		ring.scale = Vector3.ONE * (pulse if on else 1.0)
-		m.albedo_color = Color(col, 0.9 if on else 0.4)
-		(st["xmat"] as StandardMaterial3D).albedo_color = Color(col, 0.35 if on else 0.15)
+		# A spot right under the camera (the deck view zooms in on the bin for
+		# the start-up, with the poker's spot beside it) fades out rather than
+		# filling the screen; and the poker's spot is off till there's
+		# concrete to vibrate
+		var fade := clampf((camera.global_position.distance_to(ring.global_position) - 4.0) / 6.0, 0.0, 1.0)
+		if key == "poker" and phase == "pour" and ops.busy():
+			fade = 0.0
+		ring.visible = fade > 0.01
+		m.albedo_color = Color(col, (0.9 if on else 0.4) * fade)
+		(st["xmat"] as StandardMaterial3D).albedo_color = Color(col, (0.35 if on else 0.15) * fade)
 
 func _update_npcs(delta: float) -> void:
 	var on := phase == "pour"
@@ -4493,6 +4504,9 @@ const EXT_SHOTS := {
 	"ext_s": [PI, -0.05, 12.0, 75.0], "ext_e": [-PI * 0.5, -0.05, 12.0, 80.0],
 	"ext_sw": [PI * 0.75, 0.05, 14.0, 85.0], "ext_ne": [-PI * 0.25, 0.05, 14.0, 85.0],
 	"aerial": [PI * 0.9, 1.25, 0.0, 130.0],
+	# Looking out from the roof (target x, z; the camera stands on the roof)
+	"sky_city": [Vector2(4928, -4050)], "sky_gate": [Vector2(-1984, 14)],
+	"sky_north": [Vector2(-300, 3000)], "sky_south": [Vector2(1200, -2400)],
 }
 func _next_ext() -> String:
 	for k in EXT_SHOTS:
@@ -4740,7 +4754,7 @@ func _update_camera(delta: float) -> void:
 		cam_focus = _shot_cam[0]
 		camera.position = cam_focus + off.normalized() * float(_shot_cam[1])
 	camera.look_at(cam_focus, Vector3.UP)
-	if _fly_on:
+	if _fly_on and _shot_cam.is_empty():
 		_fly_camera()
 	# The deck view shifts up into the top part of the screen as the band opens
 	camera.v_offset = -0.34 * split_e * camera.position.distance_to(cam_focus) * tan(deg_to_rad(camera.fov * 0.5))
@@ -5095,7 +5109,15 @@ func _maybe_shot() -> void:
 		cam_yaw = 1.4 if key == "vista" else -0.99
 		cam_pitch = 0.08
 		_shot_cam = [-REAL_ORIGIN + Vector3(0, 30, 0), 60.0]
-	if EXT_SHOTS.has(key):
+	if EXT_SHOTS.has(key) and EXT_SHOTS[key].size() == 1:
+		var t: Vector2 = EXT_SHOTS[key][0]
+		var roof := floors() * FH + 8.0
+		cam_yaw = atan2(-t.x, -t.y)
+		cam_pitch = -0.02
+		_shot_cam = [-REAL_ORIGIN + Vector3(t.x, roof + t.length() * 0.02, t.y), t.length()]
+		_shot_key_now = key
+		hud.visible = false
+	elif EXT_SHOTS.has(key):
 		var e: Array = EXT_SHOTS[key]
 		cam_yaw = e[0]
 		cam_pitch = e[1]
