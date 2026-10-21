@@ -355,7 +355,7 @@ Level 8 is a big pour, so it starts before sunrise: the first truck at 5:10 am u
 
 ## Sign the slab
 
-When the top slab's screeded, before it goes off, everyone signs it. The crew gets a square each, one per job, in the corner of the roof slab nearest the camera. People draw on their phone with a finger (CLEAR starts again, PRESS IT IN finishes), or with the stick and A on a keyboard or pad (X when done). Bots, and anyone who doesn't draw, leave a handprint, and each square has its name pressed in under it. Then a CityCat comes down the river past Riverlight: the camera rides behind it, lifts off the water and flies up the tower to the signed corner of the roof before the top-out card (A skips it).
+When the top slab's screeded, before it goes off, everyone playing signs it (bots don't). Each person gets a square in the front corner of the roof slab, as big as fits: one person gets one big square. People draw on their phone with a finger (CLEAR starts again, PRESS IT IN finishes), or with the stick and A on a keyboard or pad (X when done). Anyone who doesn't draw leaves a handprint, and each square has its name pressed in under it. The camera then holds on the finished square for a few seconds before the last slab report, whose button reads TOP OUT. Then a CityCat comes down the river past Riverlight: the camera rides behind it, lifts off the water and flies up the tower to the signatures, and stays there a few seconds before the top-out card (A skips it). With no one playing, there's no signing.
 
 ## Project layout
 
