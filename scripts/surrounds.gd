@@ -13,6 +13,8 @@ extends RefCounted
 const F := preload("res://scripts/factory.gd")
 
 const DATA := "res://data/riverlight_osm.json"
+const SKYLINE := "res://data/riverlight_skyline.json"   # tools/skyline_to_game.py
+const CITY := 7000.0          # the suburbs' houses reach out to here
 const NEAR := 1600.0          # the map data reaches this far
 const FAR := 2500.0           # the haze ring of houses goes out to here
 
@@ -48,9 +50,12 @@ const CONTAINERS := [Color("b04a3a"), Color("2f5f8f"), Color("6f7a72"), Color("c
 static func build(root: Node3D) -> void:
 	var ground := MeshInstance3D.new()
 	var pm := PlaneMesh.new()
-	pm.size = Vector2(8000, 8000)
+	pm.size = Vector2(40000, 40000)
 	ground.mesh = pm
 	ground.material_override = F.mat("grass")
+	# (sunk a little: with the camera reaching 16 km the map's own ground,
+	# 2 cm up, would fight it for the depth buffer)
+	ground.position.y = -0.4
 	root.add_child(ground)
 	# The game's truck lane in from the street
 	root.add_child(F.box(Vector3(TRUCK_ROAD.size.x, 0.05, TRUCK_ROAD.size.y), F.mat("road"),
@@ -70,7 +75,7 @@ static func build(root: Node3D) -> void:
 		for fe in d.get("ferry", []):
 			_terminal(root, fe)
 			_citycat(root, fe, d.get("cat_route", []))
-	_cbd(root, rng)
+	_skyline(root, rng)
 
 static func _load() -> Dictionary:
 	if not FileAccess.file_exists(DATA):
@@ -384,19 +389,135 @@ static func _vertex_mat() -> StandardMaterial3D:
 
 # ------------------------------------------------------------------ landmarks
 
-## The CBD, about 6 km to the west-south-west, brought in to 2.3 km so it shows
-## through the haze.
-static func _cbd(root: Node3D, rng: RandomNumberGenerator) -> void:
-	var centre := Vector3(4658, 0, -4413).normalized() * 2300.0
-	var tones := [Color("8fa6b8"), Color("a7b7c2"), Color("7d93a6"), Color("c3ccd2"), Color("9aa9b0")]
-	for i in 38:
-		var p := centre + Vector3(rng.randf_range(-260, 260), 0, rng.randf_range(-200, 200))
-		var near := 1.0 - clampf(p.distance_to(centre) / 300.0, 0.0, 1.0)
-		var h := rng.randf_range(40, 90) + near * rng.randf_range(60, 180)
-		var w := rng.randf_range(24, 44)
-		var b := F.box(Vector3(w, h, rng.randf_range(24, 44)), F.color_mat(tones[i % tones.size()]), p + Vector3(0, h * 0.5, 0), false)
-		b.rotation.y = rng.randf_range(-0.3, 0.3)
-		root.add_child(b)
+## The real skyline out to the city: every building 18 m and up from the map
+## (the CBD and Kangaroo Point 6-7 km up the river, Newstead and Teneriffe,
+## Portside, Bulimba), the river through its bends to the city, far
+## landmarks and the hills behind. Vertex coloured, windows from the shader.
+static func _skyline(root: Node3D, rng: RandomNumberGenerator) -> void:
+	if not FileAccess.file_exists(SKYLINE):
+		push_warning("surrounds: %s missing, no skyline" % SKYLINE)
+		return
+	var d: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(SKYLINE))
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for t in d["towers"]:
+		var poly := _v2(t["pts"])
+		if poly.size() < 3:
+			continue
+		var c := Color(t["c"])
+		_extrude(st, poly, float(t["h"]), c, c.darkened(0.12))
+	var towers := MeshInstance3D.new()
+	towers.mesh = st.commit()
+	var m := F.window_mat(Color.WHITE, 0.0, 0.0)
+	m.set_shader_parameter("vertex_tint", true)
+	m.set_shader_parameter("cell", Vector2(3.0, 3.2))
+	towers.material_override = m
+	towers.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	root.add_child(towers)
+	# The river up through Hamilton Reach and the bends to the city
+	var wt := SurfaceTool.new()
+	wt.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var wet: Array = []
+	for w in d["water"]:
+		var poly := _v2(w)
+		wet.append(poly)
+		_flat(wt, poly, GROUND_Y, Color.WHITE)
+	var water := MeshInstance3D.new()
+	water.mesh = wt.commit()
+	water.material_override = _water()
+	water.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	root.add_child(water)
+	# Suburbs: houses and trees thinning out to the edge of the haze, up over
+	# the hills
+	var hills: Array = d.get("hills", [])
+	var houses: Array = []
+	var trees: Array = []
+	for i in 9000:
+		var ang := rng.randf() * TAU
+		var r := sqrt(rng.randf_range(FAR * FAR, CITY * CITY))
+		var p := Vector2(cos(ang), sin(ang)) * r
+		var dry := true
+		for w in wet:
+			if Geometry2D.is_point_in_polygon(p, w):
+				dry = false
+				break
+		if not dry:
+			continue
+		var y := _hill_y(hills, p) - 0.5
+		if i % 3 == 0:
+			trees.append(Vector3(p.x, y, p.y))
+		else:
+			houses.append(Vector3(p.x, y, p.y))
+	# The Hamilton ridge close by is leafy streets: thick with trees
+	for h in hills:
+		var r := float(h["r"])
+		if r > 1200.0:
+			continue
+		var c := Vector2(h["at"][0], h["at"][1])
+		for i in int(r * r / 900.0):
+			var p := c + Vector2.from_angle(rng.randf() * TAU) * sqrt(rng.randf()) * r
+			var y := _hill_y(hills, p) - 0.5
+			if i % 4 == 0:
+				houses.append(Vector3(p.x, y, p.y))
+			else:
+				trees.append(Vector3(p.x, y, p.y))
+	_house_field(root, houses, rng)
+	_tree_field(root, trees, rng)
+	# Hills: soft green mounds (Mt Coot-tha, Mt Gravatt, the Hamilton ridge)
+	for h in hills:
+		var mound := MeshInstance3D.new()
+		var sm := SphereMesh.new()
+		sm.radius = float(h["r"])
+		sm.height = float(h["h"]) * 2.0
+		sm.is_hemisphere = true
+		sm.radial_segments = 32
+		sm.rings = 8
+		mound.mesh = sm
+		mound.position = Vector3(h["at"][0], -0.3, h["at"][1])
+		mound.material_override = F.color_mat(Color(h.get("c", "5f7f4a")))
+		mound.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		root.add_child(mound)
+	# Masts and far landmarks: the TV towers on Mt Coot-tha, the airport's
+	# control tower, Riparian Plaza's mast, the crane still on Skytower
+	for t in d.get("masts", []):
+		var h := float(t["h"])
+		var base := float(t.get("base", 0.0))
+		if h < 20.0 and base <= 0.0:
+			continue
+		var w := float(t.get("w", maxf(3.0, h * 0.04)))
+		var mat := F.color_mat(Color(t.get("c", "c8ccd0")))
+		var at := Vector3(t["at"][0], base, t["at"][1])
+		match t.get("kind", "mast"):
+			"gasholder":
+				# the gasholder's empty iron frame: posts round a ring, tied at the top
+				var span := TAU * w * 0.5 / 16.0
+				for k in 16:
+					var a := TAU * k / 16.0
+					var q := at + Vector3(cos(a), 0, sin(a)) * w * 0.5
+					root.add_child(F.box(Vector3(1.6, h, 1.6), mat, q + Vector3(0, h * 0.5, 0), false))
+					var a2 := a + TAU / 32.0
+					var tie := F.box(Vector3(1.2, 1.2, span), mat, at + Vector3(cos(a2), 0, sin(a2)) * w * 0.5 + Vector3(0, h - 0.6, 0), false)
+					tie.rotation.y = -a2
+					root.add_child(tie)
+			"gantry":
+				# a quayside container crane: legs, and the boom out over the water
+				root.add_child(F.box(Vector3(w, h * 0.6, w * 1.5), mat, at + Vector3(0, h * 0.3, 0), false))
+				root.add_child(F.box(Vector3(w * 4.0, 4.0, 5.0), mat, at + Vector3(0, h * 0.6, 0), false))
+			"crane":
+				root.add_child(F.box(Vector3(w, h, w), mat, at + Vector3(0, h * 0.5, 0), false))
+				root.add_child(F.box(Vector3(55.0, 2.5, 2.5), mat, at + Vector3(10.0, h, 0), false))
+			_:
+				root.add_child(F.box(Vector3(w, h, w), mat, at + Vector3(0, h * 0.5, 0), false))
+
+## How high the hills lift the ground at `p` (they're half ellipsoids).
+static func _hill_y(hills: Array, p: Vector2) -> float:
+	var y := 0.0
+	for h in hills:
+		var r := float(h["r"])
+		var k := p.distance_to(Vector2(h["at"][0], h["at"][1])) / r
+		if k < 1.0:
+			y = maxf(y, float(h["h"]) * sqrt(1.0 - k * k))
+	return y
 
 ## The Gateway Bridge (Sir Leo Hielscher Bridges), on the map's own line:
 ## twin concrete box girders, 1.6 km long, the deck 64.5 m over the river.
