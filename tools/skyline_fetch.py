@@ -96,6 +96,19 @@ def main():
     for i, t in enumerate(tiles):
         els = fetch(*t)
         nodes = {el["id"]: (el["lon"], el["lat"]) for el in els if el["type"] == "node"}
+        ways = {el["id"]: el for el in els if el["type"] == "way"}
+        # The river's outline: the member ways of its water relations
+        for el in els:
+            tags = el.get("tags", {})
+            if el["type"] == "relation" and (tags.get("water") == "river" or tags.get("waterway") == "riverbank"):
+                for m in el.get("members", []):
+                    w = ways.get(m["ref"]) if m["type"] == "way" else None
+                    key = "riverway/%d" % m["ref"]
+                    if w is None or key in found:
+                        continue
+                    pts = [nodes[nd] for nd in w.get("nodes", []) if nd in nodes]
+                    if len(pts) >= 2:
+                        found[key] = {"id": key, "tags": {"river_rel": str(el["id"]), "role": m.get("role", "")}, "line": pts}
         for el in els:
             tags = el.get("tags", {})
             if not wanted(tags):
