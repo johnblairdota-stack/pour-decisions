@@ -492,6 +492,8 @@ func _update_daylight(delta: float) -> void:
 			_:
 				_day_u = 0.0
 	_apply_daylight(_day_u)
+	if pour != null and pour.smat != null:
+		pour.smat.set_shader_parameter("low_light", 1.0 - smoothstep(0.35, 0.8, _day_u))
 	var want := is_dawn() and _day_u < SUNRISE_U and phase in ["columns", "deck", "inspect", "pour"]
 	if want != _floods_on:
 		if _floods.is_empty():
@@ -4134,8 +4136,16 @@ func _update_stations() -> void:
 		# start-up's sign over the bin)
 		(st["label"] as Node3D).visible = (on or near) and not _signed_keys.has(key) and not (key == "bin" and ops.wants_bin())
 		ring.scale = Vector3.ONE * (pulse if on else 1.0)
-		m.albedo_color = Color(col, 0.9 if on else 0.4)
-		(st["xmat"] as StandardMaterial3D).albedo_color = Color(col, 0.35 if on else 0.15)
+		# A spot right under the camera (the deck view zooms in on the bin for
+		# the start-up, with the poker's spot beside it) fades out rather than
+		# filling the screen; and the poker's spot is off till there's
+		# concrete to vibrate
+		var fade := clampf((camera.global_position.distance_to(ring.global_position) - 4.0) / 6.0, 0.0, 1.0)
+		if key == "poker" and phase == "pour" and ops.busy():
+			fade = 0.0
+		ring.visible = fade > 0.01
+		m.albedo_color = Color(col, (0.9 if on else 0.4) * fade)
+		(st["xmat"] as StandardMaterial3D).albedo_color = Color(col, (0.35 if on else 0.15) * fade)
 
 func _update_npcs(delta: float) -> void:
 	var on := phase == "pour"

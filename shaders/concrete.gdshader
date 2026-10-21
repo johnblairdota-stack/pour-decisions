@@ -23,6 +23,10 @@ uniform float screed_view : hint_range(0.0, 1.0) = 0.0;
 // The wet edge glows: green while it's fresh, amber as it ages, red and
 // pulsing fast when it's about to go off. Brighter for whoever's on the boom.
 uniform float edge_view : hint_range(0.0, 1.0) = 0.4;
+// 0 in full daylight, 1 in the dark before sunrise (a dawn pour): the work
+// overlays lean on their own glow instead of the light, so a warm low sun or
+// the floodlights don't wash the still-to-vibrate tint into the concrete
+uniform float low_light : hint_range(0.0, 1.0) = 0.0;
 // > 0: a round slab of this radius (local metres); outside it there's no slab
 uniform float round_r = 0.0;
 
@@ -127,6 +131,9 @@ void fragment() {
 	float hurry = smoothstep(0.45, 0.8, st.r);
 	vec3 vcol = mix(vec3(0.62, 0.42, 0.98), vec3(1.0, 0.3, 0.45), hurry);
 	float vp = (0.38 + 0.14 * sin(TIME * 4.0 + nuv.x * 20.0)) * todo_v;
+	// (and the vibrated concrete beside it goes a touch darker,
+	// so the edge between done and not done reads in any light)
+	col = mix(col, col * 0.84, (1.0 - todo_v) * step(0.1, vh) * poker_view * (1.0 - cured) * 0.6);
 	col = mix(col, vcol, vp);
 	float todo_s = smoothstep(0.5, 0.8, vib) * (1.0 - smoothstep(0.3, 0.7, scr)) * step(0.18, vh) * (1.0 - step(0.999, st.r)) * screed_view;
 	float sp = (0.3 + 0.12 * sin(TIME * 4.0 + nuv.y * 20.0)) * todo_s;
@@ -137,7 +144,7 @@ void fragment() {
 	float erate = mix(3.0, 12.0, smoothstep(0.5, 0.85, st.r));
 	float ep = edge * edge_view * (0.55 + 0.45 * sin(TIME * erate + (nuv.x + nuv.y) * 30.0));
 	col = mix(col, ecol, ep * 0.75);
-	EMISSION = vcol * vp * 0.35 + vec3(0.72, 1.0, 0.86) * sp * 0.3 + ecol * ep * 0.6;
+	EMISSION = vcol * vp * mix(0.6, 1.4, low_light) + vec3(0.72, 1.0, 0.86) * sp * mix(0.3, 0.9, low_light) + ecol * ep * 0.6;
 	ALBEDO = col;
 	float rough = mix(0.06, 0.22, depth) + 0.06 * grit + 0.5 * going;
 	rough = mix(rough, 0.55, raw * 0.8);
