@@ -492,6 +492,8 @@ func _update_daylight(delta: float) -> void:
 			_:
 				_day_u = 0.0
 	_apply_daylight(_day_u)
+	if pour != null and pour.smat != null:
+		pour.smat.set_shader_parameter("low_light", 1.0 - smoothstep(0.35, 0.8, _day_u))
 	var want := is_dawn() and _day_u < SUNRISE_U and phase in ["columns", "deck", "inspect", "pour"]
 	if want != _floods_on:
 		if _floods.is_empty():
