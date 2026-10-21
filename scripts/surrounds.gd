@@ -448,6 +448,19 @@ static func _skyline(root: Node3D, rng: RandomNumberGenerator) -> void:
 			trees.append(Vector3(p.x, y, p.y))
 		else:
 			houses.append(Vector3(p.x, y, p.y))
+	# The Hamilton ridge close by is leafy streets: thick with trees
+	for h in hills:
+		var r := float(h["r"])
+		if r > 1200.0:
+			continue
+		var c := Vector2(h["at"][0], h["at"][1])
+		for i in int(r * r / 900.0):
+			var p := c + Vector2.from_angle(rng.randf() * TAU) * sqrt(rng.randf()) * r
+			var y := _hill_y(hills, p) - 0.5
+			if i % 4 == 0:
+				houses.append(Vector3(p.x, y, p.y))
+			else:
+				trees.append(Vector3(p.x, y, p.y))
 	_house_field(root, houses, rng)
 	_tree_field(root, trees, rng)
 	# Hills: soft green mounds (Mt Coot-tha, Mt Gravatt, the Hamilton ridge)
