@@ -521,7 +521,7 @@ const INK_SIZE := Vector2(6.0, 4.0)        # m on the slab
 const INK_TIME := 35.0                     # s at most
 const INK_BOTS := 3.0                      # s for an all-bot crew
 const INK_R := 7                           # px, the groove's radius
-const INK_ROLES := ["boom", "line", "pump", "hose", "poker", "screed"]
+const INK_ADMIRE := 6.0                   # s on the finished signatures before the report
 var _ink_rim: Image                        # the light edge each groove throws up
 var _ink_cut: Image                        # the groove itself
 var _ink_img: Image
@@ -534,6 +534,8 @@ var _ink_done := {}                        # player -> said they're finished
 var _ink_cursor := {}                      # player -> cursor for stick drawing (cell 0..1)
 var _ink_marks := {}                       # player -> MeshInstance3D, the stick cursor
 var _ink_saved := []                       # [cam_pitch, cam_yaw] before the close-up
+var _ink_signers: Array = []               # the people signing (never the bots), in square order
+var _ink_sealed := -1.0                    # phase_t when it was pressed in, or -1
 
 func ink_centre() -> Vector3:
 	# (the front corner away from the boom tower, clear of the end hose
@@ -541,15 +543,33 @@ func ink_centre() -> Vector3:
 	return Vector3(SC.x - BW * 0.5 + INK_SIZE.x * 0.5 + 2.0, floors() * FH + 0.07, SC.z + BD * 0.5 - INK_SIZE.y * 0.5 - 1.0)
 
 func ink_left() -> float:
-	return maxf(0.0, (INK_BOTS if crew.humans().is_empty() else INK_TIME) - phase_t) if phase == "sign" else 0.0
+	return maxf(0.0, (INK_BOTS if crew.humans().is_empty() else INK_TIME) - phase_t) if phase == "sign" and _ink_sealed < 0.0 else 0.0
 
+## Each signer's square: up to three to a row, as big as fits, rows centred
+## (one person gets one big square in the middle).
 func _ink_cell(p) -> Rect2i:
-	var i := INK_ROLES.find(p.role)
-	var w := INK_PX.x / 3
-	var h := INK_PX.y / 2
-	return Rect2i((i % 3) * w, (i / 3) * h, w, h)
+	var i := _ink_signers.find(p)
+	var n := maxi(1, _ink_signers.size())
+	var cols := mini(n, 3)
+	var rows := (n + 2) / 3
+	var sz := mini(INK_PX.x / cols, INK_PX.y / rows)
+	var in_row := cols if i / 3 < rows - 1 else n - (rows - 1) * 3
+	var x0 := (INK_PX.x - sz * in_row) / 2
+	var y0 := (INK_PX.y - sz * rows) / 2
+	return Rect2i(x0 + (i % 3) * sz, y0 + (i / 3) * sz, sz, sz)
 
 func _start_sign() -> void:
+	# Only the people playing sign it. No one playing, no signing.
+	_ink_signers = []
+	for p in humans():
+		if not p.bot:
+			_ink_signers.append(p)
+	if _ink_signers.is_empty() and autotest and shot_dir != "":
+		_ink_signers = [crew.crew["boom"]]   # (dev: a stand-in, so a screenshot shows a drawing)
+	if _ink_signers.is_empty():
+		_finish_screed()
+		return
+	_ink_sealed = -1.0
 	_ink_rim = Image.create(INK_PX.x, INK_PX.y, false, Image.FORMAT_RGBA8)
 	_ink_cut = Image.create(INK_PX.x, INK_PX.y, false, Image.FORMAT_RGBA8)
 	_ink_img = Image.create(INK_PX.x, INK_PX.y, false, Image.FORMAT_RGBA8)
@@ -568,11 +588,11 @@ func _start_sign() -> void:
 	q.material_override = m
 	_ink_node.add_child(q)
 	# Each square's name, pressed in along its bottom edge
-	for p in players:
+	for p in _ink_signers:
 		var cell := _ink_cell(p)
 		var lab := Label3D.new()
 		lab.text = String(p.char_name).to_upper()
-		lab.font_size = 64
+		lab.font_size = 64 if cell.size.x <= 256 else 96
 		lab.pixel_size = 0.004
 		lab.modulate = Color("5f5a52")
 		lab.outline_size = 0
@@ -602,7 +622,7 @@ func _ink_map(at: Vector2) -> Vector2:
 
 ## A point of someone's drawing, `at` 0..1 across their square.
 func ink_point(p, at: Vector2) -> void:
-	if phase != "sign" or p == null or _ink_done.get(p, false):
+	if phase != "sign" or p == null or _ink_done.get(p, false) or not _ink_signers.has(p):
 		return
 	var cell := _ink_cell(p)
 	at = _ink_map(at)
@@ -622,7 +642,7 @@ func ink_up(p) -> void:
 	_ink_last.erase(p)
 
 func ink_clear(p) -> void:
-	if phase != "sign" or p == null or _ink_done.get(p, false):
+	if phase != "sign" or p == null or _ink_done.get(p, false) or not _ink_signers.has(p):
 		return
 	var cell := _ink_cell(p)
 	_ink_rim.fill_rect(cell, Color(0, 0, 0, 0))
@@ -676,6 +696,12 @@ func _ink_hand(p) -> void:
 func _update_sign(delta: float) -> void:
 	# Close in over the square, looking down on it
 	cam_pitch = lerpf(cam_pitch, 1.05, minf(1.0, delta * 2.0))
+	# Pressed in: a few seconds to take it in before the report comes back
+	if _ink_sealed >= 0.0:
+		var held := phase_t - _ink_sealed
+		if held > (INK_ADMIRE if not crew.humans().is_empty() else 1.0) or (_human_a and held > 1.5):
+			_end_sign()
+		return
 	if autotest and shot_dir != "":
 		# (dev: the boom bot "draws" a star, so a screenshot shows a drawing
 		# beside the handprints)
@@ -726,23 +752,32 @@ func _update_sign(delta: float) -> void:
 		if not _ink_done.get(p, false):
 			all_done = false
 	if all_done and phase_t > (INK_BOTS if crew.humans().is_empty() else 1.0) or ink_left() <= 0.0:
-		_end_sign()
+		_seal_sign()
 	if _ink_dirty:
 		_ink_dirty = false
 		_ink_img.copy_from(_ink_rim)
 		_ink_img.blend_rect(_ink_cut, Rect2i(Vector2i.ZERO, INK_PX), Vector2i.ZERO)
 		_ink_tex.update(_ink_img)
 
-func _end_sign() -> void:
-	for p in players:
+## Everyone's in (or time's up): a handprint for anyone who didn't draw,
+## then it holds on the finished square for a moment.
+func _seal_sign() -> void:
+	for p in _ink_signers:
 		if not _ink_drew.get(p, false):
 			_ink_hand(p)
+		_ink_done[p] = true
+		_ink_last.erase(p)
 	for p in _ink_marks:
 		(_ink_marks[p] as Node3D).queue_free()
 	_ink_marks = {}
 	_ink_img.copy_from(_ink_rim)
 	_ink_img.blend_rect(_ink_cut, Rect2i(Vector2i.ZERO, INK_PX), Vector2i.ZERO)
 	_ink_tex.update(_ink_img)
+	_ink_sealed = phase_t
+	sfx.hit("chime")
+	hud.toast("Signed. That's up there as long as Riverlight stands.", INK_ADMIRE - 0.5)
+
+func _end_sign() -> void:
 	if not _ink_saved.is_empty():
 		cam_pitch = _ink_saved[0]
 	hud.card_away = false
@@ -761,7 +796,7 @@ func _finish_screed() -> void:
 ## Topped out: a CityCat comes down the river past Riverlight, the camera
 ## rides behind it, then lifts off the water, up the tower to the signed
 ## corner of the roof. Any A skips it.
-const FLY_T := 18.0
+const FLY_T := 24.0                        # (lands on the signatures at 18 s, then holds there)
 ## [s, camera (surroundings frame: from Riverlight's middle, x west, z north)]
 ## (the first two ride behind the boat and out on the river side, so it's
 ## in the shot, between the camera and the tower)
@@ -791,7 +826,7 @@ func _start_fly() -> void:
 
 func _fly_point(t: float) -> Vector3:
 	var keys: Array = FLY_KEYS.duplicate(true)
-	keys[keys.size() - 1][1] = ink_centre() + REAL_ORIGIN + Vector3(5.0, 8.0, 7.0)
+	keys[keys.size() - 1][1] = ink_centre() + REAL_ORIGIN + Vector3(-2.5, 10.0, 7.0)
 	var i := 0
 	while i < keys.size() - 2 and t > keys[i + 1][0]:
 		i += 1
@@ -809,6 +844,11 @@ func _update_fly(delta: float) -> void:
 	_fly_t += delta
 	if _fly_boat != null:
 		_fly_boat.position = -REAL_ORIGIN + FLY_BOAT + Vector3(-12.0 * _fly_t, 0.0, 0.0)
+	if _fly_t >= 17.5 and _fly_t - delta < 17.5 and not _ink_signers.is_empty() and _ink_node != null:
+		var names: Array = []
+		for p in _ink_signers:
+			names.append(String(p.char_name))
+		hud.toast("Signed by " + ", ".join(names), FLY_T - 17.5)
 	if _fly_t >= FLY_T or (_human_a and _fly_t > 0.5):
 		_end_fly()
 
@@ -2315,7 +2355,7 @@ func _grade() -> void:
 	var note := "poured in %s  ·  silver: %d%% in %s  ·  gold: %d%% in %s" % [_mmss(pour_clock), int(score.SILVER_Q), _mmss(tg.x), int(score.GOLD_Q), _mmss(tg.y)]
 	if score.bot_tier != was_tier:
 		note += "\nThe bots are working at %s pace now" % score.MEDALS[score.bot_tier].to_lower()
-	hud.show_slab(_slab_report(quality, verdict, medal, note, rows), -1.0 if not crew.humans().is_empty() and not autotest or "report" in _shot_only else 6.0)
+	hud.show_slab(_slab_report(quality, verdict, medal, note, rows), -1.0 if not crew.humans().is_empty() and not autotest or "report" in _shot_only or "lastreport" in _shot_only else 6.0)
 	_save_medal(medal)
 	if autotest:
 			print("[autotest]   level %d: +%d pts (total %d, %s), quality %.0f, medal %s in %.1fs (bots %s) | %s | %s" % [k + 1, score.level, score.total, score.rank_name(), quality, score.MEDALS[medal], pour_clock, score.MEDALS[was_tier], " | ".join(score.report_rows()), " | ".join(rows)])
@@ -2343,7 +2383,7 @@ func _slab_report(quality: float, verdict: String, medal: int, note: String, los
 		nxt = "Level %d" % (k + 2) + (" · climb day first" if (k + 1) in climb_levels() else "")
 	return {"title": ("WATER TOWER" if tutorial else "LEVEL %d" % (k + 1)) + " · SLAB REPORT", "points": score.level,
 		"quality": quality, "verdict": verdict, "medal": medal, "medal_note": note, "crew": crew_rows,
-		"star": star, "losses": losses, "next": nxt}
+		"star": star, "losses": losses, "next": nxt, "last": k + 1 >= floors()}
 
 ## Keeps the best medal for each of the building's floors, for the site page.
 func _save_medal(medal: int) -> void:
@@ -2506,7 +2546,8 @@ func _build_roof() -> void:
 	roof.add_child(F.prism(PackedVector2Array(OTHER_WING), 0.0, 1.1, white, false))
 	var core := _core_xz()
 	roof.add_child(F.box(Vector3(3.0, 3.5, 3.0), plant, Vector3(SC.x + core.x, 1.75, SC.z + core.y)))
-	for at in [Vector3(SC.x - 8.0, 0, SC.z + 4.0), Vector3(31.0, 0, -9.0), Vector3(44.0, 0, -13.0)]:
+	# (the first sits back from the front corner, clear of the signatures)
+	for at in [Vector3(SC.x - 8.0, 0, SC.z - 4.0), Vector3(31.0, 0, -9.0), Vector3(44.0, 0, -13.0)]:
 		roof.add_child(F.box(Vector3(6.0, 2.5, 4.0), plant, at + Vector3(0, 1.25, 0)))
 	for row in 3:
 		for x0 in [SC.x + 2.0, 20.0]:
@@ -2701,7 +2742,7 @@ func _process(delta: float) -> void:
 				for p in players:
 					if not p.bot and p.slow_pressed():
 						swap_by = p.index
-				if swap_by > 0 and hud.card_age() > 1.0:
+				if swap_by > 0 and hud.card_age() > 1.0 and k + 1 < floors():
 					pause_menu.open_on("swap", swap_by)
 				elif (_human_a and hud.card_age() > 1.0) or hud.card_age() > REPORT_AUTO:
 					hud.dismiss_card()
@@ -4402,7 +4443,10 @@ func _update_hud() -> void:
 			for p in humans():
 				if not _ink_done.get(p, false):
 					left += 1
-			hud.set_task("Sign the slab · %ds" % int(ceil(ink_left())), "Draw on your phone. Keyboard or pad: stick and A to draw, X when done." if left > 0 else "Pressing it in...")
+			if _ink_sealed >= 0.0:
+				hud.set_task("Signed", "")
+			else:
+				hud.set_task("Sign the slab · %ds" % int(ceil(ink_left())), "Draw on your phone. Keyboard or pad: stick and A to draw, X when done." if left > 0 else "Pressing it in...")
 			hud.set_progress(1.0 - ink_left() / INK_TIME)
 		"topout":
 			hud.set_task("Topped out")
@@ -4693,6 +4737,10 @@ func _update_camera(delta: float) -> void:
 	if phase == "select" or phase == "roles":
 		focus = Vector3(4, 10, 0) + (Vector3(SC.x, 0, SC.z) if not tutorial else Vector3.ZERO) * 0.5
 		dist = 60.0 if tutorial else 72.0
+	if phase == "sign":
+		# (straight down onto the wet square they're signing)
+		focus = ink_centre()
+		dist = 9.0
 	if skyline:
 		var top := maxf(head.position.y, (k + 1) * FH)
 		# (the whole of Riverlight, both wings)
@@ -4998,13 +5046,15 @@ func _maybe_shot() -> void:
 		key = "dawn3"
 	elif "sign" in _shot_only and phase == "sign" and phase_t > 2.5 and not _shots_taken.has("sign"):
 		key = "sign"
-	elif "signed" in _shot_only and phase == "cure" and _ink_node != null and phase_t > 0.3 and not _shots_taken.has("signed"):
+	elif "signed" in _shot_only and phase == "sign" and _ink_sealed >= 0.0 and phase_t - _ink_sealed > 0.6 and not _shots_taken.has("signed"):
 		key = "signed"
+	elif "lastreport" in _shot_only and phase == "cure" and k == floors() - 1 and phase_t > 0.5 and not _shots_taken.has("lastreport"):
+		key = "lastreport"
 	elif _fly_on and "fly1" in _shot_only and _fly_t > 3.5 and not _shots_taken.has("fly1"):
 		key = "fly1"
 	elif _fly_on and "fly2" in _shot_only and _fly_t > 10.0 and not _shots_taken.has("fly2"):
 		key = "fly2"
-	elif _fly_on and "fly3" in _shot_only and _fly_t > 16.8 and not _shots_taken.has("fly3"):
+	elif _fly_on and "fly3" in _shot_only and _fly_t > 20.0 and not _shots_taken.has("fly3"):
 		key = "fly3"
 	elif phase == "topout" and phase_t > 1.5 and "vista" in _shot_only and not _shots_taken.has("vista"):
 		key = "vista"
@@ -5041,8 +5091,6 @@ func _maybe_shot() -> void:
 		_shot_cam = [subject.global_position + Vector3(0, 1.2, 0), dist]
 	if key == "layout":
 		_shot_cam = [Vector3(19.5, 0.0, 7.0), 24.0]
-	if key in ["sign", "signed"]:
-		_shot_cam = [ink_centre(), 8.5]
 	if key in ["startup", "washout"] and _cam_roles.is_empty():
 		_shot_cam = [ops.bin_world() + Vector3(-1.5, -0.5, 1.0), 12.0]
 	if key == "hose":

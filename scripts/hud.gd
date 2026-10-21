@@ -786,8 +786,10 @@ func show_slab(d: Dictionary, seconds := 6.0) -> void:
 	bh.add_child(_card_fill)
 	bh.visible = _card_hold
 	if _card_hold:
-		foot.add_child(_kit_button("Y", "SWAP HATS", false))
-		_card_go = _kit_button("A", "NEXT POUR", true)
+		# (after the last slab there's no next pour: A goes on to the top-out)
+		if not d.get("last", false):
+			foot.add_child(_kit_button("Y", "SWAP HATS", false))
+		_card_go = _kit_button("A", "TOP OUT" if d.get("last", false) else "NEXT POUR", true)
 		foot.add_child(_card_go)
 	card.visible = true
 	card.modulate.a = 1.0
