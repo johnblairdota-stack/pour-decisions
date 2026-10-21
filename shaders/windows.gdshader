@@ -12,6 +12,9 @@ uniform float glow = 1.2;
 // grey-green glass with a glass balustrade across the bottom, and a charcoal
 // panel column every few bays
 uniform bool riverlight = false;
+// Far towers: the wall colour comes from the vertex, the glass is a darker
+// shade of it (so one material does the whole skyline)
+uniform bool vertex_tint = false;
 uniform vec4 panel_color : source_color = vec4(0.35, 0.37, 0.41, 1.0);
 uniform vec4 mullion_color : source_color = vec4(0.17, 0.18, 0.20, 1.0);
 uniform float panel_every = 4.0;
@@ -38,6 +41,10 @@ void fragment() {
 	}
 	float lit = step(1.0 - lit_ratio, hash(floor(uv) + floor(wpos.xz * 0.01)));
 	ALBEDO = mix(frame_color.rgb, glass_color.rgb, win);
+	if (vertex_tint) {
+		vec3 wall = pow(COLOR.rgb, vec3(2.2));
+		ALBEDO = mix(wall, wall * vec3(0.52, 0.58, 0.66), win);
+	}
 	if (riverlight && abs(wnorm.y) < 0.9) {
 		float band = 1.0 - step(0.05, f.y) * step(f.y, 0.86);
 		float bay = floor(uv.x);
