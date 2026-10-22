@@ -220,11 +220,13 @@ func _tip(p) -> String:
 					return "Spot the truck back: hold A to wave it on and watch the metres over its tail. Let go the moment it flashes green STOP. Too far and it backs into the hopper."
 			var chk = line.needs_check()
 			if chk != null:
+				if chk.get("too_old", false):
+					return "The docket says it was batched over 90 minutes ago. No test needed: B sends it straight back to the plant."
 				if chk["state"] == "docket":
 					return "Not due a test: read the docket on the truck against the ORDER line above it. Same mix, A pours it. Wrong strength, stone or site, B sends it back before it goes in."
 				if not chk["checked"]:
 					return "Truck in: slump test at the TRUCK BAY, four presses. A: fetch a sample in the tray. Hold A: fill and rod (it stops itself). Hold A: lift it steady. A: measure. The truck keeps feeding while you test."
-				return "Your reading against the order, 100 mm ±20: in it, A uses the load. Under 80 (stiff), X adds the water the plant held back, then test again. Over 120, or batched over 90 minutes ago, B sends it back."
+				return "Your reading against the order, 100 mm ±20: in it, A uses the load. Under 80 (stiff), X adds the water the plant held back, then test again. Over 120, B sends it back."
 			if line.can_wave_in():
 				return "Wave the next truck in (A at the TRUCK BAY), then spot it back onto the hopper."
 			return "Keep the trucks coming. Each new load that opens before the hopper runs low grows your changeover streak."

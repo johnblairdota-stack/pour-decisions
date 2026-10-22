@@ -1523,6 +1523,7 @@ const SPLIT_Y := 9.0          # deck height (m) above which the street gets its 
 const BAND_FRAC := 0.38       # share of the screen height the band takes
 const SPLIT_DIST := 12.0      # m between the deck crew and the street crew before the screen splits
 const DIST_MAX := 30.0        # m: the main camera never pulls back further than this (people's view)
+const BAND_CUE_K := 1.3       # the street crew's button size in the band, against the deck view's
 var _split := 0.0
 var _band_h := 0.0
 var _band_d := 20.0
@@ -2679,9 +2680,15 @@ func _process(delta: float) -> void:
 	pour.set_edge_view(1.0 if bop != null and humans().has(bop) else 0.45)
 	score.update(delta)
 	var cam_right := camera.global_transform.basis.x
+	var street_view: bool = band_box != null and band_box.visible
 	for p in players:
 		p.show_bot_cues = _cam_roles.has(p.role) or cam_test_roles().has(p.role)
-		p.show_cues(cam_right, phase_t, camera.global_position)
+		if street_view and _height_group(p) == "street":
+			# (the street crew's buttons sized for the band's own camera,
+			# which is far closer to them than the deck view's)
+			p.show_cues(cam_right, phase_t, band_cam.global_position, BAND_CUE_K)
+		else:
+			p.show_cues(cam_right, phase_t, camera.global_position)
 	_scale_world_labels()
 	if shot_dir != "":
 		_maybe_shot()
@@ -3670,7 +3677,7 @@ func _jobs() -> Array:
 	var hop: float = line.hopper / line.HOPPER_CAP
 	if t != null:
 		var tl := 2 if t["age"] > 80.0 or (t == line.bay_truck and hop < 0.2) else 1
-		add.call("bay", (t["node"] as Node3D).position + Vector3(-2.0, 4.2, 0), tl, "line", "CHECK THE DOCKET" if t["state"] == "docket" else ("SLUMP TEST" if not t["checked"] else "MAKE THE CALL"))
+		add.call("bay", (t["node"] as Node3D).position + Vector3(-2.0, 4.2, 0), tl, "line", "TOO OLD: SEND IT BACK" if t.get("too_old", false) else "CHECK THE DOCKET" if t["state"] == "docket" else ("SLUMP TEST" if not t["checked"] else "MAKE THE CALL"))
 	elif line.can_wave_in() and (line.bay_truck == null or line.staged == null and hop < 0.6):
 		add.call("bay", st_pos.call("bay") + up, 1 if hop < 0.3 else 0, "line", "WAVE TRUCK IN")
 	var pop = crew.crew["pump"]
@@ -4362,7 +4369,7 @@ func _tickets() -> Array:
 		out.append({"icon": "P", "text": "Line standing still", "frac": 1.0 - line.idle_t / line.SET_TIME, "color": UI.ROLE["pump"], "role": "pump", "urgent": true})
 	var chk = line.needs_check()
 	if chk != null:
-		var what := "Check the docket against the order" if chk["state"] == "docket" else ("Slump test the truck" if not chk["checked"] else "Make the call: use, water or send back?")
+		var what := "Too old: send it back" if chk.get("too_old", false) else "Check the docket against the order" if chk["state"] == "docket" else ("Slump test the truck" if not chk["checked"] else "Make the call: use, water or send back?")
 		out.append({"icon": "T", "text": what, "frac": 1.0 - float(chk["age"]) / line.MAX_AGE, "color": UI.ROLE["line"], "role": "line", "urgent": true})
 	elif line.can_wave_in():
 		var nq = line._next_queued()

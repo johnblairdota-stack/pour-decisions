@@ -174,6 +174,7 @@ func show_jobs(list: Array, delta: float) -> void:
 		_signs[k]["seen"] = false
 	var cam: Camera3D = game.camera
 	var t: float = game.phase_t
+	var band: bool = game.band_box != null and game.band_box.visible
 	for j in list:
 		var key: String = j["key"]
 		var e: Dictionary = _signs[key] if _signs.has(key) else _make(key)
@@ -184,6 +185,9 @@ func show_jobs(list: Array, delta: float) -> void:
 		e["t"] = minf(e["t"] + delta, 10.0)
 		var lv: int = e["level"]
 		var k_size := clampf(cam.global_position.distance_to(pos) / 15.0, 0.85, 3.0)
+		if band and pos.y < game.work_y - 2.0:
+			# (a street sign, seen in the band's own camera, far closer to it)
+			k_size = clampf(game.band_cam.global_position.distance_to(pos) / 15.0 * game.BAND_CUE_K, 0.5, 3.0)
 		var appear := ease(clampf(e["t"] * 4.0, 0.0, 1.0), 0.4)
 		var beat := 0.5 + 0.5 * sin(t * (4.0 if lv == 0 else 9.0))
 		var sc := k_size * appear * (1.0 + 0.08 * beat + (0.12 * beat if lv >= 1 else 0.0))

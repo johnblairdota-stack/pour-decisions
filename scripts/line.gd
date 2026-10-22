@@ -1523,10 +1523,18 @@ func _update_trucks(delta: float) -> void:
 						_park(t, sl)
 			"bay", "check", "water", "ready", "docket":
 				if st == "docket" and game.phase_t - float(t.get("touched", game.phase_t - t["t"])) > DOCKET_T:
-					# Nobody's checked it: the driver starts the chute anyway
-					game.pop("Driver didn't wait for the docket check", node.position + Vector3(0, 3.5, 0), Color("ffc72c"))
 					t["tester"] = null
-					accept(t)
+					if t.get("too_old", false):
+						# Nobody's sent it back: the driver reads the age and goes
+						game.pop("Driver took his old load back", node.position + Vector3(0, 3.5, 0), Color("ffc72c"))
+						var who = game.crew.crew.get("line") if game.crew else null
+						if who != null:
+							game.score.award(who, -10, "Driver had to make the call")
+						reject(t)
+					else:
+						# Nobody's checked it: the driver starts the chute anyway
+						game.pop("Driver didn't wait for the docket check", node.position + Vector3(0, 3.5, 0), Color("ffc72c"))
+						accept(t)
 				if st in ["bay", "check"] and game.phase_t - float(t.get("touched", game.phase_t - t["t"])) > DRIVER_T:
 					_driver_test(t)
 				if st in ["bay", "check", "docket"] and pouring == null and _trust_feed == null:
@@ -1752,6 +1760,14 @@ func _park(t: Dictionary, sl: String) -> void:
 	node.rotation.y = _yaw_for(pose[1])
 	t.erase("spotter")
 	_set_truck(t, "bay")
+	if float(t["age"]) > MAX_AGE:
+		# Over the age on the docket: no slump test, it just goes back
+		t["checked"] = true
+		t["eyeballed"] = true
+		t["too_old"] = true
+		t["why"] = "docket says it's old"
+		_set_truck(t, "docket")
+		return
 	_backed_in += 1
 	if _wants_test(t):
 		# (now and then the plant's sent the wrong mix: it's on the docket,
@@ -2692,6 +2708,13 @@ func _bay(p, delta: float) -> void:
 	p.face((t["node"] as Node3D).position)
 	t["tester"] = p
 	t["touched"] = game.phase_t
+	if t.get("too_old", false):
+		# Too old on the docket: the one thing to do is send it back
+		p.cue("leave", "too old: send it back", -1.0, true)
+		p.gold(true)
+		if p.leave_pressed() and p.held == null:
+			decide(p, t, "reject")
+		return
 	if t["state"] == "docket":
 		# Not due a test: check the docket against the order (it's on the
 		# truck). A pours it, B sends a wrong mix back.

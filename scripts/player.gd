@@ -566,7 +566,7 @@ func begin_cues() -> void:
 	cues.clear()
 	prompt.text = ""
 
-func show_cues(cam_right: Vector3, t: float, cam_pos := Vector3.ZERO) -> void:
+func show_cues(cam_right: Vector3, t: float, cam_pos := Vector3.ZERO, cam_k := 1.0) -> void:
 	# Keep glyphs a steady size on screen however far away the camera is
 	var k_size := 1.0
 	bubble.visible = false
@@ -576,7 +576,7 @@ func show_cues(cam_right: Vector3, t: float, cam_pos := Vector3.ZERO) -> void:
 			(c["node"] as Node3D).visible = false
 		return
 	if cam_pos != Vector3.ZERO:
-		k_size = clampf(global_position.distance_to(cam_pos) / 15.0, 0.9, 3.2)
+		k_size = clampf(global_position.distance_to(cam_pos) / 15.0 * cam_k, 0.5 if cam_k != 1.0 else 0.9, 3.2)
 	var on_keys: bool = not ai and not bot and KEYS.has(prefix) and bool(get_parent().on_keys.get(prefix, prefix == "p1_"))
 	for k in _cue_nodes.size():
 		var c: Dictionary = _cue_nodes[k]
