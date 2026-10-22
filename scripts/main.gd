@@ -4742,6 +4742,8 @@ func _keep_hanging(p, delta: float) -> void:
 	var last: Vector3 = p.get_meta("hose_at", p.position)
 	var last_off := Vector2(last.x - a.x, last.z - a.z).length()
 	var limit := maxf(HOSE_REACH, minf(last_off, HOSE_REACH * STRETCH_MAX))
+	if p.bot or p.covering:
+		limit = HOSE_REACH   # (a bot keeps up the way it always has: the boom takes it along)
 	if off.length() > limit:
 		off = off.normalized() * limit
 		p.position.x = a.x + off.x

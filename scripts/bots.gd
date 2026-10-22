@@ -354,10 +354,11 @@ func _boom(p, delta: float) -> void:
 	if to.length() > 0.1:
 		var local := (to.normalized() * minf(1.0, to.length() / 1.2)).rotated(Vector3.UP, -g.cam_yaw)
 		p.ai_move = Vector2(local.x, local.z)
-	# (the pipe guy's at the end of the hose: ease back over them)
-	if g.hose_lean > 0.95 and g.hose_holder != null:
+	# (a person on the hose at the end of it: ease back over them)
+	var h = g.hose_holder
+	if g.hose_lean > 0.95 and h != null and not h.bot and not h.covering:
 		var a: Vector3 = g.hose_anchor()
-		var back := Vector3(g.hose_holder.position.x - a.x, 0, g.hose_holder.position.z - a.z).normalized() * 0.5
+		var back := Vector3(h.position.x - a.x, 0, h.position.z - a.z).normalized() * 0.5
 		var lb2 := back.rotated(Vector3.UP, -g.cam_yaw)
 		p.ai_move = Vector2(lb2.x, lb2.z)
 	# (and hold it still, and off, for them to take after the thumbs up)
