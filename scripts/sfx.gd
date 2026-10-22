@@ -17,7 +17,6 @@ const WHISTLES := {
 }
 
 var pumping := false
-var stroke_beats := 1       # beats of the beat clock each pump stroke takes
 var rattle := 0.0           # 0..1, how hard the worn clamp is shaking
 var muted := false
 var rumble := 0.0           # 0..1, a poker running in the concrete
@@ -71,11 +70,6 @@ func band_level(lane: String) -> float:
 ## Where the beat is, 0 on the beat to 1 just before the next.
 func beat_phase() -> float:
 	return fmod(_bt, BEAT) / BEAT
-
-## Beats gone by on the beat clock (the pump's strokes land on them). It
-## only moves while the audio's running.
-func beats() -> int:
-	return int(_bt / BEAT)
 
 func _load_samples() -> void:
 	for lane in LANES:
@@ -182,7 +176,7 @@ func _ready() -> void:
 	_load_samples()
 
 ## kind: "bang", "clank", "thunk", "buzz", "ding", "clang", "tink", "hiss",
-## "knock", "ring", "thud", "beep", "whip", "rain", "horn", "clunk", "suck",
+## "knock", "ring", "thud", "beep", "whip", "rain",
 ## or "whistle:<code>" with a code from WHISTLES
 func hit(kind: String) -> void:
 	# Never stack: a new whistle replaces the one still sounding, and the same
@@ -240,9 +234,8 @@ func _process(delta: float) -> void:
 				_lv[i] += (tgt[i] - _lv[i]) * 0.012
 		if _master > 0.002:
 			s += _band_sample(_bt)
-		if pumping and int(_bt / BEAT) % maxi(1, stroke_beats) == 0:
-			# (on the beat clock, so the band's kick lands on the stroke; a
-			# stroke takes a few beats)
+		if pumping:
+			# (on the beat clock, so the band's kick lands on the stroke)
 			_stroke = fmod(_bt, BEAT)
 			# The stroke's thump, with its 2nd and 3rd harmonics so TV and
 			# laptop speakers (which can't play 46 Hz) still carry it, and a
@@ -312,20 +305,6 @@ func _process(delta: float) -> void:
 					s += (sin(TAU * 1568.0 * a) * 0.14 + sin(TAU * 2093.0 * a) * 0.08) * exp(-a * 6.0)
 				"ding":
 					s += sin(TAU * 988.0 * a) * exp(-a * 3.5) * 0.2 + sin(TAU * 1318.0 * a) * exp(-a * 4.0) * 0.14
-				"horn":
-					# The boom's horn: two short tones, high then low, a bit of rasp
-					if a < 0.5:
-						var hf := 440.0 if a < 0.22 else 349.0
-						var on := 1.0 if (a < 0.2 or (a > 0.26 and a < 0.48)) else 0.0
-						s += ((1.0 if fmod(a * hf, 1.0) < 0.5 else -1.0) * 0.07 + sin(TAU * hf * 2.0 * a) * 0.05) * on
-				"clunk":
-					# A boom section locking out: heavy steel and a hydraulic thud
-					s += (sin(TAU * 62.0 * a) * 0.4 + sin(TAU * 133.0 * a) * 0.2) * exp(-a * 6.0) + (sin(TAU * 610.0 * a) + 0.5 * sin(TAU * 1020.0 * a)) * exp(-a * 22.0) * 0.18
-				"suck":
-					# A stroke in reverse: the concrete pulled back up the hose
-					if a < 0.4:
-						_hiss += ((randf() * 2.0 - 1.0) - _hiss) * 0.15
-						s += _hiss * sin(a / 0.4 * PI) * 0.18 + sin(TAU * (180.0 - 220.0 * a) * a) * exp(-a * 6.0) * 0.12
 		# Soft limiter so stacked sounds never clip into a wall of noise
 		s = tanh(s * 1.1) * 0.85
 		buf[f] = Vector2(s, s)

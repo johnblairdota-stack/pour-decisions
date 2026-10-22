@@ -11,14 +11,14 @@ const MUTED := Color("9fb0c6")
 const WHITE := Color("f4f7fa")
 const RED := Color("ff4d4d")
 const GREEN := Color("7cd992")
-const GLYPH := {"A": Color("3fe0c5"), "B": Color("ff5a5f"), "X": Color("9b6bff"), "Y": Color("ffc23d"), "L": Color("2b2f3a")}
+const GLYPH := {"A": Color("3fe0c5"), "B": Color("ff5a5f"), "X": Color("9b6bff"), "Y": Color("ffc23d")}
 
 # ------------------------------------------------------------ the Site Kit
 # One look for every button prompt, on the TV and on the phone (the phone page
 # in controller_page.gd uses the same numbers). Each button is a face colour,
 # a darker lip under it and a dark letter; four colours mean one thing each.
-const LIP := {"A": Color("1b8a6e"), "B": Color("9b2525"), "X": Color("5a35b0"), "Y": Color("b17a00"), "L": Color("111318")}
-const GLYPH_INK := {"A": Color("04281f"), "B": Color("2b0606"), "X": Color("1b0d3a"), "Y": Color("2a1d00"), "L": Color("f4f2ec")}
+const LIP := {"A": Color("1b8a6e"), "B": Color("9b2525"), "X": Color("5a35b0"), "Y": Color("b17a00")}
+const GLYPH_INK := {"A": Color("04281f"), "B": Color("2b0606"), "X": Color("1b0d3a"), "Y": Color("2a1d00")}
 const GOLD := Color("ffd23f")     # now, the sweet spot, perfect
 const ALARM := Color("ff3b2f")    # danger only
 const DONE := Color("4fb36b")     # finished, good
@@ -35,7 +35,7 @@ const URGENT_S := 1.14
 const GOLD_T := 0.3
 const SHAKE_T := 0.15
 ## Buzz patterns, ms (vibrate on/off/on…)
-const BUZZ := {"press": "12", "turn": "30,60,30", "gold": "15", "missed": "120", "alarm": "90,60,90", "done": "10,40,10", "thump": "15"}
+const BUZZ := {"press": "12", "turn": "30,60,30", "gold": "15", "missed": "120", "alarm": "90,60,90", "done": "10,40,10"}
 ## Players' tag colours, P1-P6 (match the phone page)
 const P_COLORS := [Color("3d8bff"), Color("ff4f6d"), Color("ff8a3d"), Color("7cd992"), Color("c49bff"), Color("2fd3e8")]
 
@@ -109,12 +109,12 @@ static func verb_tag(text: String, dot: Color, size := 20, col := BONE) -> Panel
 const ROLE := {"boom": Color("ffc72c"), "line": Color("7cd992"), "pump": Color("ff7a1a"), "poker": Color("c49bff"), "screed": Color("f4f7fa"), "hose": Color("2fd3e8")}
 const ROLE_NAME := {"boom": "Boom operator", "line": "Truck hand", "pump": "Pump operator", "poker": "Poker hand", "screed": "Screeder", "hose": "Pipe guy"}
 const ROLE_SHORT := {
-	"boom": "Swings the placing boom and answers the pipe guy's signals.",
+	"boom": "Steers the placing boom and pours, bay by bay.",
 	"line": "Trucks and slump tests. Slings and pins on climb days.",
 	"pump": "Kills the pump on a spike, and climbs up to fix the riser.",
 	"poker": "Vibrates the concrete as it lands.",
 	"screed": "Strikes the slab flat behind the pokers.",
-	"hose": "On the end hose: lays it level and leads the boom.",
+	"hose": "On the end hose: puts the concrete exactly where it's wanted.",
 }
 const ROLE_CLIMB := {"boom": "Climb days: dogman", "line": "Climb days: slinger and pins", "poker": "Climb days: tag line", "pump": "Climb days: rigger", "screed": "", "hose": ""}
 ## The job ticket: what each job is for and its steps on a pour, in order,
@@ -123,14 +123,11 @@ const ROLE_CLIMB := {"boom": "Climb days: dogman", "line": "Climb days: slinger 
 ## stick), what to do, words in the game's own button prompts that mean
 ## you're on this step].
 const JOB_CARD := {
-	"boom": {"goal": "Swing the boom, answer the pipe guy.", "watch": "the pipe guy's hands.",
-		"steps": [["stick", "Left/right swings round the tower, up/down reaches out/in. Ease off to stop clean", ["swing", "reach", "feather", "unfold", "stow", "boom remote", "steer"]],
-			["stick", "Answer the pipe guy: his arrow lights up on your pad", ["boom left", "boom right", "boom out", "boom in", "little bit", "stop boom", "in sync"]],
-			["A", "Horn before a big swing · thumbs up at start-up", ["horn", "thumbs"]],
-			["Y", "Suck back before you move", ["suck back"]],
-			["X", "Start on LOW, then high or low output", ["high", "low", "output"]],
-			["A", "Pump into the bin (or with nobody on the hose)", ["pump", "bin"]],
-			["B", "Put the remote down (hold: walk with it)", ["put down", "step off", "out from under"]]]},
+	"boom": {"goal": "Steer the boom and fill each bay.", "watch": "where the pipe guy is heading. Fast swings whip the hose.",
+		"steps": [["stick", "Swing the hose over the bay (push harder to go faster)", ["boom remote", "steer", "swing"]],
+			["stick", "Keep the boom over the pipe guy: he calls the pump", ["pump", "bin"]],
+			["X", "High or low output", ["high", "low", "output"]],
+			["B", "Put the remote down", ["put down", "step off"]]]},
 	"line": {"goal": "Get good concrete off every truck.", "watch": "the docket. Wrong mix or too old: send it back.",
 		"steps": [["A", "Hold to wave the truck back. Let go at STOP", ["wave", "stop", "let go", "truck in"]],
 			["A", "Slump test: 4 presses, it stops itself", ["sample", "fill", "rod", "lift", "measur", "tape", "scoop"]],
@@ -142,11 +139,10 @@ const JOB_CARD := {
 			["A", "Climb up, open the clamp, swap the part", ["climb", "clamp", "pipe", "open", "fit", "tap", "pin", "chair", "knock", "lower", "carry", "take"]],
 			["A", "Hold at the panel to restart", ["restart"]],
 			["A", "Hold to open the washout valve", ["valve", "release", "washout"]]]},
-	"hose": {"goal": "Lay it level and lead the boom.", "watch": "the ring under the hose.",
-		"steps": [["A", "Grab the end hose (after the thumbs up)", ["end hose", "take", "stand clear", "thumbs up"]],
-			["stick", "Lean toward where it's wanted to signal the boom", ["lean", "signal", "stretched", "in sync"]],
-			["A", "Hold for concrete, leave each spot in the gold", ["pump on", "pumping", "lift", "heap", "pump", "radio", "dragon", "concrete's on"]],
-			["Y", "Tap LITTLE BIT, hold STOP BOOM", ["little bit", "stop boom"]],
+	"hose": {"goal": "Put the concrete exactly where it's wanted.", "watch": "heaps. Move on before it piles up.",
+		"steps": [["A", "Grab the end hose under the boom", ["end hose", "take"]],
+			["stick", "Walk it to the empty spot", ["walk"]],
+			["A", "Hold to call the pump on, let go for off", ["pump on", "pump", "radio", "dragon", "concrete's on"]],
 			["B", "Let go of the hose", ["put down", "let go of"]]]},
 	"poker": {"goal": "Shake the air out so it sets solid.", "watch": "fresh drops. Too long in one spot is wasted.",
 		"steps": [["A", "Pick up the poker", ["take poker", "pick up"]],

@@ -16,12 +16,7 @@ extends RefCounted
 const MANIFEST := '{"name": "Pour Decisions controller", "short_name": "Pour Decisions", "start_url": "/", "display": "fullscreen", "orientation": "landscape", "background_color": "#0b0c10", "theme_color": "#0b0c10", "icons": [{"src": "/icon.png", "sizes": "192x192", "type": "image/png"}]}'
 
 static func html(ws_port: int) -> String:
-	return PAGE.replace("__WS_PORT__", str(ws_port)).replace("__VER__", version())
-
-## Which build of the page this is: a phone still showing an older one
-## (left open while the game was updated) reloads itself.
-static func version() -> String:
-	return str(PAGE.hash())
+	return PAGE.replace("__WS_PORT__", str(ws_port))
 
 const PAGE := """<!doctype html>
 <html lang="en">
@@ -70,19 +65,6 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 #base.on{border-color:rgba(255,255,255,.55);box-shadow:inset 0 0 6vmin rgba(255,255,255,.08)}
 #wedge{position:absolute;inset:-2px;border-radius:50%;opacity:0;background:conic-gradient(from -30deg,var(--job),transparent 60deg,transparent 360deg);-webkit-mask:radial-gradient(farthest-side,transparent 82%,#000 84%);mask:radial-gradient(farthest-side,transparent 82%,#000 84%)}
 #knob{position:absolute;width:16vmin;height:16vmin;border-radius:50%;background:radial-gradient(circle at 40% 35%,#ffffff,#d9d5cb);box-shadow:0 1.2vmin 0 #8f8a7e,0 2vmin 4vmin rgba(0,0,0,.6);left:50%;top:50%;transform:translate(-50%,-50%)}
-/* --- play: the boom remote's arrow pad, in place of the stick while you're on it */
-#cross{position:absolute;inset:0;display:none}
-.boompad #cross{display:block}
-.boompad #base{border-color:transparent;box-shadow:none;width:50vmin;height:50vmin}
-.boompad #wedge,.boompad #knob{display:none}
-.arm{position:absolute;width:33%;height:33%;display:flex;align-items:center;justify-content:center;background:#1f222a;border:2px solid #3a3e4a;border-radius:2.4vmin;font-size:8vmin;color:#9a978f;transition:background .1s,transform .1s}
-.arm.l{left:0;top:33.5%}.arm.r{right:0;top:33.5%}.arm.u{top:0;left:33.5%}.arm.d{bottom:0;left:33.5%}
-.arm.c{left:33.5%;top:33.5%;visibility:hidden}
-.arm.on{background:var(--bone);color:#111;transform:scale(.94)}
-.arm.want{visibility:visible;background:var(--gold);color:#2a1d00;border-color:#b17a00;box-shadow:0 0 6vmin rgba(255,210,63,.8);animation:goldbeat .3s ease-in-out infinite}
-.arm.want.on{animation:none;transform:scale(1.04)}
-#padword{position:absolute;left:-20%;right:-20%;top:-8vmin;text-align:center;font-size:4.6vmin;color:var(--gold);display:none}
-.boompad #padword{display:block}
 /* --- play: the ticket */
 #ticket{position:absolute;left:34vw;width:33vw;top:2.6vmin;bottom:2.6vmin;border-radius:4.6vmin;background:var(--paper);color:#1b1a17;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 3vmin 7vmin rgba(0,0,0,.5);transition:transform .45s cubic-bezier(.3,1.3,.5,1)}
 #thead{display:flex;align-items:center;gap:2.4vmin;background:var(--job);color:#111;padding:2.2vmin 2.8vmin;text-align:left;width:100%}
@@ -257,7 +239,7 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 
 <div id="play" class="screen">
   <button class="pausebtn" aria-label="Pause"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M9 5v14M15 5v14"/></svg></button>
-  <div id="zone"><div class="lbl" id="zlbl">Stick</div><div id="base"><div id="wedge"></div><div id="knob"></div><div id="cross"><div id="padword" class="hd"></div><div class="arm u hd" data-k="OUT">▲</div><div class="arm l hd" data-k="LEFT">◀</div><div class="arm c hd" data-k="STOP">■</div><div class="arm r hd" data-k="RIGHT">▶</div><div class="arm d hd" data-k="IN">▼</div></div></div></div>
+  <div id="zone"><div class="lbl">Stick</div><div id="base"><div id="wedge"></div><div id="knob"></div></div></div>
   <div id="ticket">
     <button id="thead" aria-label="Your job, tap to swap">
       <svg class="hat" viewBox="0 0 24 20"><path d="M1 16h22v2H1z M3.5 16v-3a8.5 8.5 0 0 1 17 0v3z" fill="currentColor"/></svg>
@@ -325,7 +307,6 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 <div id="status">connecting…</div>
 <script>
 const PORT = __WS_PORT__;
-const VER = '__VER__';
 const $ = (id) => document.getElementById(id);
 const HAT = '<svg viewBox="0 0 24 20"><path d="M1 16h22v2H1z M3.5 16v-3a8.5 8.5 0 0 1 17 0v3z" fill="currentColor"/></svg>';
 const LOCK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" style="width:4vmin;height:4vmin"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
@@ -350,7 +331,6 @@ function connect() {
     const d = ev.data;
     if (d.startsWith('J ')) { try { onJson(JSON.parse(d.slice(2))); } catch (e) {} return; }
     const m = d.split(' ');
-    if (m[0] === 'ver') { if (m[1] !== VER) location.reload(); return; }
     if (m[0] === 'p') onPlayer(parseInt(m[1]), m[2]);
     else if (m[0] === 'v') buzz((m[1] || '30').split(',').map(Number));
     else if (m[0] === 'full') { status.textContent = 'the crew is full (6 players): watch, or wait for a spot'; }
@@ -384,7 +364,6 @@ function onJson(j) {
   else if (j.t === 'card') { card = j; drawTicket(); drawLobby(); }
   else if (j.t === 'now') { now = j; drawSteps(); }
   else if (j.t === 'gauge') drawGauge(j);
-  else if (j.t === 'pad') setPad(j);
   else if (j.t === 'nudge') setNudge(j.lvl);
   else if (j.t === 'toast') toast(j.msg);
 }
@@ -402,7 +381,7 @@ function showScreen() {
 let toastT = null;
 function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), 2200); buzz(BUZZ.missed); }
 // ---------------------------------------------------------------- the ticket
-function chip(k) { const c = KEY[k] || KEY.stick; return '<span class="k" style="background:' + c[0] + ';color:' + c[1] + '">' + (k === 'stick' ? (card && card.role === 'boom' && !now.climb ? 'PAD' : 'STICK') : k) + '</span>'; }
+function chip(k) { const c = KEY[k] || KEY.stick; return '<span class="k" style="background:' + c[0] + ';color:' + c[1] + '">' + (k === 'stick' ? 'STICK' : k) + '</span>'; }
 function mine() { return roster.find(r => r.p === me.p); }
 function drawTicket() {
   if (!card) return;
@@ -586,27 +565,16 @@ zone.addEventListener('pointerdown', (e) => {
   if (swapOpen) return;
   e.preventDefault(); sid = e.pointerId; zone.setPointerCapture(sid);
   const r = zone.getBoundingClientRect(), R = radius();
-  if (padMode) {
-    // The arrow pad stays put: pushes are measured from its middle
-    const b = base.getBoundingClientRect();
-    ox = b.left + b.width / 2; oy = b.top + b.height / 2;
-  } else {
-    // Centre the stick under the thumb, kept inside the zone
-    ox = Math.max(r.left + R * .6, Math.min(r.right - R * .6, e.clientX));
-    oy = Math.max(r.top + R * .6, Math.min(r.bottom - R * .6, e.clientY));
-    base.style.left = (ox - r.left) + 'px'; base.style.top = (oy - r.top) + 'px';
-  }
+  // Centre the stick under the thumb, kept inside the zone
+  ox = Math.max(r.left + R * .6, Math.min(r.right - R * .6, e.clientX));
+  oy = Math.max(r.top + R * .6, Math.min(r.bottom - R * .6, e.clientY));
+  base.style.left = (ox - r.left) + 'px'; base.style.top = (oy - r.top) + 'px';
   base.classList.add('on');
   moveStick(e);
 });
 function moveStick(e) {
   const R = radius();
   let dx = e.clientX - ox, dy = e.clientY - oy;
-  if (padMode) {
-    // One arrow at a time: the first one pushed holds till the thumb's back in the middle
-    if (Math.hypot(dx, dy) < R * 0.14) { padAxis = ''; dx = 0; dy = 0; }
-    else { if (!padAxis) padAxis = Math.abs(dx) >= Math.abs(dy) ? 'x' : 'y'; if (padAxis === 'x') dy = 0; else dx = 0; }
-  }
   const d = Math.hypot(dx, dy);
   if (d > R) { dx *= R / d; dy *= R / d; }
   setKnob(dx, dy);
@@ -617,41 +585,13 @@ function moveStick(e) {
   if (mag >= 1 && !atEdge) { atEdge = true; buzz(5); }
   if (mag < .9) atEdge = false;
   sendStick(false);
-  drawPad();
-}
-// The boom remote's arrow pad: the game says when you're on it, which arrow
-// answers the pipe guy (gold), and the words; the arrow you're pushing shows white
-let padMode = false, padAxis = '', padWant = '', padGold = true;
-function setPad(j) {
-  const on = !!j.on && screen === 'play';
-  if (on !== padMode) {
-    padMode = on; padAxis = '';
-    endStick();
-    document.body.classList.toggle('boompad', on);
-    $('zlbl').textContent = on ? 'Boom levers' : 'Stick';
-    if (on) buzz(BUZZ.turn);
-  }
-  if (j.want && j.want !== padWant && j.gold) buzz(BUZZ.gold);
-  padWant = j.want || ''; padGold = !!j.gold;
-  $('padword').textContent = j.word || '';
-  drawPad();
-}
-function drawPad() {
-  if (!padMode) return;
-  const push = {LEFT: vx < -0.14, RIGHT: vx > 0.14, OUT: vy < -0.14, IN: vy > 0.14, STOP: Math.hypot(vx, vy) <= 0.14};
-  document.querySelectorAll('.arm').forEach(a => {
-    const k = a.dataset.k, want = padGold && k === padWant;
-    a.classList.toggle('want', want);
-    a.classList.toggle('on', !!push[k] && (k !== 'STOP' || want));
-  });
 }
 zone.addEventListener('pointermove', (e) => { if (e.pointerId === sid) moveStick(e); });
 function endStick(e) {
   if (e && e.pointerId !== sid) return;
-  sid = null; vx = 0; vy = 0; padAxis = ''; setKnob(0, 0); sendStick(true);
+  sid = null; vx = 0; vy = 0; setKnob(0, 0); sendStick(true);
   base.style.left = '50%'; base.style.top = '50%';
   base.classList.remove('on'); wedge.style.opacity = 0;
-  drawPad();
 }
 zone.addEventListener('pointerup', endStick);
 zone.addEventListener('pointercancel', endStick);

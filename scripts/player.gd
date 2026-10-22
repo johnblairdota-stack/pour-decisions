@@ -21,7 +21,7 @@ const Settings := preload("res://scripts/settings.gd")
 const GOLD := Color("ffd23f")
 
 const BTN := {"action": "A", "leave": "B", "alt": "X", "slow": "Y"}
-const BTN_COLORS := {"A": Color("3fe0c5"), "B": Color("ff5a5f"), "X": Color("9b6bff"), "Y": Color("ffc23d"), "L": UI.GLYPH["L"]}
+const BTN_COLORS := {"A": Color("3fe0c5"), "B": Color("ff5a5f"), "X": Color("9b6bff"), "Y": Color("ffc23d")}
 ## The keyboard key behind each button, for people playing on the keys
 const KEYS := {"p1_": {"A": "Space", "B": "Q", "X": "E", "Y": "F"}, "p2_": {"A": "Enter", "B": "Shift", "X": "Ctrl", "Y": "Alt"}}
 
@@ -76,9 +76,6 @@ var ring: MeshInstance3D  # a coloured disc under a person's feet
 var bubble: Label3D       # a short spoken line ("Clamp coming up!")
 var _bubble_t := 0.0
 var _balloons: Array = []   # {node, t, life, base, phase}: speech balloons floating up
-var card: Label3D         # a hand signal held up on a paper card ("BOOM LEFT")
-var _card_t := 0.0        # s the card has left up
-var _card_life := 0.0
 var pts_frac := 0.0       # fractional points still to be awarded (continuous work)
 
 # Button cues, rebuilt every frame by whoever handles this player
@@ -190,12 +187,6 @@ func setup(i: int, color: Color) -> void:
 	bubble.add_child(bg)
 	bubble.visible = false
 	add_child(bubble)
-	# The hand-signal card: the same paper as a spoken line, bigger, held up
-	# over the head while the signal's live
-	card = bubble.duplicate()
-	card.font = UI.font("head")
-	card.font_size = 46
-	add_child(card)
 	_sweat = CPUParticles3D.new()
 	_sweat.amount = 6
 	_sweat.lifetime = 0.7
@@ -384,44 +375,6 @@ func bark(text: String, seconds := 1.8) -> void:
 		var old: Dictionary = _balloons.pop_front()
 		(old["node"] as Node).queue_free()
 
-## A hand signal, shown big on a paper card over the head for `seconds`
-## ("◀ BOOM LEFT"), so the whole couch can read what the hands are saying.
-func signal_card(text: String, seconds := 1.5) -> void:
-	if card == null:
-		return
-	card.text = text
-	var font: Font = card.font if card.font else ThemeDB.fallback_font
-	var px := font.get_string_size(text, HORIZONTAL_ALIGNMENT_CENTER, -1, card.font_size)
-	var box := px * card.pixel_size + Vector2(0.44, 0.26)
-	var tail := 0.26
-	var bg: MeshInstance3D = card.get_node("BubbleBg")
-	var qm := QuadMesh.new()
-	qm.size = Vector2(box.x, box.y + tail)
-	bg.mesh = qm
-	bg.position = Vector3(0, -tail * 0.5, -0.01)
-	if not card.has_meta("own_mat"):
-		bg.material_override = (bg.material_override as ShaderMaterial).duplicate()
-		card.set_meta("own_mat", true)
-	var mat := bg.material_override as ShaderMaterial
-	mat.set_shader_parameter("size", box)
-	mat.set_shader_parameter("tail", tail)
-	mat.set_shader_parameter("alpha", 1.0)
-	_card_t = seconds
-	_card_life = seconds
-
-func _update_card(delta: float, cam_pos: Vector3) -> void:
-	if card == null:
-		return
-	_card_t -= delta
-	card.visible = _card_t > 0.0
-	if not card.visible:
-		return
-	var ck := clampf(global_position.distance_to(cam_pos) / 15.0, 0.9, 2.4) if cam_pos != Vector3.ZERO else 1.0
-	# (it snaps up, then holds)
-	var up := minf(1.0, (_card_life - _card_t) * 9.0)
-	card.global_position = global_position + Vector3(0, 2.4 + 0.4 * ck, 0)
-	card.scale = Vector3.ONE * ck * (0.6 + 0.4 * up + 0.08 * sin(up * PI))
-
 func _update_balloons(delta: float, cam_pos: Vector3) -> void:
 	# Each balloon sits above the newer ones under it, however many lines
 	# they run to, so a long line never covers a short one
@@ -567,9 +520,6 @@ func slow_held() -> bool:
 func leave_pressed() -> bool:
 	return _pressed("leave")
 
-func leave_held() -> bool:
-	return _held("leave")
-
 ## Called once per frame after handling, so virtual presses register once.
 func end_frame() -> void:
 	if ai or covering:
@@ -621,7 +571,6 @@ func show_cues(cam_right: Vector3, t: float, cam_pos := Vector3.ZERO) -> void:
 	var k_size := 1.0
 	bubble.visible = false
 	_update_balloons(get_process_delta_time(), cam_pos)
-	_update_card(get_process_delta_time(), cam_pos)
 	if bot and not show_bot_cues:
 		for c in _cue_nodes:
 			(c["node"] as Node3D).visible = false
@@ -764,10 +713,7 @@ func release_item() -> Node3D:
 ## `cam_yaw` turns stick input into camera-relative movement.
 func walk(delta: float, walkable: Callable, cam_yaw: float) -> void:
 	var v := move_input()
-	# (the boom operator walks with the remote on its strap while they hold B;
-	# the rest of the time the stick's on the boom's levers)
-	var strap_walk := busy == "boom" and not bot and not covering and _held("leave")
-	if (busy != "" and busy != "hose" and not strap_walk) or zone == "ladder" or zone == "hoist":
+	if (busy != "" and busy != "hose") or zone == "ladder" or zone == "hoist":
 		v = Vector2.ZERO
 	var dir := Vector3(v.x, 0, v.y).rotated(Vector3.UP, cam_yaw)
 	var run := run_to != Vector3.INF

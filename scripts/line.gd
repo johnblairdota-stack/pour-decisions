@@ -140,7 +140,6 @@ var kit := "tower"
 var hopper := 0.0
 var pressure := 0.0
 var speed_high := true
-var choke := 1.0              # share of the output that gets through (an end hose stretched taut chokes it)
 var pumping := false
 var reversing := false
 var reversing_seen := false   # (dev: someone's used the belt remote, for a screenshot)
@@ -960,7 +959,7 @@ func run(delta: float, want: bool) -> float:
 			restart(null)
 	var q := 0.0
 	if pumping:
-		var rate := PUMP_Q * (1.0 if speed_high else LOW) * choke
+		var rate := PUMP_Q * (1.0 if speed_high else LOW)
 		if blocked:
 			# (not while the spike it set off is still the pump operator's to
 			# catch: they get their full chance before anything blows)
