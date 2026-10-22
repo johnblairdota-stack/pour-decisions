@@ -4381,6 +4381,8 @@ func _update_kick(delta: float) -> void:
 	if ops.primed and not _was_primed:
 		# The first concrete's at the hose: it kicks
 		_start_kick(KICK_T, KICK_HIGH if line.speed_high else KICK_LOW)
+		if stand_clear:
+			pop("STAND CLEAR", hose_anchor() + Vector3(0, 1.2, 0), UI.BONE)
 	_was_primed = ops.primed
 	if line.fix_i >= 0 or line.burst or line.blocked:
 		_line_opened = true
@@ -4757,6 +4759,8 @@ func _keep_hanging(p, delta: float) -> void:
 	if hose_stretched and line.pumping:
 		_stretch_t += delta
 		_whip_want = maxf(_whip_want, STRETCH_KICK if _stretch_t > STRETCH_KICK_T else STRETCH_BUCK)
+		if _stretch_t > STRETCH_KICK_T and _stretch_t - delta <= STRETCH_KICK_T and not p.bot:
+			pop("STRETCHED!", p.global_position + Vector3(0, 2.2, 0), UI.ALARM)
 		if _stretch_t > STRETCH_KICK_T and fmod(_stretch_t, 2.0) < delta:
 			p.bark("Stretched!", 0.8)
 	else:
@@ -5001,8 +5005,8 @@ func _left_lift(p, r: float, at: Vector3) -> void:
 	score.award(p, LIFT_PTS, "Nice lift")
 	if lift_run % LIFT_RUN == 0:
 		score.award(p, LIFT_RUN_PTS, "Lifts in a row")
-		_flash_word("LIFTS ×%d" % lift_run, 1.2)
 		if not p.bot:
+			pop("LIFTS ×%d" % lift_run, at + Vector3(0, 0.6, 0), UI.GOLD)
 			sfx.hit("chime")
 	elif not p.bot:
 		pop("NICE LIFT", at + Vector3(0, 0.5, 0), UI.GOLD)
