@@ -3021,9 +3021,10 @@ func _update_pour(delta: float) -> void:
 	if ops.primed and not ops.busy():
 		pumping = q > 0.0
 	var hose_local := _pour_local(discharge())
-	if q > 0.0 and _whip > 0.2:
-		# The hose whipping about: some of it's flung off in lumps, metres away
-		var fling := q * 0.6 * _whip
+	if q > 0.0 and _whip > 0.5:
+		# The hose whipping about (a kick on HIGH, a stretched hose): some of
+		# it's flung off in lumps, metres away
+		var fling := q * 0.6 * (_whip - 0.3)
 		q -= fling
 		_lump_t += delta
 		var a := randf() * TAU
