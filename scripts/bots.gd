@@ -403,7 +403,22 @@ func _boom(p, delta: float) -> void:
 	if why != "" and game.autotest:
 		stop_t[why] = float(stop_t.get(why, 0.0)) + delta
 	_boom_ok = ok
-	p.ai_action = ok
+	if g.pipe_calls():
+		# (the pipe guy calls the concrete: the remote's A is the horn, a
+		# honk before each big swing)
+		p.ai_action = _bot_horn(to.length())
+	else:
+		p.ai_action = ok
+
+var _honk_goal := Vector3.INF
+
+## The boom bot's horn: once for each goal far enough off to be a big swing,
+## most of the time (now and then it forgets, and hears about it).
+func _bot_horn(dist: float) -> bool:
+	if dist < game.HORN_MOVE or (_honk_goal.x != INF and _honk_goal.distance_to(_boom_goal) < 3.0):
+		return false
+	_honk_goal = _boom_goal
+	return randf() < 0.8
 
 # ------------------------------------------------------------------ pipe guy
 

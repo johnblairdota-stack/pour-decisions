@@ -11,14 +11,14 @@ const MUTED := Color("9fb0c6")
 const WHITE := Color("f4f7fa")
 const RED := Color("ff4d4d")
 const GREEN := Color("7cd992")
-const GLYPH := {"A": Color("3fe0c5"), "B": Color("ff5a5f"), "X": Color("9b6bff"), "Y": Color("ffc23d")}
+const GLYPH := {"A": Color("3fe0c5"), "B": Color("ff5a5f"), "X": Color("9b6bff"), "Y": Color("ffc23d"), "L": Color("2b2f3a")}
 
 # ------------------------------------------------------------ the Site Kit
 # One look for every button prompt, on the TV and on the phone (the phone page
 # in controller_page.gd uses the same numbers). Each button is a face colour,
 # a darker lip under it and a dark letter; four colours mean one thing each.
-const LIP := {"A": Color("1b8a6e"), "B": Color("9b2525"), "X": Color("5a35b0"), "Y": Color("b17a00")}
-const GLYPH_INK := {"A": Color("04281f"), "B": Color("2b0606"), "X": Color("1b0d3a"), "Y": Color("2a1d00")}
+const LIP := {"A": Color("1b8a6e"), "B": Color("9b2525"), "X": Color("5a35b0"), "Y": Color("b17a00"), "L": Color("111318")}
+const GLYPH_INK := {"A": Color("04281f"), "B": Color("2b0606"), "X": Color("1b0d3a"), "Y": Color("2a1d00"), "L": Color("f4f2ec")}
 const GOLD := Color("ffd23f")     # now, the sweet spot, perfect
 const ALARM := Color("ff3b2f")    # danger only
 const DONE := Color("4fb36b")     # finished, good
@@ -35,7 +35,7 @@ const URGENT_S := 1.14
 const GOLD_T := 0.3
 const SHAKE_T := 0.15
 ## Buzz patterns, ms (vibrate on/off/on…)
-const BUZZ := {"press": "12", "turn": "30,60,30", "gold": "15", "missed": "120", "alarm": "90,60,90", "done": "10,40,10"}
+const BUZZ := {"press": "12", "turn": "30,60,30", "gold": "15", "missed": "120", "alarm": "90,60,90", "done": "10,40,10", "thump": "15"}
 ## Players' tag colours, P1-P6 (match the phone page)
 const P_COLORS := [Color("3d8bff"), Color("ff4f6d"), Color("ff8a3d"), Color("7cd992"), Color("c49bff"), Color("2fd3e8")]
 

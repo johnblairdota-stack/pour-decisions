@@ -176,7 +176,8 @@ func _ready() -> void:
 	_load_samples()
 
 ## kind: "bang", "clank", "thunk", "buzz", "ding", "clang", "tink", "hiss",
-## "knock", "ring", "thud", "beep", "whip", "rain",
+## "knock", "ring", "thud", "beep", "whip", "rain", "horn", "whump", "clunk",
+## "suck",
 ## or "whistle:<code>" with a code from WHISTLES
 func hit(kind: String) -> void:
 	# Never stack: a new whistle replaces the one still sounding, and the same
@@ -305,6 +306,23 @@ func _process(delta: float) -> void:
 					s += (sin(TAU * 1568.0 * a) * 0.14 + sin(TAU * 2093.0 * a) * 0.08) * exp(-a * 6.0)
 				"ding":
 					s += sin(TAU * 988.0 * a) * exp(-a * 3.5) * 0.2 + sin(TAU * 1318.0 * a) * exp(-a * 4.0) * 0.14
+				"horn":
+					# The boom's horn: two short tones, high then low, a bit of rasp
+					if a < 0.5:
+						var hf := 440.0 if a < 0.22 else 349.0
+						var on := 1.0 if (a < 0.2 or (a > 0.26 and a < 0.48)) else 0.0
+						s += ((1.0 if fmod(a * hf, 1.0) < 0.5 else -1.0) * 0.07 + sin(TAU * hf * 2.0 * a) * 0.05) * on
+				"whump":
+					# A pump stroke arriving at the boom: a low push you feel more than hear
+					s += (sin(TAU * 52.0 * a) * 0.28 + sin(TAU * 104.0 * a) * 0.14 + sin(TAU * 156.0 * a) * 0.06) * exp(-a * 7.0) * minf(1.0, a * 60.0)
+				"clunk":
+					# A boom section locking out: heavy steel and a hydraulic thud
+					s += (sin(TAU * 62.0 * a) * 0.4 + sin(TAU * 133.0 * a) * 0.2) * exp(-a * 6.0) + (sin(TAU * 610.0 * a) + 0.5 * sin(TAU * 1020.0 * a)) * exp(-a * 22.0) * 0.18
+				"suck":
+					# A stroke in reverse: the concrete pulled back up the hose
+					if a < 0.4:
+						_hiss += ((randf() * 2.0 - 1.0) - _hiss) * 0.15
+						s += _hiss * sin(a / 0.4 * PI) * 0.18 + sin(TAU * (180.0 - 220.0 * a) * a) * exp(-a * 6.0) * 0.12
 		# Soft limiter so stacked sounds never clip into a wall of noise
 		s = tanh(s * 1.1) * 0.85
 		buf[f] = Vector2(s, s)
