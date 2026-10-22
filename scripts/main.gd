@@ -3406,11 +3406,11 @@ func _handle_player(p, delta: float) -> void:
 			var flat := Vector2(tip_target.x, tip_target.z).limit_length(TUT_R + (1.4 if ops.wants_bin() else -0.7))
 			tip_target.x = flat.x
 			tip_target.z = flat.y
-		# People walk themselves (hold B); the bots and the leading hand get
-		# walked along the scaffold, level with the hose
-		if not person:
-			_walk_boom_op(p, delta)
+		# Whoever's on the remote gets walked along the scaffold, level with
+		# the hose (and the pipe guy on it), so the camera follows the pour;
+		# holding B, a person walks themselves instead
 		if not walking:
+			_walk_boom_op(p, delta)
 			p.face(hose_end.global_position)
 			# Radio remote on its belly strap, thumbs on the sticks
 			p.pose_arms(Vector3(-1.05 + 0.04 * sin(phase_t * 7.0), 0, 0.42), Vector3(-1.05 - 0.04 * sin(phase_t * 6.0), 0, -0.42))
