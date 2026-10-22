@@ -1350,9 +1350,11 @@ func _build_boom(a: float, b: float) -> void:
 	tip.position.x = l2
 	arm2.add_child(tip)
 	tip.add_child(F.sphere(0.3, joint_mat))
-	var hang := F.cylinder(0.17, HOSE, F.mat("hose"), Vector3(0, -HOSE * 0.5, 0), 8)
-	hang.name = "Hose"
-	tip.add_child(hang)
+	# (the hanging hose swings from the tip when it bucks)
+	var swing := Node3D.new()
+	swing.name = "Hose"
+	tip.add_child(swing)
+	swing.add_child(F.cylinder(0.17, HOSE, F.mat("hose"), Vector3(0, -HOSE * 0.5, 0), 8))
 	hose_end = Node3D.new()
 	hose_end.position.y = -HOSE
 	tip.add_child(hose_end)
@@ -1401,6 +1403,7 @@ func _apply_kit(which: String) -> void:
 	if is_instance_valid(selector):
 		selector.queue_free()
 	if tutorial:
+		_fold = 2.0
 		_tut_site()
 		for key in DECK_STATIONS:
 			(stations[key]["node"] as Node3D).position = deck_pos(key)
@@ -2252,6 +2255,19 @@ func _start_pour() -> void:
 	line.interval /= minf(BIG_SLAB_TRUCKS, sqrt(pour.vol_k))
 	line._arrive_t = line.interval
 	ops.start_pour()
+	boom_signal = ""
+	sync_streak = 0
+	lift_run = 0
+	stand_clear = false
+	_thumbs_t = -1.0
+	_stowed = false
+	_kick_t = 99.0
+	_line_opened = false
+	_drip_armed = false
+	if tutorial:
+		_fold = 2.0   # (the water tower's boom is up and ready: the tutorial has enough going on)
+	elif _fold < 2.0:
+		_start_fold("unfold")
 	hud.show_brief(false)
 	if is_dawn():
 		hud.toast("%s · first truck, under the floodlights" % dawn_clock(), 3.0)
@@ -2630,7 +2646,7 @@ func _process(delta: float) -> void:
 		# shows with the `--weary` dev flag
 		var tired: float = 0.75 if _weary_all else 0.0
 		p.weary = move_toward(p.weary, tired, delta * 0.6)
-		p.speed = 6.0 * screed.speed_k(p) * poker.speed_k(p) * (HOSE_WALK_K if p.busy == "hose" else 1.0)
+		p.speed = 6.0 * screed.speed_k(p) * poker.speed_k(p) * (HOSE_WALK_K if p.busy in ["hose", "boom"] else 1.0)
 		if phase != "sign":
 			p.walk(delta, Callable(self, "_walkable").bind(p), cam_yaw)
 		if tutorial and p.zone == "deck" and p.busy == "" and not _walkable(p.position, "deck"):
@@ -2765,8 +2781,20 @@ func _process(delta: float) -> void:
 	# Rest the boom when it is not pouring
 	if phase != "pour":
 		tip_target = tip_target.lerp(Vector3(5.0, 0, 0), minf(1.0, delta * 0.8))
+	_tip_v = (tip_target - _tip_prev) / maxf(delta, 0.0001)
+	_tip_v.y = 0.0
+	_tip_prev = tip_target
 	tip_pos = tip_pos.lerp(tip_target, minf(1.0, delta * 4.0))
 	tip_kick = tip_kick.lerp(Vector3.ZERO, minf(1.0, delta * 3.0))
+	_update_sway(delta)
+	if phase == "pour":
+		_track_swing(delta)
+	if _rings != null and _boom_operator() == null:
+		_rings.visible = false
+	_update_fold(delta)
+	_update_strokes(delta)
+	_update_kick(delta)
+	_update_stand_clear(delta)
 	_update_whip(delta)
 	_update_boom()
 	_update_stream()
@@ -2902,6 +2930,7 @@ func _update_pour(delta: float) -> void:
 	if ops.primed:
 		pour_clock += delta
 	ops.update(delta)
+	_update_signal(delta)
 	_draw_hose()
 	if autotest and fmod(phase_t, 15.0) < delta:
 		# (progress, and how long a frame takes, for long pours)
@@ -2962,7 +2991,7 @@ func _update_pour(delta: float) -> void:
 	if pipe_calls():
 		want = hose_call
 	elif op != null:
-		want = op.action_held()
+		want = op.action_held() and not thumbs_pending()
 	if wind_park or not (_filled_ratio() < 1.0 or ops.wants_bin()):
 		want = false
 	if _filled_ratio() >= 1.0 and ops.stage == "pour":
@@ -2975,6 +3004,9 @@ func _update_pour(delta: float) -> void:
 			if t["state"] == "pour":
 				feeding = true
 		line.speed_high = feeding or line.hopper > line.HOPPER_CAP * (0.35 if line.speed_high else 0.55)
+		# (and it starts on LOW, so the first concrete through only shivers)
+		if not ops.primed or kicking():
+			line.speed_high = false
 	speed_advice = _speed_advice()
 	var q := 0.0
 	if ops.primed and not ops.busy():
@@ -2989,9 +3021,10 @@ func _update_pour(delta: float) -> void:
 	if ops.primed and not ops.busy():
 		pumping = q > 0.0
 	var hose_local := _pour_local(discharge())
-	if q > 0.0 and _whip > 0.2:
-		# The hose whipping about: some of it's flung off in lumps, metres away
-		var fling := q * 0.6 * _whip
+	if q > 0.0 and _whip > 0.5:
+		# The hose whipping about (a kick on HIGH, a stretched hose): some of
+		# it's flung off in lumps, metres away
+		var fling := q * 0.6 * (_whip - 0.3)
 		q -= fling
 		_lump_t += delta
 		var a := randf() * TAU
@@ -3011,6 +3044,7 @@ func _update_pour(delta: float) -> void:
 			if hose_holder != null:
 				score.trickle(hose_holder, q * 3.0, "On the end hose")
 	pour.set_splash(pumping and not (ops.wants_bin() and ops.over_bin(discharge())), hose_local)
+	_update_drip(delta)
 	if line.pumping:
 		_pump_t += delta
 	var t0 := Time.get_ticks_usec()
@@ -3084,6 +3118,7 @@ func _update_site_band(delta: float) -> void:
 	sfx.band_live = phase == "pour" and ops != null and ops.primed
 	# (the stroke's thump and a worn clamp's rattle)
 	sfx.pumping = line != null and line.pumping and phase == "pour"
+	sfx.stroke_beats = STROKE_BEATS_HIGH if line != null and line.speed_high else STROKE_BEATS_LOW
 	sfx.rattle = line.wear if line != null and line.fail_i >= 0 and line.pumping else 0.0
 	var tip_v := (tip_pos - _band_tip).length() / maxf(delta, 0.001)
 	_band_tip = tip_pos
@@ -3220,6 +3255,10 @@ func _speed_advice() -> Dictionary:
 	var none := {"want": "", "level": 0, "why": ""}
 	if phase != "pour" or line.line_down() or line.blocked:
 		return none
+	# Start-up: the first concrete through a line full of air kicks the hose
+	# about, and on HIGH it whips. Start on LOW; HIGH once it's settled.
+	if not ops.primed or kicking():
+		return {"want": "low", "level": 1, "why": "start-up"} if line.speed_high else none
 	var feeding := false
 	for t in line.trucks:
 		if t["state"] == "pour":
@@ -3324,35 +3363,39 @@ func _handle_player(p, delta: float) -> void:
 	# The pipe guy's radio works from anywhere
 	if p.role == "hose" and ops.role() == "hose" and ops.radio(p):
 		return
+	if p.role == "hose" and stand_clear and p.busy == "" and not p.bot:
+		var ca := hose_anchor()
+		var inside: bool = Vector2(p.position.x - ca.x, p.position.z - ca.z).length() < CLEAR_R and kicking()
+		p.cue("L", "stand clear till the thumbs up", -1.0, inside, Vector2(-1, -1), inside)
 
 	if p.busy == "boom":
-		if phase != "pour" or p.leave_pressed():
+		if phase != "pour":
 			p.busy = ""
+			_strap_t = 0.0
 			return
-		# Fine control: a dead zone, then a curve so a small push is a slow
-		# creep, slower still while it's pumping, and the aim never runs far
-		# ahead of the hose, so it stops where you let go
-		var v: Vector2 = p.move_input()
-		if p.bot or p.covering:
+		var person: bool = not (p.bot or p.covering)
+		# B: a tap puts the remote down; held, you walk with it on its strap
+		# (and the boom holds still)
+		if p.leave_held():
+			_strap_t += delta
+		else:
+			if _strap_t > 0.0 and _strap_t < STRAP_TAP:
+				_strap_t = 0.0
+				p.busy = ""
+				return
+			_strap_t = 0.0
+		var walking: bool = person and _strap_t > 0.0
+		var v: Vector2 = p.move_input() if not walking else Vector2.ZERO
+		if _fold_mode != "":
+			v = Vector2.ZERO   # (the stick's unfolding it, or stowing it)
+		if not person:
 			# (the bots steer it the way they always have)
 			tip_target += Vector3(v.x, 0, v.y).rotated(Vector3.UP, cam_yaw) * 7.0 * delta * p.pace
-			v = Vector2.ZERO
-		var mag := clampf((v.length() - BOOM_DEAD) / (1.0 - BOOM_DEAD), 0.0, 1.0)
-		var dir := _pad_dir(v) if mag > 0.0 else Vector3.ZERO
-		# Held hard over for a while, it winds up: faster and faster, until
-		# the hose starts to whip
-		_boom_hold_t = _boom_hold_t + delta if mag > 0.85 and not (p.bot or p.covering) else 0.0
-		var wind_up := 1.0 + (BOOM_RUSH_K - 1.0) * clampf((_boom_hold_t - BOOM_RUSH_AFTER) / BOOM_RUSH_T, 0.0, 1.0)
-		var spd := BOOM_SPEED * mag * mag * (BOOM_POUR_K if line.pumping else 1.0) * wind_up
-		tip_target += dir * spd * delta * p.pace
-		var lead := tip_target - tip_pos
-		lead.y = 0.0
-		var lead_max := BOOM_LEAD * wind_up * wind_up
-		if lead.length() > lead_max and not (p.bot or p.covering):
-			tip_target = tip_pos + lead.normalized() * lead_max + Vector3(0, tip_target.y - tip_pos.y, 0)
-		if mag == 0.0 and not (p.bot or p.covering):
-			# Let go: it settles where the hose is, no drifting on
-			tip_target = tip_target.lerp(Vector3(tip_pos.x, tip_target.y, tip_pos.z), minf(1.0, delta * 6.0))
+			_slew_v = 0.0
+			_reach_v = 0.0
+		else:
+			_belly_box(v, delta)
+		_lever(p, v, delta)
 		# Over the slab (and out over the scaffold to the bin when it's wanted)
 		var out_k := 1.4 if ops.wants_bin() else -0.6
 		tip_target.x = clampf(tip_target.x, SC.x - BW * 0.5 - out_k, SC.x + BW * 0.5 + out_k)
@@ -3362,13 +3405,29 @@ func _handle_player(p, delta: float) -> void:
 			var flat := Vector2(tip_target.x, tip_target.z).limit_length(TUT_R + (1.4 if ops.wants_bin() else -0.7))
 			tip_target.x = flat.x
 			tip_target.z = flat.y
-		_walk_boom_op(p, delta)
-		p.face(hose_end.global_position)
-		# Radio remote on its belly strap, thumbs on the sticks
-		p.pose_arms(Vector3(-1.05 + 0.04 * sin(phase_t * 7.0), 0, 0.42), Vector3(-1.05 - 0.04 * sin(phase_t * 6.0), 0, -0.42))
+		# People walk themselves (hold B); the bots and the leading hand get
+		# walked along the scaffold, level with the hose
+		if not person:
+			_walk_boom_op(p, delta)
+		if not walking:
+			p.face(hose_end.global_position)
+			# Radio remote on its belly strap, thumbs on the sticks
+			p.pose_arms(Vector3(-1.05 + 0.04 * sin(phase_t * 7.0), 0, 0.42), Vector3(-1.05 - 0.04 * sin(phase_t * 6.0), 0, -0.42))
+		_update_rings(person)
 		var blocked_now: bool = climb.wind_gust >= BOOM_WIND or line.line_down() or line.tripped
 		# A clamp weeping or a pipe blocked: the button itself tells you to stop
 		var trouble: bool = line.fail_i >= 0 or line.blocked or line.line_down()
+		# Never stand under the boom: a lump off the end hose, or the hose
+		# itself, comes straight down
+		var ha := hose_anchor()
+		if person and Vector2(p.position.x - ha.x, p.position.z - ha.z).length() < UNDER_BOOM:
+			p.cue("leave", "out from under the boom", -1.0, true, Vector2(-1, -1), true)
+		if not _fold_cue(p):
+			_lever_cue(p)
+		# Y: suck back, a stroke in reverse before the hose moves on
+		var suck_live: bool = ops.primed and not ops.busy() and not line.pumping and not _sucked and _drip_armed and _pump_off_t < DRIP_ARM + 1.0
+		if p.slow_pressed():
+			_suck_back(p)
 		if ops.wants_bin():
 			# The slurry, or the washout, into the bin, not the slab
 			var ob: bool = ops.over_bin(discharge())
@@ -3376,11 +3435,25 @@ func _handle_player(p, delta: float) -> void:
 			p.gold(not p.bot and ob)
 		elif not ops.primed or ops.busy():
 			p.say("start-up…" if not ops.primed else "washout…")
+		elif thumbs_pending():
+			# The kick's died away: tell the pipe guy it's safe to take it
+			p.cue("action", "thumbs up", -1.0, true)
+			p.gold(not p.bot)
+			if p.action_pressed():
+				_thumbs_up(p)
 		elif pipe_calls():
-			pass   # (the pipe guy calls the concrete: you keep the boom over them)
+			# The pipe guy calls the concrete: you keep the boom over them,
+			# and A's the horn, before you swing it anywhere big
+			if suck_live:
+				p.cue("slow", "suck back", -1.0, true)
+			p.cue("action", "horn", -1.0, false)
+			if p.action_pressed():
+				_honk(p)
 		elif trouble:
 			p.cue("action", "STOP pumping!", -1.0, true, Vector2(-1, -1), true)
 		else:
+			if suck_live:
+				p.cue("slow", "suck back", -1.0, true)
 			p.cue("action", "pump", 1.0 if line.pumping else -1.0, not blocked_now and line.hopper > 0.3 and not line.pumping)
 			# Gold: the boom's over the leading strip, where the concrete's
 			# wanted (from the boom tip itself: a bot on the hose works
@@ -3392,7 +3465,10 @@ func _handle_player(p, delta: float) -> void:
 		var adv: Dictionary = speed_advice
 		if adv["want"] != "":
 			var lv: int = adv["level"]
-			p.cue("alt", ("go " + adv["want"]) if lv == 0 else ("go %s: %s" % [adv["want"].to_upper(), adv["why"]]), -1.0, lv >= 1, Vector2(-1, -1), lv >= 2)
+			var words: String = ("go " + adv["want"]) if lv == 0 else ("go %s: %s" % [adv["want"].to_upper(), adv["why"]])
+			if adv["why"] == "start-up":
+				words = "start on LOW"
+			p.cue("alt", words, -1.0, lv >= 1, Vector2(-1, -1), lv >= 2)
 		if adv["want"] != "" and adv["level"] >= 1:
 			_advice_t += delta
 		else:
@@ -3431,10 +3507,28 @@ func _handle_player(p, delta: float) -> void:
 		return
 	match near:
 		"hose":
-			if p.role == "hose" and p.held == null and p.tool == "" and hose_holder == null:
+			if p.role == "hose" and p.held == null and p.tool == "" and hose_holder == null and _thrown != p:
+				if stand_clear:
+					if kicking():
+						p.cue("action", "STAND CLEAR: it's kicking", -1.0, true, Vector2(-1, -1), true)
+					else:
+						p.cue("action", "wait for the thumbs up", -1.0, false)
+					if p.action_pressed():
+						if kicking():
+							_thrown_off(p)
+						else:
+							p.say("wait for the thumbs up")
+					return
+				var safe: bool = _thumbs_t >= 0.0 and _thumbs_t < SAFE_START_T
 				p.cue("action", "take the end hose", -1.0, true)
+				p.gold(safe and not p.bot)
 				if p.action_pressed():
 					take_hose(p)
+					if safe:
+						_thumbs_t = 99.0
+						score.award(p, 5, "Safe start")
+						if not p.bot:
+							pop("SAFE START", p.global_position + Vector3(0, 2.2, 0), UI.GOLD)
 				return
 		"valve":
 			if p.role == "pump" and ops.valve(p, delta):
@@ -3812,44 +3906,669 @@ func _call_out(p) -> void:
 func autotest_human(_p) -> bool:
 	return autotest and OS.get_cmdline_user_args().has("--nocover")
 
-const BOOM_SPEED := 4.5     # m/s at full stick (it was 7 with a lag: too quick to aim)
 const BOOM_DEAD := 0.14     # stick dead zone
 const BOOM_POUR_K := 0.7    # slower while pumping, for placing
-const BOOM_LEAD := 1.15     # m the aim can run ahead of the hose (it follows at 4/s)
-const BOOM_RUSH_AFTER := 1.0  # s of full stick before the boom starts to wind up
-const BOOM_RUSH_T := 1.5      # s more to reach full rush
-const BOOM_RUSH_K := 2.0      # full rush: twice the speed
-const WHIP_FROM := 5.2        # m/s of the boom tip where the hose starts to whip
-const WHIP_FULL := 3.0        # m/s more to a full whip
-var _boom_hold_t := 0.0
-var _whip := 0.0              # 0..1: how hard the end hose is whipping about
-var _whip_prev := Vector3.ZERO
+var _whip := 0.0              # 0..1: how hard the end hose is bucking about
+var _whip_want := 0.0         # 0..1: what the kick or the stretch is asking of it this frame
 var _lump_t := 0.0
 
-## The boom stick, mapped onto the slab: left and right run along the slab's
-## edge that reads left to right on screen, up and down from its far edge to
-## its near one, whichever way the camera's turned.
-func _pad_dir(v: Vector2) -> Vector3:
-	var r := Vector3(1, 0, 0).rotated(Vector3.UP, cam_yaw)    # screen right, on the ground
-	var d := Vector3(0, 0, 1).rotated(Vector3.UP, cam_yaw)    # screen down
-	var right := Vector3(signf(r.x), 0, 0) if absf(r.x) >= absf(r.z) else Vector3(0, 0, signf(r.z))
-	var down := Vector3(0, 0, signf(d.z)) if absf(r.x) >= absf(r.z) else Vector3(signf(d.x), 0, 0)
-	return (right * v.x + down * v.y).normalized()
+# ---- the belly box: the remote's levers
+# The stick works the boom's levers, not a dot on the deck: left and right
+# slew it round the mast, up and down reach it out and in (each projected so
+# it reads the right way on screen). The boom has weight: the hydraulics spool
+# up, a lever let go hard leaves the tip swaying on past, and easing off as it
+# arrives stops it dead.
+const SLEW_MAX := 0.32        # rad/s of slew at full lever
+const TIP_MAX := 5.0          # m/s the tip can travel at full slew (a long reach slews slower)
+const REACH_MAX := 3.2        # m/s of reach, out or in, at full lever
+const SPOOL_T := 0.35         # s for the hydraulics to spool up to the lever
+const REACH_MIN := 4.0        # m from the mast: as close in as it folds while placing
+const SWAY_W := 9.0           # rad/s: the sway's swing (about 0.7 s a swing)
+const SWAY_DAMP := 0.3        # damping ratio: settled in about a second
+const SWAY_KICK := 0.9        # share of the tip's speed the sway starts with on a hard stop
+const SNAP_T := 0.1           # s: a lever dropped from hard over quicker than this is a hard stop
+const FEATHER_EASE := 0.25    # s the lever has to take coming back through the middle
+const FEATHER_MOVE := 2.0     # m a move has to cover for a FEATHERED
+const FEATHER_GAP := 3.0      # s between FEATHERED awards
+const STRAP_TAP := 0.25       # s: a B shorter than this puts the remote down
+const UNDER_BOOM := 2.0       # m from under the tip that's too close for the operator
+# The horn: a big swing over the deck gets a honk first, so the crew's braced
+const HORN_BRACE := 2.5       # s the crew stays braced after a honk
+const HORN_MOVE := 6.0        # m of tip travel that makes a swing a big one
+const HORN_TURN := PI * 0.5   # rad of slew that makes a swing a big one
+const OI_GAP := 6.0           # s between the crew's "Oi! Horn!"s
+var _slew_v := 0.0            # rad/s the boom's slewing now
+var _reach_v := 0.0           # m/s it's reaching now (+ out)
+var _sway := Vector3.ZERO     # m the tip's swinging past where it's aimed
+var _sway_v := Vector3.ZERO
+var _tip_v := Vector3.ZERO    # m/s the aim's moving (the lever, or a bot's steering)
+var _tip_prev := Vector3.ZERO
+var _strap_t := 0.0           # s B's been held on the remote
+var _lever_on := false        # the lever's off the dead zone
+var _lever_on_t := 0.0        # s it's been off it
+var _lever_peak := 0.0        # hardest it was pushed this move
+var _lever_hi_t := 0.0        # s since it was last hard over
+var _move_from := Vector3.ZERO
+var _feather_at := -99.0      # pour clock at the last FEATHERED
+var _flash := ""              # a word on the operator's stick for a moment ("FEATHERED")
+var _flash_t := 0.0
+var _horn_t := 99.0           # s since the horn
+var _swinging := false
+var _swing_from := Vector3.ZERO
+var _swing_ang := 0.0
+var _swing_braced := false
+var _swing_big := false
+var _swing_still := 0.0
+var _oi_t := 99.0
+var _rings: MeshInstance3D
 
-## The end hose whipping about when the boom's flung round too fast: lumps of
-## concrete fly off it across the slab, and whoever's on the end gets swung
-## off their feet (they hang on).
+## Where the boom's mast stands, on the ground.
+func _mast() -> Vector3:
+	var hp := head.global_position
+	return Vector3(hp.x, 0, hp.z)
+
+## How far out the tip can reach over this deck, from the mast.
+func _reach_max() -> float:
+	var ty := (deck_top() + 1.3 + HOSE) - (head.global_position.y + SHOULDER)
+	var l := l1 + l2 - 0.3
+	return sqrt(maxf(1.0, l * l - ty * ty))
+
+## Which way round the mast the tip is, in radians.
+func _tip_angle() -> float:
+	var m := _mast()
+	return atan2(tip_target.z - m.z, tip_target.x - m.x)
+
+## A person on the remote: the stick's lever positions become slew and reach
+## rates, eased by the hydraulics.
+func _belly_box(v: Vector2, delta: float) -> void:
+	var m := _mast()
+	var rel := Vector3(tip_target.x - m.x, 0, tip_target.z - m.z)
+	var r := maxf(rel.length(), 0.5)
+	var ang := atan2(rel.z, rel.x)
+	var out := rel / r
+	var round_dir := Vector3(-out.z, 0, out.x)   # the way a positive slew turns it
+	var mag := clampf((v.length() - BOOM_DEAD) / (1.0 - BOOM_DEAD), 0.0, 1.0)
+	var want_s := 0.0
+	var want_r := 0.0
+	if mag > 0.0:
+		# Screen right and screen down, on the ground, onto the boom's own
+		# two motions where the tip is now
+		var sr := Vector3(1, 0, 0).rotated(Vector3.UP, cam_yaw)
+		var sd := Vector3(0, 0, 1).rotated(Vector3.UP, cam_yaw)
+		var w := (sr * v.x + sd * v.y).normalized() * mag * mag
+		var pour_k := BOOM_POUR_K if line.pumping else 1.0
+		want_s = w.dot(round_dir) * minf(SLEW_MAX, TIP_MAX / r) * pour_k
+		want_r = w.dot(out) * REACH_MAX * pour_k
+	_slew_v = move_toward(_slew_v, want_s, SLEW_MAX / SPOOL_T * delta)
+	_reach_v = move_toward(_reach_v, want_r, REACH_MAX / SPOOL_T * delta)
+	ang += _slew_v * delta
+	r += _reach_v * delta
+	var r_max := _reach_max()
+	if r > r_max or r < REACH_MIN:
+		r = clampf(r, REACH_MIN, r_max)
+		_reach_v = 0.0
+	tip_target = Vector3(m.x + cos(ang) * r, tip_target.y, m.z + sin(ang) * r)
+
+## The lever coming back: let go hard at speed and the tip sways on past;
+## ease it back through the middle as the hose arrives and it stops dead
+## (FEATHERED). Tracked for the bots too (their nudges answer LITTLE BIT).
+func _lever(p, v: Vector2, delta: float) -> void:
+	var raw := v.length()
+	_lever_hi_t = 0.0 if raw >= 0.6 else _lever_hi_t + delta
+	if raw > BOOM_DEAD:
+		if not _lever_on:
+			_lever_on = true
+			_lever_on_t = 0.0
+			_lever_peak = 0.0
+			_move_from = tip_target
+		_lever_on_t += delta
+		_lever_peak = maxf(_lever_peak, raw)
+		return
+	if not _lever_on:
+		return
+	_lever_on = false
+	var moved := Vector2(tip_target.x - _move_from.x, tip_target.z - _move_from.z).length()
+	var spd := Vector2(_tip_v.x, _tip_v.z).length()
+	var person: bool = not (p.bot or p.covering)
+	_lever_released(p, _lever_on_t, tip_target - _move_from)
+	if not person or _lever_peak < 0.6:
+		return
+	if _lever_hi_t < SNAP_T and spd > 1.5:
+		# Let go hard: the boom's still moving, and the tip swings on past
+		_sway_v += Vector3(_tip_v.x, 0, _tip_v.z) * SWAY_KICK
+	elif _lever_hi_t >= FEATHER_EASE and moved >= FEATHER_MOVE and pour_clock - _feather_at >= FEATHER_GAP and ops.primed:
+		_feather_at = pour_clock
+		_slew_v = 0.0
+		_reach_v = 0.0
+		_sway_v = Vector3.ZERO
+		_flash_word("FEATHERED")
+		score.award(p, 10, "Feathered stops")
+		sfx.hit("chime")
+
+## A short gold word on the operator's stick cue ("FEATHERED", "IN SYNC ×3").
+func _flash_word(word: String, secs := 1.0) -> void:
+	_flash = word
+	_flash_t = secs
+
+## The stick cue on the operator: a live signal to answer, or the flash
+## word, gold, while it lasts.
+func _lever_cue(p) -> void:
+	if _signal_cue(p):
+		return
+	if _flash_t > 0.0 and _flash != "":
+		p.cue("L", _flash, -1.0, true)
+		p.gold(true)
+
+## A lever let go after `held` s, the aim moved `by`: a quick nudge toward
+## the pipe guy answers LITTLE BIT.
+func _lever_released(_p, held: float, by: Vector3) -> void:
+	if boom_signal != "LITTLE_BIT" or held < NUDGE_MIN or held > NUDGE_MAX:
+		return
+	by.y = 0.0
+	if by.dot(boom_signal_dir) > 0.03:
+		_answer(true)
+
+# ---- signal and answer: the pipe guy's hands, the boom operator's levers
+# The pipe guy talks to the boom with the standard hand signals; the boom
+# answers on the levers inside a short window. Every right answer in time
+# builds an IN SYNC streak; a miss only breaks it (and earns a bark).
+const SIGNAL_WINDOW := 1.5    # s the boom has to answer
+const ANSWER_SPEED := 0.6     # m/s of tip travel the asked way that's an answer (the other way: wrong)
+const STOP_SPEED := 0.2       # m/s: the boom's stopped
+const STOP_MOVING := 0.5      # m/s the boom has to be going for a STOP BOOM to count
+const NUDGE_MIN := 0.08       # s: the shortest lever push that's a LITTLE BIT
+const NUDGE_MAX := 0.4        # s: the longest
+const SYNC_PTS := 6           # points for an answer in time...
+const SYNC_STREAK_MAX := 10   # ...plus one for each in the streak before it, up to this
+const SYNC_HOSE := 3          # points for the pipe guy whose signal was answered
+const SIGNAL_WORDS := {"LEFT": "BOOM LEFT", "RIGHT": "BOOM RIGHT", "OUT": "BOOM OUT", "IN": "BOOM IN",
+	"LITTLE_BIT": "LITTLE BIT", "STOP_BOOM": "STOP BOOM", "ALL_DONE": "ALL DONE"}
+var boom_signal := ""         # one of SIGNAL_WORDS' keys while a signal's live, "" when none is
+var boom_signal_t := 0.0      # s since it was given
+var boom_signal_dir := Vector3.ZERO   # the way the pipe guy wants the tip to go
+var boom_signal_n := 0        # counts every signal given (so a repeat reads as a new one)
+var sync_streak := 0
+var _signal_by = null
+var _signal_counts := false   # (a STOP BOOM to a boom that's already still isn't one)
+var _hose_sync_t := 0.0       # s the pipe guy's IN SYNC shows
+
+## The pipe guy gives a hand signal (`dir`: the way the tip should go).
+func give_signal(by, sig: String, dir := Vector3.ZERO) -> void:
+	boom_signal = sig
+	boom_signal_t = 0.0
+	boom_signal_dir = Vector3(dir.x, 0, dir.z).normalized() if dir != Vector3.ZERO else Vector3.ZERO
+	boom_signal_n += 1
+	_signal_by = by
+	_signal_counts = sig != "STOP_BOOM" or Vector2(_tip_v.x, _tip_v.z).length() > STOP_MOVING
+	by.signal_card(_signal_text(sig, boom_signal_dir), 2.0 if sig == "ALL_DONE" else SIGNAL_WINDOW)
+	if sig == "ALL_DONE":
+		# The bay's full: arms crossed, and the crew have a moment
+		sfx.hit("ding")
+		var op = _boom_operator()
+		if op != null:
+			op.bark(["Beauty!", "Lovely, mate!", "Next bay!"][randi() % 3], 1.2)
+		var pk = crew.crew.get("poker")
+		if pk != null and pk.zone == "deck":
+			pk.bark("Good stuff!", 1.0)
+
+## The words on the signal card, with an arrow that points the way it reads
+## on screen.
+func _signal_text(sig: String, dir: Vector3) -> String:
+	var words: String = SIGNAL_WORDS.get(sig, sig)
+	if dir == Vector3.ZERO or not sig in ["LEFT", "RIGHT", "OUT", "IN", "LITTLE_BIT"]:
+		return words
+	var sr := Vector3(1, 0, 0).rotated(Vector3.UP, cam_yaw)
+	var su := Vector3(0, 0, -1).rotated(Vector3.UP, cam_yaw)
+	var x := dir.dot(sr)
+	var y := dir.dot(su)
+	var arrow := ("▶" if x > 0.0 else "◀") if absf(x) >= absf(y) else ("▲" if y > 0.0 else "▼")
+	return arrow + " " + words
+
+## Watching for the boom's answer to the live signal.
+func _update_signal(delta: float) -> void:
+	_hose_sync_t = maxf(0.0, _hose_sync_t - delta)
+	if boom_signal == "":
+		_signal_gap_t += delta
+		return
+	_signal_gap_t = 0.0
+	boom_signal_t += delta
+	var by = _signal_by
+	if by == null or not is_instance_valid(by) or by.busy != "hose":
+		boom_signal = ""
+		return
+	if boom_signal == "ALL_DONE":
+		if boom_signal_t > 2.0:
+			boom_signal = ""
+		return
+	if _boom_operator() == null or not _signal_counts:
+		# (nobody on the remote to answer it, or nothing to answer)
+		if boom_signal_t > SIGNAL_WINDOW:
+			boom_signal = ""
+		return
+	var v := Vector3(_tip_v.x, 0, _tip_v.z)
+	match boom_signal:
+		"LEFT", "RIGHT", "OUT", "IN":
+			var along := v.dot(boom_signal_dir)
+			if along > ANSWER_SPEED:
+				_answer(true)
+				return
+			if along < -ANSWER_SPEED and boom_signal_t > 0.15:
+				_answer(false, "Other left!" if boom_signal in ["LEFT", "RIGHT"] else "Other way!")
+				return
+		"STOP_BOOM":
+			if v.length() < STOP_SPEED:
+				_answer(true)
+				return
+	if boom_signal_t > SIGNAL_WINDOW:
+		_answer(false, ["Oi! Boom!", "Hello? Boom!", "Wake up, boom!"][randi() % 3])
+
+## The signal's been answered (or missed). A miss costs nothing but the streak.
+func _answer(ok: bool, bark := "") -> void:
+	var by = _signal_by
+	var op = _boom_operator()
+	boom_signal = ""
+	if not ok:
+		sync_streak = 0
+		if by != null and is_instance_valid(by) and bark != "":
+			by.bark(bark, 1.0)
+		return
+	sync_streak += 1
+	if op != null:
+		score.award(op, SYNC_PTS + mini(sync_streak - 1, SYNC_STREAK_MAX), "In sync with the pipe guy")
+	if by != null and is_instance_valid(by):
+		score.award(by, SYNC_HOSE, "In sync with the boom")
+	_flash_word("IN SYNC ×%d" % sync_streak, 1.2)
+	_hose_sync_t = 1.0
+	if (op != null and not op.bot) or (by != null and not by.bot):
+		sfx.hit("chime")
+
+## The cue on the boom operator while a signal's live: its words, and the
+## window draining away (gold in its last half: answer now).
+func _signal_cue(p) -> bool:
+	if boom_signal == "" or boom_signal == "ALL_DONE" or not _signal_counts:
+		return false
+	var left := 1.0 - boom_signal_t / SIGNAL_WINDOW
+	p.cue("L", SIGNAL_WORDS.get(boom_signal, boom_signal), left, true)
+	p.gold(left < 0.5)
+	return true
+
+## The pipe guy's hands while their signal's up, the way a hose hand signs
+## it: one hand on the hose, the other doing the talking.
+func _signal_pose(p) -> void:
+	var w := phase_t * 9.0
+	var yaw := 0.0
+	if boom_signal_dir != Vector3.ZERO:
+		var local := boom_signal_dir.rotated(Vector3.UP, -p.model.rotation.y)
+		yaw = atan2(local.x, local.z)
+	var left := Vector3(-1.1, 0, -0.35)
+	var right := Vector3(-0.9, 0, 0.35)
+	match boom_signal:
+		"LEFT", "RIGHT":
+			right = Vector3(-1.55, yaw, 0)
+		"OUT":
+			right = Vector3(-1.45, yaw + 0.25 * maxf(0.0, sin(w * 0.8)), 0)
+		"IN":
+			right = Vector3(-1.2 - 0.5 * maxf(0.0, sin(w * 0.8)), yaw, 0)
+		"LITTLE_BIT":
+			right = Vector3(-1.7 + 0.06 * sin(w * 1.5), 0, 0.15)
+		"STOP_BOOM":
+			right = Vector3(0.0, 0, 1.55)
+		"ALL_DONE":
+			left = Vector3(-1.3, 0, 0.75)
+			right = Vector3(-1.3, 0, -0.75)
+	p.pose_arms(left, right)
+
+# ---- the boom's feel kit
+# Unfold & stow: the boom starts the pour folded on its mast and is unfolded
+# a section at a time (stick up), and folded away again after the washout
+# (stick down). Never holds anyone up: it finishes itself if it's left.
+const FOLD_T := 1.5           # s for each section to swing out (or in)
+const FOLD_AUTO := 8.0        # s before an ignored unfold or stow finishes itself
+const FOLD_A1 := 1.45         # rad: the first section, folded, standing up off the mast
+const FOLD_A2 := -(PI - 0.14) # rad: the second, folded back down along it
+var _fold := 0.0              # 0 folded away, 1 first section out, 2 open
+var _fold_mode := ""          # "unfold", "stow" or "" (nothing doing)
+var _fold_t := 0.0            # s into the unfold or stow
+var _clunk_t := 9.0           # s since a section locked out (for its bounce)
+var _stowed := false          # this pour's boom has been folded away
+# Stroke thump: every stroke of the pump pushes a slug up the line, and the
+# deck breathes with it: a whump, the tip dips, the hose bucks, phones buzz
+const STROKE_BEATS_HIGH := 4  # beats of the site band a stroke takes on HIGH (about 19 a minute)
+const STROKE_BEATS_LOW := 6   # ...and on LOW (about 12 a minute)
+const STROKE_DIP := 0.15      # m the tip dips on a stroke
+var _stroke_beat := -1
+var _beat_quiet := 0.0        # s since the band's beat clock last moved (no audio: keep our own time)
+var _stroke_t := 0.0
+var _bob_t := 9.0             # s since the last stroke
+var _hose_jolt := 0.0         # 0..1: the end hose's buck on a stroke
+# Start-up kick: the first slug of concrete through a line full of air bucks
+# the end hose (a shiver on LOW, a proper whip on HIGH). A restart after a
+# long stop, or after the line's been opened up, kicks smaller.
+const KICK_T := 3.0           # s the start-up kick lasts
+const KICK_RESTART_T := 2.0   # s a restart's kick lasts
+const KICK_HIGH := 1.0        # how hard it whips started on HIGH
+const KICK_LOW := 0.3         # ...and the shiver on LOW
+const KICK_RESTART_K := 0.45  # a restart's kick, as a share of a start-up's (it bucks, but flings nothing)
+const RESTART_AFTER := 20.0   # s stopped before starting again kicks
+const LUMP_GAP := 0.3         # s between lumps flung off a whipping hose
+const LUMP_Q := 0.02          # m³ in each lump
+var _kick_t := 99.0           # s into the kick
+var _kick_len := 0.0
+var _kick_k := 0.0
+var _was_primed := false
+var _line_opened := false     # the line's been opened for a repair since it last pumped
+var _was_pumping := false
+# Suck back (Y): a stroke in reverse pulls the concrete back up the hose, so
+# it doesn't dribble across the deck on the way to the next spot
+const SUCK_GAP := 4.0         # s between "Clean move" awards
+const CLEAN_MOVE := 2.0       # m: a move this long after a suck back is a clean one
+const DRIP_ARM := 2.0         # s after the pump stops that a move dribbles
+const DRIP_LEN := 6.0         # m of dribble a move leaves
+const DRIP_STEP := 0.4        # m between drips
+const DRIP_Q := 0.003         # m³ in each drip
+var _pump_off_t := 0.0        # s since the pump last stopped (0 while pumping)
+var _sucked := false          # sucked back since the pump stopped
+var _suck_from := Vector3.INF # where the hose was when it was sucked back
+var _clean_at := -99.0        # pour clock at the last "Clean move"
+var _drip_left := 0.0         # m of dribble still to come on this move
+var _drip_from := Vector3.ZERO
+var _drip_armed := false      # concrete's been through since the last suck back
+var pump_stops := 0           # counts the pump stopping (the boom bot decides once per stop)
+
+## The kick or a stretched hose is bucking it right now.
+func kicking() -> bool:
+	return _kick_t < _kick_len
+
+func _start_fold(mode: String) -> void:
+	_fold_mode = mode
+	_fold_t = 0.0
+
+## Unfolding at the start of the pour, stowing after the washout.
+func _update_fold(delta: float) -> void:
+	_clunk_t += delta
+	if phase == "pour" and ops.washed and not _stowed and _fold_mode == "" and not tutorial:
+		_stowed = true
+		_start_fold("stow")
+	if _fold_mode == "":
+		return
+	_fold_t += delta
+	var op = _boom_operator()
+	var person: bool = op != null and not op.bot and not op.covering
+	var unfold := _fold_mode == "unfold"
+	var drive := 0.0
+	if person:
+		var v: Vector2 = op.move_input()
+		drive = clampf(-v.y if unfold else v.y, 0.0, 1.0)
+	elif _fold_t > 0.6:
+		drive = 1.0   # (the bots, or nobody on the remote: it does itself)
+	# (never holding up the bin, or anyone: it finishes itself)
+	if _fold_t > FOLD_AUTO or phase != "pour" or (unfold and ops.wants_bin()):
+		drive = 1.0
+	var before := _fold
+	_fold = clampf(_fold + (1.0 if unfold else -1.0) * drive * delta / FOLD_T, 0.0, 2.0)
+	if floori(before) != floori(_fold) or (_fold != before and (_fold == 0.0 or _fold == 2.0)):
+		_clunk_t = 0.0
+		sfx.hit("clunk")
+		shake = maxf(shake, 0.15)
+		if person:
+			haptic(op, "40")
+	if (unfold and _fold >= 2.0) or (not unfold and _fold <= 0.0):
+		_fold_mode = ""
+		if not unfold:
+			# Boom's away: a small cheer from the crew
+			for role in ["hose", "poker", "screed"]:
+				var q = crew.crew.get(role)
+				if q != null and q.zone == "deck":
+					q.bark(["Boom's away!", "Good job, team!", "Packed up!"][randi() % 3], 1.2)
+			if person:
+				score.award(op, 5, "Boom stowed")
+
+## The unfold or stow cue on the operator's stick. True if it took the stick.
+func _fold_cue(p) -> bool:
+	if _fold_mode == "":
+		return false
+	var unfold := _fold_mode == "unfold"
+	p.cue("L", "stick up: unfold the boom" if unfold else "stick down: stow the boom", _fold / 2.0 if unfold else 1.0 - _fold / 2.0, true)
+	return true
+
+## The pump's strokes, on the band's beat clock (or our own without audio).
+func _update_strokes(delta: float) -> void:
+	_bob_t += delta
+	_hose_jolt = maxf(0.0, _hose_jolt - delta * 5.0)
+	var on: bool = phase == "pour" and line != null and line.pumping
+	var n := STROKE_BEATS_HIGH if line != null and line.speed_high else STROKE_BEATS_LOW
+	var b: int = sfx.beats()
+	var fire := false
+	if b != _stroke_beat:
+		_stroke_beat = b
+		_beat_quiet = 0.0
+		fire = b % n == 0
+	else:
+		_beat_quiet += delta
+	if _beat_quiet > 2.0:
+		_stroke_t += delta
+		if _stroke_t >= n * sfx.BEAT:
+			_stroke_t = 0.0
+			fire = true
+	if fire and on:
+		_stroke()
+
+## One stroke (its whump is the pump's own thump in sfx.gd, on the same beat).
+func _stroke() -> void:
+	_bob_t = 0.0
+	_hose_jolt = 1.0
+	haptic(_boom_operator(), UI.BUZZ["thump"])
+	haptic(hose_holder, UI.BUZZ["thump"])
+
+## The tip's dip on a stroke, m (negative: down).
+func _stroke_bob() -> float:
+	return -STROKE_DIP * exp(-_bob_t * 5.0) * cos(_bob_t * 16.0)
+
+func _start_kick(length: float, k: float) -> void:
+	_kick_t = 0.0
+	_kick_len = length
+	_kick_k = k
+	_lump_t = 0.0
+	sfx.hit("whip" if k > 0.5 else "thud")
+	if k > 0.5:
+		shake = maxf(shake, 0.4)
+
+## The start-up kick, and the smaller one on a restart.
+func _update_kick(delta: float) -> void:
+	if phase != "pour":
+		_was_primed = false
+		_kick_t = 99.0
+		return
+	if ops.primed and not _was_primed:
+		# The first concrete's at the hose: it kicks
+		_start_kick(KICK_T, KICK_HIGH if line.speed_high else KICK_LOW)
+		if stand_clear:
+			pop("STAND CLEAR", hose_anchor() + Vector3(0, 1.2, 0), UI.BONE)
+	_was_primed = ops.primed
+	if line.fix_i >= 0 or line.burst or line.blocked:
+		_line_opened = true
+	if line.pumping and not _was_pumping and ops.primed and not ops.busy() and not kicking():
+		if _pump_off_t > RESTART_AFTER or _line_opened:
+			_start_kick(KICK_RESTART_T, (KICK_HIGH if line.speed_high else KICK_LOW) * KICK_RESTART_K)
+		_line_opened = false
+	_was_pumping = line.pumping
+	if not kicking():
+		return
+	_kick_t += delta
+	# (hardest at first, dying away)
+	var u := 1.0 - _kick_t / maxf(_kick_len, 0.01)
+	_whip_want = maxf(_whip_want, _kick_k * clampf(u * 1.6, 0.0, 1.0))
+	tip_kick += Vector3(sin(phase_t * 23.0), 0, cos(phase_t * 19.0)) * 0.6 * _kick_k * u * delta * 10.0
+	if _kick_k > 0.5:
+		# A proper whip: lumps flung off it, metres away
+		_lump_t += delta
+		if _lump_t > LUMP_GAP:
+			_lump_t = 0.0
+			var a := randf() * TAU
+			pour.deposit(_pour_local(discharge()) + Vector3(cos(a), 0, sin(a)) * randf_range(1.5, 3.5), LUMP_Q)
+			sfx.hit("plop")
+
+## Y on the remote: suck back. Only with the pump stopped.
+func _suck_back(p) -> void:
+	if line.pumping or not ops.primed or ops.busy():
+		if not p.bot:
+			p.say("not while it's pumping")
+		return
+	_sucked = true
+	_drip_left = 0.0
+	_suck_from = discharge()
+	sfx.hit("suck")
+	p.bounce()
+
+## The pump stopping and the hose moving on: a dribble trail across the
+## deck, unless it was sucked back first (and then a clean move).
+func _update_drip(delta: float) -> void:
+	if line.pumping or not ops.primed or ops.busy():
+		if line.pumping:
+			_drip_armed = true
+		_pump_off_t = 0.0
+		_sucked = false
+		_drip_left = 0.0
+		_suck_from = Vector3.INF
+		return
+	var here := discharge()
+	if _pump_off_t == 0.0:
+		pump_stops += 1
+		_drip_from = here
+	_pump_off_t += delta
+	if _sucked:
+		if _suck_from.x != INF and Vector2(here.x - _suck_from.x, here.z - _suck_from.z).length() >= CLEAN_MOVE:
+			_suck_from = Vector3.INF
+			if pour_clock - _clean_at >= SUCK_GAP:
+				_clean_at = pour_clock
+				var op = _boom_operator()
+				if op != null:
+					score.award(op, 5, "Clean move")
+					if not op.bot:
+						pop("CLEAN MOVE", here + Vector3(0, 0.4, 0), UI.GOLD)
+		return
+	if not _drip_armed:
+		return
+	var step := Vector2(here.x - _drip_from.x, here.z - _drip_from.z).length()
+	if _drip_left <= 0.0:
+		# A move of a couple of metres straight after the pump stops: the
+		# hose is still full, and it dribbles all the way
+		if _pump_off_t < DRIP_ARM and step >= CLEAN_MOVE:
+			_drip_left = DRIP_LEN
+		elif _pump_off_t >= DRIP_ARM:
+			_drip_armed = false
+		return
+	if step >= DRIP_STEP:
+		_drip_left -= step
+		_drip_from = here
+		if on_pad(here):
+			pour.deposit(_pour_local(here), DRIP_Q)
+	if _drip_left <= 0.0:
+		_drip_armed = false
+
+## The tip's sway after a hard stop: a damped spring on top of where it's aimed.
+func _update_sway(delta: float) -> void:
+	_sway_v += (-SWAY_W * SWAY_W * _sway - 2.0 * SWAY_DAMP * SWAY_W * _sway_v) * delta
+	_sway += _sway_v * delta
+	_flash_t = maxf(0.0, _flash_t - delta)
+	_horn_t += delta
+	_oi_t += delta
+
+## A: the horn. Two tones, and the crew's braced for the swing that follows.
+func _honk(p) -> void:
+	_horn_t = 0.0
+	sfx.hit("horn")
+	if not p.bot:
+		pop("HORN", tip.global_position + Vector3(0, -1.0, 0), UI.ROLE["boom"])
+
+## Each swing of the boom, whoever's driving it: a big one (a quarter turn
+## round the mast, or six metres of travel) wants the horn first.
+func _track_swing(delta: float) -> void:
+	var spd := Vector2(_tip_v.x, _tip_v.z).length()
+	if spd > 0.4:
+		if not _swinging:
+			_swinging = true
+			_swing_from = tip_target
+			_swing_ang = _tip_angle()
+			_swing_braced = _horn_t < HORN_BRACE
+			_swing_big = false
+		_swing_still = 0.0
+	elif _swinging:
+		_swing_still += delta
+		if _swing_still > 0.3:
+			_swinging = false
+	if not _swinging or _swing_big:
+		return
+	var moved := Vector2(tip_target.x - _swing_from.x, tip_target.z - _swing_from.z).length()
+	var turned := absf(angle_difference(_swing_ang, _tip_angle()))
+	if moved < HORN_MOVE and turned < HORN_TURN:
+		return
+	_swing_big = true
+	var op = _boom_operator()
+	# (only once the concrete's on: before that nobody's out on the deck)
+	if op == null or not ops.primed or ops.busy():
+		return
+	if _swing_braced:
+		score.award(op, 5, "Warned the deck")
+		if not op.bot:
+			pop("WARNED THE DECK", tip.global_position + Vector3(0, -1.0, 0), UI.GOLD)
+	elif _oi_t > OI_GAP:
+		_oi_t = 0.0
+		for role in ["hose", "poker"]:
+			var q = crew.crew.get(role)
+			if q != null and q.zone == "deck":
+				q.bark(["Oi! Horn!", "Horn, mate!"][randi() % 2], 1.2)
+
+## Faint dashed arcs round the mast at the reach the tip's at (and a step in
+## and out), while a person's on the remote: how far out the boom is.
+const RING_STEP := 2.5        # m between the reach rings
+const RING_SPAN := 0.7        # rad of arc each side of the tip
+func _update_rings(show: bool) -> void:
+	if _rings == null:
+		_rings = MeshInstance3D.new()
+		_rings.mesh = ImmediateMesh.new()
+		var rm := StandardMaterial3D.new()
+		rm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		rm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		rm.cull_mode = BaseMaterial3D.CULL_DISABLED
+		rm.albedo_color = Color(UI.BONE, 0.3)
+		_rings.material_override = rm
+		_rings.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		_rings.layers = 8
+		add_child(_rings)
+	_rings.visible = show and phase == "pour"
+	if not _rings.visible:
+		return
+	var im := _rings.mesh as ImmediateMesh
+	im.clear_surfaces()
+	var m := _mast()
+	var r0 := Vector2(tip_pos.x - m.x, tip_pos.z - m.z).length()
+	var a0 := atan2(tip_pos.z - m.z, tip_pos.x - m.x)
+	var y := work_y + 0.3
+	im.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
+	for i in 3:
+		var r := r0 + (i - 1) * RING_STEP
+		if r < 1.0:
+			continue
+		var w := 0.09 if i == 1 else 0.06
+		var dashes := 14
+		for d in dashes:
+			var u0 := a0 - RING_SPAN + 2.0 * RING_SPAN * d / dashes
+			var u1 := u0 + 2.0 * RING_SPAN / dashes * 0.55
+			var p0 := Vector3(m.x + cos(u0) * (r - w), y, m.z + sin(u0) * (r - w))
+			var p1 := Vector3(m.x + cos(u0) * (r + w), y, m.z + sin(u0) * (r + w))
+			var p2 := Vector3(m.x + cos(u1) * (r - w), y, m.z + sin(u1) * (r - w))
+			var p3 := Vector3(m.x + cos(u1) * (r + w), y, m.z + sin(u1) * (r + w))
+			for q in [p0, p1, p2, p2, p1, p3]:
+				im.surface_add_vertex(q)
+	im.surface_end()
+
+## The end hose bucking and whipping: the start-up kick (smaller on a
+## restart) and a hose stretched too far from under the boom. Whoever's on
+## the end gets swung about like a pendulum (they hang on).
 func _update_whip(delta: float) -> void:
-	var v := tip_pos - _whip_prev
-	v.y = 0.0
-	_whip_prev = tip_pos
-	var spd := v.length() / maxf(delta, 0.0001)
-	# (only a person flings it round like that: the bots keep it steady)
-	var person := false
-	for q in players:
-		if q.busy == "boom" and not q.bot and not q.covering:
-			person = true
-	var want := clampf((spd - WHIP_FROM) / WHIP_FULL, 0.0, 1.0) if phase == "pour" and person else 0.0
+	var want := _whip_want if phase == "pour" else 0.0
+	_whip_want = 0.0
 	_whip = move_toward(_whip, want, delta * (3.0 if want > _whip else 1.2))
 	var h = hose_holder
 	if h != null and is_instance_valid(h) and h.busy == "hose" and _whip > 0.02:
@@ -3898,6 +4617,8 @@ func hose_anchor() -> Vector3:
 func take_hose(p) -> void:
 	hose_holder = p
 	p.busy = "hose"
+	p.set_meta("hose_at", p.position)
+	_hose_bay = pour.cur_bay
 	p.bounce()
 	sfx.hit("tink")
 	(tip.get_node("Hose") as Node3D).visible = false
@@ -3910,6 +4631,16 @@ func drop_hose() -> void:
 		hose_holder.busy = ""
 	hose_holder = null
 	hose_call = false
+	hose_lean = 0.0
+	hose_stretched = false
+	if line != null:
+		line.choke = 1.0
+	_lean_charge = 0.0
+	_stretch_t = 0.0
+	_hose_bay = -1
+	_lift_at = Vector3.INF
+	if _lift != null:
+		_lift.visible = false
 	if tip and tip.get_node_or_null("Hose"):
 		(tip.get_node("Hose") as Node3D).visible = true
 	for s in _hose_segs:
@@ -3928,15 +4659,23 @@ func _hose_work(p, delta: float) -> void:
 	if phase != "pour" or p.leave_pressed():
 		drop_hose()
 		return
-	# The end hose only reaches so far from under the boom tip: past that,
-	# the boom drags you along
-	var a := hose_anchor()
-	var off := Vector2(p.position.x - a.x, p.position.z - a.z)
-	if off.length() > HOSE_REACH:
-		off = off.normalized() * HOSE_REACH
-		p.position.x = a.x + off.x
-		p.position.z = a.z + off.y
-	p.pose_arms(Vector3(-1.1, 0, -0.35), Vector3(-0.9, 0, 0.35))
+	_keep_hanging(p, delta)
+	_update_lift(p, delta)
+	p.pose_arms(Vector3(-1.1 + 0.25 * _hose_jolt, 0, -0.35), Vector3(-0.9 + 0.25 * _hose_jolt, 0, 0.35))
+	_hose_y(p, delta)
+	if boom_signal != "" and _signal_by == p:
+		_signal_pose(p)
+	# The stick cue: stretched (danger), the In Sync moment, or the signal
+	# charging as you lean
+	if hose_stretched and _stretch_t > STRETCH_KICK_T:
+		p.cue("L", "STRETCHED!", -1.0, true, Vector2(-1, -1), true)
+	elif _hose_sync_t > 0.0:
+		p.cue("L", "IN SYNC", -1.0, true)
+		p.gold(true)
+	elif _lean_charge > 0.05:
+		p.cue("L", "lean: signal the boom", _lean_charge, true)
+	elif not p.bot and ops.primed and not ops.busy():
+		p.cue("slow", "little bit · hold: stop boom", -1.0, false)
 	if ops.radio(p):
 		hose_call = false
 		return
@@ -3953,9 +4692,16 @@ func _hose_work(p, delta: float) -> void:
 	if line.fail_i >= 0 or line.blocked or line.line_down():
 		p.cue("action", "STOP: let go!" if hose_call else "line trouble: hold off", -1.0, hose_call, Vector2(-1, -1), hose_call)
 	else:
-		p.cue("action", "hold: pump on" if not hose_call else "pumping · let go: off", 1.0 if hose_call else -1.0, _hose_quiet_t > HOSE_QUIET * 0.5)
+		var dl := _pour_local(discharge())
+		var heaping: bool = hose_call and pour.height_at(dl) > pour.SLAB * LIFT_HEAP
+		var verb := "hold: pump on"
+		if heaping:
+			verb = "HEAPING · move on"
+		elif hose_call:
+			verb = "pumping · LIFTS ×%d" % lift_run if lift_run >= 2 else "pumping · let go: off"
+		p.cue("action", verb, 1.0 if hose_call else -1.0, heaping or _hose_quiet_t > HOSE_QUIET * 0.5)
 		# Gold: you're on the spot where the concrete's wanted
-		p.gold(not p.bot and pour.good_pour_spot(_pour_local(discharge())))
+		p.gold(not p.bot and not heaping and pour.good_pour_spot(dl))
 	_hose_bark_t += delta
 	if hose_call != was:
 		var held := _hose_state_t
@@ -3965,6 +4711,360 @@ func _hose_work(p, delta: float) -> void:
 			p.bark("Pump it!" if hose_call else "Stop!", 0.9 if hose_call else 0.7)
 	else:
 		_hose_state_t += delta
+
+# ---- keep it hanging: the pipe guy's half of signal and answer
+# The end hose should hang near enough straight down. Lean out on it and
+# it's a signal to the boom (it fires the way you're pulling, round the mast
+# or in and out); pull it taut and it chokes the flow and starts to buck.
+const LEAN_TRUE := 0.6        # lean (share of the hose's reach) under which it hangs true
+const LEAN_CHARGE_T := 0.5    # s of leaning to make a signal
+const SIGNAL_GAP := 0.6       # s after one signal's over before the next can be made
+const STRETCH_MAX := 1.35     # lean at which the boom drags the pipe guy after all
+const STRETCH_CHOKE := 0.4    # share of the output that gets through a stretched hose
+const STRETCH_BUCK := 0.25    # how hard a stretched hose bucks
+const STRETCH_KICK_T := 1.5   # s stretched and pumping before it kicks properly
+const STRETCH_KICK := 0.6     # ...and how hard
+const HOSE_Y_TAP := 0.25      # s: a Y shorter than this is LITTLE BIT
+const HOSE_Y_HOLD := 0.4      # s: a Y held this long is STOP BOOM
+var hose_lean := 0.0          # how far the pipe guy's out from under the tip, as a share of HOSE_REACH
+var hose_stretched := false
+var _lean_charge := 0.0       # 0..1: the signal building as they lean
+var _stretch_t := 0.0         # s stretched while pumping
+var _hose_y_t := -1.0         # s Y's been held on the end hose (-1: not held)
+var _signal_gap_t := 99.0     # s since the last signal ended
+var _hose_bay := -1           # the bay the pipe guy was filling (for ALL DONE)
+
+## The leash: walk out as far as the hose reaches, never further; the boom
+## moving away doesn't drag you, the lean just grows (until it's really
+## pulling, then it does). Leaning charges a signal the way you're pulling.
+func _keep_hanging(p, delta: float) -> void:
+	var a := hose_anchor()
+	var off := Vector2(p.position.x - a.x, p.position.z - a.z)
+	var last: Vector3 = p.get_meta("hose_at", p.position)
+	var last_off := Vector2(last.x - a.x, last.z - a.z).length()
+	var limit := maxf(HOSE_REACH, minf(last_off, HOSE_REACH * STRETCH_MAX))
+	if p.bot or p.covering:
+		limit = HOSE_REACH   # (a bot keeps up the way it always has: the boom takes it along)
+	if off.length() > limit:
+		off = off.normalized() * limit
+		p.position.x = a.x + off.x
+		p.position.z = a.z + off.y
+	p.set_meta("hose_at", p.position)
+	hose_lean = off.length() / HOSE_REACH
+	var out := Vector3(off.x, 0, off.y).normalized() if off.length() > 0.01 else Vector3.ZERO
+	var mv: Vector2 = p.move_input()
+	var push := Vector3(mv.x, 0, mv.y).rotated(Vector3.UP, cam_yaw)
+	var pulling: bool = push.dot(out) > 0.3
+	hose_stretched = hose_lean > 1.01 or (hose_lean > 0.99 and pulling)
+	# Stretched: the flow's choked and the hose bucks; keep pumping into it
+	# and it kicks
+	line.choke = STRETCH_CHOKE if hose_stretched else 1.0
+	if hose_stretched and line.pumping:
+		_stretch_t += delta
+		_whip_want = maxf(_whip_want, STRETCH_KICK if _stretch_t > STRETCH_KICK_T else STRETCH_BUCK)
+		if _stretch_t > STRETCH_KICK_T and _stretch_t - delta <= STRETCH_KICK_T and not p.bot:
+			pop("STRETCHED!", p.global_position + Vector3(0, 2.2, 0), UI.ALARM)
+		if _stretch_t > STRETCH_KICK_T and fmod(_stretch_t, 2.0) < delta:
+			p.bark("Stretched!", 0.8)
+	else:
+		_stretch_t = 0.0
+		if hose_stretched:
+			_whip_want = maxf(_whip_want, STRETCH_BUCK * 0.5)
+	# Leaning out: the signal charges, then fires (one at a time)
+	var can_sign: bool = ops.primed and not ops.busy() and boom_signal == "" and _signal_gap_t > SIGNAL_GAP
+	if hose_lean >= LEAN_TRUE and pulling and can_sign:
+		_lean_charge = minf(1.0, _lean_charge + delta / LEAN_CHARGE_T)
+		if _lean_charge >= 1.0:
+			_lean_charge = 0.0
+			var sig := _pull_signal(out)
+			give_signal(p, sig[0], sig[1])
+	else:
+		_lean_charge = maxf(0.0, _lean_charge - delta * 2.0)
+	# The bay's full: arms crossed, ALL DONE
+	if _hose_bay >= 0 and pour.cur_bay > _hose_bay and ops.primed and boom_signal == "":
+		give_signal(p, "ALL_DONE")
+	_hose_bay = pour.cur_bay
+
+## Which signal a pull that way makes: round the mast (BOOM LEFT or RIGHT,
+## as it reads on screen) or in and out from it. [signal, the way the tip should go].
+func _pull_signal(out: Vector3) -> Array:
+	var m := _mast()
+	var a := hose_anchor()
+	var rad := Vector3(a.x - m.x, 0, a.z - m.z).normalized()
+	var round_dir := Vector3(-rad.z, 0, rad.x)
+	var cr := out.dot(rad)
+	var ct := out.dot(round_dir)
+	if absf(cr) >= absf(ct):
+		return ["OUT", rad] if cr > 0.0 else ["IN", -rad]
+	var d := round_dir * signf(ct)
+	var sr := Vector3(1, 0, 0).rotated(Vector3.UP, cam_yaw)
+	return ["RIGHT" if d.dot(sr) > 0.0 else "LEFT", d]
+
+## Y on the end hose: a tap is LITTLE BIT (the way you're pushing, or
+## facing), held it's STOP BOOM.
+func _hose_y(p, delta: float) -> void:
+	if not ops.primed or ops.busy():
+		_hose_y_t = -1.0
+		return
+	if p.slow_held():
+		_hose_y_t = maxf(_hose_y_t, 0.0) + delta
+		if _hose_y_t >= HOSE_Y_HOLD and _hose_y_t - delta < HOSE_Y_HOLD:
+			give_signal(p, "STOP_BOOM")
+		return
+	if _hose_y_t >= 0.0 and _hose_y_t < HOSE_Y_TAP:
+		var mv: Vector2 = p.move_input()
+		var dir := Vector3(mv.x, 0, mv.y).rotated(Vector3.UP, cam_yaw)
+		if dir.length() < 0.2:
+			dir = Vector3(sin(p.model.rotation.y), 0, cos(p.model.rotation.y))
+		give_signal(p, "LITTLE_BIT", dir)
+	_hose_y_t = -1.0
+
+# ---- stand clear: the start-up kick
+# When the first concrete's coming the pipe guy lets go and stands well back
+# while the hose kicks; once it's settled the boom operator gives the thumbs
+# up (A), and only then does the pipe guy take it. Grab it while it's still
+# kicking and it throws you off.
+const CLEAR_R := 2.5          # m round under the tip that the pipe guy keeps out of
+const THUMBS_BOT := 0.5       # s after the kick a boom bot (or nobody) gives the thumbs up
+const THUMBS_AUTO := 6.0      # s before a boom operator who's forgotten is taken as a yes
+const SAFE_START_T := 1.5     # s after the thumbs up to grab the hose for a Safe start
+const THROWN_T := 0.9         # s being thrown about
+var stand_clear := false      # concrete's on its way, till the thumbs up
+var _thumbs_wait_t := 0.0     # s since the kick died away, waiting on the thumbs up
+var _thumbs_t := -1.0         # s since the thumbs up (-1: not given yet)
+var _thrown = null            # whoever grabbed the hose too soon
+var _thrown_t := 0.0
+var _thrown_dir := Vector3.ZERO
+var _clear_ring: MeshInstance3D
+
+## The kick's over and the pipe guy's waiting on the boom operator's thumbs up.
+func thumbs_pending() -> bool:
+	return stand_clear and ops.primed and not kicking()
+
+func _update_stand_clear(delta: float) -> void:
+	if _thumbs_t >= 0.0:
+		_thumbs_t += delta
+	_update_thrown(delta)
+	if phase != "pour":
+		stand_clear = false
+		_draw_clear_ring(false)
+		return
+	if ops.stage == "concrete" and not stand_clear and _thumbs_t < 0.0:
+		stand_clear = true
+		_thumbs_wait_t = 0.0
+		var h = hose_holder
+		if h != null and is_instance_valid(h):
+			drop_hose()
+			h.bark("Standing clear!", 1.0)
+			if not h.bot and not h.covering:
+				hud.toast("Concrete's coming: stand clear till the thumbs up", 2.2)
+	if thumbs_pending():
+		_thumbs_wait_t += delta
+		var op = _boom_operator()
+		if (op == null and _thumbs_wait_t > THUMBS_BOT) or _thumbs_wait_t > THUMBS_AUTO:
+			_thumbs_up(null)
+	_draw_clear_ring(stand_clear)
+
+## The boom operator's thumbs up (null: nobody gave it, it's just time).
+func _thumbs_up(by) -> void:
+	stand_clear = false
+	_thumbs_t = 0.0
+	if by != null:
+		by.signal_card("THUMBS UP", 1.5)
+		by.bark("Thumbs up!", 1.0)
+		sfx.hit("tink")
+	var h = crew.crew.get("hose")
+	if h != null and not h.bot and not h.covering:
+		hud.toast("Thumbs up: take the end hose!", 1.4)
+
+## Grabbing the end hose before the thumbs up, while it's still kicking.
+func _thrown_off(p) -> void:
+	_thrown = p
+	_thrown_t = 0.0
+	var a := hose_anchor()
+	_thrown_dir = Vector3(p.position.x - a.x, 0, p.position.z - a.z)
+	_thrown_dir = _thrown_dir.normalized() if _thrown_dir.length() > 0.05 else Vector3(0, 0, 1)
+	p.bark(["Whoa! It's alive!", "Bucking bronco!", "Not yet, mate!"][randi() % 3], 1.2)
+	sfx.hit("thud")
+	shake = maxf(shake, 0.25)
+
+func _update_thrown(delta: float) -> void:
+	if _thrown == null:
+		return
+	var p = _thrown
+	if not is_instance_valid(p):
+		_thrown = null
+		return
+	_thrown_t += delta
+	var u := clampf(_thrown_t / THROWN_T, 0.0, 1.0)
+	if u >= 1.0:
+		p.model.position.y = 0.0
+		p.model.rotation.z = 0.0
+		_thrown = null
+		return
+	# (flung back a metre or so, flailing)
+	var step: Vector3 = _thrown_dir * 2.4 * (1.0 - u) * delta
+	if p.zone != "deck" or on_pad(p.position + step):
+		p.position += step
+	p.model.position.y = 0.7 * absf(sin(_thrown_t * 9.0)) * (1.0 - u)
+	p.model.rotation.z = 0.7 * sin(_thrown_t * 18.0) * (1.0 - u)
+	var fl := sin(_thrown_t * 17.0) * (1.0 - u)
+	p.pose_arms(Vector3(-2.6 + 0.8 * fl, 0, -0.6), Vector3(-2.6 - 0.8 * fl, 0, 0.6))
+
+## A dashed gold ring round under the tip while the pipe guy's to stand clear.
+func _draw_clear_ring(show: bool) -> void:
+	if _clear_ring == null:
+		_clear_ring = MeshInstance3D.new()
+		_clear_ring.mesh = ImmediateMesh.new()
+		var cm := StandardMaterial3D.new()
+		cm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		cm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		cm.cull_mode = BaseMaterial3D.CULL_DISABLED
+		cm.albedo_color = Color(UI.GOLD, 0.8)
+		_clear_ring.material_override = cm
+		_clear_ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		_clear_ring.layers = 4   # (left out of the close-up cameras)
+		add_child(_clear_ring)
+	_clear_ring.visible = show
+	if not show:
+		return
+	var a := hose_anchor()
+	var y: float = pour.position.y + pour.height_at(_pour_local(a)) + 0.06
+	var im := _clear_ring.mesh as ImmediateMesh
+	im.clear_surfaces()
+	im.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
+	var dashes := 28
+	var w := 0.07
+	for d in dashes:
+		var u0 := TAU * d / dashes + phase_t * 0.3
+		var u1 := u0 + TAU / dashes * 0.55
+		var p0 := Vector3(a.x + cos(u0) * (CLEAR_R - w), y, a.z + sin(u0) * (CLEAR_R - w))
+		var p1 := Vector3(a.x + cos(u0) * (CLEAR_R + w), y, a.z + sin(u0) * (CLEAR_R + w))
+		var p2 := Vector3(a.x + cos(u1) * (CLEAR_R - w), y, a.z + sin(u1) * (CLEAR_R - w))
+		var p3 := Vector3(a.x + cos(u1) * (CLEAR_R + w), y, a.z + sin(u1) * (CLEAR_R + w))
+		for q in [p0, p1, p2, p2, p1, p3]:
+			im.surface_add_vertex(q)
+	im.surface_end()
+
+# ---- lay the lift: a level layer, spot by spot
+# While the concrete's on, a ring on the deck round where it's landing fills
+# as the lift builds; leave each spot with it in the gold band (about one
+# slab deep) for a Nice lift, and a run of them. Leave a heap and the
+# screeder lets you know.
+const LIFT_R := 0.55          # m: the ring's radius
+const LIFT_W := 0.06          # m: its half-width
+const LIFT_MOVE := 0.6        # m the landing point moves for the spot to count as left
+const LIFT_LO := 0.9          # the gold band, as a share of the slab's depth...
+const LIFT_HI := 1.1
+const LIFT_HEAP := 1.3        # ...and past this it's a heap
+const LIFT_PTS := 4
+const LIFT_GAP := 1.5         # s between Nice lifts
+const LIFT_RUN := 5           # every this many in a row...
+const LIFT_RUN_PTS := 10      # ...is worth this
+const HEAP_BARK_GAP := 8.0    # s between the screeder's barks
+const HEAP_COL := Color("ff8a2a")
+var lift_run := 0
+var _lift: MeshInstance3D
+var _lift_at := Vector3.INF   # where the spot being poured started
+var _lift_poured := false     # (concrete's gone on it)
+var _lift_t := 99.0           # s since the last Nice lift
+var _heap_bark_t := 99.0
+
+## The ring under the hose, and each spot judged as it's left.
+func _update_lift(p, delta: float) -> void:
+	_lift_t += delta
+	_heap_bark_t += delta
+	var live: bool = line.pumping and ops.primed and not ops.busy()
+	var d := discharge()
+	var here := Vector3(d.x, work_y, d.z)
+	if _lift_at.x == INF:
+		_lift_at = here
+	if live:
+		_lift_poured = true
+	if Vector2(here.x - _lift_at.x, here.z - _lift_at.z).length() >= LIFT_MOVE:
+		if _lift_poured and on_pad(_lift_at):
+			_left_lift(p, pour.height_at(_pour_local(_lift_at)) / pour.SLAB, _lift_at)
+		_lift_at = here
+		_lift_poured = live
+	_draw_lift(live and on_pad(here), here)
+
+## Leaving a spot: in the gold, a Nice lift (and every fifth in a row, a
+## bonus); a heap breaks the run.
+func _left_lift(p, r: float, at: Vector3) -> void:
+	if r > LIFT_HEAP:
+		lift_run = 0
+		if _heap_bark_t > HEAP_BARK_GAP:
+			_heap_bark_t = 0.0
+			var sc = crew.crew.get("screed")
+			if sc != null and sc.zone == "deck":
+				sc.bark("Oi! Heap!", 1.2)
+			if not p.bot:
+				pop("HEAPING", at + Vector3(0, 0.5, 0), HEAP_COL)
+		return
+	if r < LIFT_LO or r > LIFT_HI or _lift_t < LIFT_GAP:
+		return
+	_lift_t = 0.0
+	lift_run += 1
+	score.award(p, LIFT_PTS, "Nice lift")
+	if lift_run % LIFT_RUN == 0:
+		score.award(p, LIFT_RUN_PTS, "Lifts in a row")
+		if not p.bot:
+			pop("LIFTS ×%d" % lift_run, at + Vector3(0, 0.6, 0), UI.GOLD)
+			sfx.hit("chime")
+	elif not p.bot:
+		pop("NICE LIFT", at + Vector3(0, 0.5, 0), UI.GOLD)
+
+## The ring: a dark track, white filling clockwise as the lift builds, the
+## gold band marked; all gold when it's there, orange when it's heaping.
+func _draw_lift(show: bool, at: Vector3) -> void:
+	if _lift == null:
+		_lift = MeshInstance3D.new()
+		_lift.mesh = ImmediateMesh.new()
+		var lm := StandardMaterial3D.new()
+		lm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		lm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		lm.cull_mode = BaseMaterial3D.CULL_DISABLED
+		lm.vertex_color_use_as_albedo = true
+		lm.no_depth_test = true
+		_lift.material_override = lm
+		_lift.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		_lift.layers = 4   # (left out of the close-up cameras)
+		add_child(_lift)
+	_lift.visible = show and phase == "pour"
+	if not _lift.visible:
+		return
+	var r: float = pour.height_at(_pour_local(at)) / pour.SLAB
+	var y: float = pour.position.y + r * pour.SLAB + 0.05
+	var full := clampf(r / LIFT_HEAP, 0.0, 1.0)
+	var fill_col: Color = HEAP_COL if r > LIFT_HEAP else (UI.GOLD if r >= LIFT_LO and r <= LIFT_HI else UI.BONE)
+	# (clockwise from the top of the screen)
+	var su := Vector3(0, 0, -1).rotated(Vector3.UP, cam_yaw)
+	var a0 := atan2(su.z, su.x)
+	var im := _lift.mesh as ImmediateMesh
+	im.clear_surfaces()
+	im.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
+	var n := 40
+	for i in n:
+		var f0 := float(i) / n
+		var f1 := float(i + 1) / n
+		var col := Color(UI.TRACK, 0.6)
+		var w := LIFT_W
+		if f0 < full:
+			col = fill_col
+		if r <= LIFT_HEAP and f1 > LIFT_LO / LIFT_HEAP and f0 < LIFT_HI / LIFT_HEAP:
+			w = LIFT_W * 1.6
+			if f0 >= full:
+				col = Color(UI.GOLD, 0.45)
+		var u0 := a0 + TAU * f0
+		var u1 := a0 + TAU * f1
+		var p0 := Vector3(at.x + cos(u0) * (LIFT_R - w), y, at.z + sin(u0) * (LIFT_R - w))
+		var p1 := Vector3(at.x + cos(u0) * (LIFT_R + w), y, at.z + sin(u0) * (LIFT_R + w))
+		var p2 := Vector3(at.x + cos(u1) * (LIFT_R - w), y, at.z + sin(u1) * (LIFT_R - w))
+		var p3 := Vector3(at.x + cos(u1) * (LIFT_R + w), y, at.z + sin(u1) * (LIFT_R + w))
+		for q in [p0, p1, p2, p2, p1, p3]:
+			im.surface_set_color(col)
+			im.surface_add_vertex(q)
+	im.surface_end()
 
 ## The end hose drawn as a sagging run from the boom tip to the pipe guy's hands.
 func _draw_hose() -> void:
@@ -3980,6 +5080,8 @@ func _draw_hose() -> void:
 	var mid := (a + b) * 0.5 + Vector3(0, -0.8, 0)
 	# (whipping: the belly of the hose thrashes about)
 	mid += Vector3(sin(phase_t * 9.0), 0.4 * cos(phase_t * 7.0), cos(phase_t * 8.0)) * 1.3 * _whip
+	# (and a buck on every stroke of the pump)
+	mid += Vector3(0.1 * sin(phase_t * 30.0), -0.35, 0) * _hose_jolt
 	var prev := a
 	for i in _hose_segs.size():
 		var u := float(i + 1) / _hose_segs.size()
@@ -4276,8 +5378,8 @@ func _update_boom() -> void:
 	if arm1 == null:
 		return
 	var hp := head.global_position + Vector3(0, SHOULDER, 0)
-	var tp := tip_pos + tip_kick
-	var t := Vector3(tp.x, deck_top() + 1.3 + HOSE, tp.z)
+	var tp := tip_pos + tip_kick + _sway
+	var t := Vector3(tp.x, deck_top() + 1.3 + HOSE + _stroke_bob(), tp.z)
 	var h := Vector2(t.x - hp.x, t.z - hp.z)
 	yaw_node.rotation.y = atan2(-h.y, h.x)
 	var d := h.length()
@@ -4291,7 +5393,17 @@ func _update_boom() -> void:
 		jit = 0.015 * line.wear * line.wear
 	arm1.rotation.z = phi + a + sin(phase_t * 11.0) * jit * 0.15
 	arm2.rotation.z = -(PI - b) + sin(phase_t * 12.7 + 1.0) * jit * 0.3
+	if _fold < 2.0:
+		# Folded on the mast, or a section at a time on its way out (or in),
+		# each one bouncing as it locks
+		var bounce := 0.05 * sin(_clunk_t * 18.0) * exp(-_clunk_t * 5.0)
+		arm1.rotation.z = lerpf(FOLD_A1, arm1.rotation.z, smoothstep(0.0, 1.0, _fold)) + bounce
+		arm2.rotation.z = lerpf(FOLD_A2, arm2.rotation.z, smoothstep(1.0, 2.0, _fold)) + bounce * 1.5
 	tip.rotation.z = -(arm1.rotation.z + arm2.rotation.z)
+	# The hanging end hose swings off the tip when it bucks
+	var hang := tip.get_node_or_null("Hose") as Node3D
+	if hang:
+		hang.rotation = Vector3(sin(phase_t * 8.3) * 0.55 * _whip + 0.06 * _hose_jolt, 0, cos(phase_t * 7.1) * 0.55 * _whip)
 
 var _stream_mats := {}
 
