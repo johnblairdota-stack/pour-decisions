@@ -2258,6 +2258,8 @@ func _start_pour() -> void:
 	boom_signal = ""
 	sync_streak = 0
 	lift_run = 0
+	stand_clear = false
+	_thumbs_t = -1.0
 	_stowed = false
 	_kick_t = 99.0
 	_line_opened = false
@@ -2792,6 +2794,7 @@ func _process(delta: float) -> void:
 	_update_fold(delta)
 	_update_strokes(delta)
 	_update_kick(delta)
+	_update_stand_clear(delta)
 	_update_whip(delta)
 	_update_boom()
 	_update_stream()
@@ -2988,7 +2991,7 @@ func _update_pour(delta: float) -> void:
 	if pipe_calls():
 		want = hose_call
 	elif op != null:
-		want = op.action_held()
+		want = op.action_held() and not thumbs_pending()
 	if wind_park or not (_filled_ratio() < 1.0 or ops.wants_bin()):
 		want = false
 	if _filled_ratio() >= 1.0 and ops.stage == "pour":
@@ -3359,6 +3362,10 @@ func _handle_player(p, delta: float) -> void:
 	# The pipe guy's radio works from anywhere
 	if p.role == "hose" and ops.role() == "hose" and ops.radio(p):
 		return
+	if p.role == "hose" and stand_clear and p.busy == "" and not p.bot:
+		var ca := hose_anchor()
+		var inside: bool = Vector2(p.position.x - ca.x, p.position.z - ca.z).length() < CLEAR_R and kicking()
+		p.cue("L", "stand clear till the thumbs up", -1.0, inside, Vector2(-1, -1), inside)
 
 	if p.busy == "boom":
 		if phase != "pour":
@@ -3427,6 +3434,12 @@ func _handle_player(p, delta: float) -> void:
 			p.gold(not p.bot and ob)
 		elif not ops.primed or ops.busy():
 			p.say("start-up…" if not ops.primed else "washout…")
+		elif thumbs_pending():
+			# The kick's died away: tell the pipe guy it's safe to take it
+			p.cue("action", "thumbs up", -1.0, true)
+			p.gold(not p.bot)
+			if p.action_pressed():
+				_thumbs_up(p)
 		elif pipe_calls():
 			# The pipe guy calls the concrete: you keep the boom over them,
 			# and A's the horn, before you swing it anywhere big
@@ -3493,10 +3506,28 @@ func _handle_player(p, delta: float) -> void:
 		return
 	match near:
 		"hose":
-			if p.role == "hose" and p.held == null and p.tool == "" and hose_holder == null:
+			if p.role == "hose" and p.held == null and p.tool == "" and hose_holder == null and _thrown != p:
+				if stand_clear:
+					if kicking():
+						p.cue("action", "STAND CLEAR: it's kicking", -1.0, true, Vector2(-1, -1), true)
+					else:
+						p.cue("action", "wait for the thumbs up", -1.0, false)
+					if p.action_pressed():
+						if kicking():
+							_thrown_off(p)
+						else:
+							p.say("wait for the thumbs up")
+					return
+				var safe: bool = _thumbs_t >= 0.0 and _thumbs_t < SAFE_START_T
 				p.cue("action", "take the end hose", -1.0, true)
+				p.gold(safe and not p.bot)
 				if p.action_pressed():
 					take_hose(p)
+					if safe:
+						_thumbs_t = 99.0
+						score.award(p, 5, "Safe start")
+						if not p.bot:
+							pop("SAFE START", p.global_position + Vector3(0, 2.2, 0), UI.GOLD)
 				return
 		"valve":
 			if p.role == "pump" and ops.valve(p, delta):
@@ -4780,6 +4811,133 @@ func _hose_y(p, delta: float) -> void:
 			dir = Vector3(sin(p.model.rotation.y), 0, cos(p.model.rotation.y))
 		give_signal(p, "LITTLE_BIT", dir)
 	_hose_y_t = -1.0
+
+# ---- stand clear: the start-up kick
+# When the first concrete's coming the pipe guy lets go and stands well back
+# while the hose kicks; once it's settled the boom operator gives the thumbs
+# up (A), and only then does the pipe guy take it. Grab it while it's still
+# kicking and it throws you off.
+const CLEAR_R := 2.5          # m round under the tip that the pipe guy keeps out of
+const THUMBS_BOT := 0.5       # s after the kick a boom bot (or nobody) gives the thumbs up
+const THUMBS_AUTO := 6.0      # s before a boom operator who's forgotten is taken as a yes
+const SAFE_START_T := 1.5     # s after the thumbs up to grab the hose for a Safe start
+const THROWN_T := 0.9         # s being thrown about
+var stand_clear := false      # concrete's on its way, till the thumbs up
+var _thumbs_wait_t := 0.0     # s since the kick died away, waiting on the thumbs up
+var _thumbs_t := -1.0         # s since the thumbs up (-1: not given yet)
+var _thrown = null            # whoever grabbed the hose too soon
+var _thrown_t := 0.0
+var _thrown_dir := Vector3.ZERO
+var _clear_ring: MeshInstance3D
+
+## The kick's over and the pipe guy's waiting on the boom operator's thumbs up.
+func thumbs_pending() -> bool:
+	return stand_clear and ops.primed and not kicking()
+
+func _update_stand_clear(delta: float) -> void:
+	if _thumbs_t >= 0.0:
+		_thumbs_t += delta
+	_update_thrown(delta)
+	if phase != "pour":
+		stand_clear = false
+		_draw_clear_ring(false)
+		return
+	if ops.stage == "concrete" and not stand_clear and _thumbs_t < 0.0:
+		stand_clear = true
+		_thumbs_wait_t = 0.0
+		var h = hose_holder
+		if h != null and is_instance_valid(h):
+			drop_hose()
+			h.bark("Standing clear!", 1.0)
+			if not h.bot and not h.covering:
+				hud.toast("Concrete's coming: stand clear till the thumbs up", 2.2)
+	if thumbs_pending():
+		_thumbs_wait_t += delta
+		var op = _boom_operator()
+		if (op == null and _thumbs_wait_t > THUMBS_BOT) or _thumbs_wait_t > THUMBS_AUTO:
+			_thumbs_up(null)
+	_draw_clear_ring(stand_clear)
+
+## The boom operator's thumbs up (null: nobody gave it, it's just time).
+func _thumbs_up(by) -> void:
+	stand_clear = false
+	_thumbs_t = 0.0
+	if by != null:
+		by.signal_card("THUMBS UP", 1.5)
+		by.bark("Thumbs up!", 1.0)
+		sfx.hit("tink")
+	var h = crew.crew.get("hose")
+	if h != null and not h.bot and not h.covering:
+		hud.toast("Thumbs up: take the end hose!", 1.4)
+
+## Grabbing the end hose before the thumbs up, while it's still kicking.
+func _thrown_off(p) -> void:
+	_thrown = p
+	_thrown_t = 0.0
+	var a := hose_anchor()
+	_thrown_dir = Vector3(p.position.x - a.x, 0, p.position.z - a.z)
+	_thrown_dir = _thrown_dir.normalized() if _thrown_dir.length() > 0.05 else Vector3(0, 0, 1)
+	p.bark(["Whoa! It's alive!", "Bucking bronco!", "Not yet, mate!"][randi() % 3], 1.2)
+	sfx.hit("thud")
+	shake = maxf(shake, 0.25)
+
+func _update_thrown(delta: float) -> void:
+	if _thrown == null:
+		return
+	var p = _thrown
+	if not is_instance_valid(p):
+		_thrown = null
+		return
+	_thrown_t += delta
+	var u := clampf(_thrown_t / THROWN_T, 0.0, 1.0)
+	if u >= 1.0:
+		p.model.position.y = 0.0
+		p.model.rotation.z = 0.0
+		_thrown = null
+		return
+	# (flung back a metre or so, flailing)
+	var step: Vector3 = _thrown_dir * 2.4 * (1.0 - u) * delta
+	if p.zone != "deck" or on_pad(p.position + step):
+		p.position += step
+	p.model.position.y = 0.7 * absf(sin(_thrown_t * 9.0)) * (1.0 - u)
+	p.model.rotation.z = 0.7 * sin(_thrown_t * 18.0) * (1.0 - u)
+	var fl := sin(_thrown_t * 17.0) * (1.0 - u)
+	p.pose_arms(Vector3(-2.6 + 0.8 * fl, 0, -0.6), Vector3(-2.6 - 0.8 * fl, 0, 0.6))
+
+## A dashed gold ring round under the tip while the pipe guy's to stand clear.
+func _draw_clear_ring(show: bool) -> void:
+	if _clear_ring == null:
+		_clear_ring = MeshInstance3D.new()
+		_clear_ring.mesh = ImmediateMesh.new()
+		var cm := StandardMaterial3D.new()
+		cm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		cm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		cm.cull_mode = BaseMaterial3D.CULL_DISABLED
+		cm.albedo_color = Color(UI.GOLD, 0.8)
+		_clear_ring.material_override = cm
+		_clear_ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		_clear_ring.layers = 4   # (left out of the close-up cameras)
+		add_child(_clear_ring)
+	_clear_ring.visible = show
+	if not show:
+		return
+	var a := hose_anchor()
+	var y: float = pour.position.y + pour.height_at(_pour_local(a)) + 0.06
+	var im := _clear_ring.mesh as ImmediateMesh
+	im.clear_surfaces()
+	im.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
+	var dashes := 28
+	var w := 0.07
+	for d in dashes:
+		var u0 := TAU * d / dashes + phase_t * 0.3
+		var u1 := u0 + TAU / dashes * 0.55
+		var p0 := Vector3(a.x + cos(u0) * (CLEAR_R - w), y, a.z + sin(u0) * (CLEAR_R - w))
+		var p1 := Vector3(a.x + cos(u0) * (CLEAR_R + w), y, a.z + sin(u0) * (CLEAR_R + w))
+		var p2 := Vector3(a.x + cos(u1) * (CLEAR_R - w), y, a.z + sin(u1) * (CLEAR_R - w))
+		var p3 := Vector3(a.x + cos(u1) * (CLEAR_R + w), y, a.z + sin(u1) * (CLEAR_R + w))
+		for q in [p0, p1, p2, p2, p1, p3]:
+			im.surface_add_vertex(q)
+	im.surface_end()
 
 # ---- lay the lift: a level layer, spot by spot
 # While the concrete's on, a ring on the deck round where it's landing fills

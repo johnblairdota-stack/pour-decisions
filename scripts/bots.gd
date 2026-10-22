@@ -354,9 +354,16 @@ func _boom(p, delta: float) -> void:
 	if to.length() > 0.1:
 		var local := (to.normalized() * minf(1.0, to.length() / 1.2)).rotated(Vector3.UP, -g.cam_yaw)
 		p.ai_move = Vector2(local.x, local.z)
-	# (the pipe guy's at the end of the hose: ease off till they catch up)
-	if g.hose_lean > 0.95:
-		p.ai_move *= 0.3
+	# (the pipe guy's at the end of the hose: ease back over them)
+	if g.hose_lean > 0.95 and g.hose_holder != null:
+		var a: Vector3 = g.hose_anchor()
+		var back := Vector3(g.hose_holder.position.x - a.x, 0, g.hose_holder.position.z - a.z).normalized() * 0.5
+		var lb2 := back.rotated(Vector3.UP, -g.cam_yaw)
+		p.ai_move = Vector2(lb2.x, lb2.z)
+	# (and hold it still, and off, for them to take after the thumbs up)
+	var hold_still: bool = g.stand_clear or (g.hose_holder == null and g._thumbs_t >= 0.0 and g._thumbs_t < 3.0)
+	if hold_still:
+		p.ai_move = Vector2.ZERO
 	_answer_signal(p, delta)
 	# Keep the hopper from running dry: drop to low between trucks
 	var info: Dictionary = line.hud_info()
@@ -406,6 +413,9 @@ func _boom(p, delta: float) -> void:
 	if swinging and (pour.bay_of_x(dl.x) > pour.cur_bay or to.length() > 3.5):
 		ok = false
 		why = "swing"
+	if hold_still:
+		ok = false
+		why = "handover"
 	if why != "" and game.autotest:
 		stop_t[why] = float(stop_t.get(why, 0.0)) + delta
 	_boom_ok = ok
@@ -421,6 +431,9 @@ func _boom(p, delta: float) -> void:
 		p.ai_action = _bot_horn(to.length())
 	else:
 		p.ai_action = ok
+	# The kick's died away: thumbs up to the pipe guy
+	if g.thumbs_pending():
+		p.ai_action = g._thumbs_wait_t > g.THUMBS_BOT and _tap()
 
 ## The pipe guy's hand signals, answered on the levers once the bot's seen
 ## them (quicker the sharper the bots are working; now and then one's missed).
@@ -508,6 +521,19 @@ func _hose(p, delta: float) -> void:
 	if p.zone != "deck":
 		go(p, "deck", g.hose_anchor(), 0.6)
 		return
+	if g.stand_clear and p.busy != "hose":
+		# Well back while the first concrete kicks the hose, till the thumbs up
+		var a: Vector3 = g.hose_anchor()
+		var off := Vector3(p.position.x - a.x, 0, p.position.z - a.z)
+		var base: float = atan2(off.z, off.x) if off.length() > 0.1 else 0.0
+		for k in 8:
+			var ang: float = base + TAU * floorf((k + 1) * 0.5) / 8.0 * (1.0 if k % 2 == 0 else -1.0)
+			var spot: Vector3 = a + Vector3(cos(ang), 0, sin(ang)) * (g.CLEAR_R + 0.4)
+			if g.on_pad(spot):
+				if walk(p, Vector3(spot.x, g.work_y, spot.z), 0.4):
+					p.face(a)
+				return
+		return
 	if p.busy != "hose":
 		if g.hose_holder == null and walk(p, g.hose_anchor(), 0.6):
 			p.ai_action = _tap()
@@ -560,11 +586,16 @@ func _hose(p, delta: float) -> void:
 		ok = ok and _boom_ok
 	elif pour.vol_k > 1.0 and pour.height_at(dl) > pour.SLAB * 1.5:
 		ok = false
+	var why := "" if ok else "hose:held"
 	if pour.bay_of_x(dl.x) > pour.cur_bay:
 		ok = false
+		why = "hose:ahead"
 	# (never pump into a stretched hose)
 	if g.hose_stretched:
 		ok = false
+		why = "hose:stretched"
+	if why != "" and g.autotest and g.ops.primed and not g.ops.busy():
+		stop_t[why] = float(stop_t.get(why, 0.0)) + delta
 	p.ai_action = ok
 
 ## The pipe guy leading the boom. With a person on the remote it walks to
