@@ -4095,7 +4095,9 @@ func _signal_text(sig: String, dir: Vector3) -> String:
 func _update_signal(delta: float) -> void:
 	_hose_sync_t = maxf(0.0, _hose_sync_t - delta)
 	if boom_signal == "":
+		_signal_gap_t += delta
 		return
+	_signal_gap_t = 0.0
 	boom_signal_t += delta
 	var by = _signal_by
 	if by == null or not is_instance_valid(by) or by.busy != "hose":
@@ -4580,6 +4582,8 @@ func hose_anchor() -> Vector3:
 func take_hose(p) -> void:
 	hose_holder = p
 	p.busy = "hose"
+	p.set_meta("hose_at", p.position)
+	_hose_bay = pour.cur_bay
 	p.bounce()
 	sfx.hit("tink")
 	(tip.get_node("Hose") as Node3D).visible = false
@@ -4592,6 +4596,13 @@ func drop_hose() -> void:
 		hose_holder.busy = ""
 	hose_holder = null
 	hose_call = false
+	hose_lean = 0.0
+	hose_stretched = false
+	if line != null:
+		line.choke = 1.0
+	_lean_charge = 0.0
+	_stretch_t = 0.0
+	_hose_bay = -1
 	if tip and tip.get_node_or_null("Hose"):
 		(tip.get_node("Hose") as Node3D).visible = true
 	for s in _hose_segs:
@@ -4610,20 +4621,22 @@ func _hose_work(p, delta: float) -> void:
 	if phase != "pour" or p.leave_pressed():
 		drop_hose()
 		return
-	# The end hose only reaches so far from under the boom tip: past that,
-	# the boom drags you along
-	var a := hose_anchor()
-	var off := Vector2(p.position.x - a.x, p.position.z - a.z)
-	if off.length() > HOSE_REACH:
-		off = off.normalized() * HOSE_REACH
-		p.position.x = a.x + off.x
-		p.position.z = a.z + off.y
-	p.pose_arms(Vector3(-1.1, 0, -0.35), Vector3(-0.9, 0, 0.35))
+	_keep_hanging(p, delta)
+	p.pose_arms(Vector3(-1.1 + 0.25 * _hose_jolt, 0, -0.35), Vector3(-0.9 + 0.25 * _hose_jolt, 0, 0.35))
+	_hose_y(p, delta)
 	if boom_signal != "" and _signal_by == p:
 		_signal_pose(p)
-	if _hose_sync_t > 0.0:
+	# The stick cue: stretched (danger), the In Sync moment, or the signal
+	# charging as you lean
+	if hose_stretched and _stretch_t > STRETCH_KICK_T:
+		p.cue("L", "STRETCHED!", -1.0, true, Vector2(-1, -1), true)
+	elif _hose_sync_t > 0.0:
 		p.cue("L", "IN SYNC", -1.0, true)
 		p.gold(true)
+	elif _lean_charge > 0.05:
+		p.cue("L", "lean: signal the boom", _lean_charge, true)
+	elif not p.bot and ops.primed and not ops.busy():
+		p.cue("slow", "little bit · hold: stop boom", -1.0, false)
 	if ops.radio(p):
 		hose_call = false
 		return
@@ -4652,6 +4665,109 @@ func _hose_work(p, delta: float) -> void:
 			p.bark("Pump it!" if hose_call else "Stop!", 0.9 if hose_call else 0.7)
 	else:
 		_hose_state_t += delta
+
+# ---- keep it hanging: the pipe guy's half of signal and answer
+# The end hose should hang near enough straight down. Lean out on it and
+# it's a signal to the boom (it fires the way you're pulling, round the mast
+# or in and out); pull it taut and it chokes the flow and starts to buck.
+const LEAN_TRUE := 0.6        # lean (share of the hose's reach) under which it hangs true
+const LEAN_CHARGE_T := 0.5    # s of leaning to make a signal
+const SIGNAL_GAP := 0.6       # s after one signal's over before the next can be made
+const STRETCH_MAX := 1.35     # lean at which the boom drags the pipe guy after all
+const STRETCH_CHOKE := 0.4    # share of the output that gets through a stretched hose
+const STRETCH_BUCK := 0.25    # how hard a stretched hose bucks
+const STRETCH_KICK_T := 1.5   # s stretched and pumping before it kicks properly
+const STRETCH_KICK := 0.6     # ...and how hard
+const HOSE_Y_TAP := 0.25      # s: a Y shorter than this is LITTLE BIT
+const HOSE_Y_HOLD := 0.4      # s: a Y held this long is STOP BOOM
+var hose_lean := 0.0          # how far the pipe guy's out from under the tip, as a share of HOSE_REACH
+var hose_stretched := false
+var _lean_charge := 0.0       # 0..1: the signal building as they lean
+var _stretch_t := 0.0         # s stretched while pumping
+var _hose_y_t := -1.0         # s Y's been held on the end hose (-1: not held)
+var _signal_gap_t := 99.0     # s since the last signal ended
+var _hose_bay := -1           # the bay the pipe guy was filling (for ALL DONE)
+
+## The leash: walk out as far as the hose reaches, never further; the boom
+## moving away doesn't drag you, the lean just grows (until it's really
+## pulling, then it does). Leaning charges a signal the way you're pulling.
+func _keep_hanging(p, delta: float) -> void:
+	var a := hose_anchor()
+	var off := Vector2(p.position.x - a.x, p.position.z - a.z)
+	var last: Vector3 = p.get_meta("hose_at", p.position)
+	var last_off := Vector2(last.x - a.x, last.z - a.z).length()
+	var limit := maxf(HOSE_REACH, minf(last_off, HOSE_REACH * STRETCH_MAX))
+	if off.length() > limit:
+		off = off.normalized() * limit
+		p.position.x = a.x + off.x
+		p.position.z = a.z + off.y
+	p.set_meta("hose_at", p.position)
+	hose_lean = off.length() / HOSE_REACH
+	var out := Vector3(off.x, 0, off.y).normalized() if off.length() > 0.01 else Vector3.ZERO
+	var mv: Vector2 = p.move_input()
+	var push := Vector3(mv.x, 0, mv.y).rotated(Vector3.UP, cam_yaw)
+	var pulling: bool = push.dot(out) > 0.3
+	hose_stretched = hose_lean > 1.01 or (hose_lean > 0.99 and pulling)
+	# Stretched: the flow's choked and the hose bucks; keep pumping into it
+	# and it kicks
+	line.choke = STRETCH_CHOKE if hose_stretched else 1.0
+	if hose_stretched and line.pumping:
+		_stretch_t += delta
+		_whip_want = maxf(_whip_want, STRETCH_KICK if _stretch_t > STRETCH_KICK_T else STRETCH_BUCK)
+		if _stretch_t > STRETCH_KICK_T and fmod(_stretch_t, 2.0) < delta:
+			p.bark("Stretched!", 0.8)
+	else:
+		_stretch_t = 0.0
+		if hose_stretched:
+			_whip_want = maxf(_whip_want, STRETCH_BUCK * 0.5)
+	# Leaning out: the signal charges, then fires (one at a time)
+	var can_sign: bool = ops.primed and not ops.busy() and boom_signal == "" and _signal_gap_t > SIGNAL_GAP
+	if hose_lean >= LEAN_TRUE and pulling and can_sign:
+		_lean_charge = minf(1.0, _lean_charge + delta / LEAN_CHARGE_T)
+		if _lean_charge >= 1.0:
+			_lean_charge = 0.0
+			var sig := _pull_signal(out)
+			give_signal(p, sig[0], sig[1])
+	else:
+		_lean_charge = maxf(0.0, _lean_charge - delta * 2.0)
+	# The bay's full: arms crossed, ALL DONE
+	if _hose_bay >= 0 and pour.cur_bay > _hose_bay and ops.primed and boom_signal == "":
+		give_signal(p, "ALL_DONE")
+	_hose_bay = pour.cur_bay
+
+## Which signal a pull that way makes: round the mast (BOOM LEFT or RIGHT,
+## as it reads on screen) or in and out from it. [signal, the way the tip should go].
+func _pull_signal(out: Vector3) -> Array:
+	var m := _mast()
+	var a := hose_anchor()
+	var rad := Vector3(a.x - m.x, 0, a.z - m.z).normalized()
+	var round_dir := Vector3(-rad.z, 0, rad.x)
+	var cr := out.dot(rad)
+	var ct := out.dot(round_dir)
+	if absf(cr) >= absf(ct):
+		return ["OUT", rad] if cr > 0.0 else ["IN", -rad]
+	var d := round_dir * signf(ct)
+	var sr := Vector3(1, 0, 0).rotated(Vector3.UP, cam_yaw)
+	return ["RIGHT" if d.dot(sr) > 0.0 else "LEFT", d]
+
+## Y on the end hose: a tap is LITTLE BIT (the way you're pushing, or
+## facing), held it's STOP BOOM.
+func _hose_y(p, delta: float) -> void:
+	if not ops.primed or ops.busy():
+		_hose_y_t = -1.0
+		return
+	if p.slow_held():
+		_hose_y_t = maxf(_hose_y_t, 0.0) + delta
+		if _hose_y_t >= HOSE_Y_HOLD and _hose_y_t - delta < HOSE_Y_HOLD:
+			give_signal(p, "STOP_BOOM")
+		return
+	if _hose_y_t >= 0.0 and _hose_y_t < HOSE_Y_TAP:
+		var mv: Vector2 = p.move_input()
+		var dir := Vector3(mv.x, 0, mv.y).rotated(Vector3.UP, cam_yaw)
+		if dir.length() < 0.2:
+			dir = Vector3(sin(p.model.rotation.y), 0, cos(p.model.rotation.y))
+		give_signal(p, "LITTLE_BIT", dir)
+	_hose_y_t = -1.0
 
 ## The end hose drawn as a sagging run from the boom tip to the pipe guy's hands.
 func _draw_hose() -> void:

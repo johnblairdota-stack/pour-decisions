@@ -354,6 +354,9 @@ func _boom(p, delta: float) -> void:
 	if to.length() > 0.1:
 		var local := (to.normalized() * minf(1.0, to.length() / 1.2)).rotated(Vector3.UP, -g.cam_yaw)
 		p.ai_move = Vector2(local.x, local.z)
+	# (the pipe guy's at the end of the hose: ease off till they catch up)
+	if g.hose_lean > 0.95:
+		p.ai_move *= 0.3
 	_answer_signal(p, delta)
 	# Keep the hopper from running dry: drop to low between trucks
 	var info: Dictionary = line.hud_info()
@@ -523,6 +526,7 @@ func _hose(p, delta: float) -> void:
 			_hose_goal_t = 0.4
 			_hose_goal = _hose_spot(anchor)
 		tgt = _hose_goal
+		tgt = _lead_boom(p, anchor, tgt, delta)
 	# Stand so the nozzle (just in front) is over the spot
 	var here: Vector3 = p.position
 	var d := Vector3(tgt.x - here.x, 0, tgt.z - here.z)
@@ -555,7 +559,62 @@ func _hose(p, delta: float) -> void:
 		ok = false
 	if pour.bay_of_x(dl.x) > pour.cur_bay:
 		ok = false
+	# (never pump into a stretched hose)
+	if g.hose_stretched:
+		ok = false
 	p.ai_action = ok
+
+## The pipe guy leading the boom. With a person on the remote it walks to
+## where the concrete's wanted even past the hose's reach, so it leans and
+## its signals fire; just out of reach it's LITTLE BIT, and a boom swinging
+## straight past a good spot gets STOP BOOM. Never left stretched: no answer
+## in a few seconds and it walks back under the tip and pours there.
+## (A bot on the remote has its own plan: it only gets the LITTLE BITs.)
+const LEAD_GIVE_UP := 3.0     # s leaning out unanswered before walking back
+const LEAD_BACK := 4.0        # s it then works under the tip
+const LITTLE_GAP := 1.0       # m out of reach: under this it's LITTLE BIT, not a lean
+const LITTLE_EVERY := [6.0, 3.0]   # s between LITTLE BITs, to a bot / a person
+const STOP_EVERY := 5.0       # s between STOP BOOMs
+const STOP_SWING := 1.5       # m/s: a boom going this fast past a good spot wants stopping
+var _lean_t := 0.0
+var _back_t := 0.0
+var _little_t := 0.0
+var _stop_t := 0.0
+
+func _lead_boom(p, anchor: Vector3, tgt: Vector3, delta: float) -> Vector3:
+	var g = game
+	var pour = g.pour
+	var op = g._boom_operator()
+	_little_t -= delta
+	_stop_t -= delta
+	_back_t -= delta
+	if op == null or not g.ops.primed or g.ops.busy():
+		_lean_t = 0.0
+		return tgt
+	var person: bool = not op.bot and not op.covering
+	_lean_t = _lean_t + delta if g.hose_lean > 0.9 else 0.0
+	if _lean_t > LEAD_GIVE_UP:
+		_lean_t = 0.0
+		_back_t = LEAD_BACK
+	var far: Vector3 = pour.next_face_point(pour.cur_bay, g._pour_local(anchor)) + pour.position
+	far.y = anchor.y
+	var gap: float = Vector2(far.x - anchor.x, far.z - anchor.z).length() - g.HOSE_REACH * 0.9
+	var signal_free: bool = g.boom_signal == ""
+	if person and signal_free and _stop_t <= 0.0:
+		var v: Vector3 = g._tip_v
+		var dl: Vector3 = g._pour_local(g.discharge())
+		if Vector2(v.x, v.z).length() > STOP_SWING and pour.good_pour_spot(dl) and pour.height_at(dl) < pour.SLAB * 0.4:
+			_stop_t = STOP_EVERY
+			g.give_signal(p, "STOP_BOOM")
+			return tgt
+	if gap > 0.2 and gap < LITTLE_GAP:
+		if signal_free and _little_t <= 0.0:
+			_little_t = LITTLE_EVERY[1 if person else 0]
+			g.give_signal(p, "LITTLE_BIT", far - anchor)
+		return tgt
+	if person and gap >= LITTLE_GAP and _back_t <= 0.0:
+		return far
+	return tgt
 
 ## The lowest spot within the end hose's reach that the pour plan wants now.
 func _hose_spot(anchor: Vector3) -> Vector3:
