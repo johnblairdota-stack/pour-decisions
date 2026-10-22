@@ -2252,6 +2252,8 @@ func _start_pour() -> void:
 	line.interval /= minf(BIG_SLAB_TRUCKS, sqrt(pour.vol_k))
 	line._arrive_t = line.interval
 	ops.start_pour()
+	boom_signal = ""
+	sync_streak = 0
 	hud.show_brief(false)
 	if is_dawn():
 		hud.toast("%s · first truck, under the floodlights" % dawn_clock(), 3.0)
@@ -2910,6 +2912,7 @@ func _update_pour(delta: float) -> void:
 	if ops.primed:
 		pour_clock += delta
 	ops.update(delta)
+	_update_signal(delta)
 	_draw_hose()
 	if autotest and fmod(phase_t, 15.0) < delta:
 		# (progress, and how long a frame takes, for long pours)
@@ -3977,15 +3980,171 @@ func _flash_word(word: String, secs := 1.0) -> void:
 	_flash = word
 	_flash_t = secs
 
-## The stick cue on the operator: the flash word, gold, while it lasts.
+## The stick cue on the operator: a live signal to answer, or the flash
+## word, gold, while it lasts.
 func _lever_cue(p) -> void:
+	if _signal_cue(p):
+		return
 	if _flash_t > 0.0 and _flash != "":
 		p.cue("L", _flash, -1.0, true)
 		p.gold(true)
 
-## A lever let go after `held` s, the aim moved `by` (the signals hook in here).
-func _lever_released(_p, _held: float, _by: Vector3) -> void:
-	pass
+## A lever let go after `held` s, the aim moved `by`: a quick nudge toward
+## the pipe guy answers LITTLE BIT.
+func _lever_released(_p, held: float, by: Vector3) -> void:
+	if boom_signal != "LITTLE_BIT" or held < NUDGE_MIN or held > NUDGE_MAX:
+		return
+	by.y = 0.0
+	if by.dot(boom_signal_dir) > 0.03:
+		_answer(true)
+
+# ---- signal and answer: the pipe guy's hands, the boom operator's levers
+# The pipe guy talks to the boom with the standard hand signals; the boom
+# answers on the levers inside a short window. Every right answer in time
+# builds an IN SYNC streak; a miss only breaks it (and earns a bark).
+const SIGNAL_WINDOW := 1.5    # s the boom has to answer
+const ANSWER_SPEED := 0.6     # m/s of tip travel the asked way that's an answer (the other way: wrong)
+const STOP_SPEED := 0.2       # m/s: the boom's stopped
+const STOP_MOVING := 0.5      # m/s the boom has to be going for a STOP BOOM to count
+const NUDGE_MIN := 0.08       # s: the shortest lever push that's a LITTLE BIT
+const NUDGE_MAX := 0.4        # s: the longest
+const SYNC_PTS := 6           # points for an answer in time...
+const SYNC_STREAK_MAX := 10   # ...plus one for each in the streak before it, up to this
+const SYNC_HOSE := 3          # points for the pipe guy whose signal was answered
+const SIGNAL_WORDS := {"LEFT": "BOOM LEFT", "RIGHT": "BOOM RIGHT", "OUT": "BOOM OUT", "IN": "BOOM IN",
+	"LITTLE_BIT": "LITTLE BIT", "STOP_BOOM": "STOP BOOM", "ALL_DONE": "ALL DONE"}
+var boom_signal := ""         # one of SIGNAL_WORDS' keys while a signal's live, "" when none is
+var boom_signal_t := 0.0      # s since it was given
+var boom_signal_dir := Vector3.ZERO   # the way the pipe guy wants the tip to go
+var boom_signal_n := 0        # counts every signal given (so a repeat reads as a new one)
+var sync_streak := 0
+var _signal_by = null
+var _signal_counts := false   # (a STOP BOOM to a boom that's already still isn't one)
+var _hose_sync_t := 0.0       # s the pipe guy's IN SYNC shows
+
+## The pipe guy gives a hand signal (`dir`: the way the tip should go).
+func give_signal(by, sig: String, dir := Vector3.ZERO) -> void:
+	boom_signal = sig
+	boom_signal_t = 0.0
+	boom_signal_dir = Vector3(dir.x, 0, dir.z).normalized() if dir != Vector3.ZERO else Vector3.ZERO
+	boom_signal_n += 1
+	_signal_by = by
+	_signal_counts = sig != "STOP_BOOM" or Vector2(_tip_v.x, _tip_v.z).length() > STOP_MOVING
+	by.signal_card(_signal_text(sig, boom_signal_dir), 2.0 if sig == "ALL_DONE" else SIGNAL_WINDOW)
+	if sig == "ALL_DONE":
+		# The bay's full: arms crossed, and the crew have a moment
+		sfx.hit("ding")
+		var op = _boom_operator()
+		if op != null:
+			op.bark(["Beauty!", "Lovely, mate!", "Next bay!"][randi() % 3], 1.2)
+		var pk = crew.crew.get("poker")
+		if pk != null and pk.zone == "deck":
+			pk.bark("Good stuff!", 1.0)
+
+## The words on the signal card, with an arrow that points the way it reads
+## on screen.
+func _signal_text(sig: String, dir: Vector3) -> String:
+	var words: String = SIGNAL_WORDS.get(sig, sig)
+	if dir == Vector3.ZERO or not sig in ["LEFT", "RIGHT", "OUT", "IN", "LITTLE_BIT"]:
+		return words
+	var sr := Vector3(1, 0, 0).rotated(Vector3.UP, cam_yaw)
+	var su := Vector3(0, 0, -1).rotated(Vector3.UP, cam_yaw)
+	var x := dir.dot(sr)
+	var y := dir.dot(su)
+	var arrow := ("▶" if x > 0.0 else "◀") if absf(x) >= absf(y) else ("▲" if y > 0.0 else "▼")
+	return arrow + " " + words
+
+## Watching for the boom's answer to the live signal.
+func _update_signal(delta: float) -> void:
+	_hose_sync_t = maxf(0.0, _hose_sync_t - delta)
+	if boom_signal == "":
+		return
+	boom_signal_t += delta
+	var by = _signal_by
+	if by == null or not is_instance_valid(by) or by.busy != "hose":
+		boom_signal = ""
+		return
+	if boom_signal == "ALL_DONE":
+		if boom_signal_t > 2.0:
+			boom_signal = ""
+		return
+	if _boom_operator() == null or not _signal_counts:
+		# (nobody on the remote to answer it, or nothing to answer)
+		if boom_signal_t > SIGNAL_WINDOW:
+			boom_signal = ""
+		return
+	var v := Vector3(_tip_v.x, 0, _tip_v.z)
+	match boom_signal:
+		"LEFT", "RIGHT", "OUT", "IN":
+			var along := v.dot(boom_signal_dir)
+			if along > ANSWER_SPEED:
+				_answer(true)
+				return
+			if along < -ANSWER_SPEED and boom_signal_t > 0.15:
+				_answer(false, "Other left!" if boom_signal in ["LEFT", "RIGHT"] else "Other way!")
+				return
+		"STOP_BOOM":
+			if v.length() < STOP_SPEED:
+				_answer(true)
+				return
+	if boom_signal_t > SIGNAL_WINDOW:
+		_answer(false, ["Oi! Boom!", "Hello? Boom!", "Wake up, boom!"][randi() % 3])
+
+## The signal's been answered (or missed). A miss costs nothing but the streak.
+func _answer(ok: bool, bark := "") -> void:
+	var by = _signal_by
+	var op = _boom_operator()
+	boom_signal = ""
+	if not ok:
+		sync_streak = 0
+		if by != null and is_instance_valid(by) and bark != "":
+			by.bark(bark, 1.0)
+		return
+	sync_streak += 1
+	if op != null:
+		score.award(op, SYNC_PTS + mini(sync_streak - 1, SYNC_STREAK_MAX), "In sync with the pipe guy")
+	if by != null and is_instance_valid(by):
+		score.award(by, SYNC_HOSE, "In sync with the boom")
+	_flash_word("IN SYNC ×%d" % sync_streak, 1.2)
+	_hose_sync_t = 1.0
+	if (op != null and not op.bot) or (by != null and not by.bot):
+		sfx.hit("chime")
+
+## The cue on the boom operator while a signal's live: its words, and the
+## window draining away (gold in its last half: answer now).
+func _signal_cue(p) -> bool:
+	if boom_signal == "" or boom_signal == "ALL_DONE" or not _signal_counts:
+		return false
+	var left := 1.0 - boom_signal_t / SIGNAL_WINDOW
+	p.cue("L", SIGNAL_WORDS.get(boom_signal, boom_signal), left, true)
+	p.gold(left < 0.5)
+	return true
+
+## The pipe guy's hands while their signal's up, the way a hose hand signs
+## it: one hand on the hose, the other doing the talking.
+func _signal_pose(p) -> void:
+	var w := phase_t * 9.0
+	var yaw := 0.0
+	if boom_signal_dir != Vector3.ZERO:
+		var local := boom_signal_dir.rotated(Vector3.UP, -p.model.rotation.y)
+		yaw = atan2(local.x, local.z)
+	var left := Vector3(-1.1, 0, -0.35)
+	var right := Vector3(-0.9, 0, 0.35)
+	match boom_signal:
+		"LEFT", "RIGHT":
+			right = Vector3(-1.55, yaw, 0)
+		"OUT":
+			right = Vector3(-1.45, yaw + 0.25 * maxf(0.0, sin(w * 0.8)), 0)
+		"IN":
+			right = Vector3(-1.2 - 0.5 * maxf(0.0, sin(w * 0.8)), yaw, 0)
+		"LITTLE_BIT":
+			right = Vector3(-1.7 + 0.06 * sin(w * 1.5), 0, 0.15)
+		"STOP_BOOM":
+			right = Vector3(0.0, 0, 1.55)
+		"ALL_DONE":
+			left = Vector3(-1.3, 0, 0.75)
+			right = Vector3(-1.3, 0, -0.75)
+	p.pose_arms(left, right)
 
 ## The tip's sway after a hard stop: a damped spring on top of where it's aimed.
 func _update_sway(delta: float) -> void:
@@ -4177,6 +4336,11 @@ func _hose_work(p, delta: float) -> void:
 		p.position.x = a.x + off.x
 		p.position.z = a.z + off.y
 	p.pose_arms(Vector3(-1.1, 0, -0.35), Vector3(-0.9, 0, 0.35))
+	if boom_signal != "" and _signal_by == p:
+		_signal_pose(p)
+	if _hose_sync_t > 0.0:
+		p.cue("L", "IN SYNC", -1.0, true)
+		p.gold(true)
 	if ops.radio(p):
 		hose_call = false
 		return

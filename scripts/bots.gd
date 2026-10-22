@@ -352,6 +352,7 @@ func _boom(p, delta: float) -> void:
 	if to.length() > 0.1:
 		var local := (to.normalized() * minf(1.0, to.length() / 1.2)).rotated(Vector3.UP, -g.cam_yaw)
 		p.ai_move = Vector2(local.x, local.z)
+	_answer_signal(p, delta)
 	# Keep the hopper from running dry: drop to low between trucks
 	var info: Dictionary = line.hud_info()
 	var feeding: bool = info["bay"] == "discharging"
@@ -409,6 +410,43 @@ func _boom(p, delta: float) -> void:
 		p.ai_action = _bot_horn(to.length())
 	else:
 		p.ai_action = ok
+
+## The pipe guy's hand signals, answered on the levers once the bot's seen
+## them (quicker the sharper the bots are working; now and then one's missed).
+const SIG_REACT := [[0.6, 0.9], [0.45, 0.75], [0.3, 0.55]]   # s to react, bronze/silver/gold
+const SIG_MISS := [0.15, 0.08, 0.03]                         # share of signals not caught
+var _sig_n := -1
+var _sig_react := 0.0
+var _sig_skip := false
+var _nudge_t := 0.0
+
+func _answer_signal(p, delta: float) -> void:
+	var g = game
+	var sig: String = g.boom_signal
+	if sig == "" or sig == "ALL_DONE":
+		return
+	if g.boom_signal_n != _sig_n:
+		_sig_n = g.boom_signal_n
+		var tier: int = g.score.bot_tier
+		_sig_react = randf_range(SIG_REACT[tier][0], SIG_REACT[tier][1])
+		_sig_skip = randf() < SIG_MISS[tier]
+		_nudge_t = 0.0
+	if _sig_skip or g.boom_signal_t < _sig_react:
+		return
+	var dir: Vector3 = g.boom_signal_dir
+	match sig:
+		"STOP_BOOM":
+			p.ai_move = Vector2.ZERO
+		"LITTLE_BIT":
+			# Off the lever, a short dab toward the hose, off again
+			_nudge_t += delta
+			p.ai_move = Vector2.ZERO
+			if _nudge_t > 0.1 and _nudge_t < 0.3:
+				var l := (dir * 0.6).rotated(Vector3.UP, -g.cam_yaw)
+				p.ai_move = Vector2(l.x, l.z)
+		_:
+			var l2 := dir.rotated(Vector3.UP, -g.cam_yaw)
+			p.ai_move = Vector2(l2.x, l2.z)
 
 var _honk_goal := Vector3.INF
 
