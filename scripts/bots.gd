@@ -522,6 +522,9 @@ func _hose(p, delta: float) -> void:
 		tgt = g.ops.bin_world()
 	else:
 		_hose_goal_t -= delta
+		# (the lift's in the gold where it's landing: move on to the next spot)
+		if pour.height_at(g._pour_local(g.discharge())) >= pour.SLAB * g.LIFT_LO:
+			_hose_goal_t = 0.0
 		if _hose_goal_t <= 0.0 or _hose_goal.x == INF:
 			_hose_goal_t = 0.4
 			_hose_goal = _hose_spot(anchor)

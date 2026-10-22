@@ -2257,6 +2257,7 @@ func _start_pour() -> void:
 	ops.start_pour()
 	boom_signal = ""
 	sync_streak = 0
+	lift_run = 0
 	_stowed = false
 	_kick_t = 99.0
 	_line_opened = false
@@ -4603,6 +4604,9 @@ func drop_hose() -> void:
 	_lean_charge = 0.0
 	_stretch_t = 0.0
 	_hose_bay = -1
+	_lift_at = Vector3.INF
+	if _lift != null:
+		_lift.visible = false
 	if tip and tip.get_node_or_null("Hose"):
 		(tip.get_node("Hose") as Node3D).visible = true
 	for s in _hose_segs:
@@ -4622,6 +4626,7 @@ func _hose_work(p, delta: float) -> void:
 		drop_hose()
 		return
 	_keep_hanging(p, delta)
+	_update_lift(p, delta)
 	p.pose_arms(Vector3(-1.1 + 0.25 * _hose_jolt, 0, -0.35), Vector3(-0.9 + 0.25 * _hose_jolt, 0, 0.35))
 	_hose_y(p, delta)
 	if boom_signal != "" and _signal_by == p:
@@ -4653,9 +4658,16 @@ func _hose_work(p, delta: float) -> void:
 	if line.fail_i >= 0 or line.blocked or line.line_down():
 		p.cue("action", "STOP: let go!" if hose_call else "line trouble: hold off", -1.0, hose_call, Vector2(-1, -1), hose_call)
 	else:
-		p.cue("action", "hold: pump on" if not hose_call else "pumping · let go: off", 1.0 if hose_call else -1.0, _hose_quiet_t > HOSE_QUIET * 0.5)
+		var dl := _pour_local(discharge())
+		var heaping: bool = hose_call and pour.height_at(dl) > pour.SLAB * LIFT_HEAP
+		var verb := "hold: pump on"
+		if heaping:
+			verb = "HEAPING · move on"
+		elif hose_call:
+			verb = "pumping · LIFTS ×%d" % lift_run if lift_run >= 2 else "pumping · let go: off"
+		p.cue("action", verb, 1.0 if hose_call else -1.0, heaping or _hose_quiet_t > HOSE_QUIET * 0.5)
 		# Gold: you're on the spot where the concrete's wanted
-		p.gold(not p.bot and pour.good_pour_spot(_pour_local(discharge())))
+		p.gold(not p.bot and not heaping and pour.good_pour_spot(dl))
 	_hose_bark_t += delta
 	if hose_call != was:
 		var held := _hose_state_t
@@ -4768,6 +4780,126 @@ func _hose_y(p, delta: float) -> void:
 			dir = Vector3(sin(p.model.rotation.y), 0, cos(p.model.rotation.y))
 		give_signal(p, "LITTLE_BIT", dir)
 	_hose_y_t = -1.0
+
+# ---- lay the lift: a level layer, spot by spot
+# While the concrete's on, a ring on the deck round where it's landing fills
+# as the lift builds; leave each spot with it in the gold band (about one
+# slab deep) for a Nice lift, and a run of them. Leave a heap and the
+# screeder lets you know.
+const LIFT_R := 0.55          # m: the ring's radius
+const LIFT_W := 0.06          # m: its half-width
+const LIFT_MOVE := 0.6        # m the landing point moves for the spot to count as left
+const LIFT_LO := 0.9          # the gold band, as a share of the slab's depth...
+const LIFT_HI := 1.1
+const LIFT_HEAP := 1.3        # ...and past this it's a heap
+const LIFT_PTS := 4
+const LIFT_GAP := 1.5         # s between Nice lifts
+const LIFT_RUN := 5           # every this many in a row...
+const LIFT_RUN_PTS := 10      # ...is worth this
+const HEAP_BARK_GAP := 8.0    # s between the screeder's barks
+const HEAP_COL := Color("ff8a2a")
+var lift_run := 0
+var _lift: MeshInstance3D
+var _lift_at := Vector3.INF   # where the spot being poured started
+var _lift_poured := false     # (concrete's gone on it)
+var _lift_t := 99.0           # s since the last Nice lift
+var _heap_bark_t := 99.0
+
+## The ring under the hose, and each spot judged as it's left.
+func _update_lift(p, delta: float) -> void:
+	_lift_t += delta
+	_heap_bark_t += delta
+	var live: bool = line.pumping and ops.primed and not ops.busy()
+	var d := discharge()
+	var here := Vector3(d.x, work_y, d.z)
+	if _lift_at.x == INF:
+		_lift_at = here
+	if live:
+		_lift_poured = true
+	if Vector2(here.x - _lift_at.x, here.z - _lift_at.z).length() >= LIFT_MOVE:
+		if _lift_poured and on_pad(_lift_at):
+			_left_lift(p, pour.height_at(_pour_local(_lift_at)) / pour.SLAB, _lift_at)
+		_lift_at = here
+		_lift_poured = live
+	_draw_lift(live and on_pad(here), here)
+
+## Leaving a spot: in the gold, a Nice lift (and every fifth in a row, a
+## bonus); a heap breaks the run.
+func _left_lift(p, r: float, at: Vector3) -> void:
+	if r > LIFT_HEAP:
+		lift_run = 0
+		if _heap_bark_t > HEAP_BARK_GAP:
+			_heap_bark_t = 0.0
+			var sc = crew.crew.get("screed")
+			if sc != null and sc.zone == "deck":
+				sc.bark("Oi! Heap!", 1.2)
+			if not p.bot:
+				pop("HEAPING", at + Vector3(0, 0.5, 0), HEAP_COL)
+		return
+	if r < LIFT_LO or r > LIFT_HI or _lift_t < LIFT_GAP:
+		return
+	_lift_t = 0.0
+	lift_run += 1
+	score.award(p, LIFT_PTS, "Nice lift")
+	if lift_run % LIFT_RUN == 0:
+		score.award(p, LIFT_RUN_PTS, "Lifts in a row")
+		_flash_word("LIFTS ×%d" % lift_run, 1.2)
+		if not p.bot:
+			sfx.hit("chime")
+	elif not p.bot:
+		pop("NICE LIFT", at + Vector3(0, 0.5, 0), UI.GOLD)
+
+## The ring: a dark track, white filling clockwise as the lift builds, the
+## gold band marked; all gold when it's there, orange when it's heaping.
+func _draw_lift(show: bool, at: Vector3) -> void:
+	if _lift == null:
+		_lift = MeshInstance3D.new()
+		_lift.mesh = ImmediateMesh.new()
+		var lm := StandardMaterial3D.new()
+		lm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		lm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		lm.cull_mode = BaseMaterial3D.CULL_DISABLED
+		lm.vertex_color_use_as_albedo = true
+		lm.no_depth_test = true
+		_lift.material_override = lm
+		_lift.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		_lift.layers = 4   # (left out of the close-up cameras)
+		add_child(_lift)
+	_lift.visible = show and phase == "pour"
+	if not _lift.visible:
+		return
+	var r: float = pour.height_at(_pour_local(at)) / pour.SLAB
+	var y: float = pour.position.y + r * pour.SLAB + 0.05
+	var full := clampf(r / LIFT_HEAP, 0.0, 1.0)
+	var fill_col: Color = HEAP_COL if r > LIFT_HEAP else (UI.GOLD if r >= LIFT_LO and r <= LIFT_HI else UI.BONE)
+	# (clockwise from the top of the screen)
+	var su := Vector3(0, 0, -1).rotated(Vector3.UP, cam_yaw)
+	var a0 := atan2(su.z, su.x)
+	var im := _lift.mesh as ImmediateMesh
+	im.clear_surfaces()
+	im.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
+	var n := 40
+	for i in n:
+		var f0 := float(i) / n
+		var f1 := float(i + 1) / n
+		var col := Color(UI.TRACK, 0.6)
+		var w := LIFT_W
+		if f0 < full:
+			col = fill_col
+		if r <= LIFT_HEAP and f1 > LIFT_LO / LIFT_HEAP and f0 < LIFT_HI / LIFT_HEAP:
+			w = LIFT_W * 1.6
+			if f0 >= full:
+				col = Color(UI.GOLD, 0.45)
+		var u0 := a0 + TAU * f0
+		var u1 := a0 + TAU * f1
+		var p0 := Vector3(at.x + cos(u0) * (LIFT_R - w), y, at.z + sin(u0) * (LIFT_R - w))
+		var p1 := Vector3(at.x + cos(u0) * (LIFT_R + w), y, at.z + sin(u0) * (LIFT_R + w))
+		var p2 := Vector3(at.x + cos(u1) * (LIFT_R - w), y, at.z + sin(u1) * (LIFT_R - w))
+		var p3 := Vector3(at.x + cos(u1) * (LIFT_R + w), y, at.z + sin(u1) * (LIFT_R + w))
+		for q in [p0, p1, p2, p2, p1, p3]:
+			im.surface_set_color(col)
+			im.surface_add_vertex(q)
+	im.surface_end()
 
 ## The end hose drawn as a sagging run from the boom tip to the pipe guy's hands.
 func _draw_hose() -> void:
