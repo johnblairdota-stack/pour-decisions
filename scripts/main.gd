@@ -3387,6 +3387,9 @@ func _handle_player(p, delta: float) -> void:
 			_strap_t = 0.0
 		var walking: bool = person and _strap_t > 0.0
 		var v: Vector2 = p.move_input() if not walking else Vector2.ZERO
+		if person:
+			v = _pad_only(v)
+		var pad_v := v
 		if _fold_mode != "":
 			v = Vector2.ZERO   # (the stick's unfolding it, or stowing it)
 		if not person:
@@ -3416,7 +3419,7 @@ func _handle_player(p, delta: float) -> void:
 			p.pose_arms(Vector3(-1.05 + 0.04 * sin(phase_t * 7.0), 0, 0.42), Vector3(-1.05 - 0.04 * sin(phase_t * 6.0), 0, -0.42))
 		_update_rings(person)
 		if person:
-			_draw_pad(p, p.move_input() if not walking else Vector2.ZERO)
+			_draw_pad(p, pad_v)
 		var blocked_now: bool = climb.wind_gust >= BOOM_WIND or line.line_down() or line.tripped
 		# A clamp weeping or a pipe blocked: the button itself tells you to stop
 		var trouble: bool = line.fail_i >= 0 or line.blocked or line.line_down()
@@ -4129,6 +4132,32 @@ var _pad: Node3D
 var _pad_keys := {}           # key -> its Label3D
 var _pad_word: Label3D
 var _pad_frame := -1          # the frame the pad was last drawn
+var _pad_axis := ""           # "x" or "y": the arrow that's held, till the stick's back in the middle
+
+## The remote's levers as an arrow pad: one arrow at a time (no slewing and
+## reaching together), the first one pushed holding till the stick comes
+## back to the middle. How far it's pushed still sets the speed.
+func _pad_only(v: Vector2) -> Vector2:
+	if v.length() <= BOOM_DEAD:
+		_pad_axis = ""
+		return Vector2.ZERO
+	if _pad_axis == "":
+		_pad_axis = "x" if absf(v.x) >= absf(v.y) else "y"
+	return Vector2(v.x, 0.0) if _pad_axis == "x" else Vector2(0.0, v.y)
+
+## The arrow the pad wants pressed now, and the words under it: [key, word].
+func _pad_want() -> Array:
+	if _fold_mode != "":
+		return ["OUT", "UNFOLD"] if _fold_mode == "unfold" else ["IN", "STOW"]
+	if boom_signal != "" and boom_signal != "ALL_DONE" and _signal_counts:
+		return [_pad_key(boom_signal, boom_signal_dir), SIGNAL_WORDS.get(boom_signal, boom_signal)]
+	return ["", _flash if _flash_t > 0.0 else ""]
+
+## The pad for a phone: shown while this person's on the remote.
+func pad_state(p) -> Dictionary:
+	var on: bool = p.busy == "boom" and phase == "pour" and not (climb != null and climb.active)
+	var w := _pad_want() if on else ["", ""]
+	return {"t": "pad", "on": on, "want": w[0], "word": w[1], "gold": bool(Settings.value("gold_assist"))}
 
 ## The pad key (LEFT, RIGHT, OUT, IN, STOP or "") that answers a signal.
 func _pad_key(sig: String, dir: Vector3) -> String:
@@ -4174,16 +4203,9 @@ func _draw_pad(p, v: Vector2) -> void:
 	var at: Vector3 = p.global_position + Vector3(0, 3.2, 0) + cam_b.x * 1.6
 	var k := clampf(camera.global_position.distance_to(at) / 15.0, 0.9, 3.2)
 	_pad.global_transform = Transform3D(cam_b.orthonormalized().scaled(Vector3.ONE * k), at)
-	var want := ""
-	var word := ""
-	if _fold_mode != "":
-		want = "OUT" if _fold_mode == "unfold" else "IN"
-		word = "UNFOLD" if _fold_mode == "unfold" else "STOW"
-	elif boom_signal != "" and boom_signal != "ALL_DONE" and _signal_counts:
-		want = _pad_key(boom_signal, boom_signal_dir)
-		word = SIGNAL_WORDS.get(boom_signal, boom_signal)
-	elif _flash_t > 0.0:
-		word = _flash
+	var w := _pad_want()
+	var want: String = w[0]
+	var word: String = w[1]
 	var hint: bool = want != "" and bool(Settings.value("gold_assist"))
 	var pulse := 0.75 + 0.25 * sin(phase_t * 10.0)
 	var pushed := {"LEFT": v.x < -BOOM_DEAD, "RIGHT": v.x > BOOM_DEAD, "OUT": v.y < -BOOM_DEAD, "IN": v.y > BOOM_DEAD,

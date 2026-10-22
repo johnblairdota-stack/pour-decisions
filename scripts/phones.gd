@@ -17,7 +17,8 @@
 ## "c <button:verb:hold progress:urgent:gold,...>", "v <ms pattern>", "full",
 ## and "J <json>" for the rest: {t: state} lobby / site / play / pause,
 ## {t: roster} who's on each job, {t: state, s: sign, left} signing the slab, {t: card} your job ticket, {t: now} the
-## ticket's live step, {t: gauge} the pump gauge (pump operator), {t: nudge}
+## ticket's live step, {t: gauge} the pump gauge (pump operator), {t: pad} the
+## boom remote's arrow pad (on, the arrow wanted, its words), {t: nudge}
 ## how long the game's been waiting on you, {t: toast} a short note.
 ## The token lets a phone that drops out reconnect to the same chibi.
 extends Node
@@ -406,6 +407,8 @@ func _send_state(c: Dictionary) -> void:
 	if p.role == "pump" and game.line != null and scr == "play":
 		var ln = game.line
 		_json(c, "gauge", {"t": "gauge", "bar": int(ln.pressure / 5.0) * 5, "spike": bool(ln.spike_on), "warn": bool(ln.spike_warn), "tripped": bool(ln.tripped)})
+	if game.has_method("pad_state"):
+		_json(c, "pad", game.pad_state(p) if scr == "play" else {"t": "pad", "on": false, "want": "", "word": "", "gold": false})
 	_json(c, "nudge", {"t": "nudge", "lvl": int(game.nudge_level(p)) if game.has_method("nudge_level") else 0})
 
 ## Who's on every job: {t, r: [{id, name, col, line, p (0: a bot), pc, who, lock}]}.
