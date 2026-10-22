@@ -319,6 +319,8 @@ func _boom(p, delta: float) -> void:
 		return
 	var line = g.line
 	var pour = g.pour
+	# Always starts on LOW: the first concrete through kicks the hose
+	p.ai_alt = g.speed_advice["why"] == "start-up" and _tap()
 	# Start-up and washout: the slurry and the last of the line into the bin
 	if g.ops.wants_bin():
 		var bl: Vector3 = g._pour_local(g.ops.bin_world())
@@ -404,6 +406,12 @@ func _boom(p, delta: float) -> void:
 	if why != "" and game.autotest:
 		stop_t[why] = float(stop_t.get(why, 0.0)) + delta
 	_boom_ok = ok
+	# Suck back as the pump stops, before the hose moves on (most times)
+	if not line.pumping and g._pump_off_t > 0.0 and g._pump_off_t < 0.6 and not g._sucked and g._drip_armed:
+		if _suck_n != g.pump_stops:
+			_suck_n = g.pump_stops
+			_suck_go = randf() < SUCK_SHARE
+		p.ai_slow = _suck_go and _tap()
 	if g.pipe_calls():
 		# (the pipe guy calls the concrete: the remote's A is the horn, a
 		# honk before each big swing)
@@ -448,6 +456,9 @@ func _answer_signal(p, delta: float) -> void:
 			var l2 := dir.rotated(Vector3.UP, -g.cam_yaw)
 			p.ai_move = Vector2(l2.x, l2.z)
 
+const SUCK_SHARE := 0.7    # share of the pump's stops the boom bot sucks back on
+var _suck_n := -1
+var _suck_go := false
 var _honk_goal := Vector3.INF
 
 ## The boom bot's horn: once for each goal far enough off to be a big swing,
