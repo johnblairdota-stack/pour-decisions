@@ -16,7 +16,12 @@ extends RefCounted
 const MANIFEST := '{"name": "Pour Decisions controller", "short_name": "Pour Decisions", "start_url": "/", "display": "fullscreen", "orientation": "landscape", "background_color": "#0b0c10", "theme_color": "#0b0c10", "icons": [{"src": "/icon.png", "sizes": "192x192", "type": "image/png"}]}'
 
 static func html(ws_port: int) -> String:
-	return PAGE.replace("__WS_PORT__", str(ws_port))
+	return PAGE.replace("__WS_PORT__", str(ws_port)).replace("__VER__", version())
+
+## Which build of the page this is: a phone still showing an older one
+## (left open while the game was updated) reloads itself.
+static func version() -> String:
+	return str(PAGE.hash())
 
 const PAGE := """<!doctype html>
 <html lang="en">
@@ -320,6 +325,7 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 <div id="status">connecting…</div>
 <script>
 const PORT = __WS_PORT__;
+const VER = '__VER__';
 const $ = (id) => document.getElementById(id);
 const HAT = '<svg viewBox="0 0 24 20"><path d="M1 16h22v2H1z M3.5 16v-3a8.5 8.5 0 0 1 17 0v3z" fill="currentColor"/></svg>';
 const LOCK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" style="width:4vmin;height:4vmin"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
@@ -344,6 +350,7 @@ function connect() {
     const d = ev.data;
     if (d.startsWith('J ')) { try { onJson(JSON.parse(d.slice(2))); } catch (e) {} return; }
     const m = d.split(' ');
+    if (m[0] === 'ver') { if (m[1] !== VER) location.reload(); return; }
     if (m[0] === 'p') onPlayer(parseInt(m[1]), m[2]);
     else if (m[0] === 'v') buzz((m[1] || '30').split(',').map(Number));
     else if (m[0] === 'full') { status.textContent = 'the crew is full (6 players): watch, or wait for a spot'; }

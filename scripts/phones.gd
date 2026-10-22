@@ -15,7 +15,7 @@
 ## doing), and for signing the top slab "ink <x> <y>" (0..1 across your
 ## square), "inkup", "inkclr" and "inkok". To a phone: "p <player number> <colour hex>",
 ## "c <button:verb:hold progress:urgent:gold,...>", "v <ms pattern>", "full",
-## and "J <json>" for the rest: {t: state} lobby / site / play / pause,
+## "ver <page build>" (an older page reloads), and "J <json>" for the rest: {t: state} lobby / site / play / pause,
 ## {t: roster} who's on each job, {t: state, s: sign, left} signing the slab, {t: card} your job ticket, {t: now} the
 ## ticket's live step, {t: gauge} the pump gauge (pump operator), {t: pad} the
 ## boom remote's arrow pad (on, the arrow wanted, its words), {t: nudge}
@@ -231,6 +231,7 @@ func _on_message(c: Dictionary, msg: String) -> void:
 		"hello":
 			var token := parts[1] if parts.size() > 1 else str(randi())
 			c["token"] = token
+			(c["ws"] as WebSocketPeer).send_text("ver " + PAGE.version())
 			var p = tokens.get(token)
 			if p == null or not is_instance_valid(p):
 				p = game.join_phone()
