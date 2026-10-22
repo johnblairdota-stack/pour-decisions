@@ -20,7 +20,7 @@ const MAX_PEOPLE := 6
 const PLAYER_COLORS := UI.P_COLORS
 const INFO := {
 	"boom": {"name": "Boom operator", "hat": Color("ffc72c"), "climb": "dogman",
-		"text": "Steer the placing boom from the radio remote and pump the concrete where it's needed, bay by bay. Keep an eye on the hopper.\n\nClimb days: dogman, whistling the crane in."},
+		"text": "Swing the placing boom from the radio remote: the stick swings it round the tower and runs it in and out, and easing off stops it clean. Answer the pipe guy's hand signals, horn before a big swing, thumbs up once the start-up kick settles, and suck back before you move. Start on LOW.\n\nClimb days: dogman, whistling the crane in."},
 	"line": {"name": "Truck hand", "hat": Color("7cd992"), "climb": "slinger",
 		"text": "Run the truck bay. Wave trucks in and spot them back onto the hopper, check each docket against the order, slump-test the loads that are due one, then use it, add the water held back, or send it back. Keep the changeovers tight for a streak.\n\nClimb days: sling the next section and send the pins up."},
 	"pump": {"name": "Pump operator", "hat": Color("ff7a1a"), "climb": "rigger",
@@ -28,7 +28,7 @@ const INFO := {
 	"poker": {"name": "Poker hand", "hat": Color("c49bff"), "climb": "tag line",
 		"text": "Vibrate the concrete as it lands: plunge, feel it shudder, lift out when the bubbles stop, move on. Tow your drive unit along.\n\nClimb days: the tag line."},
 	"hose": {"name": "Pipe guy", "hat": Color("2fd3e8"), "climb": "",
-		"text": "On the end of the rubber hose: walk it where the concrete's wanted, right into the corners the boom can't quite reach, and call the pump on and off. On the radio for the start-up: the dragon's breathing, slurry out, concrete's on."},
+		"text": "On the end of the rubber hose. Stand clear while the first concrete kicks it about, and take it at the thumbs up. Lean toward where it's wanted to signal the boom (Y: a little bit, held: stop boom), hold A for concrete, and leave each spot level, in the gold. On the radio for the start-up: the dragon's breathing, concrete's on."},
 	"screed": {"name": "Screeder", "hat": Color("f4f7fa"), "climb": "",
 		"text": "Follow the pokers with the screed board. Saw it side to side to strike the slab flat, rolling the surplus into the low spots, before it goes off.\n\nInspections: fix the defects."},
 }

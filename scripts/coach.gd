@@ -183,16 +183,22 @@ func _tip(p) -> String:
 	match p.role:
 		"hose":
 			if p.busy != "hose":
+				if g.stand_clear:
+					return "Stand clear: the first concrete kicks the hose about. Wait outside the gold ring for the boom operator's thumbs up, then take it."
 				return "Take the END HOSE: it hangs under the boom tip. Walk under it and press A."
-			return "Walk the hose where it's wanted: where it glows gold, right out to the forms and into the corners. The concrete's your call: hold A for the pump, let go to stop."
+			if g.hose_stretched:
+				return "Stretched! Walk back in under the boom tip: a taut hose chokes the flow and bucks."
+			return "Lean toward where the concrete's wanted and the boom follows your signal (Y: a little bit, hold Y: stop boom). Hold A for concrete, and move on when the ring under the hose is in the gold."
 		"boom":
 			if p.busy != "boom":
 				return "Walk to BOOM REMOTE and press A to take it."
 			var adv: Dictionary = g.speed_advice
 			if adv["want"] != "" and adv["level"] >= 1:
 				return "X is up: switch the pump to %s (%s)." % [adv["want"].to_upper(), adv["why"]]
+			if g.thumbs_pending():
+				return "The kick's settled: A for the thumbs up, so the pipe guy can take the hose."
 			if g.pipe_calls():
-				return "The pipe guy calls the concrete on and off. Steer the boom with the stick so the end hose reaches where they're working, and keep it along the wet edge."
+				return "Watch the pipe guy's hands: answer each signal on the stick (BOOM LEFT, OUT, a LITTLE BIT, STOP). Ease off the stick to stop clean, and A for the horn before a big swing."
 			if not line.pumping:
 				return "Hold A to pump (nobody's on the end hose). The stick steers the hose. Start in the green bay."
 			return "Lay it against the wet edge so it stays green. Amber means it's getting old: get back to it."
