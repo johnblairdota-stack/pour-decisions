@@ -124,8 +124,8 @@ const ROLE_CLIMB := {"boom": "Climb days: dogman", "line": "Climb days: slinger 
 ## you're on this step].
 const JOB_CARD := {
 	"boom": {"goal": "Swing the boom, answer the pipe guy.", "watch": "the pipe guy's hands.",
-		"steps": [["stick", "Swing round the tower, up/down for reach. Ease off to stop clean", ["swing", "reach", "feather", "unfold", "stow", "boom remote", "steer"]],
-			["stick", "Answer the pipe guy's signals", ["boom left", "boom right", "boom out", "boom in", "little bit", "stop boom", "in sync"]],
+		"steps": [["stick", "Left/right swings round the tower, up/down reaches out/in. Ease off to stop clean", ["swing", "reach", "feather", "unfold", "stow", "boom remote", "steer"]],
+			["stick", "Answer the pipe guy: his arrow lights up on your pad", ["boom left", "boom right", "boom out", "boom in", "little bit", "stop boom", "in sync"]],
 			["A", "Horn before a big swing · thumbs up at start-up", ["horn", "thumbs"]],
 			["Y", "Suck back before you move", ["suck back"]],
 			["X", "Start on LOW, then high or low output", ["high", "low", "output"]],

@@ -2931,6 +2931,7 @@ func _update_pour(delta: float) -> void:
 		pour_clock += delta
 	ops.update(delta)
 	_update_signal(delta)
+	_update_pad()
 	_draw_hose()
 	if autotest and fmod(phase_t, 15.0) < delta:
 		# (progress, and how long a frame takes, for long pours)
@@ -3414,6 +3415,8 @@ func _handle_player(p, delta: float) -> void:
 			# Radio remote on its belly strap, thumbs on the sticks
 			p.pose_arms(Vector3(-1.05 + 0.04 * sin(phase_t * 7.0), 0, 0.42), Vector3(-1.05 - 0.04 * sin(phase_t * 6.0), 0, -0.42))
 		_update_rings(person)
+		if person:
+			_draw_pad(p, p.move_input() if not walking else Vector2.ZERO)
 		var blocked_now: bool = climb.wind_gust >= BOOM_WIND or line.line_down() or line.tripped
 		# A clamp weeping or a pipe blocked: the button itself tells you to stop
 		var trouble: bool = line.fail_i >= 0 or line.blocked or line.line_down()
@@ -3422,7 +3425,7 @@ func _handle_player(p, delta: float) -> void:
 		var ha := hose_anchor()
 		if person and Vector2(p.position.x - ha.x, p.position.z - ha.z).length() < UNDER_BOOM:
 			p.cue("leave", "out from under the boom", -1.0, true, Vector2(-1, -1), true)
-		if not _fold_cue(p):
+		if not _fold_cue(p) and not person:
 			_lever_cue(p)
 		# Y: suck back, a stroke in reverse before the hose moves on
 		var suck_live: bool = ops.primed and not ops.busy() and not line.pumping and not _sucked and _drip_armed and _pump_off_t < DRIP_ARM + 1.0
@@ -3914,8 +3917,10 @@ var _lump_t := 0.0
 
 # ---- the belly box: the remote's levers
 # The stick works the boom's levers, not a dot on the deck: left and right
-# slew it round the mast, up and down reach it out and in (each projected so
-# it reads the right way on screen). The boom has weight: the hydraulics spool
+# slew it round the mast (right is clockwise from above: to your right, facing
+# the tip from the mast), up and down reach it out and in, whichever way the
+# camera looks. An arrow pad over the operator shows the levers, and lights
+# the one the pipe guy's asking for. The boom has weight: the hydraulics spool
 # up, a lever let go hard leaves the tip swaying on past, and easing off as it
 # arrives stops it dead.
 const SLEW_MAX := 0.32        # rad/s of slew at full lever
@@ -3985,20 +3990,9 @@ func _belly_box(v: Vector2, delta: float) -> void:
 	var rel := Vector3(tip_target.x - m.x, 0, tip_target.z - m.z)
 	var r := maxf(rel.length(), 0.5)
 	var ang := atan2(rel.z, rel.x)
-	var out := rel / r
-	var round_dir := Vector3(-out.z, 0, out.x)   # the way a positive slew turns it
-	var mag := clampf((v.length() - BOOM_DEAD) / (1.0 - BOOM_DEAD), 0.0, 1.0)
-	var want_s := 0.0
-	var want_r := 0.0
-	if mag > 0.0:
-		# Screen right and screen down, on the ground, onto the boom's own
-		# two motions where the tip is now
-		var sr := Vector3(1, 0, 0).rotated(Vector3.UP, cam_yaw)
-		var sd := Vector3(0, 0, 1).rotated(Vector3.UP, cam_yaw)
-		var w := (sr * v.x + sd * v.y).normalized() * mag * mag
-		var pour_k := BOOM_POUR_K if line.pumping else 1.0
-		want_s = w.dot(round_dir) * minf(SLEW_MAX, TIP_MAX / r) * pour_k
-		want_r = w.dot(out) * REACH_MAX * pour_k
+	var pour_k := BOOM_POUR_K if line.pumping else 1.0
+	var want_s := _lever_axis(v.x) * minf(SLEW_MAX, TIP_MAX / r) * pour_k
+	var want_r := _lever_axis(-v.y) * REACH_MAX * pour_k
 	_slew_v = move_toward(_slew_v, want_s, SLEW_MAX / SPOOL_T * delta)
 	_reach_v = move_toward(_reach_v, want_r, REACH_MAX / SPOOL_T * delta)
 	ang += _slew_v * delta
@@ -4008,6 +4002,11 @@ func _belly_box(v: Vector2, delta: float) -> void:
 		r = clampf(r, REACH_MIN, r_max)
 		_reach_v = 0.0
 	tip_target = Vector3(m.x + cos(ang) * r, tip_target.y, m.z + sin(ang) * r)
+
+## One lever's travel past the dead zone, -1..1, soft in the middle.
+func _lever_axis(a: float) -> float:
+	var k := clampf((absf(a) - BOOM_DEAD) / (1.0 - BOOM_DEAD), 0.0, 1.0)
+	return signf(a) * k * k
 
 ## The lever coming back: let go hard at speed and the tip sways on past;
 ## ease it back through the middle as the hose arrives and it stops dead
@@ -4111,18 +4110,101 @@ func give_signal(by, sig: String, dir := Vector3.ZERO) -> void:
 		if pk != null and pk.zone == "deck":
 			pk.bark("Good stuff!", 1.0)
 
-## The words on the signal card, with an arrow that points the way it reads
-## on screen.
+## The words on the signal card, with the arrow on the boom's pad that
+## answers it.
 func _signal_text(sig: String, dir: Vector3) -> String:
 	var words: String = SIGNAL_WORDS.get(sig, sig)
-	if dir == Vector3.ZERO or not sig in ["LEFT", "RIGHT", "OUT", "IN", "LITTLE_BIT"]:
+	var key := _pad_key(sig, dir)
+	if not PAD_ARROW.has(key):
 		return words
-	var sr := Vector3(1, 0, 0).rotated(Vector3.UP, cam_yaw)
-	var su := Vector3(0, 0, -1).rotated(Vector3.UP, cam_yaw)
-	var x := dir.dot(sr)
-	var y := dir.dot(su)
-	var arrow := ("▶" if x > 0.0 else "◀") if absf(x) >= absf(y) else ("▲" if y > 0.0 else "▼")
-	return arrow + " " + words
+	return PAD_ARROW[key] + " " + words
+
+# ---- the arrow pad: the belly box's levers, over the operator's head
+# ◀ ▶ slew, ▲ ▼ reach out and in. The one that answers the live signal
+# pulses gold (the gold assist), the one being pushed shows white.
+const PAD_ARROW := {"LEFT": "◀", "RIGHT": "▶", "OUT": "▲", "IN": "▼", "STOP": "■"}
+const PAD_AT := {"LEFT": Vector2(-0.8, 0), "RIGHT": Vector2(0.8, 0), "OUT": Vector2(0, 0.75), "IN": Vector2(0, -0.75), "STOP": Vector2.ZERO}
+const PAD_IDLE := Color(0.93, 0.9, 0.84, 0.7)
+var _pad: Node3D
+var _pad_keys := {}           # key -> its Label3D
+var _pad_word: Label3D
+var _pad_frame := -1          # the frame the pad was last drawn
+
+## The pad key (LEFT, RIGHT, OUT, IN, STOP or "") that answers a signal.
+func _pad_key(sig: String, dir: Vector3) -> String:
+	match sig:
+		"LEFT", "RIGHT", "OUT", "IN":
+			return sig
+		"STOP_BOOM":
+			return "STOP"
+		"LITTLE_BIT":
+			if dir == Vector3.ZERO:
+				return ""
+			var m := _mast()
+			var rad := Vector3(tip_target.x - m.x, 0, tip_target.z - m.z).normalized()
+			var cr := dir.dot(rad)
+			var ct := dir.dot(Vector3(-rad.z, 0, rad.x))
+			if absf(cr) >= absf(ct):
+				return "OUT" if cr > 0.0 else "IN"
+			return "RIGHT" if ct > 0.0 else "LEFT"
+	return ""
+
+## Draws the pad over a person on the remote (`v`: their stick).
+func _draw_pad(p, v: Vector2) -> void:
+	if _pad == null:
+		_pad = Node3D.new()
+		add_child(_pad)
+		for key in PAD_ARROW:
+			var l := F.label3d(PAD_ARROW[key], 96, PAD_IDLE)
+			l.billboard = BaseMaterial3D.BILLBOARD_DISABLED
+			l.pixel_size = 0.009
+			l.layers = 2
+			l.position = Vector3(PAD_AT[key].x, PAD_AT[key].y, 0)
+			_pad.add_child(l)
+			_pad_keys[key] = l
+		_pad_word = F.label3d("", 40, UI.GOLD)
+		_pad_word.billboard = BaseMaterial3D.BILLBOARD_DISABLED
+		_pad_word.pixel_size = 0.008
+		_pad_word.layers = 2
+		_pad_word.position = Vector3(0, -1.4, 0)
+		_pad.add_child(_pad_word)
+	_pad_frame = Engine.get_process_frames()
+	_pad.visible = true
+	var cam_b := camera.global_transform.basis
+	var at: Vector3 = p.global_position + Vector3(0, 3.2, 0) + cam_b.x * 1.6
+	var k := clampf(camera.global_position.distance_to(at) / 15.0, 0.9, 3.2)
+	_pad.global_transform = Transform3D(cam_b.orthonormalized().scaled(Vector3.ONE * k), at)
+	var want := ""
+	var word := ""
+	if _fold_mode != "":
+		want = "OUT" if _fold_mode == "unfold" else "IN"
+		word = "UNFOLD" if _fold_mode == "unfold" else "STOW"
+	elif boom_signal != "" and boom_signal != "ALL_DONE" and _signal_counts:
+		want = _pad_key(boom_signal, boom_signal_dir)
+		word = SIGNAL_WORDS.get(boom_signal, boom_signal)
+	elif _flash_t > 0.0:
+		word = _flash
+	var hint: bool = want != "" and bool(Settings.value("gold_assist"))
+	var pulse := 0.75 + 0.25 * sin(phase_t * 10.0)
+	var pushed := {"LEFT": v.x < -BOOM_DEAD, "RIGHT": v.x > BOOM_DEAD, "OUT": v.y < -BOOM_DEAD, "IN": v.y > BOOM_DEAD,
+		"STOP": v.length() <= BOOM_DEAD}
+	for key in _pad_keys:
+		var l: Label3D = _pad_keys[key]
+		var on: bool = pushed[key] and (key != "STOP" or want == "STOP")
+		if hint and key == want:
+			l.modulate = Color(UI.GOLD, 1.0) if on else Color(UI.GOLD, pulse)
+			l.scale = Vector3.ONE * (1.3 if on else 1.0 + 0.15 * pulse)
+		else:
+			l.modulate = Color.WHITE if on else PAD_IDLE
+			l.scale = Vector3.ONE * (1.15 if on else 1.0)
+		l.visible = key != "STOP" or want == "STOP"
+	_pad_word.text = word
+	_pad_word.modulate = UI.GOLD if want != "" else Color.WHITE
+
+## Hides the pad when nobody's drawn it this frame.
+func _update_pad() -> void:
+	if _pad != null and _pad_frame != Engine.get_process_frames():
+		_pad.visible = false
 
 ## Watching for the boom's answer to the live signal.
 func _update_signal(delta: float) -> void:
@@ -4796,9 +4878,7 @@ func _pull_signal(out: Vector3) -> Array:
 	var ct := out.dot(round_dir)
 	if absf(cr) >= absf(ct):
 		return ["OUT", rad] if cr > 0.0 else ["IN", -rad]
-	var d := round_dir * signf(ct)
-	var sr := Vector3(1, 0, 0).rotated(Vector3.UP, cam_yaw)
-	return ["RIGHT" if d.dot(sr) > 0.0 else "LEFT", d]
+	return ["RIGHT" if ct > 0.0 else "LEFT", round_dir * signf(ct)]
 
 ## Y on the end hose: a tap is LITTLE BIT (the way you're pushing, or
 ## facing), held it's STOP BOOM.

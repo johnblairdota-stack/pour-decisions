@@ -20,7 +20,7 @@ const MAX_PEOPLE := 6
 const PLAYER_COLORS := UI.P_COLORS
 const INFO := {
 	"boom": {"name": "Boom operator", "hat": Color("ffc72c"), "climb": "dogman",
-		"text": "Swing the placing boom from the radio remote: the stick swings it round the tower and runs it in and out, and easing off stops it clean. Answer the pipe guy's hand signals, horn before a big swing, thumbs up once the start-up kick settles, and suck back before you move. Start on LOW.\n\nClimb days: dogman, whistling the crane in."},
+		"text": "Swing the placing boom from the radio remote: left and right swing it round the tower, up and down run it in and out, and easing off stops it clean. Answer the pipe guy's hand signals (the arrow pad over your head lights the one he wants), horn before a big swing, thumbs up once the start-up kick settles, and suck back before you move. Start on LOW.\n\nClimb days: dogman, whistling the crane in."},
 	"line": {"name": "Truck hand", "hat": Color("7cd992"), "climb": "slinger",
 		"text": "Run the truck bay. Wave trucks in and spot them back onto the hopper, check each docket against the order, slump-test the loads that are due one, then use it, add the water held back, or send it back. Keep the changeovers tight for a streak.\n\nClimb days: sling the next section and send the pins up."},
 	"pump": {"name": "Pump operator", "hat": Color("ff7a1a"), "climb": "rigger",
