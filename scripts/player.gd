@@ -625,6 +625,12 @@ func show_cues(cam_right: Vector3, t: float, cam_pos := Vector3.ZERO, cam_k := 1
 			c["pressed_at"] = t
 		c["was_down"] = down
 		var since: float = t - float(c["pressed_at"])
+		if since < 0.0:
+			# (the clock's the phase's, and it went back to 0 when the phase
+			# changed: a press from before that is long gone, not in the future,
+			# or the bounce below blows the button up to fill the screen)
+			c["pressed_at"] = -9.0
+			since = t + 9.0
 		var squash := 0.0
 		var press_k := 1.0
 		if since < 0.09:
