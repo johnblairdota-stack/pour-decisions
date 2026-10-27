@@ -159,7 +159,7 @@ const JOB_CARD := {
 ## list is the job ticket's steps (JOB_CARD).
 const ROLE_HOW := {
 	"boom": {
-		"climb": [["stick", "whistle the crane toward the ghost"], ["A", "hold to lower it in"], ["X", "hoist"], ["Y", "\"slowly\" (twice: stop)"]],
+		"climb": [["stick", "push to a call: TROLLEY OUT / IN, SLEW LEFT / RIGHT · let go: STOP"], ["A", "hold: LOWER (when the ghost sits on the green)"], ["X", "hold: HOIST"], ["Y", "hold: EASY · twice: ALL STOP"]],
 	},
 	"line": {
 		"climb": [["A", "hold at the LAYDOWN to sling the next section"], ["A", "a PIN BAG from the base, up the HAUL ROPE"]],
