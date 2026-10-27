@@ -4965,7 +4965,9 @@ func _maybe_shot() -> void:
 	var pp = crew.crew["pump"]
 	var p3 = crew.crew["poker"]
 	var sc = crew.crew["screed"]
-	if "trans1" in _shot_only and _split > 0.2 and _split < 0.5 and not _shots_taken.has("trans1"):
+	if "every" in _shot_only and phase in ["pour", "climb"] and not _shots_taken.has("every_%s_%03d" % [phase, int(phase_t / 6.0)]):
+		key = "every_%s_%03d" % [phase, int(phase_t / 6.0)]
+	elif "trans1" in _shot_only and _split > 0.2 and _split < 0.5 and not _shots_taken.has("trans1"):
 		key = "trans1"
 	elif "trans2" in _shot_only and _split > 0.45 and _split < 0.75 and not _shots_taken.has("trans2"):
 		key = "trans2"
@@ -5071,7 +5073,7 @@ func _maybe_shot() -> void:
 		key = _next_ext()
 	elif phase == "topout" and phase_t > 0.6:
 		key = "topout"
-	if key != "" and not _shot_only.is_empty() and not (key in _shot_only):
+	if key != "" and not _shot_only.is_empty() and not (key in _shot_only) and not key.begins_with("every"):
 		_shots_taken[key] = true
 	var want := key != "" and not _shots_taken.has(key)
 	if not want:
