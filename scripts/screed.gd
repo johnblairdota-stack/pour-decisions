@@ -43,10 +43,15 @@ func build(owner_game) -> void:
 	pour = game.pour
 	BOARD = 3.0 * minf(1.7, sqrt(pour.vol_k))
 	board = Node3D.new()
-	board.add_child(F.box(Vector3(BOARD, 0.11, 0.05), F.mat("steel", true), Vector3.ZERO))
-	board.add_child(F.box(Vector3(BOARD, 0.025, 0.12), F.mat("steel", true), Vector3(0, -0.055, 0.03)))
+	# Aluminium box-section screed (1 m modelled, stretched to length) and two
+	# D-handles
+	var beam := F.prop("ScreedBoard")
+	beam.scale.x = BOARD
+	board.add_child(beam)
 	for x in [-0.45, 0.45]:
-		board.add_child(F.box(Vector3(0.05, 0.05, 0.16), F.mat("navy", true), Vector3(x, 0.08, -0.05)))
+		var h := F.prop("ScreedHandle")
+		h.position = Vector3(x, 0.055, 0.0)
+		board.add_child(h)
 	_rest()
 	roll = F.cylinder(1.0, BOARD - 0.2, F.color_mat(Color("767a7e")), Vector3.ZERO, 10)
 	roll.rotation.z = PI * 0.5

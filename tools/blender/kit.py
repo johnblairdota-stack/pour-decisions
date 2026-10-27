@@ -118,7 +118,7 @@ class Piece:
 		return self
 
 
-def lathe(profile, segs=24, mat="white", depth=1.0, cap_top=True, cap_bottom=True, arc=None):
+def lathe(profile, segs=24, mat="white", depth=1.0, cap_top=True, cap_bottom=True, arc=None, loop=False):
 	"""Turns a profile [(radius, y), ...] (bottom to top) round the y axis.
 	`depth` squashes it front to back (a torso isn't round). `arc` = (a0, a1)
 	in radians makes an open strip instead of a full turn (0 = +z, the front)."""
@@ -133,6 +133,14 @@ def lathe(profile, segs=24, mat="white", depth=1.0, cap_top=True, cap_bottom=Tru
 			a = (2 * math.pi * i / segs) if full else (arc[0] + (arc[1] - arc[0]) * i / segs)
 			ring.append(bm.verts.new((math.sin(a) * r, y, math.cos(a) * r * depth)))
 		rings.append(ring)
+	if loop:
+		# A closed cross-section (a ring's profile): join the last point to
+		# the first, and close the ends of an open arc with the profile itself
+		rings.append(rings[0])
+		profile = list(profile) + [profile[0]]
+		if not full:
+			bm.faces.new([r[0] for r in rings[:-1]])
+			bm.faces.new([r[-1] for r in reversed(rings[:-1])])
 	for k in range(len(rings) - 1):
 		a, b = rings[k], rings[k + 1]
 		for i in range(segs):
@@ -140,7 +148,7 @@ def lathe(profile, segs=24, mat="white", depth=1.0, cap_top=True, cap_bottom=Tru
 			if r_zero(profile[k]) and r_zero(profile[k + 1]):
 				continue
 			bm.faces.new((a[i], a[j], b[j], b[i]))
-	if full:
+	if full and not loop:
 		if cap_bottom and profile[0][0] > 1e-5:
 			c = bm.verts.new((0, profile[0][1], 0))
 			for i in range(segs):
@@ -188,6 +196,42 @@ def cylinder(r, h, mat="white", segs=16, bevel=0.0, at=(0, 0, 0)):
 	else:
 		p = lathe([(r, 0), (r, h)], segs, mat)
 	return p.move(*at)
+
+
+def extrude(poly, x0, x1, mat="white", caps=True):
+	"""A cross-section `poly` [(z, y), ...] run along x from x0 to x1: beams,
+	boards, rails."""
+	p = Piece(mat)
+	bm = p.bm
+	a = [bm.verts.new((x0, y, z)) for z, y in poly]
+	b = [bm.verts.new((x1, y, z)) for z, y in poly]
+	n = len(poly)
+	for i in range(n):
+		j = (i + 1) % n
+		bm.faces.new((a[i], a[j], b[j], b[i]))
+	if caps:
+		bm.faces.new(list(reversed(a)))
+		bm.faces.new(b)
+	return p
+
+
+def rounded_rect(w, h, r, steps=3, cx=0.0, cy=0.0):
+	"""A rounded rectangle's outline [(u, v), ...], w wide and h tall."""
+	out = []
+	for k, (sx, sy) in enumerate(((1, 1), (-1, 1), (-1, -1), (1, -1))):
+		ox, oy = cx + sx * (w / 2 - r), cy + sy * (h / 2 - r)
+		a0 = k * math.pi / 2
+		for i in range(steps + 1):
+			a = a0 + math.pi / 2 * i / steps
+			out.append((ox + math.cos(a) * r, oy + math.sin(a) * r))
+	return out
+
+
+def torus(R, r, mat="white", segs=12, rsegs=6, at=(0, 0, 0)):
+	"""A ring lying flat (round the y axis)."""
+	prof = [(R + math.cos(2 * math.pi * k / rsegs) * r, math.sin(2 * math.pi * k / rsegs) * r)
+		for k in range(rsegs)]
+	return lathe(prof, segs, mat, loop=True).move(*at)
 
 
 def box(sx, sy, sz, mat="white", bevel=0.0, at=(0, 0, 0)):

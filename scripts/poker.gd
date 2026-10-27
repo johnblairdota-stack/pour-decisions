@@ -35,12 +35,15 @@ func build(owner_game) -> void:
 	R = 1.5 * minf(1.8, sqrt(pour.vol_k))
 	# The drive unit: a little petrol motor on a skid with a pull handle
 	unit = Node3D.new()
-	unit.add_child(F.box(Vector3(0.7, 0.08, 0.5), F.mat("navy"), Vector3(0, 0.04, 0)))
-	var motor := F.box(Vector3(0.5, 0.4, 0.4), F.mat("yellow", true), Vector3(0, 0.3, 0))
+	unit.add_child(F.prop("PokerSkid"))
+	# (the motor shakes while it runs: update() moves it about y = 0.3)
+	var motor := Node3D.new()
 	motor.name = "Motor"
+	motor.position.y = 0.3
+	var engine := F.prop("PokerMotor")
+	engine.position.y = -0.3
+	motor.add_child(engine)
 	unit.add_child(motor)
-	unit.add_child(F.cylinder(0.12, 0.3, F.mat("hose"), Vector3(-0.18, 0.55, 0), 8))
-	unit.add_child(F.beam(Vector3(0.3, 0.1, 0), Vector3(0.6, 0.7, 0), 0.04, F.mat("steel")))
 	game.rig.add_child(unit)
 	unit_local = Vector3(1.5, 0, game.SC.z + game.BD * 0.5 - 1.6)
 	unit.position = unit_local
@@ -114,7 +117,8 @@ func pick_up(p) -> void:
 	p.tool = "poker"
 	var prop := Node3D.new()
 	prop.name = "PokerProp"
-	var head := F.cylinder(0.05, 0.55, F.mat("steel", true), Vector3(0, -0.32, 0.05), 8)
+	var head := F.prop("PokerHead")
+	head.position = Vector3(0, 0, 0.05)
 	head.name = "Head"
 	prop.add_child(head)
 	p.hand_r.add_child(prop)

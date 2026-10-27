@@ -74,7 +74,9 @@ func setup(owner_line, at: Vector3) -> void:
 	line.add_child(root)
 	var steel := F.mat("steel")
 	# Base plate (damp steel), a little longer to take the upturned cone
-	root.add_child(F.box(Vector3(0.9, 0.03, 0.6), steel, Vector3(0.04, 0.015, 0)))
+	var plate := F.prop("SlumpPlate")
+	plate.position = Vector3(0.04, 0.015, 0)
+	root.add_child(plate)
 	# The cone: open both ends, foot rests either side
 	_cone = Node3D.new()
 	var cm := CylinderMesh.new()
@@ -137,11 +139,12 @@ func setup(owner_line, at: Vector3) -> void:
 	root.add_child(_tape)
 	# The sample in a barrow, and a scoop
 	_barrow = Node3D.new()
-	_barrow.add_child(F.box(Vector3(0.36, 0.14, 0.26), F.color_mat(Color("2f8f6b")), Vector3(0, 0.12, 0)))
-	_barrow.add_child(F.box(Vector3(0.32, 0.03, 0.22), F.color_mat(Color("8f949b")), Vector3(0, 0.19, 0)))
+	# (child 1 is the concrete in it: shown when the tray's full)
+	_barrow.add_child(F.prop("SlumpTray"))
+	_barrow.add_child(F.prop("SlumpTrayMix"))
 	_barrow.position = BARROW_AT
 	root.add_child(_barrow)
-	_scoop = F.box(Vector3(0.08, 0.03, 0.1), steel, Vector3.ZERO)
+	_scoop = F.prop("SlumpScoop")
 	root.add_child(_scoop)
 	# The reading, big, in the close-up
 	_reading = F.label3d("", 22, Color("ffc72c"))

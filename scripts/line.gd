@@ -358,6 +358,7 @@ func _star_mesh() -> BoxMesh:
 func _make_clamp(fresh := false) -> Dictionary:
 	var root := Node3D.new()
 	var m := F.color_mat(Color("c7d0da") if fresh else Color("8f9aa6"), true)
+	(m.next_pass as ShaderMaterial).set_shader_parameter("thickness", F.PROP_OUTLINE * 1.5)
 	var hinge := Vector3(CLAMP_R, 0, 0)
 	var ha := Node3D.new()
 	ha.position = hinge
@@ -365,12 +366,9 @@ func _make_clamp(fresh := false) -> Dictionary:
 	var hb := Node3D.new()
 	hb.position = hinge
 	root.add_child(hb)
-	for i in 8:
-		var a := (i + 0.5) * TAU / 8.0
-		var seg := F.box(Vector3(0.21, 0.17, 0.09), m)
-		seg.position = Vector3(cos(a) * CLAMP_R, 0, sin(a) * CLAMP_R) - hinge
-		seg.rotation.y = -(a + PI * 0.5)
-		(ha if i < 4 else hb).add_child(seg)
+	# The two ribbed halves (tools/blender/props.py), each hung off the hinge
+	ha.add_child(F.prop("ClampHalfA", {"clamp": m}))
+	hb.add_child(F.prop("ClampHalfB", {"clamp": m}))
 	# Hinge knuckle
 	root.add_child(F.cylinder(0.05, 0.22, F.mat("navy"), hinge, 8))
 	# Lever on the free end of half B, and its safety pin
@@ -405,12 +403,54 @@ func _set_open(c: Dictionary, u: float) -> void:
 	(c["ha"] as Node3D).rotation.y = -u * 1.35
 	(c["hb"] as Node3D).rotation.y = u * 1.35
 
+## The gear a concreting crew leaves by its stores: shovel and rake leant on
+## the spares bin, buckets, a barrow and the bull float by the pipe rack, and
+## (climb days) the chain sling and a coiled tag line by the pin crate. Just
+## to look at: nothing here is picked up.
+func _build_tool_corner(bin: Node3D, rack: Node3D) -> void:
+	var shovel := F.prop("Shovel")
+	shovel.position = Vector3(0.82, 0, 0.18)
+	shovel.rotation = Vector3(0, 0.3, 0.33)
+	bin.add_child(shovel)
+	var rake := F.prop("ConcreteRake")
+	rake.position = Vector3(0.85, 0, -0.2)
+	rake.rotation = Vector3(0, -0.2, 0.28)
+	bin.add_child(rake)
+	for i in 2:
+		var b := F.prop("Bucket")
+		b.position = Vector3(-0.9 - i * 0.4, 0, 0.15 - i * 0.12)
+		bin.add_child(b)
+	var mag := F.prop("MagFloat")
+	mag.position = Vector3(-0.9, 0.36, 0.15)
+	mag.rotation.y = 0.6
+	bin.add_child(mag)
+	var barrow := F.prop("Wheelbarrow")
+	barrow.position = Vector3(2.2, 0, 0.3)
+	barrow.rotation.y = 2.4
+	rack.add_child(barrow)
+	var bull := F.prop("BullFloat")
+	bull.position = Vector3(0.2, 0, 0.75)
+	bull.rotation.y = -1.45
+	rack.add_child(bull)
+	if kit == "tower":
+		var gear := Node3D.new()
+		gear.position = PIN_CRATE + Vector3(0.1, 0, 0.75)
+		add_child(gear)
+		gear.add_child(F.prop("ChainSling"))
+		var coil := F.prop("TagLineCoil")
+		coil.position = Vector3(0.75, 0, -0.1)
+		gear.add_child(coil)
+		var sh := F.prop("Shackle")
+		sh.position = Vector3(0.35, 0.012, 0.3)
+		sh.rotation = Vector3(PI * 0.5, 0.4, 0)
+		gear.add_child(sh)
+
 ## The spares bin (clamp kits) and the pipe rack (3 m sections), at ground level.
 func _build_stores() -> void:
 	var bin := Node3D.new()
 	bin.position = SPARES
 	add_child(bin)
-	bin.add_child(F.box(Vector3(1.2, 0.6, 0.8), F.color_mat(Color("2f6fd1"), true), Vector3(0, 0.3, 0)))
+	bin.add_child(F.prop("SparesBin"))
 	for i in 3:
 		var c := _make_clamp(true)
 		c["node"].position = Vector3(-0.35 + i * 0.35, 0.65, 0)
@@ -419,12 +459,12 @@ func _build_stores() -> void:
 	var rack := Node3D.new()
 	rack.position = RACK
 	add_child(rack)
-	for x in [-1.3, 1.3]:
-		rack.add_child(F.box(Vector3(0.1, 1.0, 0.9), F.mat("yellow_dark"), Vector3(x, 0.5, 0)))
+	rack.add_child(F.prop("PipeRack"))
 	for i in 3:
-		var pp := F.cylinder(0.16, 3.0, F.mat("pipe"), Vector3(0, 0.35 + i * 0.25, -0.2 + i * 0.2), 10)
-		pp.rotation.z = PI * 0.5
+		var pp := F.prop("Pipe3m")
+		pp.position = Vector3(0, 0.35 + i * 0.25, -0.2 + i * 0.2)
 		rack.add_child(pp)
+	_build_tool_corner(bin, rack)
 	# (named by its station label, not lettering of its own)
 	# The pin bags: a crate of sealed bags of four pins, for climb days
 	var crate := Node3D.new()
@@ -442,13 +482,7 @@ func _build_stores() -> void:
 func make_item(kind: String) -> Node3D:
 	var n := Node3D.new()
 	if kind == "pipe":
-		var pp := F.cylinder(0.16, 3.0, F.mat("pipe"), Vector3.ZERO, 10)
-		pp.rotation.z = PI * 0.5
-		n.add_child(pp)
-		for x in [-1.45, 1.45]:
-			var fl := F.cylinder(0.21, 0.1, F.mat("steel"), Vector3(x, 0, 0), 10)
-			fl.rotation.z = PI * 0.5
-			n.add_child(fl)
+		n.add_child(F.prop("Pipe3m"))
 	elif kind == "pins":
 		# Four tower pins, each with its R-clip, sealed in a clear bag
 		for i in 4:
