@@ -9,3 +9,4 @@ reference/elevation/lidar_2019/
 # Godot writes these when it imports the fonts
 fonts/*.import
 __pycache__/
+__pycache__/

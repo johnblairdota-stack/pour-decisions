@@ -430,6 +430,7 @@ func _build_guides() -> void:
 		rings.append(r)
 	# A crew member on the tag line when no player is
 	tag_npc = F.chibi(Color("ff7a1a"), Color("f4f7fa"))
+	F.kit(tag_npc, "dogman")
 	tag_npc.visible = false
 	add_child(tag_npc)
 
@@ -1544,6 +1545,7 @@ func _build_pin_props() -> void:
 	align_arrow.visible = false
 	# A crew rigger shown when the test bot is pinning
 	rig_npc = F.chibi(Color("ff7a1a"), Color("f4f7fa"))
+	F.kit(rig_npc, "rigger")
 	var hand := Node3D.new()
 	hand.name = "HandR"
 	hand.position = Vector3(0, -0.46, 0)
