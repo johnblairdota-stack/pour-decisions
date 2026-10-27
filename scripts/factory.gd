@@ -144,19 +144,12 @@ static func beam(a: Vector3, b: Vector3, thickness: float, material: Material) -
 	return mi
 
 ## One free-standing lattice tower section (SCP-style), base at y = 0.
+## Modelled 2.0 m square and 4.14 m tall (tools/blender/towers.py); its four
+## chords and four faces are separate parts, so a dropped one bends apart.
 static func lattice_section(height: float, width: float) -> Node3D:
-	var g := Node3D.new()
-	var h := width * 0.5
-	var steel := mat("steel")
-	var corners := [Vector3(-h, 0, -h), Vector3(h, 0, -h), Vector3(h, 0, h), Vector3(-h, 0, h)]
-	for c in corners:
-		g.add_child(beam(c, c + Vector3(0, height, 0), 0.16, steel))
-	for i in 4:
-		var c1: Vector3 = corners[i]
-		var c2: Vector3 = corners[(i + 1) % 4]
-		g.add_child(beam(c1 + Vector3(0, 0.1, 0), c2 + Vector3(0, height * 0.5, 0), 0.08, steel))
-		g.add_child(beam(c2 + Vector3(0, height * 0.5, 0), c1 + Vector3(0, height - 0.1, 0), 0.08, steel))
-		g.add_child(beam(c1 + Vector3(0, height - 0.05, 0), c2 + Vector3(0, height - 0.05, 0), 0.1, steel))
+	var g := prop("MastSection", {}, TOWERS)
+	if not is_equal_approx(height, 4.14) or not is_equal_approx(width, 2.0):
+		g.scale = Vector3(width / 2.0, height / 4.14, width / 2.0)
 	return g
 
 ## A chibi crew member, about 1.3 m tall, facing +Z. Returns the root with
@@ -199,6 +192,7 @@ static var _crew_scene: PackedScene
 ## Tools and site props, built in Blender (tools/blender/props.py): one node
 ## each, by name (ScreedBoard, PokerHead, ClampHalfA, Pipe3m, Shovel ...).
 const PROPS_GLB := "res://assets/props/props.glb"
+const TOWERS := "res://assets/plant/towers.glb"
 const PROP_COLORS := {
 	"alu": Color("c9d1d8"), "grip": Color("22262b"), "dark_steel": Color("6b7480"), "machine": Color("ffc72c"),
 	"fuel": Color("e5383b"), "rubber": Color("1d1f23"), "pipe": Color("dce1e6"), "clamp": Color("c7d0da"),
@@ -209,6 +203,8 @@ const PROP_COLORS := {
 	"cab": Color("f4f7fa"), "glass": Color("5b7fa8"), "chassis": Color("24324f"), "rim": Color("c9d1d8"),
 	"drum": Color("e8ebee"), "livery": Color("ff7a1a"), "light": Color("fff4c2"), "tail": Color("e5383b"),
 	"amber": Color("ffb020"), "machine_dark": Color("e0a800"), "water": Color("4f8fbf"), "grille": Color("2b2b2b"),
+	# The tall plant (tools/blender/towers.py)
+	"orange": Color("ff7a1a"), "ballast": Color("a7aaa6"),
 }
 static var _libs := {}
 ## Props are small: a crew-weight outline would swallow a shovel handle

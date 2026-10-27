@@ -75,7 +75,7 @@ var cups: Node3D
 var crane_slew: Node3D
 var trolley: Node3D
 var cable: MeshInstance3D
-var hook: MeshInstance3D
+var hook: Node3D
 var slings: Array[MeshInstance3D] = []
 var tag_rope: MeshInstance3D
 var load: Node3D
@@ -446,29 +446,15 @@ func _build_crane() -> void:
 	crane_slew = Node3D.new()
 	crane_slew.position.y = CRANE_H
 	crane.add_child(crane_slew)
-	var y := F.mat("yellow", true)
-	var steel := F.mat("yellow_dark")
-	# Jib: a triangular truss out along +X, counter jib back along -X
-	for z in [-0.7, 0.7]:
-		crane_slew.add_child(F.beam(Vector3(0, 0, z), Vector3(JIB, 0, z), 0.2, steel))
-	crane_slew.add_child(F.beam(Vector3(0, 1.4, 0), Vector3(JIB, 1.4, 0), 0.2, steel))
-	var x := 0.0
-	while x < JIB:
-		crane_slew.add_child(F.beam(Vector3(x, 0, -0.7), Vector3(x + 2.0, 1.4, 0), 0.08, steel))
-		crane_slew.add_child(F.beam(Vector3(x, 0, 0.7), Vector3(x + 2.0, 1.4, 0), 0.08, steel))
-		x += 4.0
-	crane_slew.add_child(F.box(Vector3(16, 0.6, 1.6), steel, Vector3(-8, 0.3, 0)))
-	crane_slew.add_child(F.box(Vector3(3, 2.4, 2.0), F.mat("podium"), Vector3(-14, 1.2, 0)))
-	crane_slew.add_child(F.box(Vector3(2.2, 2.2, 2.0), y, Vector3(1.4, -1.6, 1.6)))
-	crane_slew.add_child(F.beam(Vector3(0, 0, 0), Vector3(0, 7, 0), 0.4, steel))
-	crane_slew.add_child(F.beam(Vector3(0, 7, 0), Vector3(JIB * 0.7, 1.4, 0), 0.06, steel))
-	crane_slew.add_child(F.beam(Vector3(0, 7, 0), Vector3(-15, 0.6, 0), 0.06, steel))
+	# Jib out along +X, counter jib back along -X, the cab and the A frame
+	# (tools/blender/towers.py, modelled to JIB)
+	crane_slew.add_child(F.prop("CraneSlew", {}, F.TOWERS))
 	trolley = Node3D.new()
-	trolley.add_child(F.box(Vector3(1.4, 0.6, 1.8), F.mat("navy"), Vector3(0, -0.3, 0)))
+	trolley.add_child(F.prop("CraneTrolley", {}, F.TOWERS))
 	crane_slew.add_child(trolley)
 	cable = F.cylinder(0.04, 1.0, F.mat("hose"), Vector3.ZERO, 6)
 	add_child(cable)
-	hook = F.box(Vector3(0.6, 0.8, 0.4), F.mat("yellow", true))
+	hook = F.prop("CraneHook", {}, F.TOWERS)
 	add_child(hook)
 	for i in 4:
 		var sl := F.cylinder(0.03, 1.0, F.color_mat(Color("3a6bd1")), Vector3.ZERO, 5)

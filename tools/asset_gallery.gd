@@ -48,6 +48,8 @@ func _initialize() -> void:
 			_props(world)
 		"plant":
 			_plant(world)
+		"towers":
+			_towers(world)
 
 func _crew(world: Node3D) -> void:
 	# Every named crew member, each in a job's kit, with the job's hat
@@ -154,3 +156,59 @@ func _process(_delta: float) -> bool:
 		print("saved ", path)
 		_shots.pop_front()
 	return false
+
+func _towers(world: Node3D) -> void:
+	# Two boom tower sections with the collar, turret and a short boom on top;
+	# the hoist cage on three mast sections; the crane's head, trolley, hook
+	for i in 2:
+		var s := F.lattice_section(4.14, 2.0)
+		s.position = Vector3(0, i * 4.14, 0)
+		world.add_child(s)
+	var head := Node3D.new()
+	head.position.y = 8.28
+	world.add_child(head)
+	head.add_child(F.prop("BoomCollar", {}, F.TOWERS))
+	var yaw := Node3D.new()
+	yaw.rotation.y = -0.6
+	head.add_child(yaw)
+	yaw.add_child(F.prop("BoomTurret", {}, F.TOWERS))
+	var arm1 := Node3D.new()
+	arm1.position.y = 1.7
+	arm1.rotation.z = 0.5
+	yaw.add_child(arm1)
+	var a1 := F.prop("BoomArm1", {}, F.TOWERS)
+	a1.scale.x = 0.4
+	arm1.add_child(a1)
+	var arm2 := Node3D.new()
+	arm2.position.x = 8.0
+	arm2.rotation.z = -1.3
+	arm1.add_child(arm2)
+	var a2 := F.prop("BoomArm2", {}, F.TOWERS)
+	a2.scale.x = 0.4
+	arm2.add_child(a2)
+	var tip := F.prop("BoomTip", {}, F.TOWERS)
+	tip.position.x = 8.0
+	tip.rotation.z = 0.8
+	arm2.add_child(tip)
+	for i in 3:
+		var hs := F.prop("HoistMastSection", {}, F.TOWERS)
+		hs.position = Vector3(-6.25, i * 1.5, 0)
+		world.add_child(hs)
+	var cage := F.prop("HoistCage", {}, F.TOWERS)
+	cage.position = Vector3(-5.0, 0, 0)
+	world.add_child(cage)
+	var slew := F.prop("CraneSlew", {}, F.TOWERS)
+	slew.position = Vector3(0, 0, -30)
+	world.add_child(slew)
+	var trolley := F.prop("CraneTrolley", {}, F.TOWERS)
+	trolley.position = Vector3(10, 0, -30)
+	world.add_child(trolley)
+	var hook := F.prop("CraneHook", {}, F.TOWERS)
+	hook.position = Vector3(10, -4, -30)
+	world.add_child(hook)
+	_shots = [
+		["towers_boom", Vector3(10.0, 12.0, 14.0), Vector3(1.0, 8.0, 0)],
+		["towers_hoist", Vector3(-1.0, 3.5, 7.0), Vector3(-5.5, 1.6, 0)],
+		["towers_crane", Vector3(14.0, 6.0, -12.0), Vector3(-2.0, 0.0, -30)],
+		["towers_crane_far", Vector3(30.0, 18.0, 0.0), Vector3(14.0, 0.0, -30)],
+	]
