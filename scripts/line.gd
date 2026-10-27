@@ -285,6 +285,7 @@ func build(owner_game, which_kit: String) -> void:
 	add_child(tap_label)
 
 	npc_op = F.chibi(Color("ff7a1a"), Color("f4f7fa"))
+	F.kit(npc_op, "pump")
 	npc_op.position = Vector3(20.0, 0, 9.2)
 	npc_op.visible = false
 	add_child(npc_op)

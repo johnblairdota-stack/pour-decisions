@@ -15,6 +15,7 @@ const DEFAULT_CHAR := Roster.DEFAULT_CHAR
 const ROLES := ["boom", "line", "pump", "poker", "screed", "hose"]
 const JOIN_ORDER := ["boom", "hose", "poker", "line", "pump", "screed"]
 const UI := preload("res://scripts/ui.gd")
+const F := preload("res://scripts/factory.gd")
 ## Up to six people, P1-P6, each with their own tag colour (bots do the rest)
 const MAX_PEOPLE := 6
 const PLAYER_COLORS := UI.P_COLORS
@@ -55,6 +56,7 @@ func build(owner_game) -> void:
 		game.add_child(p)
 		p.setup(0, INFO[role]["hat"])
 		p.role = role
+		F.kit(p.model, role)
 		crew[role] = p
 		var d := bot_identity()
 		d["char"] = DEFAULT_CHAR[role]

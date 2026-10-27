@@ -1074,6 +1074,7 @@ func _build_site() -> void:
 	# Concreters on the deck, each with a poker vibrator
 	for i in 2:
 		var n := F.chibi(Color("ff7a1a"), Color("f4f7fa"))
+		F.kit(n, "poker")
 		var poker := Node3D.new()
 		poker.add_child(F.beam(Vector3(0, 0, 0), Vector3(0, -0.6, 0.9), 0.05, F.mat("hose")))
 		poker.add_child(F.cylinder(0.05, 0.5, F.mat("steel"), Vector3(0, -0.85, 1.0), 6))
@@ -2708,6 +2709,7 @@ func _process(delta: float) -> void:
 			if phase_t > 1.0:
 				if kit == "tower" and k in climb_levels():
 					_set_phase("climb")
+					_climb_kit(true)
 					climb.start(sections_per_climb())
 				elif kit == "truck":
 					outriggers = [0.0, 0.0, 0.0, 0.0]
@@ -3155,7 +3157,17 @@ func _dev_skip(target: int) -> void:
 			p.position.y = work_y
 	hud.toast("Level %d: the floors below are poured" % (k + 1), 2.0)
 
+## Climb day: the truck hand (slinging, dogging) and the pump operator
+## (rigging up the tower) harness up.
+func _climb_kit(on: bool) -> void:
+	F.kit(crew.crew["line"].model, "dogman", on)
+	F.kit(crew.crew["pump"].model, "rigger", on)
+	if not on:
+		for role in ["line", "pump"]:
+			F.kit(crew.crew[role].model, role)
+
 func _on_climb_done() -> void:
+	_climb_kit(false)
 	climb_notes["unclipped"] += climb.unclipped
 	climb_notes["wind"] += climb.wind_misses
 	line.rebuild_riser()

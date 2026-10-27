@@ -161,68 +161,109 @@ static func lattice_section(height: float, width: float) -> Node3D:
 
 ## A chibi crew member, about 1.3 m tall, facing +Z. Returns the root with
 ## named parts so scripts can animate arms, legs and head.
+## The crew model, built in Blender (tools/blender/crew.py, assets/crew/crew.glb).
+## It keeps the joints the game animates: LegL and LegR swing at the hip,
+## ArmL and ArmR pivot at the shoulder with the hand 0.46 down, Head at 1.32
+## with EyeL and EyeR to blink. Every material is named for what it is (skin,
+## vest, hat, tape ...) and gets the game's toon look here; the Look_* and
+## Kit_* parts start hidden (dress() and kit() turn them on).
+const CREW_GLB := "res://assets/crew/crew.glb"
+## The crew's fixed colours, by material name. The rest come per person:
+## vest and hat (the call), skin and hair (dress()).
+const CREW_COLORS := {
+	"tape": Color("dfe4e8"), "pants": Color("24324f"), "kneepad": Color("3a3f47"),
+	"belt": Color("2a2a2a"), "steel": Color("afc0d2"), "boot": Color("8a5a32"), "sole": Color("2b2b2b"),
+	"gumboot": Color("eef0f2"), "glove": Color("d9b26b"), "skin": Color("f2c9a0"), "nose": Color("e8bd94"), "hair": Color("4a3122"),
+	"eye": Color("151515"), "eye_hi": Color("ffffff"), "cheek": Color("f08a7a"), "mouth": Color("7a3030"),
+	"lens": Color("10151d"), "muff": Color("ff4d4d"), "kit_muff": Color("3d4a2f"), "radio": Color("1d1f22"),
+	"remote": Color("ffc72c"), "red": Color("e5383b"), "harness": Color("22262b"), "docket": Color("fff4c2"),
+	"splat": Color("a9adb3"),
+}
+## Small or painted-on parts: no outline (it would swallow them)
+const CREW_NO_OUTLINE := ["nose", "eye", "eye_hi", "cheek", "mouth", "tape", "pocket", "splat", "docket"]
+## What each job wears (role keys as in crew.gd)
+const CREW_KIT := {
+	"line": ["Kit_Radio", "Kit_Docket"],
+	"pump": ["Kit_Radio", "Kit_Earmuffs"],
+	"boom": ["Kit_BellyBox"],
+	"hose": ["Kit_GumbootL", "Kit_GumbootR", "Kit_SplatterL", "Kit_SplatterR"],
+	"poker": ["Kit_GumbootL", "Kit_GumbootR", "Kit_SplatterL", "Kit_SplatterR", "Kit_Earmuffs"],
+	"screed": ["Kit_GumbootL", "Kit_GumbootR", "Kit_SplatterL", "Kit_SplatterR"],
+	"dogman": ["Kit_Harness", "Kit_Whistle", "Kit_Radio"],
+	"rigger": ["Kit_Harness", "Kit_Radio"],
+}
+
+static var _crew_scene: PackedScene
+
 static func chibi(vest_color: Color, hat_color := Color("ffc72c")) -> Node3D:
-	var root := Node3D.new()
+	if _crew_scene == null:
+		_crew_scene = load(CREW_GLB)
+	var root: Node3D = _crew_scene.instantiate()
 	root.name = "Chibi"
-	var vest := color_mat(vest_color, true)
-	var navy := mat("navy", true)
-	var skin := mat("skin", true)
-
-	var leg_l := cylinder(0.11, 0.42, navy, Vector3(-0.13, 0.21, 0), 10)
-	leg_l.name = "LegL"
-	var leg_r := cylinder(0.11, 0.42, navy, Vector3(0.13, 0.21, 0), 10)
-	leg_r.name = "LegR"
-	root.add_child(leg_l)
-	root.add_child(leg_r)
-
-	var body := MeshInstance3D.new()
-	var cm := CylinderMesh.new()
-	cm.top_radius = 0.28
-	cm.bottom_radius = 0.34
-	cm.height = 0.55
-	cm.radial_segments = 16
-	body.mesh = cm
-	body.material_override = vest
-	body.position = Vector3(0, 0.68, 0)
-	root.add_child(body)
-	root.add_child(cylinder(0.33, 0.07, mat("white"), Vector3(0, 0.64, 0), 16))
-
-	for side in [-1, 1]:
-		var pivot := Node3D.new()
-		pivot.name = "ArmL" if side < 0 else "ArmR"
-		pivot.position = Vector3(0.36 * side, 0.9, 0)
-		pivot.rotation.z = 0.25 * side
-		var arm := cylinder(0.08, 0.42, vest, Vector3(0, -0.21, 0), 8)
-		pivot.add_child(arm)
-		var hand := sphere(0.09, skin, Vector3(0, -0.44, 0))
-		hand.set_meta("skin", true)
-		pivot.add_child(hand)
-		root.add_child(pivot)
-
-	var head := Node3D.new()
-	head.name = "Head"
-	head.position = Vector3(0, 1.32, 0)
-	root.add_child(head)
-	var face := sphere(0.42, skin)
-	face.set_meta("skin", true)
-	head.add_child(face)
-	var eye := mat("eye")
-	var eye_l := sphere(0.055, eye, Vector3(-0.14, 0.02, 0.39))
-	eye_l.name = "EyeL"
-	head.add_child(eye_l)
-	var eye_r := sphere(0.055, eye, Vector3(0.14, 0.02, 0.39))
-	eye_r.name = "EyeR"
-	head.add_child(eye_r)
-	var cheek_l := sphere(0.075, mat("cheek"), Vector3(-0.24, -0.1, 0.34))
-	cheek_l.scale = Vector3(1, 1, 0.4)
-	var cheek_r := sphere(0.075, mat("cheek"), Vector3(0.24, -0.1, 0.34))
-	cheek_r.scale = Vector3(1, 1, 0.4)
-	head.add_child(cheek_l)
-	head.add_child(cheek_r)
-	var hat_mat := color_mat(hat_color, true)
-	head.add_child(sphere(0.46, hat_mat, Vector3(0, 0.06, 0), true))
-	head.add_child(cylinder(0.56, 0.05, color_mat(hat_color.darkened(0.15), true), Vector3(0, 0.08, 0.06), 20))
+	var per := {
+		"vest": color_mat(vest_color, true),
+		"pocket": color_mat(vest_color.darkened(0.12), false),
+		"hat": color_mat(hat_color, true),
+		"hat_dark": color_mat(hat_color.darkened(0.15), true),
+		"hat_rib": color_mat(hat_color.darkened(0.07), false),
+	}
+	_paint(root, per)
+	for n in _crew_parts(root):
+		if n.name.begins_with("Look_") or n.name.begins_with("Kit_"):
+			n.visible = false
+	# Arms hang a little out from the body, as the chibi's always did
+	(root.get_node("ArmL") as Node3D).rotation.z = -0.25
+	(root.get_node("ArmR") as Node3D).rotation.z = 0.25
 	return root
+
+static func _crew_parts(n: Node) -> Array:
+	var out: Array = []
+	for c in n.get_children():
+		out.append(c)
+		out.append_array(_crew_parts(c))
+	return out
+
+## Gives every surface of the crew model its toon material, by the name it
+## has in Blender. `per` overrides by name (this person's vest, hat, skin).
+static func _paint(root: Node, per: Dictionary) -> void:
+	for n in _crew_parts(root):
+		if not n is MeshInstance3D:
+			continue
+		var mi := n as MeshInstance3D
+		for i in mi.mesh.get_surface_count():
+			var src := mi.mesh.surface_get_material(i)
+			var key := src.resource_name if src != null else ""
+			if per.has(key):
+				mi.set_surface_override_material(i, per[key])
+			elif mi.get_surface_override_material(i) == null:
+				mi.set_surface_override_material(i, _crew_mat(key))
+
+static func _crew_mat(key: String) -> ShaderMaterial:
+	var ck := "crew_" + key
+	if not _cache.has(ck):
+		_cache[ck] = color_mat(CREW_COLORS.get(key, Color.MAGENTA), not key in CREW_NO_OUTLINE)
+	return _cache[ck]
+
+## Puts on (or takes off) what a job wears: `job` is a role key, or
+## "dogman" / "rigger" for climb days.
+static func kit(root: Node3D, job: String, on := true) -> void:
+	if on and job in ["line", "pump", "boom", "hose", "poker", "screed"]:
+		root.set_meta("job", job)
+	for nm in CREW_KIT.get(job, []):
+		var n := root.find_child(nm, true, false) as Node3D
+		if n != null:
+			n.visible = on
+	# Gumboots go on over the boots
+	var gum := root.find_child("Kit_GumbootL", true, false) as Node3D
+	for side in ["L", "R"]:
+		var boot := root.find_child("Leg%s_Boot" % side, true, false) as Node3D
+		if boot != null and gum != null:
+			boot.visible = not gum.visible
+	# Someone in their own earmuffs doesn't need the hat's
+	var own := root.find_child("Look_earmuffs", true, false) as Node3D
+	var hat_muffs := root.find_child("Kit_Earmuffs", true, false) as Node3D
+	if own != null and hat_muffs != null and own.visible:
+		hat_muffs.visible = false
 
 static func label3d(text: String, size := 48, color := Color.WHITE) -> Label3D:
 	var l := Label3D.new()
@@ -237,54 +278,21 @@ static func label3d(text: String, size := 48, color := Color.WHITE) -> Label3D:
 	return l
 
 
-## Dresses a chibi as one of the named crew: skin tone, plus one signature
-## look (moustache, beard, ponytail, bun, sunnies or earmuffs) and hair colour.
+## Dresses a chibi as one of the named crew: skin tone, hair colour, plus one
+## signature look (moustache, beard, ponytail, bun, sunnies or earmuffs).
 static func dress(root: Node3D, ch: Dictionary) -> void:
-	var skin := color_mat(Color(ch.get("skin", "f2c9a0")), true)
-	_reskin(root, skin)
-	var head: Node3D = root.get_node("Head")
-	if head.has_node("Look"):
-		var old := head.get_node("Look")
-		head.remove_child(old)
-		old.queue_free()
-	var look := Node3D.new()
-	look.name = "Look"
-	head.add_child(look)
-	var hair := color_mat(Color(ch.get("hair", "4a3122")), true)
-	match String(ch.get("look", "")):
-		"moustache":
-			var m := sphere(0.1, hair, Vector3(0, -0.13, 0.4))
-			m.scale = Vector3(1.9, 0.45, 0.6)
-			look.add_child(m)
-		"beard":
-			var b := sphere(0.3, hair, Vector3(0, -0.2, 0.2))
-			b.scale = Vector3(1.15, 0.75, 0.9)
-			look.add_child(b)
-		"ponytail":
-			look.add_child(sphere(0.12, hair, Vector3(0, -0.02, -0.44)))
-			var t := sphere(0.1, hair, Vector3(0, -0.24, -0.5))
-			t.scale = Vector3(0.9, 1.7, 0.9)
-			look.add_child(t)
-		"bun":
-			look.add_child(sphere(0.15, hair, Vector3(0, 0.02, -0.46)))
-		"sunnies":
-			var dark := color_mat(Color("10151d"), false)
-			for x in [-0.15, 0.15]:
-				var lens := box(Vector3(0.2, 0.11, 0.03), dark, Vector3(x, 0.03, 0.41))
-				look.add_child(lens)
-			look.add_child(box(Vector3(0.12, 0.03, 0.03), dark, Vector3(0, 0.06, 0.42)))
-		"earmuffs":
-			var red := color_mat(Color("ff4d4d"), true)
-			for x in [-0.42, 0.42]:
-				var cup := cylinder(0.13, 0.09, red, Vector3(x, 0.0, 0.0), 12)
-				cup.rotation.z = PI * 0.5
-				look.add_child(cup)
-
-static func _reskin(n: Node, skin: Material) -> void:
-	for c in n.get_children():
-		if c is MeshInstance3D and c.has_meta("skin"):
-			(c as MeshInstance3D).material_override = skin
-		_reskin(c, skin)
+	_paint(root, {
+		"skin": color_mat(Color(ch.get("skin", "f2c9a0")), true),
+		"nose": color_mat(Color(ch.get("skin", "f2c9a0")).darkened(0.04), false),
+		"hair": color_mat(Color(ch.get("hair", "4a3122")), true),
+	})
+	var look := String(ch.get("look", ""))
+	for n in _crew_parts(root):
+		if n.name.begins_with("Look_"):
+			n.visible = n.name == "Look_" + look
+	# (the job's kit again: the hat's earmuffs give way to their own)
+	if root.has_meta("job"):
+		kit(root, root.get_meta("job"))
 
 ## An upright prism over a floor plan `poly` (x/z points), from y0 up `h`:
 ## a floor slab or a storey of facade on a building that isn't a box. Each
