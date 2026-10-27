@@ -4975,6 +4975,15 @@ func _update_camera(delta: float) -> void:
 
 # ------------------------------------------------------------------ autotest
 
+const PAUSE_SHOTS := {"smoko0": ["main", 0], "smoko1": ["main", 1], "smoko2": ["main", 2], "smoko5": ["main", 5],
+	"smokoset": ["settings", 1], "smokoset2": ["settings", 13], "smokoswap": ["swap", 0]}
+
+func _next_pause_shot() -> String:
+	for key in PAUSE_SHOTS:
+		if key in _shot_only and not _shots_taken.has(key):
+			return key
+	return ""
+
 func _maybe_shot() -> void:
 	# Dev only. Rendering is switched off between shots so a software
 	# renderer can fast-forward through the level.
@@ -5035,6 +5044,8 @@ func _maybe_shot() -> void:
 		key = "haul"
 	elif phase == "pour" and k == 1 and _filled_ratio() > 0.6 and "pause" in _shot_only and not _shots_taken.has("pause"):
 		key = "pause"
+	elif phase == "pour" and _filled_ratio() > 0.6 and _next_pause_shot() != "":
+		key = _next_pause_shot()
 	elif phase == "pour" and k == 1 and _filled_ratio() > 0.45:
 		key = "pour"
 	elif phase == "pour" and line.fail_i >= 0 and line.wear > 0.2 and not _shots_taken.has("clamp"):
@@ -5158,6 +5169,12 @@ func _maybe_shot() -> void:
 	if key == "pause":
 		pause_menu.visible = true
 		pause_menu._build_page("main")
+	if PAUSE_SHOTS.has(key):
+		# (dev: a Smoko page with a row picked, to check nothing moves)
+		pause_menu.visible = true
+		if pause_menu._page != PAUSE_SHOTS[key][0] or _shot_wait == 0:
+			pause_menu._build_page(PAUSE_SHOTS[key][0])
+		pause_menu._select(PAUSE_SHOTS[key][1])
 	_shot_wait += 1
 	if _shot_wait < (8 if key == "align" else (7 if key == "strike" else (2 if key.begins_with("trans") else 4))):
 		return

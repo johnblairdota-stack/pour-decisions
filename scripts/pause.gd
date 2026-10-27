@@ -13,8 +13,8 @@ const Settings := preload("res://scripts/settings.gd")
 const SCALES := [1.0, 1.25, 1.5]
 const MAIN := [["Back to work", "resume"], ["Swap jobs", "swap"], ["Add a player", "join"], ["Settings", "settings"],
 	["Start again", "restart"], ["Knock off", "quit"]]
-const SETTINGS := ["incidents", "gold_assist", "dog_help", "docket_help", "ui_scale", "world_text", "split", "fullscreen", "sound", "band", "shake",
-	"real_names", "cam_test", "back"]
+const SETTINGS := ["back", "incidents", "gold_assist", "dog_help", "docket_help", "ui_scale", "world_text", "split", "fullscreen", "sound", "band", "shake",
+	"real_names", "cam_test"]
 const PAGE_TITLE := {"main": "SMOKO", "settings": "SETTINGS", "swap": "SWAP JOBS"}
 
 var game
@@ -45,13 +45,13 @@ func setup(owner_game) -> void:
 	shade.set_anchors_preset(Control.PRESET_FULL_RECT)
 	shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(shade)
-	var outer := VBoxContainer.new()
-	outer.add_theme_constant_override("separation", 14)
-	add_child(outer)
-	UI.place(outer, Vector2(0.5, 0.5), Vector2(0, 0))
+	# (it hangs from a fixed spot, both columns a fixed width, so moving down
+	# the list never shifts it: only the right-hand card changes)
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 22)
-	outer.add_child(row)
+	add_child(row)
+	UI.place(row, Vector2(0.5, 0.0), Vector2(0, 48))
+	row.grow_vertical = Control.GROW_DIRECTION_END
 	var left := UI.panel(UI.CARD, 16, UI.EDGE, 1, Vector4(22, 16, 22, 18))
 	left.custom_minimum_size = Vector2(350, 0)
 	left.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
@@ -78,7 +78,7 @@ func setup(owner_game) -> void:
 	v.add_child(_list)
 	_note = UI.label("", 14, UI.DIM, 0)
 	_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_note.custom_minimum_size = Vector2(306, 0)
+	_note.custom_minimum_size = Vector2(306, 84)   # (four lines, so the hints below never jump)
 	v.add_child(_note)
 	var hints := HBoxContainer.new()
 	hints.add_theme_constant_override("separation", 16)
@@ -86,13 +86,15 @@ func setup(owner_game) -> void:
 	hints.add_child(UI.hint("A", "CHOOSE", 15))
 	hints.add_child(UI.hint("B", "BACK", 15))
 	_right = VBoxContainer.new()
+	_right.custom_minimum_size = Vector2(612, 0)   # (wide enough for two tickets side by side)
 	_right.add_theme_constant_override("separation", 10)
 	_right.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	row.add_child(_right)
 	_stats = HBoxContainer.new()
 	_stats.add_theme_constant_override("separation", 10)
 	_stats.alignment = BoxContainer.ALIGNMENT_CENTER
-	outer.add_child(_stats)
+	add_child(_stats)
+	UI.place(_stats, Vector2(0.5, 1.0), Vector2(0, -28))
 	_build_page("main")
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -152,13 +154,14 @@ func _build_page(page: String) -> void:
 			for a in SETTINGS:
 				rows.append(["", a])
 		"swap":
+			rows.append(["Back", "back"])
 			for role in game.crew.ROLES:
 				rows.append(["", "role:" + role])
-			rows.append(["Back", "back"])
 	for it in rows:
 		_items.append(_make_row(it[0], it[1]))
 	_title.text = PAGE_TITLE.get(page, "SMOKO")
-	_index = 0
+	# (Back's always the top row of a page off the main one; start just under it)
+	_index = 1 if page == "settings" else 0
 	if page == "swap":
 		# (start on the first job a bot's doing)
 		for i in _items.size():
@@ -192,7 +195,7 @@ func _make_row(text: String, action: String) -> Dictionary:
 		lead = hat
 	elif action == "resume":
 		lead = UI.glyph("A", 26)
-	elif action == "quit":
+	elif action == "back":
 		lead = UI.glyph("B", 26)
 	if lead != null:
 		lead.size_flags_vertical = Control.SIZE_SHRINK_CENTER
@@ -354,6 +357,8 @@ func _build_stats() -> void:
 	for c in _stats.get_children():
 		_stats.remove_child(c)
 		c.queue_free()
+	# (just on the main page: the settings list runs down to where they sit)
+	_stats.visible = _page == "main"
 	var bits := [["LEVEL", "%d / %d" % [game.k + 1, game.floors()]], ["POINTS", UI.thousands(game.score.total)],
 		["RANK", game.score.rank_name()], ["POUR CLOCK", "%d:%02d" % [int(game.pour_clock) / 60, int(game.pour_clock) % 60]],
 		["CREW", "%d people · %d bots" % [game.crew.humans().size(), game.crew.ROLES.size() - game.crew.humans().size()]]]
