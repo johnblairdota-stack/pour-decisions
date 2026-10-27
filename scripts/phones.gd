@@ -406,6 +406,18 @@ func _send_state(c: Dictionary) -> void:
 	if p.role == "pump" and game.line != null and scr == "play":
 		var ln = game.line
 		_json(c, "gauge", {"t": "gauge", "bar": int(ln.pressure / 5.0) * 5, "spike": bool(ln.spike_on), "warn": bool(ln.spike_warn), "tripped": bool(ln.tripped)})
+	# The dogman's calls round the phone's stick, each the way the stick
+	# pushes to make it (they turn with the TV's camera), the held one lit
+	var dog := {"t": "dog", "on": false}
+	var cl = game.climb
+	if cl != null and cl.active and cl.stage == "guide" and p.busy == "dogman" and scr == "play":
+		var calls := []
+		var dirs: Dictionary = cl.call_dirs()
+		for k in dirs:
+			var s: Vector2 = cl.stick_of(dirs[k])
+			calls.append([k, int(round(rad_to_deg(atan2(s.y, s.x)) / 5.0)) * 5])
+		dog = {"t": "dog", "on": true, "c": calls, "lit": cl._call}
+	_json(c, "dog", dog)
 	_json(c, "nudge", {"t": "nudge", "lvl": int(game.nudge_level(p)) if game.has_method("nudge_level") else 0})
 
 ## Who's on every job: {t, r: [{id, name, col, line, p (0: a bot), pc, who, lock}]}.
