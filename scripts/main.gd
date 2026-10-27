@@ -4733,10 +4733,11 @@ func _update_camera(delta: float) -> void:
 			# (and their hand signals) side by side, nothing in front of them
 			cam_yaw = lerp_angle(cam_yaw, 0.3, minf(1.0, delta * 2.0))
 			cam_pitch = lerpf(cam_pitch, 0.5, minf(1.0, delta * 2.0))
-			dist = minf(dist, 23.0)
-			var dog = climb._dogman if climb._dogman != null else climb.dog_bot
-			if dog != null:
-				focus = focus.lerp(dog.global_position + Vector3(0, 2.0, 0), 0.2)
+			# Framed on the dogman, the load and the landing together, and
+			# back far enough that none of them ever leaves the shot
+			var fr: Array = climb.guide_frame()
+			focus = fr[0]
+			dist = clampf(float(fr[1]) * 2.4 + 9.0, 18.0, 34.0)
 		else:
 			cam_yaw = _yaw_before
 			cam_pitch = _pitch_before

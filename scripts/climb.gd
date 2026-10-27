@@ -16,6 +16,7 @@ extends Node3D
 signal finished
 
 const F := preload("res://scripts/factory.gd")
+const Settings := preload("res://scripts/settings.gd")
 
 const LAT_X := 12.0
 const LS := 4.14
@@ -41,6 +42,7 @@ const WRECK_V := 0.8        # m/s: a knock harder than this wrecks the section
 const REFETCH_T := 9.0      # s for the crane to rig and bring another section
 const PLATFORM_DROP := 0.85 # work platform this far below the joint: the pins sit at a chibi's chest
 const WIND_GRACE := 2.0     # s the driver waits for "dog everything" before holding anyway
+const ZONE_R := 7.0         # m: the crane's zoning keeps the hook this close to the landing while it's dogged
 const LAYDOWN := Vector3(1.0, 0.0, 10.5)   # where the next section stands on the street, waiting to be slung
 const SLING_TIME := 2.2     # s of slinging: four legs onto the section's top lugs
 const LIFT_K := 2.8         # the crane hoists this much faster lifting off the laydown
@@ -99,7 +101,9 @@ var _pending_code := "stop"
 var _pending_t := 0.0
 var _call_since := 0.0
 var _last_whistle := -10.0
-var _stick := Vector2.ZERO        # dogman's snapped stick, camera-relative
+var _stick := Vector2.ZERO        # the current call's direction as the stick pushes it
+var _call := ""                   # the horizontal call being held ("TROLLEY OUT", ...; "" none)
+var _zone_hit := false
 var _vert := 0.0
 var _dogman = null
 var tag_strength := 1.1
@@ -185,6 +189,12 @@ var guide_arrows: Array[Node3D] = []   # stick up, down, left, right, then hoist
 var motion_arrow: Node3D
 var dog_arrow: Node3D
 var dog_stop: Label3D
+var call_labels: Array[Label3D] = []    # the call by each stick arrow
+var stop_ghost: MeshInstance3D
+var stop_ghost_mat: StandardMaterial3D
+var stop_ghost_at := Vector3.INF        # where it settles on a STOP now (INF: not shown)
+var zone_ring: MeshInstance3D
+var zone_mat: StandardMaterial3D
 var rings: Array[MeshInstance3D] = []
 var _ring_t := 10.0
 var tag_npc: Node3D
@@ -379,6 +389,34 @@ func _build_guides() -> void:
 	dog_stop = F.label3d("STOP", 54, Color("ff4d4d"))
 	dog_stop.visible = false
 	add_child(dog_stop)
+	# The call each stick arrow makes, in the crane's own words
+	for i in 4:
+		var l := F.label3d("", 34, Color.WHITE)
+		l.visible = false
+		add_child(l)
+		call_labels.append(l)
+	# The stop ghost: where the load settles if the dogman calls STOP now
+	stop_ghost = MeshInstance3D.new()
+	var sg := BoxMesh.new()
+	sg.size = Vector3(LW, LS, LW)
+	stop_ghost.mesh = sg
+	stop_ghost_mat = _overlay_mat(Color(1, 1, 1, 0.22))
+	stop_ghost.material_override = stop_ghost_mat
+	stop_ghost.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	stop_ghost.visible = false
+	add_child(stop_ghost)
+	# The crane's zoning limit round the landing
+	zone_ring = MeshInstance3D.new()
+	var zt := TorusMesh.new()
+	zt.inner_radius = ZONE_R - 0.08
+	zt.outer_radius = ZONE_R + 0.08
+	zt.rings = 64
+	zone_ring.mesh = zt
+	zone_mat = _overlay_mat(Color(1, 0.82, 0.25, 0.25))
+	zone_ring.material_override = zone_mat
+	zone_ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	zone_ring.visible = false
+	add_child(zone_ring)
 	for i in 2:
 		var r := MeshInstance3D.new()
 		var tm := TorusMesh.new()
@@ -574,7 +612,8 @@ func _to_guide() -> void:
 	_op_dir = Vector2.ZERO
 	_op_vert = 0.0
 	_set_stage("guide")
-	var kick := Vector2.from_angle(randf() * TAU) * randf_range(0.35, 0.8)
+	var tame: float = [0.4, 0.8, 1.0][clampi(help(), 0, 2)]
+	var kick := Vector2.from_angle(randf() * TAU) * randf_range(0.35, 0.8) * tame
 	swing_v += kick
 	spin_v += randf_range(-0.35, 0.35)
 	game.sfx.hit("whistle:stop")
@@ -803,9 +842,10 @@ func _command(dir: Vector2, vert: float, slow := false, dogged := false) -> void
 ## The crane driver acts on what they heard half a second ago, and holds
 ## everything still once the gusts are over the limit.
 func _operate(delta: float) -> Vector2:
-	while _cmds.size() > 1 and _cmds[1][0] <= _t - OP_DELAY:
+	var lag := _op_delay()
+	while _cmds.size() > 1 and _cmds[1][0] <= _t - lag:
 		_cmds.pop_front()
-	if _cmds.size() > 0 and _cmds[0][0] <= _t - OP_DELAY:
+	if _cmds.size() > 0 and _cmds[0][0] <= _t - lag:
 		_op_dir = _cmds[0][1]
 		_op_vert = _cmds[0][2]
 		_op_slow = _cmds[0][3] if _cmds[0].size() > 3 else false
@@ -836,22 +876,35 @@ func _operate(delta: float) -> Vector2:
 	if _op_dir.length() > 0.1 and _op_dir != _last_dir:
 		_speed_k = randf_range(0.9, 1.1)
 	if _op_dir.length() < 0.1 and _last_dir.length() > 0.1 and stage == "guide":
-		_coast = randf_range(0.0, 0.15)
+		_coast = randf_range(0.0, _coast_max())
 	var drive := _op_dir
 	if _coast > 0.0:
 		_coast -= delta
 		drive = _last_dir
 	else:
 		_last_dir = _op_dir
-	# Close in, the driver creeps it anyway
-	var near_ghost := stage == "guide" and load != null and (Vector2(load.position.x, load.position.z) - Vector2(LAT_X, RUNWAY_Z)).length() < 1.5
-	# Flying it in on their own (before the dogman takes it) the driver goes
-	# at a working pace; under the dogman's whistle it's slower and careful
 	var auto_fly := stage != "guide"
-	var sp := (0.35 if _op_slow or near_ghost else (1.6 if auto_fly else 0.8)) * _speed_k
+	var sp := _drive_speed()
 	var dv := (drive * sp - trolley_v).limit_length((1.0 if auto_fly else 0.7) * delta)
 	trolley_v += dv
 	trolley_xz += trolley_v * delta
+	# The crane's zoning: under the dogman's whistle the hook can't be taken
+	# further than ZONE_R from the landing, so the load never wanders off
+	if stage == "guide":
+		var out := trolley_xz - Vector2(LAT_X, RUNWAY_Z)
+		if out.length() > ZONE_R:
+			trolley_xz = Vector2(LAT_X, RUNWAY_Z) + out.limit_length(ZONE_R)
+			var n := out.normalized()
+			var vn := trolley_v.dot(n)
+			if vn > 0.0:
+				trolley_v -= n * vn
+				dv = Vector2.ZERO
+			if not _zone_hit:
+				_zone_hit = true
+				game.sfx.hit("tink")
+				game.hud.toast("Zone limit: the crane won't take it further out. Bring it back in.", 1.8)
+		elif out.length() < ZONE_R - 1.0:
+			_zone_hit = false
 	var rel := trolley_xz - Vector2(MAST.x, MAST.z)
 	if rel.length() > JIB - 2.0 or rel.length() < 6.0:
 		rel = rel.limit_length(JIB - 2.0)
@@ -865,10 +918,35 @@ func _operate(delta: float) -> Vector2:
 	cable_len = clampf(cable_len - hoist_v * delta, 4.0, CRANE_H - SLING - LS - floor_y)
 	return dv / maxf(delta, 0.0001)
 
+## How long the driver takes to act on a whistle. A First Day dogman gets a
+## sharp driver.
+func _op_delay() -> float:
+	return OP_DELAY * (0.5 if stage == "guide" and help() == 0 else 1.0)
+
+## How long "stop" can run on (First Day: not at all).
+func _coast_max() -> float:
+	return 0.0 if help() == 0 else 0.15
+
+## How fast the driver takes the trolley along on the current call.
+func _drive_speed() -> float:
+	# Close in, the driver creeps it anyway
+	var near_ghost := stage == "guide" and load != null and (Vector2(load.position.x, load.position.z) - Vector2(LAT_X, RUNWAY_Z)).length() < 1.5
+	# Flying it in on their own (before the dogman takes it) the driver goes
+	# at a working pace; under the dogman's whistle it's slower and careful
+	var auto_fly := stage != "guide"
+	return (0.35 if _op_slow or near_ghost else (1.6 if auto_fly else 0.8)) * _speed_k
+
+## How quickly the load's swing dies away by itself. The help setting tames
+## it: First Day barely swings, Ticketed hangs on a real rope.
+func _swing_damp() -> float:
+	if stage != "guide":
+		return 0.8
+	return [2.4, 1.3, 0.8][clampi(help(), 0, 2)]
+
 func _update_load(delta: float, trolley_acc: Vector2) -> void:
 	var L := cable_len + SLING + LS * 0.5
 	var w_acc := wind_dir * 0.00012 * wind_gust * wind_gust
-	var damp := (tag_strength + 0.5) if tagging else 0.8
+	var damp := (tag_strength + 0.5) if tagging else _swing_damp()
 	var steps := 2
 	var h := delta / steps
 	for i in steps:
@@ -1936,6 +2014,24 @@ func needed() -> Array:
 		out.append("tag")
 	return out
 
+## While the load's being dogged: the middle of the dogman, the load and the
+## landing, and how far the camera has to stand back to keep all three in
+## shot. [centre, radius]
+func guide_frame() -> Array:
+	var pts := [Vector3(LAT_X, gap_bottom() + LS * 0.5, RUNWAY_Z)]
+	if load:
+		pts.append(load.position + Vector3(0, LS * 0.5, 0))
+	var dm = _dogman if _dogman != null else dog_bot
+	if dm != null:
+		pts.append(dm.global_position + Vector3(0, 1.5, 0))
+	var lo: Vector3 = pts[0]
+	var hi: Vector3 = pts[0]
+	for q in pts:
+		lo = lo.min(q)
+		hi = hi.max(q)
+	var c := (lo + hi) * 0.5
+	return [c, (hi - lo).length() * 0.5]
+
 ## Where the camera should look during the climb.
 func focus_point() -> Vector3:
 	if load and stage == "guide":
@@ -2080,6 +2176,7 @@ func handle_player(p, delta: float, near: String, act: String, alt: String, leav
 			p.busy = ""
 			_dogman = null
 			_stick = Vector2.ZERO
+			_call = ""
 			_vert = 0.0
 			game.hud.set_signal("")
 			return true
@@ -2087,31 +2184,30 @@ func handle_player(p, delta: float, near: String, act: String, alt: String, leav
 			p.face(load.global_position)
 		_dogman = p
 		if stage == "guide":
-			# One call at a time, like a real dogman: snap the stick to the
-			# nearest of four directions on screen
+			# One real call at a time: the stick picks whichever of the
+			# crane's four moves (trolley out / in, slew left / right) points
+			# nearest the way it's pushed on screen. Let go and that's STOP.
 			var v: Vector2 = p.move_input()
-			var snapped := Vector2.ZERO
-			if v.length() > 0.4:
-				snapped = Vector2(signf(v.x), 0) if absf(v.x) > absf(v.y) else Vector2(0, signf(v.y))
+			var key := pick_call(v) if v.length() > 0.4 else ""
 			var vert := 0.0
 			var dog_all: bool = p.action_held() and p.alt_held()
 			if dog_all:
-				snapped = Vector2.ZERO
+				key = ""
 			elif p.action_held():
 				vert = -1.0
-				snapped = Vector2.ZERO
+				key = ""
 			elif p.alt_held():
 				vert = 1.0
-				snapped = Vector2.ZERO
+				key = ""
 			if p.slow_pressed():
 				if _t - _last_slow_tap < 0.4:
 					_emergency()
 				_last_slow_tap = _t
 			var slow: bool = p.slow_held()
-			_stick = snapped
+			var dir: Vector2 = call_dirs().get(key, Vector2.ZERO)
+			_call = key
+			_stick = stick_of(dir)
 			_vert = vert
-			var dir3 := Vector3(snapped.x, 0, snapped.y).rotated(Vector3.UP, game.cam_yaw)
-			var dir := Vector2(dir3.x, dir3.z)
 			_command(dir, vert, slow, dog_all)
 			_signal(p, dir, vert, delta, slow, dog_all)
 			p.cue("action", "lower")
@@ -2182,6 +2278,59 @@ func handle_player(p, delta: float, near: String, act: String, alt: String, leav
 			return true
 	return false
 
+## The crane's four horizontal calls, each as a direction on the deck:
+## trolley out / in along the jib, slew left / right across it.
+func call_dirs() -> Dictionary:
+	var radial := (trolley_xz - Vector2(MAST.x, MAST.z)).normalized()
+	var tangent := Vector2(-radial.y, radial.x)
+	return {"TROLLEY OUT": radial, "TROLLEY IN": -radial, "SLEW LEFT": tangent, "SLEW RIGHT": -tangent}
+
+## A direction on the deck as the stick (or phone stick) would push it, the
+## same mapping the players walk with.
+func stick_of(world: Vector2) -> Vector2:
+	var s := Vector3(world.x, 0, world.y).rotated(Vector3.UP, -game.cam_yaw)
+	return Vector2(s.x, s.z)
+
+## The call whose direction on screen is nearest the way the stick's pushed.
+func pick_call(v: Vector2) -> String:
+	var best := ""
+	var best_d := -2.0
+	var dirs := call_dirs()
+	for k in dirs:
+		var d: float = v.normalized().dot(stick_of(dirs[k]).normalized())
+		if d > best_d:
+			best_d = d
+			best = k
+	return best
+
+## The dogman's help setting: 0 First Day, 1 On Site, 2 Ticketed.
+func help() -> int:
+	return int(Settings.value("dog_help"))
+
+## Where the load settles if the dogman calls STOP right now: the driver
+## hears it late, runs on a moment, then brakes, and the load comes to hang
+## under the hook where it stopped. (Ignores the wind and any knock.)
+func predict_stop() -> Vector3:
+	var txz := trolley_xz
+	var tv := trolley_v
+	var hv := hoist_v
+	var cl := cable_len
+	var drive := _op_dir * _drive_speed()
+	var vert := _op_vert * (0.2 if _op_slow else 0.45)
+	# (the STOP takes the driver's reaction time to reach them)
+	var lag := _op_delay() + _coast_max() * 0.5
+	var dt := 1.0 / 30.0
+	var t := 0.0
+	while t < 3.0 and (t < lag or tv.length() > 0.005 or absf(hv) > 0.005):
+		var on := t < lag
+		tv += ((drive if on else Vector2.ZERO) - tv).limit_length(0.7 * dt)
+		txz += tv * dt
+		hv += clampf((vert if on else 0.0) - hv, -dt, dt)
+		cl -= hv * dt
+		t += dt
+	cl = clampf(cl, 4.0, CRANE_H - SLING - LS - (game.work_y + 0.4))
+	return Vector3(txz.x, CRANE_H - cl - SLING - LS, txz.y)
+
 const CALL_INFO := {
 	"STOP": "one short",
 	"HOIST": "two short",
@@ -2192,6 +2341,19 @@ const CALL_INFO := {
 	"SLEW RIGHT": "four short",
 	"EMERGENCY STOP": "one long blast",
 	"DOG EVERYTHING": "hands clasped",
+}
+
+## What the dogman says on the radio for each call.
+const RADIO := {
+	"STOP": "Stop.",
+	"HOIST": "Hoist up…",
+	"LOWER": "Lower down…",
+	"TROLLEY OUT": "Trolley out…",
+	"TROLLEY IN": "Trolley in…",
+	"SLEW LEFT": "Slew left…",
+	"SLEW RIGHT": "Slew right…",
+	"EMERGENCY STOP": "ALL STOP!",
+	"DOG EVERYTHING": "Dog everything.",
 }
 
 ## Stops the crane dead (no reaction delay). The load will swing.
@@ -2261,12 +2423,17 @@ func _signal(p, dir: Vector2, vert: float, delta: float, slow := false, dog_all 
 		var lp := load.position if load else Vector3.ZERO
 		var err := (Vector2(lp.x, lp.z) - Vector2(LAT_X, RUNWAY_Z)).length()
 		if err < LAND_TOL:
-			text = "Right over the ghost: hold A to lower it in"
+			text = "Right over the green: hold A, \"lower down\""
 			col = Color("7cd992")
 		else:
-			text = "Push the stick toward the green ghost (%.1f m to go)" % err
+			text = "Push the stick to a call (%.1f m to go). Let go to call STOP." % err
 	if slow and call_now != "STOP":
-		text += "  · SLOWLY"
+		text += "  · EASY"
+	# The stop ghost's on the mark: this is the moment to call STOP
+	if call_now in ["TROLLEY OUT", "TROLLEY IN", "SLEW LEFT", "SLEW RIGHT"] and stop_ghost_at != Vector3.INF and p != null and not p.bot:
+		if (Vector2(stop_ghost_at.x, stop_ghost_at.z) - Vector2(LAT_X, RUNWAY_Z)).length() < LAND_TOL:
+			text = "LET GO NOW: \"stop\" lands it on the green"
+			col = Color("ffd23f")
 	if wind_gust >= WIND_STOP:
 		game.hud.set_signal("%s  ·  gusting over the limit" % text, Color("ff4d4d"))
 	else:
@@ -2335,22 +2502,31 @@ func _update_guides(delta: float) -> void:
 		drop_ring.position = Vector3(lp.x, gb + 0.03, lp.z)
 		_line(plumb, Vector3(lp.x, lp.y, lp.z), Vector3(lp.x, gb + 0.03, lp.z))
 
-	# Four stick arrows around the load (screen-relative), plus hoist / lower
+	# The crane's four calls round the load, each arrow the way that call
+	# takes it and named for it, plus hoist / lower
 	var yaw: float = game.cam_yaw
-	var dirs := [Vector3(0, 0, -1), Vector3(0, 0, 1), Vector3(-1, 0, 0), Vector3(1, 0, 0)]
-	var sticks := [Vector2(0, -1), Vector2(0, 1), Vector2(-1, 0), Vector2(1, 0)]
+	var cd := call_dirs()
+	var keys := cd.keys()
 	for i in 6:
 		var a := guide_arrows[i]
 		a.visible = guiding and _dogman != null
+		if i < 4:
+			call_labels[i].visible = a.visible
 		if not a.visible:
 			continue
 		var lit := false
 		var lc := load.position + Vector3(0, LS * 0.5, 0)
 		if i < 4:
-			var d: Vector3 = (dirs[i] as Vector3).rotated(Vector3.UP, yaw)
+			var w: Vector2 = cd[keys[i]]
+			var d := Vector3(w.x, 0, w.y)
 			a.position = lc + d * 1.9
 			_point(a, d)
-			lit = _stick == sticks[i]
+			lit = _call == keys[i]
+			var l := call_labels[i]
+			l.text = keys[i]
+			l.position = lc + d * 3.6 + Vector3(0, 0.5, 0)
+			l.modulate = Color(1.0, 0.82, 0.25) if lit else Color(1, 1, 1, 0.8)
+			l.outline_modulate = Color(0, 0, 0, 0.85)
 		elif i == 4:
 			a.position = load.position + Vector3(0, LS + 0.4, 0)
 			_point(a, Vector3.UP)
@@ -2373,21 +2549,43 @@ func _update_guides(delta: float) -> void:
 		else:
 			_point(motion_arrow, Vector3.UP if hoist_v > 0.0 else Vector3.DOWN)
 
-	# The dogman's own call, above their head, with whistle rings
+	# The stop ghost: where the load settles if the call's STOP right now.
+	# Gold when that's on the mark: let go now and it stops there.
+	var ghost_on := guiding and help() < 2 and (_dogman != null) and (trolley_v.length() > 0.05 or absf(hoist_v) > 0.05 or _op_dir.length() > 0.1)
+	stop_ghost.visible = ghost_on
+	stop_ghost_at = Vector3.INF
+	if ghost_on:
+		var at := predict_stop()
+		stop_ghost_at = at
+		stop_ghost.position = at + Vector3(0, LS * 0.5, 0)
+		var on_mark := (Vector2(at.x, at.z) - Vector2(LAT_X, RUNWAY_Z)).length() < LAND_TOL
+		stop_ghost_mat.albedo_color = Color(1.0, 0.82, 0.25, 0.45) if on_mark else Color(1, 1, 1, 0.22)
+	# The zoning ring, brighter (and red) as the hook nears it
+	zone_ring.visible = guiding
+	if guiding:
+		zone_ring.position = Vector3(LAT_X, gb + 0.05, RUNWAY_Z)
+		var edge := (trolley_xz - Vector2(LAT_X, RUNWAY_Z)).length() / ZONE_R
+		var hot := clampf((edge - 0.75) / 0.25, 0.0, 1.0)
+		zone_mat.albedo_color = Color(1, 0.82, 0.25, 0.18).lerp(Color(1, 0.23, 0.18, 0.8), hot)
+
+	# The dogman's own call, above their head (the radio words), with
+	# whistle rings
 	var dm = _dogman
 	var show_dog: bool = guiding and dm != null
-	dog_arrow.visible = show_dog and call_now != "STOP"
-	dog_stop.visible = show_dog and call_now == "STOP"
+	dog_arrow.visible = show_dog and call_now != "STOP" and call_now != "EMERGENCY STOP" and call_now != "DOG EVERYTHING"
+	dog_stop.visible = show_dog
 	if show_dog:
 		var top: Vector3 = dm.global_position + Vector3(0, 3.0, 0)
 		dog_arrow.position = top
-		dog_stop.position = top
+		dog_stop.position = top + Vector3(0, 1.1, 0)
+		dog_stop.text = "\"%s\"" % RADIO.get(call_now, call_now)
+		dog_stop.modulate = Color("ff4d4d") if call_now in ["STOP", "EMERGENCY STOP"] else Color("ffc72c")
 		if call_now == "LOWER":
 			_point(dog_arrow, Vector3.DOWN)
 		elif call_now == "HOIST":
 			_point(dog_arrow, Vector3.UP)
 		else:
-			var d3 := Vector3(_stick.x, 0, _stick.y).rotated(Vector3.UP, yaw)
+			var d3: Vector3 = Vector3(_stick.x, 0, _stick.y).rotated(Vector3.UP, yaw)
 			if d3.length() > 0.1:
 				_point(dog_arrow, d3)
 	_ring_t += delta
@@ -2483,7 +2681,9 @@ func bot(delta: float) -> void:
 		dir = Vector2.ZERO
 		vert = 0.0
 	_command(dir, vert, slow, dog)
-	_stick = Vector2.ZERO if dir.length() < 0.3 else (Vector2(signf(dir.x), 0) if absf(dir.x) > absf(dir.y) else Vector2(0, signf(dir.y)))
+	# (the call it's nearest to, for the arrows and the radio)
+	_call = pick_call(stick_of(dir)) if dir.length() >= 0.3 else ""
+	_stick = stick_of(call_dirs().get(_call, Vector2.ZERO))
 	_vert = vert
 	if load:
 		dog_bot.face(load.global_position)

@@ -64,6 +64,11 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 #base{position:absolute;width:38vmin;height:38vmin;border-radius:50%;border:2px solid #3a3e4a;left:50%;top:50%;transform:translate(-50%,-50%);transition:border-color .2s,box-shadow .2s;pointer-events:none}
 #base.on{border-color:rgba(255,255,255,.55);box-shadow:inset 0 0 6vmin rgba(255,255,255,.08)}
 #wedge{position:absolute;inset:-2px;border-radius:50%;opacity:0;background:conic-gradient(from -30deg,var(--job),transparent 60deg,transparent 360deg);-webkit-mask:radial-gradient(farthest-side,transparent 82%,#000 84%);mask:radial-gradient(farthest-side,transparent 82%,#000 84%)}
+/* dogman: the crane's calls round the stick */
+.call{position:absolute;left:50%;top:50%;display:none;font-family:"Barlow Condensed",sans-serif;font-weight:800;font-size:3.2vmin;line-height:1;text-align:center;white-space:pre;color:#e8e6df;background:rgba(12,14,18,.88);border:1px solid #3a3e4a;padding:.8vmin 1.4vmin;border-radius:2vmin}
+.call.lit{color:#111;background:#ffd23f;border-color:#ffd23f}
+#zone.dog .call{display:block}
+#zone.dog .lbl{color:#ff8a80}
 #knob{position:absolute;width:16vmin;height:16vmin;border-radius:50%;background:radial-gradient(circle at 40% 35%,#ffffff,#d9d5cb);box-shadow:0 1.2vmin 0 #8f8a7e,0 2vmin 4vmin rgba(0,0,0,.6);left:50%;top:50%;transform:translate(-50%,-50%)}
 /* --- play: the ticket */
 #ticket{position:absolute;left:34vw;width:33vw;top:2.6vmin;bottom:2.6vmin;border-radius:4.6vmin;background:var(--paper);color:#1b1a17;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 3vmin 7vmin rgba(0,0,0,.5);transition:transform .45s cubic-bezier(.3,1.3,.5,1)}
@@ -239,7 +244,7 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 
 <div id="play" class="screen">
   <button class="pausebtn" aria-label="Pause"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M9 5v14M15 5v14"/></svg></button>
-  <div id="zone"><div class="lbl">Stick</div><div id="base"><div id="wedge"></div><div id="knob"></div></div></div>
+  <div id="zone"><div class="lbl">Stick</div><div id="base"><div id="wedge"></div><div class="call" id="call0"></div><div class="call" id="call1"></div><div class="call" id="call2"></div><div class="call" id="call3"></div><div id="knob"></div></div></div>
   <div id="ticket">
     <button id="thead" aria-label="Your job, tap to swap">
       <svg class="hat" viewBox="0 0 24 20"><path d="M1 16h22v2H1z M3.5 16v-3a8.5 8.5 0 0 1 17 0v3z" fill="currentColor"/></svg>
@@ -366,6 +371,23 @@ function onJson(j) {
   else if (j.t === 'gauge') drawGauge(j);
   else if (j.t === 'nudge') setNudge(j.lvl);
   else if (j.t === 'toast') toast(j.msg);
+  else if (j.t === 'dog') drawDog(j);
+}
+// The dogman: each crane call sits round the stick the way you push for it
+let dogLit = '';
+function drawDog(j) {
+  const z = $('zone');
+  z.classList.toggle('dog', !!j.on);
+  z.querySelector('.lbl').textContent = j.on ? 'Let go = STOP' : 'Stick';
+  if (!j.on) { dogLit = ''; return; }
+  j.c.forEach((c, i) => {
+    const el = $('call' + i), a = c[1] * Math.PI / 180, r = 25;
+    el.textContent = c[0].replace(' ', '\\n');
+    el.style.transform = 'translate(calc(-50% + ' + (Math.cos(a) * r).toFixed(1) + 'vmin), calc(-50% + ' + (Math.sin(a) * r).toFixed(1) + 'vmin))';
+    el.classList.toggle('lit', c[0] === j.lit);
+  });
+  if (j.lit && j.lit !== dogLit) buzz(BUZZ.press);
+  dogLit = j.lit || '';
 }
 function showScreen() {
   const lobby = screen === 'lobby';
