@@ -2172,7 +2172,9 @@ func handle_player(p, delta: float, near: String, act: String, alt: String, leav
 		return true
 
 	if p.busy == "dogman":
-		if not active or not (stage in ["fly", "guide"]) or p.leave_pressed():
+		# (stays on the job between sections: a climb's two lifts are one
+		# dogman's, so nobody has to take signals again for the second)
+		if not active or p.leave_pressed():
 			p.busy = ""
 			_dogman = null
 			_stick = Vector2.ZERO
@@ -2217,7 +2219,11 @@ func handle_player(p, delta: float, near: String, act: String, alt: String, leav
 				p.gold((Vector2(lp.x, lp.z) - Vector2(LAT_X, RUNWAY_Z)).length() < LAND_TOL)
 			p.cue("alt", "hoist")
 		else:
-			p.say("crane coming…")
+			_call = ""
+			_stick = Vector2.ZERO
+			_vert = 0.0
+			game.hud.set_signal("")
+			p.say("crane coming…" if stage == "fly" else "next section's coming… (B: step off)")
 		return true
 
 	if not active:
