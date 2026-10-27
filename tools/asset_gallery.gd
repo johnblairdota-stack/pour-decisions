@@ -46,6 +46,8 @@ func _initialize() -> void:
 			_crew(world)
 		"props":
 			_props(world)
+		"plant":
+			_plant(world)
 
 func _crew(world: Node3D) -> void:
 	# Every named crew member, each in a job's kit, with the job's hat
@@ -108,6 +110,33 @@ func _props(world: Node3D) -> void:
 		["props_slump", Vector3(0, 2.4, 3.5), Vector3(0, 0.3, 1.4)],
 		["props_stores", Vector3(0, 2.6, 1.8), Vector3(0, 0.4, -0.8)],
 		["props_rigging", Vector3(0, 2.2, 6.6), Vector3(0, 0.1, 3.6)],
+	]
+
+func _plant(world: Node3D) -> void:
+	const PLANT := "res://assets/plant/plant.glb"
+	# The agitator as line.gd puts it together, and the pump with its hopper
+	var t := Node3D.new()
+	t.add_child(F.prop("Truck", {}, PLANT))
+	var drum := Node3D.new()
+	drum.position = Vector3(-0.6, 2.4, 0)
+	drum.rotation.z = -0.2
+	drum.add_child(F.prop("TruckDrum", {}, PLANT))
+	t.add_child(drum)
+	var ext := F.prop("ChuteExt", {}, PLANT)
+	ext.position = Vector3(-4.55, 1.62, 0)
+	t.add_child(ext)
+	t.position = Vector3(-1.0, 0, 3.0)
+	world.add_child(t)
+	var pump := F.prop("LinePump", {}, PLANT)
+	pump.position = Vector3(-1.0, 0, -3.0)
+	world.add_child(pump)
+	var hop := F.prop("PumpHopper", {}, PLANT)
+	hop.position = Vector3(2.3, 0, -3.0)
+	world.add_child(hop)
+	_shots = [
+		["plant_front", Vector3(9.0, 4.5, 12.0), Vector3(0, 1.5, 0)],
+		["plant_back", Vector3(-11.0, 5.0, 10.0), Vector3(0, 1.5, 0)],
+		["plant_top", Vector3(4.0, 16.0, 12.0), Vector3(0, 0.5, 0)],
 	]
 
 func _process(_delta: float) -> bool:

@@ -11,6 +11,10 @@ Or open Blender 5.2, Scripting tab, open the script and Run.
 - `kit.py`: shared helpers. Everything is written in Godot's coordinates
   (y up, +z = the way a character faces) so numbers match `scripts/factory.gd`.
 - `crew.py`: the crew (body, hard hat, the eight named looks, each job's kit).
+- `props.py`: tools in hand and on deck (screed, poker, clamp, pipe, slump kit,
+  hand tools, rigging) -> `assets/props/props.glb`.
+- `plant.py`: the agitator truck (cab, chassis, drum with livery spiral, chute)
+  and the line pump with its hopper -> `assets/plant/plant.glb`.
 
 Materials are named by what they are (`skin`, `vest`, `hat`, `tape` ...). The
 game replaces each with its own toon material and outline by that name
@@ -18,4 +22,4 @@ game replaces each with its own toon material and outline by that name
 
 To check a batch in the game's own look:
 
-    godot --path . --script res://tools/asset_gallery.gd -- --out=/tmp/gallery
+    godot --path . --script res://tools/asset_gallery.gd -- --out=/tmp/gallery --set=crew   # or props, plant

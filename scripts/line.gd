@@ -110,6 +110,7 @@ const SAFE_BAR := 6.0                    # below this the line can be opened
 const FIND_AUTO := 30.0      # s a blockage hides before the line hand hears it
 const JOB_MAX := 80.0        # s a repair can drag before the leading hand helps finish it
 const CLAMP_R := 0.25
+const PLANT := "res://assets/plant/plant.glb"
 const PIN_T := 0.9           # s holding A to push a safety pin home
 # Pressure spikes: the line starts to pack (a stone bridge, a dry patch) and
 # the needle jumps. The pump operator kills the pump on the belt remote; the
@@ -512,16 +513,9 @@ func _build_pump() -> void:
 	pump_unit = Node3D.new()
 	pump_unit.position = PUMP_POS
 	add_child(pump_unit)
-	var navy := F.mat("navy")
-	var yel := F.mat("yellow", true)
-	# Stationary trailer pump: chassis, engine housing, hopper at the rear
-	pump_unit.add_child(F.box(Vector3(5.6, 0.4, 2.0), navy, Vector3(0.6, 0.7, 0)))
-	pump_unit.add_child(F.box(Vector3(3.6, 1.7, 2.0), yel, Vector3(0.2, 1.75, 0)))
-	pump_unit.add_child(F.box(Vector3(0.9, 1.2, 1.6), F.mat("yellow_dark"), Vector3(-1.9, 1.4, 0)))
-	for wp in [Vector3(1.2, 0.45, 1.05), Vector3(1.2, 0.45, -1.05), Vector3(2.3, 0.45, 1.05), Vector3(2.3, 0.45, -1.05)]:
-		var wheel := F.cylinder(0.45, 0.35, F.mat("hose"), wp, 14)
-		wheel.rotation.x = PI * 0.5
-		pump_unit.add_child(wheel)
+	# Stationary trailer pump, modelled (tools/blender/plant.py): drawbar and
+	# jack legs, engine canopy, delivery cylinders to the hopper end
+	pump_unit.add_child(F.prop("LinePump", {}, PLANT))
 	var lbl := Label3D.new()
 	lbl.text = Settings.brand("pumper")
 	lbl.add_to_group("brand_pumper")
@@ -566,12 +560,7 @@ func _build_pump() -> void:
 	var hop := Node3D.new()
 	hop.position = HOPPER - PUMP_POS
 	pump_unit.add_child(hop)
-	var steel := F.mat("steel")
-	hop.add_child(F.box(Vector3(1.6, 0.08, 1.8), steel, Vector3(0, 0.9, 0)))
-	for side in [[Vector3(0, 1.35, 0.9), Vector3(1.6, 0.9, 0.06)], [Vector3(0, 1.35, -0.9), Vector3(1.6, 0.9, 0.06)], [Vector3(0.8, 1.35, 0), Vector3(0.06, 0.9, 1.8)], [Vector3(-0.8, 1.35, 0), Vector3(0.06, 0.9, 1.8)]]:
-		hop.add_child(F.box(side[1], F.mat("yellow_dark"), side[0]))
-	for i in 5:
-		hop.add_child(F.box(Vector3(1.6, 0.04, 0.04), steel, Vector3(0, 1.82, -0.7 + i * 0.35)))
+	hop.add_child(F.prop("PumpHopper", {}, PLANT))
 	hopper_fill = F.box(Vector3(1.5, 0.05, 1.7), F.color_mat(Color("6c6f73")), Vector3(0, 0.95, 0))
 	hop.add_child(hopper_fill)
 	hopper_label = F.label3d("HOPPER", 34, Color.WHITE)
@@ -720,37 +709,23 @@ func _line(m: MeshInstance3D, a: Vector3, b: Vector3, r: float) -> void:
 	m.scale = Vector3(1, ln, 1)
 
 func _truck_mesh() -> Node3D:
+	# The agitator, modelled (tools/blender/plant.py): cab-over cab, twin
+	# drive axles, the drum on its pedestals, charging hopper and chute
 	var t := Node3D.new()
-	t.add_child(F.box(Vector3(7.6, 0.45, 2.3), F.mat("navy"), Vector3(0, 0.85, 0)))
-	t.add_child(F.box(Vector3(1.9, 2.0, 2.3), F.mat("white", true), Vector3(2.9, 2.05, 0)))
-	t.add_child(F.box(Vector3(0.08, 0.8, 2.0), F.color_mat(Color("5b7fa8")), Vector3(3.86, 2.5, 0)))
-	for wp in [Vector3(-2.8, 0.55, 1.2), Vector3(-2.8, 0.55, -1.2), Vector3(-1.6, 0.55, 1.2), Vector3(-1.6, 0.55, -1.2), Vector3(2.8, 0.55, 1.2), Vector3(2.8, 0.55, -1.2)]:
-		var wheel := F.cylinder(0.55, 0.4, F.mat("hose"), wp, 14)
-		wheel.rotation.x = PI * 0.5
-		t.add_child(wheel)
+	t.add_child(F.prop("Truck", {}, PLANT))
 	var drum := Node3D.new()
 	drum.name = "Drum"
-	drum.position = Vector3(-0.6, 2.35, 0)
-	drum.rotation.z = 0.22
+	# (tipped up at the tail, the mouth to the charging hopper, as real
+	# agitators sit)
+	drum.position = Vector3(-0.6, 2.4, 0)
+	drum.rotation.z = -0.2
 	t.add_child(drum)
-	var body := F.cylinder(1.15, 4.4, F.color_mat(Color("e8ebee"), true), Vector3.ZERO, 16)
-	body.rotation.z = PI * 0.5
-	drum.add_child(body)
-	for x in [-1.2, 0.0, 1.2]:
-		var stripe := F.cylinder(1.18, 0.22, F.mat("orange"), Vector3(x, 0, 0), 16)
-		stripe.rotation.z = PI * 0.5
-		drum.add_child(stripe)
-	var fin := F.box(Vector3(0.3, 0.2, 2.4), F.mat("navy"), Vector3(0.6, 0, 0))
-	drum.add_child(fin)
-	t.add_child(F.box(Vector3(1.3, 0.12, 0.5), F.mat("steel"), Vector3(-3.95, 1.7, 0)))
+	drum.add_child(F.prop("TruckDrum", {}, PLANT))
 	# A chute extension, swung out to reach the hopper when the truck's on it
 	var ext := Node3D.new()
 	ext.name = "ChuteExt"
 	ext.position = Vector3(-4.55, 1.62, 0)
-	var piece := F.box(Vector3(1.6, 0.1, 0.42), F.mat("steel"), Vector3(-0.8, 0, 0))
-	ext.add_child(piece)
-	for zz in [-0.2, 0.2]:
-		ext.add_child(F.box(Vector3(1.6, 0.16, 0.04), F.mat("steel"), Vector3(-0.8, 0.07, zz)))
+	ext.add_child(F.prop("ChuteExt", {}, PLANT))
 	ext.visible = false
 	t.add_child(ext)
 	var lab := F.label3d("", 34, Color.WHITE)

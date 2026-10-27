@@ -205,17 +205,22 @@ const PROP_COLORS := {
 	"bin": Color("2f6fd1"), "bin_dark": Color("24559f"), "rack": Color("e0a800"), "tray": Color("2f8f6b"),
 	"wet": Color("8f949b"), "timber": Color("b98a55"), "barrow": Color("3d7a4a"), "tyre": Color("1d1f23"),
 	"rope": Color("d9c27a"), "chain": Color("8a929c"), "bucket": Color("2b2b2b"), "wet_crust": Color("9b968a"),
+	# The plant (tools/blender/plant.py)
+	"cab": Color("f4f7fa"), "glass": Color("5b7fa8"), "chassis": Color("24324f"), "rim": Color("c9d1d8"),
+	"drum": Color("e8ebee"), "livery": Color("ff7a1a"), "light": Color("fff4c2"), "tail": Color("e5383b"),
+	"amber": Color("ffb020"), "machine_dark": Color("e0a800"), "water": Color("4f8fbf"), "grille": Color("2b2b2b"),
 }
-static var _props: Node
+static var _libs := {}
 ## Props are small: a crew-weight outline would swallow a shovel handle
 const PROP_OUTLINE := 0.012
 
 ## A fresh copy of one prop, toon-painted. `per` swaps a material by name
 ## (a worn clamp's colour, say).
-static func prop(prop_name: String, per := {}) -> Node3D:
-	if _props == null:
-		_props = (load(PROPS_GLB) as PackedScene).instantiate()
-	var src := _props.get_node_or_null(prop_name)
+## `glb` picks another model file of named parts (the plant, say).
+static func prop(prop_name: String, per := {}, glb := PROPS_GLB) -> Node3D:
+	if not _libs.has(glb):
+		_libs[glb] = (load(glb) as PackedScene).instantiate()
+	var src: Node = _libs[glb].get_node_or_null(prop_name)
 	if src == null:
 		push_warning("no prop " + prop_name)
 		return Node3D.new()
