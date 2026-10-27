@@ -67,6 +67,7 @@ const BOOM_WIND := 72.0       # km/h gust at which the placing boom has to be pa
 const CLIMB_LEVELS := [3, 6, 9]   # climb before pouring levels 4, 7 and 10
 const SECTIONS_PER_CLIMB := 2      # 4 starting + 3 climbs x 2 = Riverlight's 10 sections
 const HOIST_X := -6.6
+const HOIST_SEC := 1.5   # m, one hoist mast section (tools/blender/towers.py)
 var HOIST_Z := 4.4
 # The perimeter scaffold: a walkway right round the slab, off the concrete,
 # that climbs with the deck. The boom operator works from it and never steps
@@ -1046,14 +1047,14 @@ func _build_site() -> void:
 	head = Node3D.new()
 	head.position.x = LAT_X
 	add_child(head)
-	head_deco.append(F.box(Vector3(3.8, 0.2, 3.8), F.mat("yellow_dark"), Vector3(0, 0.1, 0)))
-	for rp in [[Vector3(0, 1.05, 1.85), Vector3(3.8, 0.08, 0.08)], [Vector3(0, 1.05, -1.85), Vector3(3.8, 0.08, 0.08)], [Vector3(1.85, 1.05, 0), Vector3(0.08, 0.08, 3.8)], [Vector3(-1.85, 1.05, 0), Vector3(0.08, 0.08, 3.8)]]:
-		head_deco.append(F.box(rp[1], F.mat("orange"), rp[0]))
+	# The collar and work deck at the tower head, and the slewing turret
+	# (tools/blender/towers.py)
+	head_deco.append(F.prop("BoomCollar", {}, F.TOWERS))
 	for d in head_deco:
 		head.add_child(d)
 	yaw_node = Node3D.new()
 	head.add_child(yaw_node)
-	yaw_node.add_child(F.box(Vector3(2.2, 1.3, 2.2), F.mat("yellow", true), Vector3(0, 0.85, 0)))
+	yaw_node.add_child(F.prop("BoomTurret", {}, F.TOWERS))
 	for side in [1.0, -1.0]:
 		var scp := Label3D.new()
 		scp.text = Settings.brand("pumper")
@@ -1106,16 +1107,12 @@ func _build_site() -> void:
 	add_child(call_marker)
 
 	# Builder's hoist on the south face: the quick way between deck and ground
-	# (built 1 m tall and stretched to just above the deck as the building
-	# climbs: _update_see_through)
-	hoist_mast = F.box(Vector3(0.5, 1.0, 0.5), F.mat("steel"), Vector3(HOIST_X - 1.0, 0.5, HOIST_Z))
+	# (its mast gets a 1.5 m section at a time, to just above the deck as the
+	# building climbs: _update_see_through)
+	hoist_mast = Node3D.new()
+	hoist_mast.position = Vector3(HOIST_X - 1.25, 0, HOIST_Z)
 	add_child(hoist_mast)
-	hoist_cage = Node3D.new()
-	hoist_cage.add_child(F.box(Vector3(1.6, 0.1, 1.6), F.mat("navy"), Vector3(0, 0.05, 0)))
-	for cx in [-0.78, 0.78]:
-		for cz in [-0.78, 0.78]:
-			hoist_cage.add_child(F.box(Vector3(0.06, 2.3, 0.06), F.mat("yellow_dark"), Vector3(cx, 1.15, cz)))
-	hoist_cage.add_child(F.box(Vector3(1.6, 0.1, 1.6), F.mat("navy"), Vector3(0, 2.3, 0)))
+	hoist_cage = F.prop("HoistCage", {}, F.TOWERS)
 	hoist_cage.position = Vector3(HOIST_X, 0, HOIST_Z)
 	add_child(hoist_cage)
 
@@ -1335,22 +1332,23 @@ func _build_boom(a: float, b: float) -> void:
 	l2 = b
 	if arm1:
 		arm1.queue_free()
-	var boom_mat := F.mat("yellow", true)
-	var joint_mat := F.mat("navy", true)
+	# (the arms are modelled 20 m long and stretched to the kit's length)
 	arm1 = Node3D.new()
 	arm1.position.y = SHOULDER
 	yaw_node.add_child(arm1)
-	arm1.add_child(F.box(Vector3(l1, 0.6, 0.6), boom_mat, Vector3(l1 * 0.5, 0, 0)))
-	arm1.add_child(F.sphere(0.45, joint_mat))
+	var a1 := F.prop("BoomArm1", {}, F.TOWERS)
+	a1.scale.x = l1 / 20.0
+	arm1.add_child(a1)
 	arm2 = Node3D.new()
 	arm2.position.x = l1
 	arm1.add_child(arm2)
-	arm2.add_child(F.box(Vector3(l2, 0.48, 0.48), boom_mat, Vector3(l2 * 0.5, 0, 0)))
-	arm2.add_child(F.sphere(0.38, joint_mat))
+	var a2 := F.prop("BoomArm2", {}, F.TOWERS)
+	a2.scale.x = l2 / 20.0
+	arm2.add_child(a2)
 	tip = Node3D.new()
 	tip.position.x = l2
 	arm2.add_child(tip)
-	tip.add_child(F.sphere(0.3, joint_mat))
+	tip.add_child(F.prop("BoomTip", {}, F.TOWERS))
 	var hang := F.cylinder(0.17, HOSE, F.mat("hose"), Vector3(0, -HOSE * 0.5, 0), 8)
 	hang.name = "Hose"
 	tip.add_child(hang)
@@ -4561,8 +4559,13 @@ func _update_see_through(delta: float) -> void:
 	# A real hoist mast is extended a section at a time as the building goes
 	# up, a little past the deck, not to the full height from day one
 	var mast_h := maxf(4.0, work_y + 3.5)
-	hoist_mast.scale.y = mast_h
-	hoist_mast.position.y = mast_h * 0.5
+	var secs := int(ceil(mast_h / HOIST_SEC))
+	while hoist_mast.get_child_count() < secs:
+		var s := F.prop("HoistMastSection", {}, F.TOWERS)
+		s.position.y = hoist_mast.get_child_count() * HOIST_SEC
+		hoist_mast.add_child(s)
+	for i in hoist_mast.get_child_count():
+		(hoist_mast.get_child(i) as Node3D).visible = i < secs
 	# (the tower grows a section a level, the riser's rebuilt after a climb:
 	# every so often, give any new parts the cut-away material)
 	_cut_t -= delta
@@ -4584,7 +4587,7 @@ func _update_see_through(delta: float) -> void:
 		# stays solid, it's what's being steered)
 		if arm1 != null and is_instance_valid(arm1):
 			for ch in arm1.get_children():
-				if ch is GeometryInstance3D:
+				if ch != arm2:
 					_give_cut(ch)
 	# The work: whatever the close-ups are on (a small circle: they're right
 	# up close), then anyone on the deck and where the concrete's going in

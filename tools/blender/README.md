@@ -15,6 +15,8 @@ Or open Blender 5.2, Scripting tab, open the script and Run.
   hand tools, rigging) -> `assets/props/props.glb`.
 - `plant.py`: the agitator truck (cab, chassis, drum with livery spiral, chute)
   and the line pump with its hopper -> `assets/plant/plant.glb`.
+- `towers.py`: the boom tower's lattice sections, collar, turret and arms, the
+  builder's hoist (mast sections, cage) and the tower crane -> `assets/plant/towers.glb`.
 
 Materials are named by what they are (`skin`, `vest`, `hat`, `tape` ...). The
 game replaces each with its own toon material and outline by that name
@@ -22,4 +24,4 @@ game replaces each with its own toon material and outline by that name
 
 To check a batch in the game's own look:
 
-    godot --path . --script res://tools/asset_gallery.gd -- --out=/tmp/gallery --set=crew   # or props, plant
+    godot --path . --script res://tools/asset_gallery.gd -- --out=/tmp/gallery --set=crew   # or props, plant, towers
