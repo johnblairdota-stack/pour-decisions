@@ -2149,6 +2149,11 @@ func _set_phase(p: String) -> void:
 		print("[autotest]   (%s took %.1fs)" % [phase, phase_t])
 	phase = p
 	phase_t = 0.0
+	if autotest and p == "pour":
+		# `--pourhuman=<job>`: that job's left to an idle "person" from the pour on
+		for arg in OS.get_cmdline_user_args():
+			if arg.begins_with("--pourhuman=") and crew.crew[arg.substr(12)].bot:
+				crew.crew[arg.substr(12)].set_driver(crew.human_identity(1, true))
 	if autotest or _dbg:
 		print("[autotest] level %d: %s (head %.1f m, sections %d)" % [k + 1, p, head.position.y, section_count])
 
@@ -4965,7 +4970,13 @@ func _maybe_shot() -> void:
 	var pp = crew.crew["pump"]
 	var p3 = crew.crew["poker"]
 	var sc = crew.crew["screed"]
-	if "trans1" in _shot_only and _split > 0.2 and _split < 0.5 and not _shots_taken.has("trans1"):
+	if "startevery" in _shot_only and phase == "pour" and ops != null and ops.STEPS.has(ops.stage) and not _shots_taken.has("every_start%d_%03d" % [k, int(phase_t)]):
+		key = "every_start%d_%03d" % [k, int(phase_t)]
+	elif "binevery" in _shot_only and ops != null and ops.wants_bin() and not _shots_taken.has("every_bin%d_%03d" % [k, int(phase_t / 1.5)]):
+		key = "every_bin%d_%03d" % [k, int(phase_t / 1.5)]
+	elif "every" in _shot_only and phase in ["pour", "climb"] and not _shots_taken.has("every_%s_%03d" % [phase, int(phase_t / 6.0)]):
+		key = "every_%s_%03d" % [phase, int(phase_t / 6.0)]
+	elif "trans1" in _shot_only and _split > 0.2 and _split < 0.5 and not _shots_taken.has("trans1"):
 		key = "trans1"
 	elif "trans2" in _shot_only and _split > 0.45 and _split < 0.75 and not _shots_taken.has("trans2"):
 		key = "trans2"
@@ -5071,7 +5082,7 @@ func _maybe_shot() -> void:
 		key = _next_ext()
 	elif phase == "topout" and phase_t > 0.6:
 		key = "topout"
-	if key != "" and not _shot_only.is_empty() and not (key in _shot_only):
+	if key != "" and not _shot_only.is_empty() and not (key in _shot_only) and not key.begins_with("every"):
 		_shots_taken[key] = true
 	var want := key != "" and not _shots_taken.has(key)
 	if not want:
