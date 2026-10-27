@@ -180,7 +180,8 @@ const CREW_COLORS := {
 	"splat": Color("a9adb3"),
 }
 ## Small or painted-on parts: no outline (it would swallow them)
-const CREW_NO_OUTLINE := ["nose", "eye", "eye_hi", "cheek", "mouth", "tape", "pocket", "splat", "docket"]
+const CREW_NO_OUTLINE := ["nose", "eye", "eye_hi", "cheek", "mouth", "tape", "pocket", "splat", "docket",
+	"wet", "wet_crust", "chain", "rope"]
 ## What each job wears (role keys as in crew.gd)
 const CREW_KIT := {
 	"line": ["Kit_Radio", "Kit_Docket"],
@@ -194,6 +195,34 @@ const CREW_KIT := {
 }
 
 static var _crew_scene: PackedScene
+
+## Tools and site props, built in Blender (tools/blender/props.py): one node
+## each, by name (ScreedBoard, PokerHead, ClampHalfA, Pipe3m, Shovel ...).
+const PROPS_GLB := "res://assets/props/props.glb"
+const PROP_COLORS := {
+	"alu": Color("c9d1d8"), "grip": Color("22262b"), "dark_steel": Color("6b7480"), "machine": Color("ffc72c"),
+	"fuel": Color("e5383b"), "rubber": Color("1d1f23"), "pipe": Color("dce1e6"), "clamp": Color("c7d0da"),
+	"bin": Color("2f6fd1"), "bin_dark": Color("24559f"), "rack": Color("e0a800"), "tray": Color("2f8f6b"),
+	"wet": Color("8f949b"), "timber": Color("b98a55"), "barrow": Color("3d7a4a"), "tyre": Color("1d1f23"),
+	"rope": Color("d9c27a"), "chain": Color("8a929c"), "bucket": Color("2b2b2b"), "wet_crust": Color("9b968a"),
+}
+static var _props: Node
+## Props are small: a crew-weight outline would swallow a shovel handle
+const PROP_OUTLINE := 0.012
+
+## A fresh copy of one prop, toon-painted. `per` swaps a material by name
+## (a worn clamp's colour, say).
+static func prop(prop_name: String, per := {}) -> Node3D:
+	if _props == null:
+		_props = (load(PROPS_GLB) as PackedScene).instantiate()
+	var src := _props.get_node_or_null(prop_name)
+	if src == null:
+		push_warning("no prop " + prop_name)
+		return Node3D.new()
+	var n: Node3D = src.duplicate()
+	n.transform = Transform3D.IDENTITY
+	_paint(n, per, PROP_OUTLINE)
+	return n
 
 static func chibi(vest_color: Color, hat_color := Color("ffc72c")) -> Node3D:
 	if _crew_scene == null:
@@ -225,8 +254,8 @@ static func _crew_parts(n: Node) -> Array:
 
 ## Gives every surface of the crew model its toon material, by the name it
 ## has in Blender. `per` overrides by name (this person's vest, hat, skin).
-static func _paint(root: Node, per: Dictionary) -> void:
-	for n in _crew_parts(root):
+static func _paint(root: Node, per: Dictionary, outline := 0.0) -> void:
+	for n in [root] + _crew_parts(root):
 		if not n is MeshInstance3D:
 			continue
 		var mi := n as MeshInstance3D
@@ -236,12 +265,17 @@ static func _paint(root: Node, per: Dictionary) -> void:
 			if per.has(key):
 				mi.set_surface_override_material(i, per[key])
 			elif mi.get_surface_override_material(i) == null:
-				mi.set_surface_override_material(i, _crew_mat(key))
+				mi.set_surface_override_material(i, _crew_mat(key, outline))
 
-static func _crew_mat(key: String) -> ShaderMaterial:
-	var ck := "crew_" + key
+## `outline` > 0 sets the outline's thickness (else the shader's own).
+static func _crew_mat(key: String, outline := 0.0) -> ShaderMaterial:
+	var ck := "crew_%s_%s" % [key, outline]
 	if not _cache.has(ck):
-		_cache[ck] = color_mat(CREW_COLORS.get(key, Color.MAGENTA), not key in CREW_NO_OUTLINE)
+		var c: Color = CREW_COLORS.get(key, PROP_COLORS.get(key, Color.MAGENTA))
+		var m := color_mat(c, not key in CREW_NO_OUTLINE)
+		if outline > 0.0 and m.next_pass != null:
+			(m.next_pass as ShaderMaterial).set_shader_parameter("thickness", outline)
+		_cache[ck] = m
 	return _cache[ck]
 
 ## Puts on (or takes off) what a job wears: `job` is a role key, or

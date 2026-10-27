@@ -44,6 +44,8 @@ func _initialize() -> void:
 	match which:
 		"crew":
 			_crew(world)
+		"props":
+			_props(world)
 
 func _crew(world: Node3D) -> void:
 	# Every named crew member, each in a job's kit, with the job's hat
@@ -69,6 +71,43 @@ func _crew(world: Node3D) -> void:
 		["crew_game_cam", Vector3(0, 11.0, 10.0), Vector3(0, 0.6, 0)],
 		["crew_close_left", Vector3(-3.4, 1.7, 5.0), Vector3(-3.4, 1.0, 0)],
 		["crew_close_right", Vector3(3.4, 1.7, 5.0), Vector3(3.4, 1.0, 0)],
+	]
+
+func _props(world: Node3D) -> void:
+	# Every prop in a grid, labelled
+	var rows := [
+		["ScreedBoard", "ScreedHandle", "PokerSkid", "PokerMotor", "PokerHead", "ClampHalfA", "ClampHalfB"],
+		["Pipe3m", "SparesBin", "PipeRack", "Wheelbarrow", "BullFloat"],
+		["SlumpPlate", "SlumpTray", "SlumpTrayMix", "SlumpScoop", "Shovel", "ConcreteRake", "MagFloat", "Bucket"],
+		["ChainSling", "TagLineCoil", "Shackle"],
+	]
+	var widths := {"Pipe3m": 3.4, "PipeRack": 3.0, "BullFloat": 2.2, "Wheelbarrow": 2.0, "SparesBin": 1.5}
+	var z := -3.0
+	for row in rows:
+		var x := 0.0
+		var placed: Array = []
+		for nm in row:
+			var w: float = widths.get(nm, 1.0)
+			var n := F.prop(nm)
+			if nm == "ScreedBoard":
+				n.scale.x = 0.9
+			n.position = Vector3(x + w * 0.5, 0, z)
+			world.add_child(n)
+			var l := F.label3d(nm, 16, Color.WHITE)
+			l.position = n.position + Vector3(0, 1.0 if nm != "Shovel" and nm != "PipeRack" else 1.55, 0.3)
+			world.add_child(l)
+			placed.append(n)
+			placed.append(l)
+			x += w + 0.3
+		for n in placed:
+			n.position.x -= x * 0.5
+		z += 2.2
+	_shots = [
+		["props_all", Vector3(0, 12.0, 11.0), Vector3(0, 0.0, 0.0)],
+		["props_tools", Vector3(-1.5, 2.4, -0.2), Vector3(-1.5, 0.3, -3.0)],
+		["props_slump", Vector3(0, 2.4, 3.5), Vector3(0, 0.3, 1.4)],
+		["props_stores", Vector3(0, 2.6, 1.8), Vector3(0, 0.4, -0.8)],
+		["props_rigging", Vector3(0, 2.2, 6.6), Vector3(0, 0.1, 3.6)],
 	]
 
 func _process(_delta: float) -> bool:
