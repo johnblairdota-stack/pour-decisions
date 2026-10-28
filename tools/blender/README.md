@@ -19,7 +19,13 @@ Or open Blender 5.2, Scripting tab, open the script and Run.
   builder's hoist (mast sections, cage) and the tower crane -> `assets/plant/towers.glb`.
 - `site.py`: the site set-up (sheds, loos, fencing, skip and bins, laydown, gas,
   genset, light tower, safety kit, crib corner, washout bay) -> `assets/site/site.glb`,
-  placed by `scripts/yard.gd`.
+  placed by `scripts/yard.gd`; also the blue edge screens round the top floors.
+- `trees.py`: fourteen local species (Moreton Bay fig, jacaranda, poinciana,
+  spotted gum, paperbark, tuckeroo, she-oak, cabbage and foxtail palms,
+  pandanus, grey mangrove, bottlebrush, lomandra), each with a `...Far`
+  stand-in -> `assets/nature/trees.glb`, drawn as multimeshes by
+  `scripts/flora.gd` (materials there, not in `factory.gd`) where
+  `scripts/surrounds.gd` plants them.
 
 Materials are named by what they are (`skin`, `vest`, `hat`, `tape` ...). The
 game replaces each with its own toon material and outline by that name
@@ -27,4 +33,4 @@ game replaces each with its own toon material and outline by that name
 
 To check a batch in the game's own look:
 
-    godot --path . --script res://tools/asset_gallery.gd -- --out=/tmp/gallery --set=crew   # or props, plant, towers, site
+    godot --path . --script res://tools/asset_gallery.gd -- --out=/tmp/gallery --set=crew   # or props, plant, towers, site, trees
