@@ -10,6 +10,7 @@ so Riverlight's long side runs along x. -z is south (the river), +x is west
 
 Map data (c) OpenStreetMap contributors, ODbL 1.0.
 """
+import csv
 import json
 import math
 import os
@@ -144,6 +145,25 @@ def flat_ground(out, order):
     return ground
 
 
+# The game is set in 2017: these roads went through the MacArthur Ave car
+# yard later (the July 2017 aerial shows cars there)
+NOT_YET = {"Barcham Road", "Karakul Road"}
+
+
+def lidar_heights():
+    """Building heights measured off the 2019 LiDAR (reference/elevation/
+    building_heights.csv), for the buildings inside its tile that stood then;
+    None for the ones it shows weren't built yet."""
+    out = {}
+    with open(os.path.join(ROOT, "reference", "elevation", "building_heights.csv")) as f:
+        for r in csv.DictReader(f):
+            if r["note"].startswith("nothing tall here in 2019"):
+                out[r["osm_id"]] = None     # not built yet in 2019, so not in 2017
+            elif r["height_above_ground_m"] and not r["note"]:
+                out[r["osm_id"]] = float(r["height_above_ground_m"])
+    return out
+
+
 def load(name):
     return json.load(open(os.path.join(SRC, name + ".geojson")))["features"]
 
@@ -158,6 +178,7 @@ def main():
     }
     seen = set()
     river_lines = []
+    measured = lidar_heights()
     feats = load("osm_roads") + load("osm_landuse") + load("osm_buildings") + load("osm_landmarks_wide")
     for f in feats:
         p = f["properties"]
@@ -180,6 +201,8 @@ def main():
                                           "pts": rnd(pg.simplify(0.3).exterior.coords)})
             continue
         if "building" in p and polys(g):
+            if fid in measured and measured[fid] is None:
+                continue
             kind = p["building"]
             h = None
             if p.get("height"):
@@ -192,10 +215,14 @@ def main():
                     h = float(p["building:levels"]) * 3.2
                 except ValueError:
                     pass
+            if measured.get(fid) and measured[fid] > 2.5:
+                h = measured[fid]
             for pg in polys(g):
                 out["buildings"].append({"kind": kind, "h": round(h or BUILD_H.get(kind, 6.0), 1),
                                          "name": p.get("name", ""),
                                          "pts": rnd(pg.simplify(0.5).exterior.coords)})
+            continue
+        if p.get("name") in NOT_YET:
             continue
         if hw in ROAD_W:
             w = ROAD_W[hw]

@@ -19,7 +19,9 @@ for scripts/neighbours.gd:
     python3 tools/estate_to_game.py
 
 Storeys are a judgement off the aerial (roof plant, shadows) and the estate's
-2009 master plan (five storeys in the river and park precincts).
+2009 master plan (five storeys in the river and park precincts), checked
+against the 2019 LiDAR (tools/site_compare.py): the terrace rows round the
+pool stand about 7.4 m, so two storeys.
 """
 import json
 import math
@@ -66,10 +68,10 @@ BLOCKS = {
 	"A1": ("apartments", 5, rect((2235, 1495), (2345, 1760), 70)),
 	"A2": ("apartments", 5, rect((2265, 1465), (2530, 1715), 85)),
 	# terrace rows round the pool
-	"B": ("terraces", 3, rect((2370, 1785), (2435, 2060), 105)),
-	"C": ("terraces", 3, rect((2520, 1740), (2640, 1880), 115)),
-	"D": ("terraces", 3, rect((2640, 1895), (2760, 2040), 115)),
-	"E": ("terraces", 3, [(2480, 2055), (2675, 2095), (2665, 2190), (2475, 2150)]),
+	"B": ("terraces", 2, rect((2370, 1785), (2435, 2060), 105)),
+	"C": ("terraces", 2, rect((2520, 1740), (2640, 1880), 115)),
+	"D": ("terraces", 2, rect((2640, 1895), (2760, 2040), 115)),
+	"E": ("terraces", 2, [(2480, 2055), (2675, 2095), (2665, 2190), (2475, 2150)]),
 	# the blocks down to the river
 	"G1": ("apartments", 5, rect((2800, 2330), (2560, 2530), 120)),
 	"G2": ("apartments", 5, rect((2550, 2520), (2420, 2680), 140)),
