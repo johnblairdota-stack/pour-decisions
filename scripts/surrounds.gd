@@ -24,6 +24,8 @@ const Wildlife := preload("res://scripts/wildlife.gd")
 const DATA := "res://data/riverlight_osm.json"
 const SKYLINE := "res://data/riverlight_skyline.json"   # tools/skyline_to_game.py
 const LIDAR_TREES := "res://data/riverlight_trees_2019.json"   # tools/lidar_trees_to_game.py
+const BANKS := "res://data/river_banks.json"   # tools/river_banks.py
+const MASK := "res://data/river_mask.png"      # ...the same
 const CITY := 7000.0          # the suburbs' houses reach out to here
 const NEAR := 1600.0          # the map data reaches this far
 const FAR := 2500.0           # the haze ring of houses goes out to here
@@ -36,6 +38,10 @@ const TRUCK_ROAD := Rect2(-44.5, 21.1, 80.0, 9.0)
 ## The map's ground sits a little above the plain grass and under the game's own
 ## hardstand (6 cm) and truck road (4.5 cm), clear of both so nothing flickers.
 const GROUND_Y := 0.02
+## The river's surface: the land round it stands 3 to 4 m above the river
+## (2019 LiDAR ground; the game's land is all at GROUND_Y)
+const RIVER_Y := Water.RIVER_Y
+const BANK := Color("6f6a5f")
 
 ## Ground colours by land use, drawn in this order (later on top)
 const AREA := {
@@ -62,7 +68,11 @@ static func build(root: Node3D) -> void:
 	var pm := PlaneMesh.new()
 	pm.size = Vector2(40000, 40000)
 	ground.mesh = pm
-	ground.material_override = F.mat("grass")
+	var gm := ShaderMaterial.new()
+	gm.shader = preload("res://shaders/base_ground.gdshader")
+	gm.set_shader_parameter("albedo", F.COLORS["grass"])
+	gm.set_shader_parameter("wet", load(MASK))
+	ground.material_override = gm
 	# (sunk a little: with the camera reaching 16 km the map's own ground,
 	# 2 cm up, would fight it for the depth buffer)
 	ground.position.y = -0.4
@@ -149,12 +159,21 @@ static func _ground(root: Node3D, d: Dictionary) -> void:
 		var tris: Array = g["tris"]
 		for i in range(0, tris.size() - 5, 6):
 			for k in 3:
-				t.add_vertex(Vector3(tris[i + k * 2], GROUND_Y, tris[i + k * 2 + 1]))
+				t.add_vertex(Vector3(tris[i + k * 2], RIVER_Y if wet else GROUND_Y, tris[i + k * 2 + 1]))
 	for pr in d["piers"]:
+		var line: PackedVector2Array
 		if pr.has("pts"):
-			_flat(st, _v2(pr["pts"]), 0.3, Color("9a968c"))
+			line = _v2(pr["pts"])
+			_flat(st, line, 0.3, Color("9a968c"))
 		else:
-			_ribbon(st, _v2(pr["line"]), pr["w"], 0.3, Color("9a968c"), false)
+			line = _v2(pr["line"])
+			_ribbon(st, line, pr["w"], 0.3, Color("9a968c"), false)
+		# on piles down into the river
+		for i in line.size() - 1:
+			var n := maxi(1, ceili(line[i].distance_to(line[i + 1]) / 6.0))
+			for k in n:
+				_post(st, line[i].lerp(line[i + 1], float(k) / n), 0.3, RIVER_Y - 0.5, 0.18, Color("5a5650"))
+	_banks(st)
 	var land := MeshInstance3D.new()
 	land.mesh = st.commit()
 	land.material_override = _flat_mat()
@@ -165,6 +184,42 @@ static func _ground(root: Node3D, d: Dictionary) -> void:
 	water.material_override = _water()
 	water.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	root.add_child(water)
+
+## The river's banks, from the land down into the water (data/river_banks.json).
+## Near the site water.gd lays the rock wall and the beach over them.
+static func _banks(st: SurfaceTool) -> void:
+	if not FileAccess.file_exists(BANKS):
+		return
+	var data: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(BANKS))
+	for b in data["banks"]:
+		for i in range(0, b.size() - 3, 2):
+			var a := Vector2(b[i], b[i + 1])
+			var c := Vector2(b[i + 2], b[i + 3])
+			var e := c - a
+			if e.length() < 0.05:
+				continue
+			# (the water's on the left; x is west, so left of (dx, dz) is (-dz, dx))
+			var into := Vector2(-e.y, e.x).normalized()
+			var n := Vector3(into.x, 0.3, into.y).normalized()
+			var col := BANK.darkened(0.08 * float(i % 3))
+			st.set_color(col)
+			st.set_normal(n)
+			for v in [Vector3(a.x, GROUND_Y, a.y), Vector3(c.x, GROUND_Y, c.y), Vector3(c.x, RIVER_Y - 0.4, c.y),
+					Vector3(a.x, GROUND_Y, a.y), Vector3(c.x, RIVER_Y - 0.4, c.y), Vector3(a.x, RIVER_Y - 0.4, a.y)]:
+				st.add_vertex(v)
+
+## A square post from y0 down to y1.
+static func _post(st: SurfaceTool, p: Vector2, y0: float, y1: float, r: float, c: Color) -> void:
+	st.set_color(c)
+	var q := [Vector2(-r, -r), Vector2(r, -r), Vector2(r, r), Vector2(-r, r)]
+	for i in 4:
+		var a: Vector2 = p + q[i]
+		var b: Vector2 = p + q[(i + 1) % 4]
+		var m: Vector2 = (q[i] + q[(i + 1) % 4]).normalized()
+		st.set_normal(Vector3(m.x, 0, m.y))
+		for v in [Vector3(a.x, y0, a.y), Vector3(b.x, y0, b.y), Vector3(b.x, y1, b.y),
+				Vector3(a.x, y0, a.y), Vector3(b.x, y1, b.y), Vector3(a.x, y1, a.y)]:
+			st.add_vertex(v)
 
 static func _flat(st: SurfaceTool, poly: PackedVector2Array, y: float, c: Color) -> void:
 	if poly.size() < 3:
@@ -605,7 +660,12 @@ static func _lidar_trees(d: Dictionary, roads: Dictionary, bank: Dictionary, tak
 		if not _clear(p) or TRUCK_ROAD.has_point(p) or _on_road(p, roads, 0.5) or _is_taken(p, taken, 1.0):
 			continue
 		var sp: String
-		if inside.call(p, "water") or (p.length() > 260.0 and _near_bank(p, bank, 10.0) and rng.randf() < 0.7) \
+		var y := 0.0
+		if inside.call(p, "water"):
+			# (standing in the shallows, below the riverwalk)
+			sp = "Mangrove" if h < 12.0 else "Paperbark"
+			y = RIVER_Y + 0.3
+		elif (p.length() > 260.0 and _near_bank(p, bank, 10.0) and rng.randf() < 0.7) \
 				or (_near_line(p, drains, 14.0) and rng.randf() < 0.75):
 			sp = "Mangrove" if h < 12.0 else "Paperbark"
 		elif inside.call(p, "golf"):
@@ -621,7 +681,7 @@ static func _lidar_trees(d: Dictionary, roads: Dictionary, bank: Dictionary, tak
 		# The tall ones are figs and gums whatever the mix says
 		if h > 15.0 and not sp in ["Fig", "Gum", "Paperbark"]:
 			sp = "Fig" if rng.randf() < 0.4 else "Gum"
-		plant.append([sp, Vector3(p.x, 0, p.y), h])
+		plant.append([sp, Vector3(p.x, y, p.y), h])
 	return _v2(data["tile"])
 
 static func _near_line(p: Vector2, lines: Array, dist: float) -> bool:
@@ -691,7 +751,7 @@ static func _mangroves(d: Dictionary, bank: Dictionary, lidar: PackedVector2Arra
 				continue
 			var into: Vector2 = e[1]
 			var q := p + into * rng.randf_range(0.5, 3.0) + Vector2(rng.randf_range(-2, 2), rng.randf_range(-2, 2))
-			plant.append(["Mangrove", Vector3(q.x, 0, q.y)])
+			plant.append(["Mangrove", Vector3(q.x, Water.wall_y(p.distance_to(q)) - 0.2, q.y)])
 
 ## The roads and paths near the site, sampled every 4 m into a 20 m grid:
 ## each sample its point and half-width.
@@ -937,7 +997,7 @@ static func _skyline(root: Node3D, rng: RandomNumberGenerator) -> void:
 	for w in d["water"]:
 		var poly := _v2(w)
 		wet.append(poly)
-		_flat(wt, poly, GROUND_Y, Color.WHITE)
+		_flat(wt, poly, RIVER_Y, Color.WHITE)
 	var water := MeshInstance3D.new()
 	water.mesh = wt.commit()
 	water.material_override = _water()
@@ -1086,7 +1146,7 @@ static func _gateway(root: Node3D, d: Dictionary) -> void:
 				continue
 			var q := mid + dir * s
 			var t := 7.0 if absf(s) < 140.0 else 3.5
-			var pier := F.box(Vector3(t, h, t * 1.6), concrete, Vector3(q.x, h * 0.5, q.y), false)
+			var pier := F.box(Vector3(t, h - RIVER_Y, t * 1.6), concrete, Vector3(q.x, (h + RIVER_Y) * 0.5, q.y), false)
 			pier.rotation.y = atan2(dir.x, dir.y)
 			root.add_child(pier)
 

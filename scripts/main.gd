@@ -809,7 +809,7 @@ const FLY_T := 24.0                        # (lands on the signatures at 18 s, t
 ## [s, camera (surroundings frame: from Riverlight's middle, x west, z north)]
 ## (the first two ride behind the boat and out on the river side, so it's
 ## in the shot, between the camera and the tower)
-const FLY_BOAT := Vector3(420, 0, -400)    # where the boat starts, going downstream at 12 m/s
+const FLY_BOAT := Vector3(420, Surrounds.RIVER_Y, -400)    # where the boat starts, going downstream at 12 m/s
 const FLY_KEYS := [[0.0, Vector3(445, 9, -422)], [6.0, Vector3(373, 9, -422)], [10.0, Vector3(170, 20, -300)],
 	[14.0, Vector3(50, 42, -95)], [18.0, Vector3(0, 0, 0)]]
 var _fly_on := false
