@@ -17,6 +17,7 @@ const Water := preload("res://scripts/water.gd")
 const Neighbours := preload("res://scripts/neighbours.gd")
 const People := preload("res://scripts/people.gd")
 const Cars := preload("res://scripts/cars.gd")
+const CityCat := preload("res://scripts/citycat.gd")
 
 const DATA := "res://data/riverlight_osm.json"
 const SKYLINE := "res://data/riverlight_skyline.json"   # tools/skyline_to_game.py
@@ -89,8 +90,8 @@ static func build(root: Node3D) -> void:
 		_haze_ring(root, d, rng)
 		_gateway(root, d)
 		for fe in d.get("ferry", []):
-			_terminal(root, fe)
-			_citycat(root, fe, d.get("cat_route", []))
+			CityCat.terminal(root, fe)
+			CityCat.run(root, fe, d.get("cat_route", []))
 	_skyline(root, rng)
 
 static func _load() -> Dictionary:
@@ -1018,52 +1019,3 @@ static func _gateway(root: Node3D, d: Dictionary) -> void:
 
 static func _gateway_deck(u: float) -> float:
 	return 4.0 + 60.5 * (1.0 - u * u)
-
-## The Northshore Hamilton CityCat terminal: a pontoon with a white and blue
-## shelter, and a gangway back to the bank.
-static func _terminal(root: Node3D, fe: Dictionary) -> void:
-	var at := Vector2(fe["at"][0], fe["at"][1])
-	var edge := Vector2(fe["edge"][0], fe["edge"][1])
-	var t := Node3D.new()
-	t.position = Vector3(at.x, 0, at.y)
-	t.rotation.y = -deg_to_rad(float(fe["bank_deg"]))
-	root.add_child(t)
-	t.add_child(F.box(Vector3(30, 1.0, 9), F.mat("podium"), Vector3(0, 0.3, 0)))
-	t.add_child(F.box(Vector3(26, 0.4, 8), F.mat("white"), Vector3(0, 3.6, 0)))
-	t.add_child(F.box(Vector3(26.2, 0.6, 8.2), F.mat("citycat_blue"), Vector3(0, 3.2, 0)))
-	for x in [-11.0, 0.0, 11.0]:
-		for z in [-3.5, 3.5]:
-			t.add_child(F.box(Vector3(0.25, 2.6, 0.25), F.mat("white"), Vector3(x, 2.0, z)))
-	root.add_child(F.beam(Vector3(at.x, 0.8, at.y), Vector3(edge.x, 0.8, edge.y), 2.2, F.mat("steel")))
-
-## A CityCat comes down the river from the city, berths at the terminal, and
-## heads back.
-static func _citycat(root: Node3D, fe: Dictionary, route: Array) -> void:
-	var boat := Node3D.new()
-	var navy := F.mat("citycat_blue")
-	for z in [-2.6, 2.6]:
-		boat.add_child(F.box(Vector3(25, 1.6, 1.8), navy, Vector3(0, 0.6, z)))
-	boat.add_child(F.box(Vector3(24, 1.4, 7.0), F.mat("white"), Vector3(0, 1.9, 0)))
-	boat.add_child(F.box(Vector3(18, 1.3, 6.4), F.color_mat(Color("2a3a48")), Vector3(-1.0, 3.2, 0)))
-	boat.add_child(F.box(Vector3(19, 0.35, 6.8), F.mat("white"), Vector3(-1.0, 4.0, 0)))
-	boat.add_child(F.box(Vector3(24.2, 0.4, 7.05), navy, Vector3(0, 2.3, 0)))
-	var at := Vector2(fe["at"][0], fe["at"][1])
-	var edge := Vector2(fe["edge"][0], fe["edge"][1])
-	var berth := at + (at - edge).normalized() * 9.0
-	var pts: Array = []
-	for r in route:
-		pts.append(Vector3(r[0], 0, r[1]))
-	pts.append(Vector3(berth.x, 0, berth.y))
-	boat.position = pts[0]
-	root.add_child(boat)
-	var tw := boat.create_tween().set_loops()
-	var legs := [pts, pts.duplicate()]
-	legs[1].reverse()
-	for leg in legs:
-		for i in range(1, leg.size()):
-			var a: Vector3 = leg[i - 1]
-			var b: Vector3 = leg[i]
-			var dir := b - a
-			tw.tween_callback(func(): boat.rotation.y = atan2(-dir.z, dir.x))
-			tw.tween_property(boat, "position", b, a.distance_to(b) / 10.0)
-		tw.tween_interval(40.0 if leg == legs[0] else 20.0)

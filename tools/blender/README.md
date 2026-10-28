@@ -51,6 +51,10 @@ Or open Blender 5.2, Scripting tab, open the script and Run.
   body is white so `scripts/cars.gd` gives each car its own colour; it
   drives them along the real roads and parks the 2017 car yards traced in
   `tools/estate_to_game.py`.
+- `citycat.py`: the CityCat (a 25 m catamaran, bow towards +x) and the
+  Northshore Hamilton terminal (pontoon, shelter, gangway spans, landing)
+  -> `assets/citycat/citycat.glb`, placed by `scripts/citycat.gd`; the same
+  boat does the top-out fly-past.
 
 Materials are named by what they are (`skin`, `vest`, `hat`, `tape` ...). The
 game replaces each with its own toon material and outline by that name
@@ -58,4 +62,4 @@ game replaces each with its own toon material and outline by that name
 
 To check a batch in the game's own look:
 
-    godot --path . --script res://tools/asset_gallery.gd -- --out=/tmp/gallery --set=crew   # or props, plant, towers, site, trees, street, water, river, buildings, estate, people, crowd, cars, traffic
+    godot --path . --script res://tools/asset_gallery.gd -- --out=/tmp/gallery --set=crew   # or props, plant, towers, site, trees, street, water, river, buildings, estate, people, crowd, cars, traffic, citycat, terminal
