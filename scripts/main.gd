@@ -2653,7 +2653,13 @@ func _process(delta: float) -> void:
 	_human_a = false
 	for p in players:
 		if p.zone == "deck" and p.busy != "rigger":
-			p.position.y = work_y
+			# Standing on the wet concrete, boots just into it, not wading
+			# in up to the knees
+			var stand := work_y
+			if pour != null and pour.visible and phase in ["pour", "screed"]:
+				stand = maxf(work_y, pour.position.y + pour.height_at(_pour_local(p.position)) - BOOT_SINK)
+			var was_y: float = p.position.y
+			p.position.y = move_toward(was_y, stand, delta * 3.0) if absf(was_y - stand) < 1.0 else stand
 		elif p.zone == "ground":
 			p.position.y = 0.0
 		p.begin_cues()
@@ -3423,7 +3429,8 @@ func _handle_player(p, delta: float) -> void:
 		if ops.wants_bin():
 			# The slurry, or the washout, into the bin, not the slab
 			var ob: bool = ops.over_bin(discharge())
-			p.cue("action", "pump into the bin" if ob else "hose over the BIN", 1.0 if pumping else -1.0, true)
+			# (the A fills with concrete as the bin does, on the TV and the phone)
+			p.cue("action", "pump into the bin" if ob else "hose over the BIN", ops.bin_progress(), true)
 			p.gold(not p.bot and ob)
 		elif not ops.primed or ops.busy():
 			p.say("start-up…" if not ops.primed else "washout…")
@@ -3599,56 +3606,48 @@ func _update_hoist(delta: float) -> void:
 		if not rider.bot:
 			sfx.hit("clank")
 
-## The boom operator walks the deck with the radio remote: a few metres back
-## from the hose end and off to the side, out from under the boom, where they
-## can see the concrete landing.
+## The boom operator walks the deck with the radio remote, keeping up with
+## the boom head a few metres off to one side of it (left or right as the
+## camera sees it), never in line with the pipe, so the pipe guy and the
+## concrete landing stay in view. They stay on the side they're on until the
+## deck runs out, then cross to the other.
+const BOOM_SIDE := 3.0          # m to the side of the boom head
+const BOOM_WALK := 4.5          # m/s, top walking speed keeping up
+
 func _walk_boom_op(p, delta: float) -> void:
-	if not tutorial:
-		# Down the front of the slab, the walkway nearest the camera, keeping
-		# in line with the pipe guy so they can see the concrete land
-		var fz: float = SC.z + BD * 0.5 + WALK_MID
-		var fx: float = BW * 0.5 + WALK_MID
-		var want_x: float = discharge().x
-		if ops.wants_bin():
-			# (stand back from the bin, not on it: the pipe guy needs the room)
-			want_x = ops.bin_world().x - 2.4
-		want_x = clampf(want_x, SC.x - fx, SC.x + fx)
-		if absf(p.position.z - fz) > 0.05:
-			# Round the scaffold onto the front walkway first: along to the
-			# nearest end, then down the side (never across the pad)
-			var side_x: float = SC.x + (fx if p.position.x >= SC.x else -fx)
-			if p.position.z < fz - 1.0 and absf(p.position.x - side_x) > 0.05:
-				p.position.x = move_toward(p.position.x, side_x, 3.2 * delta)
-			else:
-				p.position.z = move_toward(p.position.z, fz, 3.2 * delta)
-			p._walk += delta * 10.0
-		elif absf(want_x - p.position.x) > 0.6:
-			p.position.x = move_toward(p.position.x, want_x, minf(absf(want_x - p.position.x) - 0.5, 3.2 * delta))
-			p._walk += delta * 10.0
-		p.position.x = clampf(p.position.x, SC.x - fx, SC.x + fx)
-		return
-	# Round the scaffold, keeping level with the hose (and the pipe guy on it)
-	# so they can see the concrete landing, but never on the pad
-	var dz := discharge()
-	var hx := Vector2(dz.x, dz.z)
-	var per := walkway_length()
-	var here := Vector2(p.position.x, p.position.z)
-	var s_now: float = p.get_meta("wk_s") if p.has_meta("wk_s") else walkway_param(here)
-	if walkway_point(s_now).distance_to(here) > 1.0:
-		s_now = walkway_param(here)
-	var s_to := walkway_param(hx)
-	if ops.wants_bin():
-		# (stand back from the bin, not on it: the pipe guy needs the room)
-		s_to -= 2.4
-	var ds := fposmod(s_to - s_now + per * 0.5, per) - per * 0.5
-	if absf(ds) > 0.6:
-		s_now += signf(ds) * minf(absf(ds) - 0.5, 3.2 * delta)
-		p._walk += delta * 10.0
-	s_now = fposmod(s_now, per)
-	p.set_meta("wk_s", s_now)
-	var w := walkway_point(s_now)
-	p.position.x = w.x
-	p.position.z = w.y
+	var head_at := hose_anchor()
+	var right := camera.global_transform.basis.x if camera != null else Vector3.RIGHT
+	right.y = 0.0
+	right = right.normalized() if right.length() > 0.01 else Vector3.RIGHT
+	var side: float = p.get_meta("boom_side") if p.has_meta("boom_side") else (1.0 if (p.position - head_at).dot(right) >= 0.0 else -1.0)
+	var want := head_at + right * BOOM_SIDE * side
+	if not _boom_op_spot_ok(want):
+		var other := head_at - right * BOOM_SIDE * side
+		if _boom_op_spot_ok(other):
+			side = -side
+			want = other
+		else:
+			want = _boom_op_clamp(want)
+	p.set_meta("boom_side", side)
+	var d := Vector2(want.x - p.position.x, want.z - p.position.z)
+	if d.length() > 0.6:
+		var step := minf(d.length() - 0.5, BOOM_WALK * delta)
+		var mv := d.normalized() * step
+		p.position.x += mv.x
+		p.position.z += mv.y
+		p._walk += delta * 10.0 * clampf(step / (3.2 * delta), 0.5, 1.4)
+
+## On the deck (the slab or the walkway round it).
+func _boom_op_spot_ok(at: Vector3) -> bool:
+	return _boom_op_clamp(at).distance_to(Vector3(at.x, 0, at.z)) < 0.01
+
+func _boom_op_clamp(at: Vector3) -> Vector3:
+	if tutorial:
+		var flat := Vector2(at.x, at.z).limit_length(TUT_R + WALK_MID)
+		return Vector3(flat.x, 0, flat.y)
+	var fx: float = BW * 0.5 + WALK_MID
+	var fz: float = BD * 0.5 + WALK_MID
+	return Vector3(clampf(at.x, SC.x - fx, SC.x + fx), 0, clampf(at.z, SC.z - fz, SC.z + fz))
 
 ## Every job that needs a worker right now, for the hand signs and the bots:
 ## {key, pos, level 0..2, role}.
@@ -3922,6 +3921,7 @@ var ops                         # the start-up and the washout (ops.gd)
 var hose_holder = null          # the pipe guy on the end hose, if anyone
 var hose_call := false          # the pipe guy's calling for concrete (holding A)
 var _hose_segs: Array = []      # the end hose drawn to the pipe guy's hands
+const BOOT_SINK := 0.06         # m the crew's boots sink into the wet concrete
 const HOSE_REACH := 2.0         # m the end hose reaches from under the boom tip
 const HOSE_QUIET := 6.0         # s without a call before a bot boom carries on regardless
 var _hose_quiet_t := 0.0
@@ -3937,9 +3937,16 @@ const HOSE_WALK_K := 0.55       # walking with the hose: slow and steady
 ## hose hanging off the boom tip when nobody's on it.
 func discharge() -> Vector3:
 	if hose_holder != null and is_instance_valid(hose_holder) and hose_holder.busy == "hose":
+		# The nozzle, just past the front hand, tipped down at the slab
 		var f := Vector3(sin(hose_holder.model.rotation.y), 0, cos(hose_holder.model.rotation.y))
-		return hose_holder.global_position + f * 0.55 + Vector3(0, 0.75, 0)
+		return _hose_grip(hose_holder)[1] + f * 0.3 + Vector3(0, -0.12, 0)
 	return hose_end.global_position
+
+## Where the pipe guy's hands are on the hose: [back hand, front hand].
+func _hose_grip(h) -> Array:
+	var back: Vector3 = h.hand_r.global_position
+	var front: Vector3 = h.hand_l.global_position
+	return [back, front]
 
 ## The point on the deck right under the boom tip (where the end hose hangs).
 func hose_anchor() -> Vector3:
@@ -3987,7 +3994,10 @@ func _hose_work(p, delta: float) -> void:
 		off = off.normalized() * HOSE_REACH
 		p.position.x = a.x + off.x
 		p.position.z = a.z + off.y
-	p.pose_arms(Vector3(-1.1, 0, -0.35), Vector3(-0.9, 0, 0.35))
+	# Both hands on the hose, in front at the middle: the back hand low, the
+	# front one reaching out along it (the hose is drawn through them)
+	var sway := 0.04 * sin(phase_t * 3.0)
+	p.pose_arms(Vector3(-1.25 + sway, 0, 0.85), Vector3(-0.75 - sway, 0, -0.85))
 	if ops.radio(p):
 		hose_call = false
 		return
@@ -4022,19 +4032,27 @@ func _draw_hose() -> void:
 	if hose_holder == null:
 		return
 	if _hose_segs.is_empty():
-		for i in 8:
+		for i in 10:
 			var seg := F.cylinder(0.16, 1.0, F.mat("hose"), Vector3.ZERO, 8)
 			add_child(seg)
 			_hose_segs.append(seg)
 	var a: Vector3 = tip.global_position
-	var b := discharge()
+	# (the run ends in the back hand; the last two pieces go through the
+	# front hand and out to the nozzle)
+	var grip := _hose_grip(hose_holder)
+	var b: Vector3 = grip[0]
 	var mid := (a + b) * 0.5 + Vector3(0, -0.8, 0)
 	# (whipping: the belly of the hose thrashes about)
 	mid += Vector3(sin(phase_t * 9.0), 0.4 * cos(phase_t * 7.0), cos(phase_t * 8.0)) * 1.3 * _whip
 	var prev := a
+	var run := _hose_segs.size() - 2
 	for i in _hose_segs.size():
-		var u := float(i + 1) / _hose_segs.size()
-		var q := a.lerp(mid, u).lerp(mid.lerp(b, u), u)
+		var q: Vector3
+		if i < run:
+			var u := float(i + 1) / run
+			q = a.lerp(mid, u).lerp(mid.lerp(b, u), u)
+		else:
+			q = grip[1] if i == run else discharge()
 		var seg: MeshInstance3D = _hose_segs[i]
 		seg.visible = true
 		var d := q - prev
