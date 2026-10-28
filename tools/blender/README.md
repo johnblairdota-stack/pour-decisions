@@ -34,6 +34,14 @@ Or open Blender 5.2, Scripting tab, open the script and Run.
   mooring buoy, pontoon, rock wall stones, the cruise ship at Portside) ->
   `assets/water/water.glb`, placed by `scripts/water.gd`; the water itself is
   `shaders/river.gdshader`.
+- `buildings.py`: the neighbours (two-storey rendered houses, a high-set
+  Queenslander, a post-war brick house, few-triangle `...Far` houses for the
+  haze, roof kit: air conditioners, lift overrun, solar panels, whirlybird;
+  20 and 40 foot shipping containers) -> `assets/buildings/buildings.glb`,
+  placed by `scripts/neighbours.gd`, which also draws the Hamilton Reach
+  estate next door (`data/hamilton_reach_2017.json`, traced off the 2017
+  aerial by `tools/estate_to_game.py`) and the corrugated sheds
+  (`shaders/cladding.gdshader`).
 
 Materials are named by what they are (`skin`, `vest`, `hat`, `tape` ...). The
 game replaces each with its own toon material and outline by that name
@@ -41,4 +49,4 @@ game replaces each with its own toon material and outline by that name
 
 To check a batch in the game's own look:
 
-    godot --path . --script res://tools/asset_gallery.gd -- --out=/tmp/gallery --set=crew   # or props, plant, towers, site, trees, street, water, river
+    godot --path . --script res://tools/asset_gallery.gd -- --out=/tmp/gallery --set=crew   # or props, plant, towers, site, trees, street, water, river, buildings, estate

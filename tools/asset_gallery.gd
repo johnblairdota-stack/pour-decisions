@@ -60,6 +60,10 @@ func _initialize() -> void:
 			_water(world)
 		"river":
 			_river(world)
+		"buildings":
+			_buildings(world)
+		"estate":
+			_estate(world)
 
 func _crew(world: Node3D) -> void:
 	# Every named crew member, each in a job's kit, with the job's hat
@@ -336,5 +340,51 @@ func _river(world: Node3D) -> void:
 		_shots.append(["river_moorings", yacht.position + Vector3(-40, 14, -40), yacht.position])
 	if pont != null:
 		_shots.append(["river_pontoon", pont.position + Vector3(-25, 10, -25), pont.position])
+	_cam.fov = 50
+	_cam.far = 8000
+
+func _buildings(world: Node3D) -> void:
+	# The houses, roof kit and containers in a row (scripts/neighbours.gd)
+	world.add_child(F.box(Vector3(140, 0.1, 60), F.color_mat(Color("78a457")), Vector3(0, -0.06, 0)))
+	var N := preload("res://scripts/neighbours.gd")
+	var row := [["ModernHouse", 14.0], ["ModernHouseB", 14.0], ["Queenslander", 13.0], ["PostwarHouse", 16.0],
+		["RoofAC", 5.0], ["LiftOverrun", 5.0], ["SolarArray", 7.0], ["Whirlybird", 2.0], ["Container20", 8.0],
+		["Container40", 14.0]]
+	var items: Array = []
+	var x := -55.0
+	for r in row:
+		x += r[1] * 0.5
+		var c := Color("2f5f8f") if (r[0] as String).begins_with("Container") else Color.WHITE
+		items.append([r[0], Transform3D(Basis(), Vector3(x, 0, 0)), c])
+		x += r[1] * 0.5
+	var far := [["Queenslander", Color("efe6cf"), Color("8a9096")], ["Postwar", Color("a5644a"), Color("b0583e")],
+		["Modern", Color("f2f0ea"), Color("d8d8d2")]]
+	for i in far.size():
+		var t := Transform3D(Basis(), Vector3(-30 + i * 16, 0, -25))
+		items.append([far[i][0] + "FarBody", t, far[i][1]])
+		items.append([far[i][0] + "FarRoof", t, far[i][2]])
+	N.place(world, items)
+	_shots = [
+		["bldg_houses", Vector3(-30, 14.0, 40.0), Vector3(-30, 3.0, 0.0)],
+		["bldg_kit", Vector3(22, 9.0, 22.0), Vector3(22, 1.0, 0.0)],
+		["bldg_far", Vector3(-14, 30.0, 25.0), Vector3(-14, 2.0, -25.0)],
+	]
+	_cam.fov = 40
+
+func _estate(world: Node3D) -> void:
+	# The estate next door, the sheds and Eat Street's containers in the game
+	# (scripts/surrounds.gd + neighbours.gd)
+	var s := Node3D.new()
+	world.add_child(s)
+	preload("res://scripts/surrounds.gd").build(s)
+	_shots = [
+		["estate_from_site", Vector3(10, 40.0, -20.0), Vector3(-90, 8.0, 40.0)],
+		["estate_river", Vector3(-150, 30.0, -260.0), Vector3(-170, 8.0, -90.0)],
+		["estate_houses", Vector3(110, 25.0, 140.0), Vector3(60, 4.0, 180.0)],
+		["estate_roofs", Vector3(-60, 90.0, -40.0), Vector3(-120, 10.0, 20.0)],
+		["sheds", Vector3(140, 30.0, 380.0), Vector3(80, 4.0, 470.0)],
+		["eat_street", Vector3(360, 25.0, -110.0), Vector3(415, 1.0, -165.0)],
+		["haze", Vector3(0, 60.0, 900.0), Vector3(0, 0.0, 1800.0)],
+	]
 	_cam.fov = 50
 	_cam.far = 8000
