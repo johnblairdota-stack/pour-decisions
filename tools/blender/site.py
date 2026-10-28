@@ -31,7 +31,7 @@ PALETTE = {
 	"tank": "8fa6b8", "first_aid": "2f8f6b", "cone": "ff7a1a", "band": "f4f7fa", "table": "f4f7fa",
 	"chair": "2f6fd1", "esky": "e5383b", "umbrella": "ffc72c", "umbrella_b": "f4f7fa", "slurry": "6f7275",
 	"wet_crust": "9b968a", "concrete": "b5b6b3", "bin_green": "2f6f3f", "bin_lid": "e5383b", "bin_yellow": "ffc72c",
-	"sign": "f4f7fa", "sign_blue": "2f6fd1", "barrier": "ff7a1a",
+	"sign": "f4f7fa", "sign_blue": "2f6fd1", "barrier": "ff7a1a", "screen": "4a689c", "screen_frame": "2c3e5c",
 }
 
 
@@ -465,6 +465,36 @@ def washout_bay():
 	put("WashoutBay", p, smooth=False)
 
 
+# ---------------------------------------------------------------- edge screens
+
+SCREEN_TOP, SCREEN_BOT = 1.1, -7.0
+
+
+def _screen_panel(p, x0):
+	"""One 2.4 m bay of perimeter screen, hung off the slab edge: perforated
+	blue sheet from the deck's handrail height down past two floors, a white
+	header, galvanised rails at each floor and the posts either side. The
+	origin is at deck level; the sheet faces +z (out)."""
+	h = SCREEN_TOP - SCREEN_BOT
+	p.append(box(FENCE_W - 0.02, h - 0.4, 0.03, "screen", at=(x0, SCREEN_BOT + (h - 0.4) * 0.5, 0)))
+	p.append(box(FENCE_W - 0.02, 0.4, 0.035, "white", at=(x0, SCREEN_TOP - 0.2, 0)))
+	for x in (-FENCE_W * 0.5 + 0.04, FENCE_W * 0.5 - 0.04):
+		p.append(box(0.08, h, 0.08, "screen_frame", at=(x0 + x, SCREEN_BOT + h * 0.5, -0.05)))
+	for y in (-0.15, -3.15, -6.15):
+		p.append(box(FENCE_W, 0.08, 0.06, "steel", at=(x0, y, -0.07)))
+		p.append(box(0.1, 0.1, 0.35, "dark_steel", at=(x0 - FENCE_W * 0.5 + 0.04, y, -0.25)))
+
+
+def edge_screens():
+	p = []
+	_screen_panel(p, 0.0)
+	put("EdgeScreen", p, smooth=False)
+	p = []
+	for i in range(5):
+		_screen_panel(p, (i - 2) * FENCE_W)
+	put("EdgeScreenRun", p, smooth=False)
+
+
 def main():
 	reset()
 	shed_unit()
@@ -495,6 +525,7 @@ def main():
 	esky()
 	umbrella()
 	washout_bay()
+	edge_screens()
 	import bpy
 	tot = 0
 	for o in bpy.context.scene.objects:

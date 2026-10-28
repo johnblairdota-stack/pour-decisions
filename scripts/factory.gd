@@ -216,7 +216,8 @@ const PROP_COLORS := {
 	"band": Color("f4f7fa"), "table": Color("f4f7fa"), "chair": Color("2f6fd1"), "esky": Color("e5383b"),
 	"umbrella": Color("ffc72c"), "umbrella_b": Color("f4f7fa"), "slurry": Color("6f7275"), "concrete": Color("b5b6b3"),
 	"bin_green": Color("2f6f3f"), "bin_lid": Color("e5383b"), "bin_yellow": Color("ffc72c"), "sign": Color("f4f7fa"),
-	"sign_blue": Color("2f6fd1"), "barrier": Color("ff7a1a"),
+	"sign_blue": Color("2f6fd1"), "barrier": Color("ff7a1a"), "screen": Color("4a689c"),
+	"screen_frame": Color("2c3e5c"),
 }
 static var _libs := {}
 ## Props are small: a crew-weight outline would swallow a shovel handle
