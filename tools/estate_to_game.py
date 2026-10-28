@@ -111,6 +111,17 @@ def inside(p, poly):
 	return c
 
 
+def edge_dist(p, poly):
+	"""How far p is from the outline (aerial px), so cars stay inside the fence."""
+	best = 1e9
+	for i in range(len(poly)):
+		(x1, y1), (x2, y2) = poly[i], poly[(i + 1) % len(poly)]
+		dx, dy = x2 - x1, y2 - y1
+		t = max(0.0, min(1.0, ((p[0] - x1) * dx + (p[1] - y1) * dy) / max(dx * dx + dy * dy, 1e-9)))
+		best = min(best, math.hypot(p[0] - x1 - t * dx, p[1] - y1 - t * dy))
+	return best
+
+
 def main():
 	blocks = []
 	for name, (kind, storeys, pts) in BLOCKS.items():
@@ -133,7 +144,7 @@ def main():
 			k = 0
 			while y < max(ys) - 14:
 				if inside((x, y), outline) and not any(h[0] <= x <= h[2] and h[1] <= y <= h[3] for h in holes) \
-						and rnd.random() < full:
+						and rnd.random() < full and edge_dist((x, y), outline) > 15:
 					gx, gz = game(x, y)
 					yaw = math.degrees(math.atan2(*gdir(0, -1 if k % 2 else 1)))
 					parked.append([round(gx, 1), round(gz, 1), round(yaw + rnd.uniform(-4, 4))])
@@ -141,9 +152,14 @@ def main():
 				y += 25 if k % 2 == 0 else 57.5
 				k += 1
 			x += 13
+	# the car parks' outlines, for their fences
+	yards = []
+	for (outline, holes, full) in CARPARKS:
+		g = [game(*q) for q in outline]
+		yards.append({"kind": "car_yard" if full > 0.7 else "car_park", "pts": [[round(x, 1), round(z, 1)] for x, z in g]})
 	out = {"source": "Traced from the Brisbane 2017 10 cm SISP aerial. Includes material (c) State of "
 		"Queensland (Department of Natural Resources and Mines, Manufacturing and Regional and Rural "
-		"Development), 2026, CC BY 4.0", "blocks": blocks, "houses": houses, "parked": parked}
+		"Development), 2026, CC BY 4.0", "blocks": blocks, "houses": houses, "parked": parked, "yards": yards}
 	with open(OUT, "w") as f:
 		json.dump(out, f, indent=1)
 	print("wrote", OUT, len(blocks), "blocks", len(houses), "houses", len(parked), "parked cars")

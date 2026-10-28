@@ -30,20 +30,23 @@ static var _mats := {}
 
 var _drivers: Array = []
 
-static func build(root: Node3D, d: Dictionary, keep_clear: Callable, taken: Callable, rng: RandomNumberGenerator) -> Node3D:
+## `keep_clear(p)`: off the site; `taken(p)`: where street furniture stands;
+## `road(p, pad)`: on (or within pad of) a road or path.
+static func build(root: Node3D, d: Dictionary, keep_clear: Callable, taken: Callable, road: Callable,
+		rng: RandomNumberGenerator) -> Node3D:
 	var c: Node3D = (load("res://scripts/cars.gd") as GDScript).new()
 	c.name = "Traffic"
 	root.add_child(c)
-	c.setup(d, keep_clear, taken, rng)
+	c.setup(d, keep_clear, taken, road, rng)
 	return c
 
-func setup(d: Dictionary, keep_clear: Callable, taken: Callable, rng: RandomNumberGenerator) -> void:
+func setup(d: Dictionary, keep_clear: Callable, taken: Callable, road: Callable, rng: RandomNumberGenerator) -> void:
 	var parked: Array = []
 	if FileAccess.file_exists(ESTATE):
 		var e: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(ESTATE))
 		for p in e.get("parked", []):
 			var at := Vector2(p[0], p[1])
-			if keep_clear.call(at):
+			if keep_clear.call(at) and not road.call(at, 1.5):
 				parked.append([_kind(rng), Transform3D(Basis(Vector3.UP, deg_to_rad(float(p[2]))), Vector3(at.x, 0, at.y)),
 					PAINT[rng.randi() % PAINT.size()]])
 	_kerbs(d, keep_clear, taken, parked, rng)

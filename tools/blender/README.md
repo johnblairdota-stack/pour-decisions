@@ -55,6 +55,11 @@ Or open Blender 5.2, Scripting tab, open the script and Run.
   Northshore Hamilton terminal (pontoon, shelter, gangway spans, landing)
   -> `assets/citycat/citycat.glb`, placed by `scripts/citycat.gd`; the same
   boat does the top-out fly-past.
+- `fences.py`: fences and gates, a 3 m bay each (chain-link, palisade,
+  Colorbond, timber paling, slat fence, pool glass, low wall, park bollards)
+  plus sliding, driveway, pedestrian and boom gates ->
+  `assets/fences/fences.glb`, laid round the estate, car yards, sheds, golf
+  course and park by `scripts/fences.gd`.
 
 Materials are named by what they are (`skin`, `vest`, `hat`, `tape` ...). The
 game replaces each with its own toon material and outline by that name
@@ -62,4 +67,4 @@ game replaces each with its own toon material and outline by that name
 
 To check a batch in the game's own look:
 
-    godot --path . --script res://tools/asset_gallery.gd -- --out=/tmp/gallery --set=crew   # or props, plant, towers, site, trees, street, water, river, buildings, estate, people, crowd, cars, traffic, citycat, terminal
+    godot --path . --script res://tools/asset_gallery.gd -- --out=/tmp/gallery --set=crew   # or props, plant, towers, site, trees, street, water, river, buildings, estate, people, crowd, cars, traffic, citycat, terminal, fences, fencing
