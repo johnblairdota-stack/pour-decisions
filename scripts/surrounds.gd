@@ -11,6 +11,7 @@
 extends RefCounted
 
 const F := preload("res://scripts/factory.gd")
+const Flora := preload("res://scripts/flora.gd")
 
 const DATA := "res://data/riverlight_osm.json"
 const SKYLINE := "res://data/riverlight_skyline.json"   # tools/skyline_to_game.py
@@ -19,8 +20,9 @@ const NEAR := 1600.0          # the map data reaches this far
 const FAR := 2500.0           # the haze ring of houses goes out to here
 
 ## Left clear for the game's own site: the building, the boom tower, the pump
-## and truck bay, and the strip the trucks drive along.
-const SITE_CLEAR := [Rect2(-45, -14, 95, 38), Rect2(-50, 10, 88, 22)]
+## and truck bay, the strip the trucks drive along, and the crane's base and
+## the laydown south of the building.
+const SITE_CLEAR := [Rect2(-45, -14, 95, 38), Rect2(-50, 10, 88, 22), Rect2(-26, -32, 46, 19)]
 const TRUCK_ROAD := Rect2(-44.5, 21.1, 80.0, 9.0)
 ## The map's ground sits a little above the plain grass and under the game's own
 ## hardstand (6 cm) and truck road (4.5 cm), clear of both so nothing flickers.
@@ -37,7 +39,6 @@ const ROAD := Color("4a4e55")
 const PATH := Color("cfcabd")
 const ROOFS := [Color("8a9096"), Color("5e6670"), Color("b4634a"), Color("e8e6df"), Color("9c8b74"), Color("6f7a72")]
 const WALLS := [Color("f1eee6"), Color("e5ddcc"), Color("d7dde0"), Color("f4f2ec")]
-const LEAVES := [Color("4f7d43"), Color("5d8a48"), Color("426b3c"), Color("6b9150")]
 const BUILDING := {
 	"industrial": [Color("cfccc4"), Color("b6bcc0")], "warehouse": [Color("c9c6bd"), Color("aab0b4")],
 	"apartments": [Color("f1efe9"), Color("e8e8e4")], "school": [Color("e2d8c4"), Color("b4634a")],
@@ -217,14 +218,20 @@ static func _extrude(st: SurfaceTool, poly: PackedVector2Array, h: float, wall: 
 
 # ------------------------------------------------------------------ trees and lamps
 
-## The map's own trees, and the parks, the golf course and the scrub planted
-## out at about the density the aerial photos show.
+## The map's own trees, the parks, the golf course and the scrub planted out
+## at about the density the aerial photos show, street trees down the roads
+## near the site, and mangroves in patches along the river's edge. Each spot
+## gets a species from what grows there (scripts/flora.gd), kept off the roads.
 static func _trees(root: Node3D, d: Dictionary, rng: RandomNumberGenerator) -> void:
-	var at: Array = []
+	var roads := _road_grid(d)
+	var bank := _bank_grid(d)
+	var plant: Array = []
+	var ok := func(p: Vector2) -> bool:
+		return _clear(p) and not TRUCK_ROAD.has_point(p) and not _on_road(p, roads, 1.2)
 	for t in d["trees"]:
 		var p := Vector2(t[0], t[1])
-		if _clear(p):
-			at.append(Vector3(p.x, 0, p.y))
+		if ok.call(p):
+			plant.append([Flora.pick("street", rng), Vector3(p.x, 0, p.y)])
 	var per := {"park": 220.0, "golf": 1400.0, "scrub": 70.0}
 	for a in d["areas"]:
 		if not per.has(a["kind"]):
@@ -238,9 +245,143 @@ static func _trees(root: Node3D, d: Dictionary, rng: RandomNumberGenerator) -> v
 		var n := mini(int(box.get_area() / per[a["kind"]]), 1500)
 		for i in n:
 			var p := Vector2(rng.randf_range(box.position.x, box.end.x), rng.randf_range(box.position.y, box.end.y))
-			if _clear(p) and Geometry2D.is_point_in_polygon(p, poly):
-				at.append(Vector3(p.x, 0, p.y))
-	_tree_field(root, at, rng)
+			if ok.call(p) and Geometry2D.is_point_in_polygon(p, poly):
+				var mix: String = a["kind"]
+				if mix == "park" and _near_bank(p, bank, 45.0):
+					mix = "riverside"
+				plant.append([Flora.pick(mix, rng), Vector3(p.x, 0, p.y)])
+	_street_trees(d, roads, plant, rng)
+	_mangroves(d, bank, plant, rng)
+	Flora.plant(root, plant, rng)
+
+## Street trees both sides of the local streets near the site, every 13 m or
+## so, with lomandra and bottlebrush in the beds between.
+static func _street_trees(d: Dictionary, roads: Dictionary, plant: Array, rng: RandomNumberGenerator) -> void:
+	for r in d["roads"]:
+		if not r["kind"] in ["residential", "unclassified", "tertiary", "secondary", "living_street"]:
+			continue
+		var pts := _v2(r["pts"])
+		var off := float(r["w"]) * 0.5 + 2.2
+		for i in pts.size() - 1:
+			var a := pts[i]
+			var b := pts[i + 1]
+			if a.length() > 450.0 and b.length() > 450.0:
+				continue
+			var e := b - a
+			var ln := e.length()
+			if ln < 1.0:
+				continue
+			var dir := e / ln
+			var nrm := Vector2(-dir.y, dir.x)
+			var s := rng.randf_range(2.0, 8.0)
+			while s < ln:
+				for side in [-1.0, 1.0]:
+					var p: Vector2 = a + dir * s + nrm * off * side
+					if p.length() > 450.0 or not _clear(p) or TRUCK_ROAD.has_point(p) or _on_road(p, roads, 1.0):
+						continue
+					plant.append([Flora.pick("street", rng), Vector3(p.x, 0, p.y)])
+					if p.length() < 260.0:
+						for k in 3:
+							var q: Vector2 = p + dir * rng.randf_range(2.5, 10.0) + nrm * side * rng.randf_range(-0.6, 0.6)
+							if not _on_road(q, roads, 0.4) and _clear(q):
+								plant.append([Flora.pick("bed", rng), Vector3(q.x, 0, q.y)])
+				s += rng.randf_range(11.0, 15.0)
+
+## Grey mangroves in patches on the river's edge, standing in the shallows;
+## none on the frontage in front of Riverlight (rock wall and riverwalk) or by
+## the ferry terminal.
+static func _mangroves(d: Dictionary, bank: Dictionary, plant: Array, rng: RandomNumberGenerator) -> void:
+	var avoid: Array = []
+	for fe in d.get("ferry", []):
+		avoid.append(Vector2(fe["at"][0], fe["at"][1]))
+	for cell in bank:
+		for e in bank[cell]:
+			var p: Vector2 = e[0]
+			var dist := p.length()
+			if dist < 260.0 or dist > 1100.0:
+				continue
+			var near_ferry := false
+			for f in avoid:
+				if p.distance_to(f) < 90.0:
+					near_ferry = true
+			if near_ferry:
+				continue
+			# (patches: where two slow waves along the bank agree)
+			if sin(p.x * 0.021) + sin(p.y * 0.017 + 1.3) < 0.4 or rng.randf() > 0.75:
+				continue
+			var into: Vector2 = e[1]
+			var q := p + into * rng.randf_range(0.5, 3.0) + Vector2(rng.randf_range(-2, 2), rng.randf_range(-2, 2))
+			plant.append(["Mangrove", Vector3(q.x, 0, q.y)])
+
+## The roads and paths near the site, sampled every 4 m into a 20 m grid:
+## each sample its point and half-width.
+static func _road_grid(d: Dictionary) -> Dictionary:
+	var g := {}
+	for list in [d["roads"], d["paths"]]:
+		for r in list:
+			var pts := _v2(r["pts"])
+			var hw := float(r["w"]) * 0.5
+			for i in pts.size() - 1:
+				var a := pts[i]
+				var b := pts[i + 1]
+				if a.length() > 1000.0 and b.length() > 1000.0:
+					continue
+				var n := maxi(1, ceili(a.distance_to(b) / 4.0))
+				for k in n + 1:
+					var p := a.lerp(b, float(k) / n)
+					var c := Vector2i(floori(p.x / 20.0), floori(p.y / 20.0))
+					if not g.has(c):
+						g[c] = []
+					g[c].append([p, hw])
+	return g
+
+static func _on_road(p: Vector2, g: Dictionary, pad: float) -> bool:
+	var c := Vector2i(floori(p.x / 20.0), floori(p.y / 20.0))
+	for dx in [-1, 0, 1]:
+		for dz in [-1, 0, 1]:
+			for s in g.get(c + Vector2i(dx, dz), []):
+				if p.distance_to(s[0]) < float(s[1]) + pad:
+					return true
+	return false
+
+## The river's edge within 1.3 km, sampled every 8 m into a 50 m grid: each
+## sample its point and which way the water is.
+static func _bank_grid(d: Dictionary) -> Dictionary:
+	var g := {}
+	for a in d["areas"]:
+		if a["kind"] != "water":
+			continue
+		var poly := _v2(a["pts"])
+		for i in poly.size():
+			var p0 := poly[i]
+			var p1 := poly[(i + 1) % poly.size()]
+			if p0.length() > 1300.0 and p1.length() > 1300.0:
+				continue
+			var e := p1 - p0
+			var ln := e.length()
+			if ln < 0.5:
+				continue
+			var nrm := Vector2(-e.y, e.x) / ln
+			var mid := (p0 + p1) * 0.5
+			if not Geometry2D.is_point_in_polygon(mid + nrm * 2.0, poly):
+				nrm = -nrm
+			var n := maxi(1, ceili(ln / 8.0))
+			for k in n:
+				var p := p0.lerp(p1, (k + 0.5) / n)
+				var c := Vector2i(floori(p.x / 50.0), floori(p.y / 50.0))
+				if not g.has(c):
+					g[c] = []
+				g[c].append([p, nrm])
+	return g
+
+static func _near_bank(p: Vector2, g: Dictionary, dist: float) -> bool:
+	var c := Vector2i(floori(p.x / 50.0), floori(p.y / 50.0))
+	for dx in [-1, 0, 1]:
+		for dz in [-1, 0, 1]:
+			for s in g.get(c + Vector2i(dx, dz), []):
+				if p.distance_to(s[0]) < dist:
+					return true
+	return false
 
 static func _lamps(root: Node3D, d: Dictionary) -> void:
 	var mm := MultiMesh.new()
@@ -287,7 +428,10 @@ static func _haze_ring(root: Node3D, d: Dictionary, rng: RandomNumberGenerator) 
 		else:
 			houses.append(Vector3(p.x, 0, p.y))
 	_house_field(root, houses, rng)
-	_tree_field(root, trees, rng)
+	var plant: Array = []
+	for t in trees:
+		plant.append([Flora.pick("suburb", rng), t])
+	Flora.plant(root, plant, rng)
 
 static func _house_field(root: Node3D, at: Array, rng: RandomNumberGenerator) -> void:
 	var walls := MultiMesh.new()
@@ -316,24 +460,6 @@ static func _house_field(root: Node3D, at: Array, rng: RandomNumberGenerator) ->
 		roofs.set_instance_color(i, ROOFS[rng.randi() % ROOFS.size()])
 	_add_multi(root, walls)
 	_add_multi(root, roofs)
-
-static func _tree_field(root: Node3D, at: Array, rng: RandomNumberGenerator) -> void:
-	var mm := MultiMesh.new()
-	mm.transform_format = MultiMesh.TRANSFORM_3D
-	mm.use_colors = true
-	var sm := SphereMesh.new()
-	sm.radius = 0.5
-	sm.height = 1.0
-	sm.radial_segments = 8
-	sm.rings = 4
-	mm.mesh = sm
-	mm.instance_count = at.size()
-	for i in at.size():
-		var r := rng.randf_range(3.0, 6.5)
-		var b := Basis.from_scale(Vector3(r * 2.0, r * 1.6, r * 2.0))
-		mm.set_instance_transform(i, Transform3D(b, at[i] + Vector3(0, r * 1.3, 0)))
-		mm.set_instance_color(i, LEAVES[rng.randi() % LEAVES.size()])
-	_add_multi(root, mm, true)
 
 static func _add_multi(root: Node3D, mm: MultiMesh, shadows := false) -> void:
 	var mi := MultiMeshInstance3D.new()
@@ -462,7 +588,10 @@ static func _skyline(root: Node3D, rng: RandomNumberGenerator) -> void:
 			else:
 				trees.append(Vector3(p.x, y, p.y))
 	_house_field(root, houses, rng)
-	_tree_field(root, trees, rng)
+	var plant: Array = []
+	for t in trees:
+		plant.append([Flora.pick("suburb", rng), t])
+	Flora.plant(root, plant, rng)
 	# Hills: soft green mounds (Mt Coot-tha, Mt Gravatt, the Hamilton ridge)
 	for h in hills:
 		var mound := MeshInstance3D.new()

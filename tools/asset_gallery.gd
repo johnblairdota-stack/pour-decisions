@@ -52,6 +52,8 @@ func _initialize() -> void:
 			_towers(world)
 		"site":
 			_site(world)
+		"trees":
+			_trees(world)
 
 func _crew(world: Node3D) -> void:
 	# Every named crew member, each in a job's kit, with the job's hat
@@ -228,4 +230,38 @@ func _site(world: Node3D) -> void:
 		["site_west", Vector3(36.0, 7.0, 0.0), Vector3(44.5, 0.8, 7.0)],
 		["site_laydown", Vector3(-6.0, 7.0, -32.0), Vector3(-6.0, 0.5, -22.0)],
 		["site_wide", Vector3(10.0, 45.0, 45.0), Vector3(10.0, 0.0, 4.0)],
+	]
+
+func _trees(world: Node3D) -> void:
+	# Every species in a row on grass, near and far versions (scripts/flora.gd)
+	world.add_child(F.box(Vector3(260, 0.1, 120), F.mat("grass"), Vector3(0, -0.04, -15)))
+	var Flora := preload("res://scripts/flora.gd")
+	var big := ["Fig", "Jacaranda", "Poinciana", "PoincianaBloom", "Gum", "Paperbark", "Tuckeroo"]
+	var small := ["SheOak", "CabbagePalm", "FoxtailPalm", "Pandanus", "Mangrove", "Bottlebrush", "Lomandra"]
+	var widths := {"Fig": 21.0, "Jacaranda": 11.0, "Poinciana": 14.0, "PoincianaBloom": 14.0, "Gum": 9.0,
+		"Paperbark": 6.0, "Tuckeroo": 7.0, "SheOak": 6.0, "CabbagePalm": 6.0, "FoxtailPalm": 7.0,
+		"Pandanus": 5.0, "Mangrove": 7.0, "Bottlebrush": 3.0, "Lomandra": 2.5}
+	for row in [[big, -60.0], [small, 60.0]]:
+		var x := 0.0
+		var names: Array = row[0]
+		var tot := 0.0
+		for n in names:
+			tot += widths[n]
+		x = row[1] - tot * 0.5
+		for n in names:
+			x += widths[n] * 0.5
+			for far in [false, true]:
+				var m: Mesh = Flora.mesh(n + ("Far" if far else ""))
+				if m == null:
+					continue
+				var mi := MeshInstance3D.new()
+				mi.mesh = m
+				mi.position = Vector3(x, 0, -35.0 if far else 0.0)
+				world.add_child(mi)
+			x += widths[n] * 0.5
+	_shots = [
+		["trees_big", Vector3(-60, 9.0, 85.0), Vector3(-60, 7.0, 0.0)],
+		["trees_small", Vector3(60, 6.0, 52.0), Vector3(60, 4.0, 0.0)],
+		["trees_far", Vector3(0, 16.0, -240.0), Vector3(0, 6.0, -35.0)],
+		["trees_close", Vector3(-82, 5.0, 26.0), Vector3(-75, 6.0, 0.0)],
 	]
