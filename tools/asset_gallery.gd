@@ -68,6 +68,10 @@ func _initialize() -> void:
 			_people(world)
 		"crowd":
 			_crowd(world)
+		"cars":
+			_cars(world)
+		"traffic":
+			_traffic(world)
 
 func _crew(world: Node3D) -> void:
 	# Every named crew member, each in a job's kit, with the job's hat
@@ -449,5 +453,66 @@ func _crowd(world: Node3D) -> void:
 				var n: Node3D = w["node"]
 				_shots.append(["crowd_" + String(w["kind"]), n.position + Vector3(6, 3.5, 6), n.position + Vector3(0, 0.8, 0)])
 	_shots = _shots.slice(0, 6)
+	_cam.fov = 45
+	_cam.far = 4000
+
+func _cars(world: Node3D) -> void:
+	# Every car model in a row, each its own colour, the far boxes behind
+	# (scripts/cars.gd)
+	world.add_child(F.box(Vector3(60, 0.1, 30), F.color_mat(Color("6d6e6c")), Vector3(0, -0.06, 0)))
+	var C := preload("res://scripts/cars.gd")
+	var names := ["Sedan", "Hatch", "SUV", "Ute", "Van"]
+	var paint := [Color("f4f4f2"), Color("d9302c"), Color("2b2f36"), Color("c4c8cc"), Color("f4f4f2")]
+	for i in names.size():
+		var mi := MeshInstance3D.new()
+		mi.mesh = C.mesh(names[i])
+		mi.set_instance_shader_parameter("tint", paint[i])
+		mi.position = Vector3((i - 2) * 3.0, 0, 0)
+		mi.rotation.y = 0.5
+		world.add_child(mi)
+	var bus := MeshInstance3D.new()
+	bus.mesh = C.mesh("Bus")
+	bus.position = Vector3(0, 0, -7)
+	bus.rotation.y = PI / 2
+	world.add_child(bus)
+	for i in 3:
+		var mi := MeshInstance3D.new()
+		mi.mesh = C.mesh(["SedanFar", "SUVFar", "UteFar"][i])
+		mi.set_instance_shader_parameter("tint", paint[i + 1])
+		mi.position = Vector3((i - 1) * 3.0 + 12.0, 0, -2)
+		mi.rotation.y = 0.5
+		world.add_child(mi)
+	_shots = [
+		["cars_lineup", Vector3(2, 4.0, 13.0), Vector3(0, 0.8, -1)],
+		["cars_ute", Vector3(4.5, 2.6, -3.0), Vector3(3, 1.0, 0)],
+		["cars_far", Vector3(12, 5.0, 8.0), Vector3(12, 0.8, -2)],
+	]
+	_cam.fov = 45
+
+func _traffic(world: Node3D) -> void:
+	# The roads, kerbs and car yards round the site (scripts/surrounds.gd +
+	# cars.gd)
+	var s := Node3D.new()
+	world.add_child(s)
+	preload("res://scripts/surrounds.gd").build(s)
+	var t = s.find_child("Traffic", true, false)
+	_shots = []
+	var e: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://data/hamilton_reach_2017.json"))
+	var yard := Vector3.ZERO
+	var n := 0
+	for p in e.get("parked", []):
+		if Vector2(p[0], p[1]).length() < 400.0:
+			yard += Vector3(p[0], 0, p[1])
+			n += 1
+	if n > 0:
+		yard /= n
+		_shots.append(["traffic_yard", yard + Vector3(40, 45.0, -60), yard])
+		_shots.append(["traffic_yard_close", yard + Vector3(12, 6.0, -14), yard + Vector3(0, 0.5, 0)])
+	if t != null:
+		for i in [0, 3, 8, 14]:
+			if i < t._drivers.size():
+				var c: Node3D = t._drivers[i]["node"]
+				_shots.append(["traffic_%d" % i, c.position + Vector3(9, 5.0, 9).rotated(Vector3.UP, c.rotation.y), c.position + Vector3(0, 0.8, 0)])
+	_shots.append(["traffic_over", Vector3(60, 120.0, -160), Vector3(0, 0, 60)])
 	_cam.fov = 45
 	_cam.far = 4000

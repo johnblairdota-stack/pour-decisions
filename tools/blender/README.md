@@ -46,6 +46,11 @@ Or open Blender 5.2, Scripting tab, open the script and Run.
   extras for hair, hats, sunnies, backpacks, a coffee, a phone, a dog lead;
   a dog, a bicycle, a pram) -> `assets/people/people.glb`, walked along the
   map's paths by `scripts/people.gd`.
+- `cars.py`: the traffic (sedan, hatch, SUV, dual-cab ute with a rack, van,
+  a city bus, and 24-triangle far boxes) -> `assets/cars/cars.glb`. The
+  body is white so `scripts/cars.gd` gives each car its own colour; it
+  drives them along the real roads and parks the 2017 car yards traced in
+  `tools/estate_to_game.py`.
 
 Materials are named by what they are (`skin`, `vest`, `hat`, `tape` ...). The
 game replaces each with its own toon material and outline by that name
@@ -53,4 +58,4 @@ game replaces each with its own toon material and outline by that name
 
 To check a batch in the game's own look:
 
-    godot --path . --script res://tools/asset_gallery.gd -- --out=/tmp/gallery --set=crew   # or props, plant, towers, site, trees, street, water, river, buildings, estate, people, crowd
+    godot --path . --script res://tools/asset_gallery.gd -- --out=/tmp/gallery --set=crew   # or props, plant, towers, site, trees, street, water, river, buildings, estate, people, crowd, cars, traffic
