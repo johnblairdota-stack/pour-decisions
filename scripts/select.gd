@@ -155,7 +155,7 @@ func _build_crew_page(root: Control) -> void:
 	rt.add_theme_constant_override("separation", 14)
 	rv.add_child(rt)
 	rt.add_child(UI.head("Grab a hat", 34, Color("1b1308")))
-	var rs := UI.label("Pick your job on your phone or with the stick (up / down), then lock in", 16, Color("3d2c18"), 0)
+	var rs := UI.label("Pick your job on your phone, or left / right (up / down changes who you are), then lock in", 16, Color("3d2c18"), 0)
 	rs.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	rt.add_child(rs)
 	var rail := ColorRect.new()
@@ -359,12 +359,14 @@ func _process_crew(delta: float) -> void:
 			continue
 		var locked: bool = _ready_p.get(i, false)
 		if not locked and _pcool[i] <= 0.0:
-			if absf(v.y) > 0.5:
-				crew.cycle(i, int(signf(v.y)))
+			# Left / right along the rack: the next hat a bot's wearing.
+			# Up / down: who's wearing it.
+			if absf(v.x) > 0.5:
+				crew.cycle(i, int(signf(v.x)))
 				_pcool[i] = 0.22
 				game.sfx.hit("tink")
-			elif absf(v.x) > 0.5:
-				crew.cycle_char(i, int(signf(v.x)))
+			elif absf(v.y) > 0.5:
+				crew.cycle_char(i, int(signf(v.y)))
 				_pcool[i] = 0.22
 				game.sfx.hit("tink")
 		me = crew.human(i)
