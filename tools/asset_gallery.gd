@@ -64,6 +64,10 @@ func _initialize() -> void:
 			_buildings(world)
 		"estate":
 			_estate(world)
+		"people":
+			_people(world)
+		"crowd":
+			_crowd(world)
 
 func _crew(world: Node3D) -> void:
 	# Every named crew member, each in a job's kit, with the job's hat
@@ -388,3 +392,62 @@ func _estate(world: Node3D) -> void:
 	]
 	_cam.fov = 50
 	_cam.far = 8000
+
+func _people(world: Node3D) -> void:
+	# A line-up of the public, a dog, a bike and a pram (scripts/people.gd)
+	world.add_child(F.box(Vector3(40, 0.1, 20), F.color_mat(Color("78a457")), Vector3(0, -0.06, 0)))
+	var P := preload("res://scripts/people.gd")
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 5
+	var kinds := ["walk", "jog", "coffee", "dog", "walk", "jog", "walk", "coffee"]
+	for i in kinds.size():
+		var n: Node3D = P.person(rng, kinds[i])
+		n.position = Vector3((i - 3.5) * 1.3, 0, 0)
+		world.add_child(n)
+	var dog: Node3D = P._model("Dog", {})
+	dog.position = Vector3(-3, 0, 2.5)
+	dog.rotation.y = 1.2
+	world.add_child(dog)
+	var bike: Node3D = P._model("Bicycle", {"frame": Color("1f6f8f")})
+	bike.position = Vector3(0.5, 0, 2.8)
+	bike.rotation.y = 1.4
+	world.add_child(bike)
+	var rider: Node3D = P.person(rng, "bike")
+	rider.position = bike.position + Vector3(-0.2, 0.55, 0).rotated(Vector3.UP, 1.4)
+	rider.rotation = Vector3(0.22, 1.4, 0)
+	for side in ["L", "R"]:
+		(rider.get_node("Arm" + side) as Node3D).rotation.x = -1.15
+		(rider.get_node("Leg" + side) as Node3D).rotation.x = -1.0
+	world.add_child(rider)
+	var pram: Node3D = P._model("Pram", {"pram": Color("34495e")})
+	pram.position = Vector3(3.5, 0, 2.6)
+	pram.rotation.y = 1.3
+	world.add_child(pram)
+	_shots = [
+		["people_lineup", Vector3(0, 2.2, 9.0), Vector3(0, 0.9, 0)],
+		["people_extras", Vector3(0, 3.0, 9.5), Vector3(0, 0.6, 2.6)],
+		["people_close", Vector3(-2.6, 1.6, 3.2), Vector3(-2.6, 1.0, 0)],
+	]
+	_cam.fov = 40
+
+func _crowd(world: Node3D) -> void:
+	# The public out on the paths round the site (scripts/surrounds.gd +
+	# people.gd), after they've had a few seconds to walk
+	var s := Node3D.new()
+	world.add_child(s)
+	preload("res://scripts/surrounds.gd").build(s)
+	var ppl = s.find_child("People", true, false)
+	_shots = []
+	if ppl != null and not ppl._idlers.is_empty():
+		var sup: Node3D = ppl._idlers[0][0]
+		_shots.append(["crowd_supers", sup.position + Vector3(-6, 3.0, -6).rotated(Vector3.UP, sup.rotation.y), sup.position + Vector3(0, 1.0, 0)])
+		var com: Node3D = ppl._idlers[ppl._idlers.size() - 1][0]
+		_shots.append(["crowd_pontoon", com.position + Vector3(-14, 7.0, -14), com.position])
+	if ppl != null:
+		for w in ppl._walkers:
+			if w["kind"] in ["dog", "bike", "jog"]:
+				var n: Node3D = w["node"]
+				_shots.append(["crowd_" + String(w["kind"]), n.position + Vector3(6, 3.5, 6), n.position + Vector3(0, 0.8, 0)])
+	_shots = _shots.slice(0, 6)
+	_cam.fov = 45
+	_cam.far = 4000
