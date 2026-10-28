@@ -80,6 +80,10 @@ func _initialize() -> void:
 			_fences(world)
 		"fencing":
 			_fencing(world)
+		"wildlife":
+			_wildlife(world)
+		"critters":
+			_critters(world)
 
 func _crew(world: Node3D) -> void:
 	# Every named crew member, each in a job's kit, with the job's hat
@@ -615,5 +619,62 @@ func _fencing(world: Node3D) -> void:
 			_shots.append(["fencing_block_" + String(b["name"]), c + out * 34.0 + Vector3(0, 9.0, 0), c + Vector3(0, 1.0, 0)])
 	_shots.append(["fencing_sheds", Vector3(140, 22.0, 380.0), Vector3(90, 1.0, 450.0)])
 	_shots.append(["fencing_over", Vector3(120, 140.0, -120), Vector3(60, 0, 120)])
+	_cam.fov = 45
+	_cam.far = 4000
+
+func _wildlife(world: Node3D) -> void:
+	# Every animal in a row (scripts/wildlife.gd)
+	world.add_child(F.box(Vector3(40, 0.1, 20), F.color_mat(Color("78a457")), Vector3(0, -0.06, 0)))
+	var W := preload("res://scripts/wildlife.gd")
+	var names := ["BushTurkey", "Ibis", "Lapwing", "Curlew", "Magpie", "Kookaburra", "Possum", "WaterDragon", "Koala"]
+	for i in names.size():
+		var n: Node3D = W.model(names[i])
+		n.position = Vector3((i - 4) * 1.0, 0, 0)
+		n.rotation.y = 0.6
+		world.add_child(n)
+	var lori: Node3D = W.model("Lorikeet")
+	lori.position = Vector3(-1.5, 1.6, 0.5)
+	lori.rotation.y = 0.9
+	(lori.get_node("WingL") as Node3D).rotation.z = 0.5
+	(lori.get_node("WingR") as Node3D).rotation.z = -0.5
+	world.add_child(lori)
+	var pel: Node3D = W.model("Pelican")
+	pel.position = Vector3(0, 0, -3.0)
+	pel.rotation.y = 0.9
+	world.add_child(pel)
+	_shots = [
+		["wildlife_birds", Vector3(-1.5, 1.4, 5.0), Vector3(-1.5, 0.35, 0)],
+		["wildlife_more", Vector3(2.5, 1.2, 4.0), Vector3(2.5, 0.3, 0)],
+		["wildlife_turkey", Vector3(-3.2, 0.7, 1.5), Vector3(-4, 0.4, 0)],
+		["wildlife_pelican", Vector3(1.5, 1.5, 0.5), Vector3(0, 0.4, -3)],
+	]
+	_cam.fov = 40
+
+func _critters(world: Node3D) -> void:
+	# The animals in place round the park and the river (scripts/surrounds.gd
+	# + wildlife.gd)
+	var s := Node3D.new()
+	world.add_child(s)
+	preload("res://scripts/surrounds.gd").build(s)
+	var w = s.find_child("Wildlife", true, false)
+	_shots = []
+	if w != null:
+		var seen := {}
+		for it in w._walkers:
+			if seen.has(it["kind"]):
+				continue
+			seen[it["kind"]] = true
+			var n: Node3D = it["node"]
+			_shots.append(["critters_" + String(it["kind"]).to_lower(), n.position + Vector3(2.5, 1.4, 2.5), n.position + Vector3(0, 0.3, 0)])
+		for it in w._sitters:
+			var n: Node3D = it[0]
+			var back := 8.0 if it[2] == "koala" else 2.0
+			_shots.append(["critters_" + String(it[2]), n.position + Vector3(back, back * 0.4, back), n.position + Vector3(0, 0.2, 0)])
+		if not w._floaters.is_empty():
+			var n: Node3D = w._floaters[0]["node"]
+			_shots.append(["critters_pelican", n.position + Vector3(5, 3.0, 5), n.position])
+		if not w._flocks.is_empty():
+			var b: Node3D = w._flocks[0]["birds"][0][0]
+			_shots.append(["critters_lorikeets", b.position + Vector3(-12, -4.0, -12), b.position])
 	_cam.fov = 45
 	_cam.far = 4000

@@ -19,6 +19,7 @@ const People := preload("res://scripts/people.gd")
 const Cars := preload("res://scripts/cars.gd")
 const CityCat := preload("res://scripts/citycat.gd")
 const Fences := preload("res://scripts/fences.gd")
+const Wildlife := preload("res://scripts/wildlife.gd")
 
 const DATA := "res://data/riverlight_osm.json"
 const SKYLINE := "res://data/riverlight_skyline.json"   # tools/skyline_to_game.py
@@ -90,6 +91,8 @@ static func build(root: Node3D) -> void:
 		Cars.build(root, d, func(p: Vector2) -> bool: return _clear(p) and not TRUCK_ROAD.grow(2.0).has_point(p),
 			func(p: Vector2) -> bool: return _is_taken(p, taken, 2.5), func(p: Vector2, pad: float) -> bool: return _on_road(p, roads, pad),
 			rng)
+		var grass := func(p: Vector2) -> bool: return _street_ok(p) and not _on_road(p, roads, 1.0) and not _is_taken(p, taken, 1.5)
+		Wildlife.build(root, d, grass, _seeded(12))
 		_lamps(root, d)
 		_haze_ring(root, d, rng)
 		_gateway(root, d)
