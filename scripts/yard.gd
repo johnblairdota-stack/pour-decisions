@@ -104,3 +104,53 @@ static func build(parent: Node3D) -> void:
 	_put(parent, "BarrierMesh", Vector3(-12.0, 0, -23.8))
 	_put(parent, "BarrierMesh", Vector3(-4.0, 0, -23.8))
 	_put(parent, "BarrierMesh", Vector3(4.0, 0, -23.8))
+
+## Perimeter edge screens along a slab edge from `a` to `b` (deck level, y 0),
+## facing away from `inward`: runs of five bays, single bays, and one bay
+## narrowed to fill what's left.
+static func screen_line(parent: Node3D, a: Vector3, b: Vector3, inward: Vector3) -> void:
+	var d := b - a
+	var ln := d.length()
+	if ln < 0.3:
+		return
+	var dir := d / ln
+	var yaw := atan2(-dir.z, dir.x)
+	# (the sheet faces the bay's +z: turn it round if that's inwards)
+	if Vector3(sin(yaw), 0, cos(yaw)).dot(inward) > 0.0:
+		yaw += PI
+	var s := 0.0
+	while ln - s >= RUN:
+		_put(parent, "EdgeScreenRun", a + dir * (s + RUN * 0.5), yaw)
+		s += RUN
+	while ln - s >= PANEL:
+		_put(parent, "EdgeScreen", a + dir * (s + PANEL * 0.5), yaw)
+		s += PANEL
+	var left := ln - s
+	if left > 0.2:
+		var n := _put(parent, "EdgeScreen", a + dir * (s + left * 0.5), yaw)
+		n.scale.x = left / PANEL
+
+## Edge screens round a slab outline (a closed polygon on the ground plane,
+## game x/z), set `out` metres outside it; edges listed in `skip` (by index,
+## edge i runs from point i to i+1) get none (where the slab joins another).
+static func screen_ring(parent: Node3D, plan: PackedVector2Array, out: float, skip := []) -> void:
+	var grown: Array = Geometry2D.offset_polygon(plan, out, Geometry2D.JOIN_MITER)
+	if grown.is_empty():
+		return
+	var ring: PackedVector2Array = grown[0]
+	for i in ring.size():
+		var p := ring[i]
+		var q := ring[(i + 1) % ring.size()]
+		# (skip the edges that lie along a skipped edge of the plan)
+		var mid := (p + q) * 0.5
+		var skipped := false
+		for k in skip:
+			var e0: Vector2 = plan[k]
+			var e1: Vector2 = plan[(k + 1) % plan.size()]
+			if Geometry2D.get_closest_point_to_segment(mid, e0, e1).distance_to(mid) < out + 0.3:
+				skipped = true
+		if skipped:
+			continue
+		var n := Vector2(q.y - p.y, p.x - q.x).normalized()
+		var inward := n if Geometry2D.is_point_in_polygon(mid + n * (out + 0.2), plan) else -n
+		screen_line(parent, Vector3(p.x, 0, p.y), Vector3(q.x, 0, q.y), Vector3(inward.x, 0, inward.y))

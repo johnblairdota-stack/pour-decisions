@@ -1277,6 +1277,24 @@ func _build_walkway() -> void:
 		part.position += Vector3(SC.x, 0, SC.z)
 		rig.add_child(part)
 		_rect_rails.append(part)
+	# Blue edge screens hung outside the walkway, from rail height down past
+	# the two floors under the deck, as on the real job (open at the hoist
+	# landing, the walkway out to the boom, and where the link joins the
+	# other wing)
+	_screens = Node3D.new()
+	_screens.name = "EdgeScreens"
+	rig.add_child(_screens)
+	_rect_rails.append(_screens)
+	var ex := SC.x + ox + 0.25
+	var wx := SC.x - ox - 0.25
+	var nz := SC.z + oz + 0.25
+	var sz := SC.z - oz - 0.25
+	Yard.screen_line(_screens, Vector3(wx, 0, sz), Vector3(ex, 0, sz), Vector3(0, 0, 1))
+	Yard.screen_line(_screens, Vector3(wx, 0, sz), Vector3(wx, 0, nz), Vector3(1, 0, 0))
+	Yard.screen_line(_screens, Vector3(wx, 0, nz), Vector3(HOIST_X - 1.9, 0, nz), Vector3(0, 0, -1))
+	Yard.screen_line(_screens, Vector3(HOIST_X + 1.2, 0, nz), Vector3(ex, 0, nz), Vector3(0, 0, -1))
+	Yard.screen_line(_screens, Vector3(ex, 0, sz), Vector3(ex, 0, OTHER_WING[0].y), Vector3(-1, 0, 0))
+	Yard.screen_line(_screens, Vector3(ex, 0, 1.5), Vector3(ex, 0, nz), Vector3(-1, 0, 0))
 
 ## The walkway's centreline as a loop: a point `s` metres round it.
 func walkway_point(s: float) -> Vector2:
@@ -2440,6 +2458,7 @@ func _lock_slab(level: int, instant := false) -> void:
 ## alongside ours.
 const FACADE_LAG := 3   # storeys of open frame under the deck before the skin
 var _other_stacks: Node3D
+var _screens: Node3D        # our deck's edge screens (on the rig)
 const OTHER_WING := [Vector2(8.3, -12.1), Vector2(10.7, -12.1), Vector2(10.6, -19.7), Vector2(59.0, -20.0),
 	Vector2(55.0, -10.1), Vector2(49.6, -10.2), Vector2(47.1, -3.5), Vector2(47.7, 1.6), Vector2(14.3, 1.8),
 	Vector2(14.3, -1.15), Vector2(8.3, -1.15)]
@@ -2461,16 +2480,18 @@ func _other_crew_floor(level: int, instant: bool) -> void:
 		building.add_child(_other_stacks)
 		var rng := RandomNumberGenerator.new()
 		rng.seed = 7
-		var kinds := [[Vector3(2.4, 0.5, 1.2), "c48d55"], [Vector3(6.0, 0.3, 0.8), "6b4a32"], [Vector3(1.2, 1.1, 1.2), "8a929c"], [Vector3(3.0, 0.8, 1.4), "d9b03a"]]
+		var kinds := ["PlyStack", "BarBundle", "Pallet", "MeshStack", "GasCage"]
 		for i in 9:
 			var at := Vector2(rng.randf_range(16.0, 52.0), rng.randf_range(-17.5, -1.0))
 			if not Geometry2D.is_point_in_polygon(at, plan):
 				continue
-			var kd: Array = kinds[i % kinds.size()]
-			var sz: Vector3 = kd[0]
-			var st := F.box(sz, F.color_mat(Color(kd[1])), Vector3(at.x, sz.y * 0.5, at.y))
+			var st := F.prop(kinds[i % kinds.size()], {}, F.SITE)
+			st.position = Vector3(at.x, 0, at.y)
 			st.rotation.y = rng.randf_range(-0.3, 0.3)
 			_other_stacks.add_child(st)
+		# Their edge screens, all round except along the link and the
+		# boom tower's notch
+		Yard.screen_ring(_other_stacks, plan, 0.5, [0, 1, 8, 9, 10])
 	_other_stacks.position.y = (level + 1) * FH
 	_other_stacks.visible = phase != "topout"
 
@@ -2510,6 +2531,8 @@ func _top_out() -> void:
 			_glaze(i, true)
 		if _other_stacks != null:
 			_other_stacks.visible = false
+		if _screens != null:
+			_screens.visible = false
 		_build_roof()
 	var tally := [0, 0, 0]
 	for m in score.medals:
