@@ -42,6 +42,10 @@ Or open Blender 5.2, Scripting tab, open the script and Run.
   estate next door (`data/hamilton_reach_2017.json`, traced off the 2017
   aerial by `tools/estate_to_game.py`) and the corrugated sheds
   (`shaders/cladding.gdshader`).
+- `people.py`: the public (a chibi in civvies with the crew's joints, and
+  extras for hair, hats, sunnies, backpacks, a coffee, a phone, a dog lead;
+  a dog, a bicycle, a pram) -> `assets/people/people.glb`, walked along the
+  map's paths by `scripts/people.gd`.
 
 Materials are named by what they are (`skin`, `vest`, `hat`, `tape` ...). The
 game replaces each with its own toon material and outline by that name
@@ -49,4 +53,4 @@ game replaces each with its own toon material and outline by that name
 
 To check a batch in the game's own look:
 
-    godot --path . --script res://tools/asset_gallery.gd -- --out=/tmp/gallery --set=crew   # or props, plant, towers, site, trees, street, water, river, buildings, estate
+    godot --path . --script res://tools/asset_gallery.gd -- --out=/tmp/gallery --set=crew   # or props, plant, towers, site, trees, street, water, river, buildings, estate, people, crowd
