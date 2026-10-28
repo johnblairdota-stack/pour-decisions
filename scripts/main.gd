@@ -39,6 +39,7 @@ const Surrounds := preload("res://scripts/surrounds.gd")
 const Street := preload("res://scripts/street.gd")
 const Wildlife := preload("res://scripts/wildlife.gd")
 const Yard := preload("res://scripts/yard.gd")
+const WestWing := preload("res://scripts/west_wing.gd")
 
 # Riverlight: 11 levels; 10 lattice sections reached a 41.4 m free-stand.
 const FLOORS := 11
@@ -2198,6 +2199,12 @@ func _start_floor() -> void:
 	pour.visible = false
 	work_target = k * FH
 	cfg = _level_cfg(k)
+	if not tutorial:
+		if west == null:
+			west = WestWing.new()
+			add_child(west)
+			west.build(self, PackedVector2Array(OTHER_WING))
+		west.start_level(k)
 	_set_phase("columns")
 
 func _start_inspect() -> void:
@@ -2454,6 +2461,7 @@ func _lock_slab(level: int, instant := false) -> void:
 ## alongside ours.
 const FACADE_LAG := 3   # storeys of open frame under the deck before the skin
 var _other_stacks: Node3D
+var west: WestWing          # the other crew building their next deck as we pour ours
 var _screens: Node3D        # our deck's edge screens (on the rig)
 const OTHER_WING := [Vector2(8.3, -12.1), Vector2(10.7, -12.1), Vector2(10.6, -19.7), Vector2(59.0, -20.0),
 	Vector2(55.0, -10.1), Vector2(49.6, -10.2), Vector2(47.1, -3.5), Vector2(47.7, 1.6), Vector2(14.3, 1.8),
@@ -2469,22 +2477,13 @@ func _other_crew_floor(level: int, instant: bool) -> void:
 	var core: Array = Geometry2D.offset_polygon(plan, -1.5)
 	if not core.is_empty():
 		floor_nodes[level].add_child(F.prism(core[0], 0.0, FH - 0.3, F.color_mat(Color("3a3f45")), false))
-	# Their deck's always mid-job: ply and bar bundles, props and a couple of
-	# formwork crates, up on whichever level they're on
+	# Their concrete's in as ours is: the deck they built during our pour
+	# (west_wing.gd) goes under it
+	if west != null and level == k:
+		west.pour_done()
 	if _other_stacks == null:
 		_other_stacks = Node3D.new()
 		building.add_child(_other_stacks)
-		var rng := RandomNumberGenerator.new()
-		rng.seed = 7
-		var kinds := ["PlyStack", "BarBundle", "Pallet", "MeshStack", "GasCage"]
-		for i in 9:
-			var at := Vector2(rng.randf_range(16.0, 52.0), rng.randf_range(-17.5, -1.0))
-			if not Geometry2D.is_point_in_polygon(at, plan):
-				continue
-			var st := F.prop(kinds[i % kinds.size()], {}, F.SITE)
-			st.position = Vector3(at.x, 0, at.y)
-			st.rotation.y = rng.randf_range(-0.3, 0.3)
-			_other_stacks.add_child(st)
 		# Their edge screens, all round except along the link and the
 		# boom tower's notch
 		Yard.screen_ring(_other_stacks, plan, 0.5, [0, 1, 8, 9, 10])
@@ -2695,6 +2694,9 @@ func _process(delta: float) -> void:
 	if climb.active:
 		climb.bot(delta)
 	climb.update(delta)
+	if west != null:
+		west.visible = phase != "topout"
+		west.update(delta, _filled_ratio() if phase == "pour" else 0.0)
 	line.update(delta, phase == "pour")
 	poker.update(delta)
 	screed.update(delta)
@@ -4638,6 +4640,16 @@ func _update_see_through(delta: float) -> void:
 		(m as ShaderMaterial).set_shader_parameter("cut_n", n)
 		(m as ShaderMaterial).set_shader_parameter("cut_p", ps)
 
+## Dev: which west wing screenshot this moment of the pour makes, if any.
+const WEST_SHOTS := {"west1": 0.08, "west2": 0.3, "west3": 0.55, "west4": 0.7, "west5": 0.95}
+func _west_shot() -> String:
+	for key in WEST_SHOTS:
+		if key in _shot_only and not _shots_taken.has(key) and west.progress >= WEST_SHOTS[key]:
+			return key
+	if "westlift" in _shot_only and not _shots_taken.has("westlift") and west.lifting():
+		return "westlift"
+	return ""
+
 ## Dev: whether the work's showing through `at` (on the hoist or tower) on screen.
 func _cut_showing(at: Vector3) -> bool:
 	var d := discharge()
@@ -5064,6 +5076,8 @@ func _maybe_shot() -> void:
 		key = "cut"
 	elif "cuthoist" in _shot_only and phase == "pour" and _cut_showing(Vector3(hoist_mast.position.x, work_y, hoist_mast.position.z)) and not _shots_taken.has("cuthoist"):
 		key = "cuthoist"
+	elif west != null and phase == "pour" and _west_shot() != "":
+		key = _west_shot()
 	elif phase == "select":
 		key = "select"
 	elif phase == "roles":
@@ -5175,6 +5189,15 @@ func _maybe_shot() -> void:
 		_shot_cam = [crew.crew["poker"].global_position + Vector3(0, 1.0, 0), 6.0]
 	if key in ["pin", "strike", "align"] and climb._rigger != null and OS.get_cmdline_user_args().has("--closeshots"):
 		_shot_cam = [climb._rigger.global_position + Vector3(0, 0.9, 0), 5.0]
+	if key.begins_with("west"):
+		# (the other wing from above its north side, or close on the crane's load)
+		cam_yaw = 0.35 if key != "westlift" else 0.9
+		cam_pitch = 0.62 if key != "westlift" else 0.3
+		var wf := Vector3(31.0, west.position.y + 2.0, -9.0)
+		if key == "westlift":
+			wf = west.lift_focus()
+		_shot_cam = [wf, 40.0 if key != "westlift" else 22.0]
+		hud.visible = false
 	if key in ["vista", "vista2"]:
 		# Out over the river from the top: downstream to the Gateway Bridge,
 		# then upstream to the city

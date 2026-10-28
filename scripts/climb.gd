@@ -78,6 +78,9 @@ var cable: MeshInstance3D
 var hook: Node3D
 var slings: Array[MeshInstance3D] = []
 var tag_rope: MeshInstance3D
+## Whoever else is using the crane while the climb isn't (the west wing's
+## bar lifts): called each frame it's free, true while it has the hook
+var borrow: Callable
 var load: Node3D
 var pin_meshes: Array[MeshInstance3D] = []
 
@@ -778,7 +781,7 @@ func update(delta: float) -> void:
 		_hold_at_laydown(delta)
 	elif crane_on:
 		_update_load(delta, trolley_acc)
-	else:
+	elif not (borrow.is_valid() and borrow.call(delta)):
 		_park_crane(delta)
 	_update_bundle(delta)
 	_draw_crane()
