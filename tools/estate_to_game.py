@@ -12,6 +12,9 @@ for scripts/neighbours.gd:
   blocks  [{name, kind, storeys, pts}]  apartment blocks and terrace rows
   houses  [{at, face}]                  the two-storey houses along the golf
                                         course, `face` the way the front looks
+  parked  [[x, z, yaw]]                 the car yard over MacArthur Avenue
+                                        (packed solid in 2017) and the cars in
+                                        the riverside car park by the CityCat
 
     python3 tools/estate_to_game.py
 
@@ -21,6 +24,7 @@ Storeys are a judgement off the aerial (roof plant, shadows) and the estate's
 import json
 import math
 import os
+import random
 
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -86,6 +90,26 @@ HOUSE_CROP = [(150, 125), (100, 185), (215, 180), (155, 240), (275, 245), (215, 
 	(505, 610), (610, 610), (560, 660), (645, 680)]
 HOUSE_FACE = (-0.72, 0.70)
 
+# Car parks: (outline, holes, how full); cars nose up/down the image in
+# double rows with an aisle between
+CARPARKS = [
+	([(700, 880), (1010, 880), (1180, 1060), (1350, 1220), (1490, 1400), (1520, 1520), (1520, 2000),
+		(1100, 2000), (1100, 1850), (700, 1850)], [(830, 1530, 1000, 1810), (700, 1400, 1520, 1440)], 0.86),
+	([(790, 2090), (1090, 2100), (1180, 2350), (1100, 2520), (780, 2520)], [], 0.5),
+]
+
+
+def inside(p, poly):
+	"""Point in polygon (even-odd)."""
+	x, y = p
+	c = False
+	for i in range(len(poly)):
+		x1, y1 = poly[i]
+		x2, y2 = poly[(i + 1) % len(poly)]
+		if (y1 > y) != (y2 > y) and x < (x2 - x1) * (y - y1) / (y2 - y1) + x1:
+			c = not c
+	return c
+
 
 def main():
 	blocks = []
@@ -98,12 +122,31 @@ def main():
 	for cx, cy in HOUSE_CROP:
 		x, z = game(1400 + cx / 0.8, 600 + cy / 0.8)
 		houses.append({"at": [round(x, 1), round(z, 1)], "face": [round(face[0], 3), round(face[1], 3)]})
+	parked = []
+	rnd = random.Random(2017)
+	for outline, holes, full in CARPARKS:
+		xs = [p[0] for p in outline]
+		ys = [p[1] for p in outline]
+		x = min(xs) + 8
+		while x < max(xs) - 8:
+			y = min(ys) + 14
+			k = 0
+			while y < max(ys) - 14:
+				if inside((x, y), outline) and not any(h[0] <= x <= h[2] and h[1] <= y <= h[3] for h in holes) \
+						and rnd.random() < full:
+					gx, gz = game(x, y)
+					yaw = math.degrees(math.atan2(*gdir(0, -1 if k % 2 else 1)))
+					parked.append([round(gx, 1), round(gz, 1), round(yaw + rnd.uniform(-4, 4))])
+				# back to back pairs (5 m each), then a 6.5 m aisle
+				y += 25 if k % 2 == 0 else 57.5
+				k += 1
+			x += 13
 	out = {"source": "Traced from the Brisbane 2017 10 cm SISP aerial. Includes material (c) State of "
 		"Queensland (Department of Natural Resources and Mines, Manufacturing and Regional and Rural "
-		"Development), 2026, CC BY 4.0", "blocks": blocks, "houses": houses}
+		"Development), 2026, CC BY 4.0", "blocks": blocks, "houses": houses, "parked": parked}
 	with open(OUT, "w") as f:
 		json.dump(out, f, indent=1)
-	print("wrote", OUT, len(blocks), "blocks", len(houses), "houses")
+	print("wrote", OUT, len(blocks), "blocks", len(houses), "houses", len(parked), "parked cars")
 
 
 if __name__ == "__main__":
