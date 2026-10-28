@@ -26,6 +26,10 @@ Or open Blender 5.2, Scripting tab, open the script and Run.
   stand-in -> `assets/nature/trees.glb`, drawn as multimeshes by
   `scripts/flora.gd` (materials there, not in `factory.gd`) where
   `scripts/surrounds.gd` plants them.
+- `street.py`: street and park furniture (street and park lights, bus shelter,
+  benches, bins, bubbler, BBQ shelter, picnic tables, signs, bike hoops, the
+  riverwalk railing) -> `assets/street/street.glb`, drawn by `scripts/street.gd`
+  where `scripts/surrounds.gd` places them, with the kerbs and centre lines.
 
 Materials are named by what they are (`skin`, `vest`, `hat`, `tape` ...). The
 game replaces each with its own toon material and outline by that name
@@ -33,4 +37,4 @@ game replaces each with its own toon material and outline by that name
 
 To check a batch in the game's own look:
 
-    godot --path . --script res://tools/asset_gallery.gd -- --out=/tmp/gallery --set=crew   # or props, plant, towers, site, trees
+    godot --path . --script res://tools/asset_gallery.gd -- --out=/tmp/gallery --set=crew   # or props, plant, towers, site, trees, street

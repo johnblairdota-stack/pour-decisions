@@ -12,6 +12,7 @@ extends RefCounted
 
 const F := preload("res://scripts/factory.gd")
 const Flora := preload("res://scripts/flora.gd")
+const Street := preload("res://scripts/street.gd")
 
 const DATA := "res://data/riverlight_osm.json"
 const SKYLINE := "res://data/riverlight_skyline.json"   # tools/skyline_to_game.py
@@ -69,7 +70,11 @@ static func build(root: Node3D) -> void:
 	else:
 		_ground(root, d)
 		_buildings(root, d, rng)
-		_trees(root, d, rng)
+		var roads := _road_grid(d)
+		var bank := _bank_grid(d)
+		var taken := {}
+		_street(root, d, roads, bank, taken, rng)
+		_trees(root, d, roads, bank, taken, rng)
 		_lamps(root, d)
 		_haze_ring(root, d, rng)
 		_gateway(root, d)
@@ -218,16 +223,299 @@ static func _extrude(st: SurfaceTool, poly: PackedVector2Array, h: float, wall: 
 
 # ------------------------------------------------------------------ trees and lamps
 
+# ------------------------------------------------------------------ the street
+
+const STREET_R := 450.0     # kerbs, lines, lights and signs this far from the site
+const PARK_R := 380.0       # park furniture this far
+const LOCAL := ["residential", "unclassified", "tertiary", "secondary", "living_street"]
+const SHORT := {" Avenue": " Av", " Road": " Rd", " Street": " St", " Circuit": " Cct", " Drive": " Dr",
+	" Parade": " Pde", " Place": " Pl", " Lane": " La", " Crescent": " Cr", " Court": " Ct"}
+
+## The streets near the site the way the council finished them: kerbs, centre
+## lines, street lights on outreach arms, name blades and give way signs at
+## the corners, a bus stop on MacArthur Avenue; along the park paths post-top
+## lights, benches and bins; BBQ shelters in the park, and the riverwalk's
+## railing along the bank (scripts/street.gd, tools/blender/street.py).
+static func _street(root: Node3D, d: Dictionary, roads: Dictionary, bank: Dictionary, taken: Dictionary,
+		rng: RandomNumberGenerator) -> void:
+	var items: Array = []
+	var kerbs: Array = []
+	var dashes: Array = []
+	var corners := {}
+	var id := 0
+	for r in d["roads"]:
+		id += 1
+		var local: bool = r["kind"] in LOCAL
+		var pts := _v2(r["pts"])
+		var w := float(r["w"])
+		var hw := w * 0.5
+		var carry := rng.randf_range(4.0, 24.0)
+		var side := 1.0
+		for i in pts.size() - 1:
+			var a := pts[i]
+			var b := pts[i + 1]
+			if a.length() > STREET_R and b.length() > STREET_R:
+				continue
+			var e := b - a
+			var ln := e.length()
+			if ln < 0.5:
+				continue
+			var dir := e / ln
+			var nrm := Vector2(-dir.y, dir.x)
+			# Kerbs, 2 m at a time, wherever they don't cross another road
+			var n := ceili(ln / 2.0)
+			for k in n:
+				var p0 := a + dir * (ln * k / n)
+				var p1 := a + dir * (ln * (k + 1) / n)
+				for sd in [-1.0, 1.0]:
+					var o: Vector2 = nrm * (hw + 0.15) * sd
+					var m: Vector2 = (p0 + p1) * 0.5 + o
+					if m.length() < STREET_R and _street_ok(m) and not _on_road(m, roads, 0.1, id):
+						kerbs.append([p0 + o, p1 + o])
+			if not local:
+				continue
+			# Centre line: 3 m dashes, 6 m gaps, on the two-way streets
+			if w >= 6.5:
+				var t := 1.5
+				while t + 3.0 < ln:
+					var m := a + dir * (t + 1.5)
+					if m.length() < STREET_R and _street_ok(m) and not _on_road(m, roads, -0.5, id):
+						dashes.append([a + dir * t, a + dir * (t + 3.0)])
+					t += 9.0
+			# Street lights every 32 m or so, alternating sides
+			var s := carry
+			while s < ln:
+				var p := a + dir * s + nrm * (hw + 0.9) * side
+				if p.length() < STREET_R and _street_ok(p) and not _on_road(p, roads, 0.2) and not _is_taken(p, taken, 6.0):
+					items.append(["StreetLight", Street.at(p, -nrm * side)])
+					_take(p, taken)
+				side = -side
+				s += rng.randf_range(29.0, 35.0)
+			carry = s - ln
+		# Note the street's vertices for its corners
+		if r["name"] != "" and local:
+			for i in pts.size():
+				if pts[i].length() > STREET_R:
+					continue
+				var key := Vector2i(roundi(pts[i].x * 2.0), roundi(pts[i].y * 2.0))
+				var dv := (pts[mini(i + 1, pts.size() - 1)] - pts[maxi(i - 1, 0)]).normalized()
+				var end := 0 if i == 0 else (1 if i == pts.size() - 1 else -1)
+				if not corners.has(key):
+					corners[key] = []
+				corners[key].append([r["name"], dv, hw, id, end, pts[i]])
+	_corners(root, corners, roads, taken, items)
+	_bus_stop(d, roads, taken, items)
+	_park_paths(d, roads, taken, items, rng)
+	_bbq(d, roads, bank, taken, items, rng)
+	_riverwalk(d, items)
+	Street.place(root, items)
+	Street.kerbs(root, kerbs)
+	Street.lines(root, dashes)
+
+static func _street_ok(p: Vector2) -> bool:
+	return _clear(p) and not TRUCK_ROAD.has_point(p)
+
+## Where two named streets meet: the name blades on a post at the corner, and
+## a give way sign on the street that ends there.
+static func _corners(root: Node3D, corners: Dictionary, roads: Dictionary, taken: Dictionary, items: Array) -> void:
+	for key in corners:
+		var at: Array = corners[key]
+		var names := {}
+		for c in at:
+			names[c[0]] = c
+		if names.size() < 2:
+			continue
+		var r1: Array = names.values()[0]
+		var r2: Array = names.values()[1]
+		var v: Vector2 = r1[5]
+		var n1: Vector2 = Vector2(-r1[1].y, r1[1].x)
+		var n2: Vector2 = Vector2(-r2[1].y, r2[1].x)
+		for s1 in [1.0, -1.0]:
+			var placed := false
+			for s2 in [1.0, -1.0]:
+				var p: Vector2 = v + n1 * (r1[2] + 1.6) * s1 + n2 * (r2[2] + 1.6) * s2
+				if not _street_ok(p) or _on_road(p, roads, 0.3) or _is_taken(p, taken, 3.0):
+					continue
+				for k in 2:
+					var rr: Array = r1 if k == 0 else r2
+					var dv: Vector2 = rr[1]
+					var t := Transform3D(Basis(Vector3.UP, atan2(-dv.y, dv.x)), Vector3(p.x, 0.24 * k, p.y))
+					items.append(["StreetSign", t])
+					var name: String = rr[0]
+					for long in SHORT:
+						name = name.replace(long, SHORT[long])
+					Street.letter(root, t, name)
+				_take(p, taken)
+				placed = true
+				break
+			if placed:
+				break
+		# Give way on each street that ends at the corner, on its left
+		for c in at:
+			if c[4] == -1:
+				continue
+			var dv: Vector2 = c[1] * (1.0 if c[4] == 1 else -1.0)   # (towards the corner)
+			var left := Vector2(dv.y, -dv.x)
+			var p: Vector2 = v - dv * (c[2] + 4.0) + left * (c[2] + 0.8)
+			if _street_ok(p) and not _on_road(p, roads, 0.2) and not _is_taken(p, taken, 2.0):
+				items.append(["GiveWaySign", Street.at(p, -dv)])
+				_take(p, taken)
+
+## The bus stop on MacArthur Avenue across from the site.
+static func _bus_stop(d: Dictionary, roads: Dictionary, taken: Dictionary, items: Array) -> void:
+	var best := Vector2.ZERO
+	var best_d := INF
+	var bdir := Vector2.RIGHT
+	var bhw := 3.0
+	for r in d["roads"]:
+		if r["name"] != "MacArthur Avenue":
+			continue
+		var pts := _v2(r["pts"])
+		for i in pts.size() - 1:
+			var a := pts[i]
+			var b := pts[i + 1]
+			for k in 11:
+				var p := a.lerp(b, k / 10.0)
+				var dist := p.length()
+				if dist < best_d and dist > 70.0 and _street_ok(p):
+					best_d = dist
+					best = p
+					bdir = (b - a).normalized()
+					bhw = float(r["w"]) * 0.5
+	if best_d == INF:
+		return
+	var nrm := Vector2(-bdir.y, bdir.x)
+	if (best + nrm).length() < best.length():
+		nrm = -nrm    # (the side away from the site)
+	var p := best + nrm * (bhw + 2.2)
+	if _on_road(p, roads, 0.5):
+		return
+	items.append(["BusShelter", Street.at(p, -nrm)])
+	items.append(["BusStopSign", Street.at(best + nrm * (bhw + 0.6) + bdir * 3.0, -nrm)])
+	_take(p, taken)
+
+## Along the park paths: post-top lights one side, benches and bins the other.
+static func _park_paths(d: Dictionary, roads: Dictionary, taken: Dictionary, items: Array, rng: RandomNumberGenerator) -> void:
+	for r in d["paths"]:
+		var pts := _v2(r["pts"])
+		var hw := float(r["w"]) * 0.5
+		var light := rng.randf_range(3.0, 20.0)
+		var seat := rng.randf_range(10.0, 40.0)
+		for i in pts.size() - 1:
+			var a := pts[i]
+			var b := pts[i + 1]
+			if a.length() > PARK_R and b.length() > PARK_R:
+				continue
+			var e := b - a
+			var ln := e.length()
+			if ln < 0.5:
+				continue
+			var dir := e / ln
+			var nrm := Vector2(-dir.y, dir.x)
+			while light < ln:
+				var p := a + dir * light + nrm * (hw + 0.7)
+				if p.length() < PARK_R and _street_ok(p) and not _on_road(p, roads, 0.2) and not _is_taken(p, taken, 5.0):
+					items.append(["ParkLight", Street.at(p, -nrm)])
+					_take(p, taken)
+				light += rng.randf_range(34.0, 44.0)
+			light -= ln
+			while seat < ln:
+				var p := a + dir * seat - nrm * (hw + 0.9)
+				var q := p + dir * 1.6
+				if p.length() < PARK_R and _street_ok(p) and not _on_road(p, roads, 0.4) and not _is_taken(p, taken, 4.0):
+					items.append(["ParkBench", Street.at(p, nrm)])
+					if rng.randf() < 0.6:
+						items.append(["ParkBin", Street.at(q, nrm)])
+					_take(p, taken)
+				seat += rng.randf_range(60.0, 100.0)
+			seat -= ln
+
+## The park's electric BBQ shelters: two or three, each with a picnic table
+## either side, a bubbler and a bin, and bike hoops out the back.
+static func _bbq(d: Dictionary, roads: Dictionary, bank: Dictionary, taken: Dictionary, items: Array,
+		rng: RandomNumberGenerator) -> void:
+	var made := 0
+	for a in d["areas"]:
+		if a["kind"] != "park" or made >= 3:
+			continue
+		var poly := _v2(a["pts"])
+		var box := Rect2(poly[0], Vector2.ZERO)
+		for p in poly:
+			box = box.expand(p)
+		if box.get_center().length() > 400.0 or box.get_area() < 1500.0:
+			continue
+		for tries in 60:
+			var p := Vector2(rng.randf_range(box.position.x, box.end.x), rng.randf_range(box.position.y, box.end.y))
+			if not Geometry2D.is_point_in_polygon(p, poly) or not _street_ok(p) or _on_road(p, roads, 6.0) \
+					or _near_bank(p, bank, 12.0) or _is_taken(p, taken, 14.0):
+				continue
+			var face := Vector2.from_angle(rng.randi_range(0, 3) * PI * 0.5 + 0.3)
+			var t := Street.at(p, face)
+			items.append(["BBQShelter", t])
+			for lx in [-4.8, 4.8]:
+				items.append(["PicnicTable", t * Transform3D(Basis(Vector3.UP, PI * 0.5), Vector3(lx, 0, 0))])
+			items.append(["Bubbler", t * Transform3D(Basis(), Vector3(1.5, 0, 3.6))])
+			items.append(["ParkBin", t * Transform3D(Basis(), Vector3(-1.6, 0, 3.4))])
+			for k in 3:
+				items.append(["BikeHoop", t * Transform3D(Basis(), Vector3(-1.0 + k * 0.9, 0, -3.8))])
+			_take(p, taken)
+			made += 1
+			break
+
+## The riverwalk's balustrade along the bank in front of the park, a 3 m bay
+## at a time, a metre back from the edge; clear of the ferry terminal.
+static func _riverwalk(d: Dictionary, items: Array) -> void:
+	var ferry: Array = []
+	for fe in d.get("ferry", []):
+		ferry.append(Vector2(fe["at"][0], fe["at"][1]))
+	var beach: Array = []
+	for a in d["areas"]:
+		if a["kind"] == "beach":
+			beach.append(_v2(a["pts"]))
+	for a in d["areas"]:
+		if a["kind"] != "water":
+			continue
+		var poly := _v2(a["pts"])
+		for i in poly.size():
+			var p0 := poly[i]
+			var p1 := poly[(i + 1) % poly.size()]
+			if p0.length() > PARK_R and p1.length() > PARK_R:
+				continue
+			var e := p1 - p0
+			var ln := e.length()
+			if ln < 1.0:
+				continue
+			var dir := e / ln
+			var into := Vector2(-dir.y, dir.x)
+			if not Geometry2D.is_point_in_polygon((p0 + p1) * 0.5 + into * 2.0, poly):
+				into = -into
+			var n := maxi(1, roundi(ln / 3.0))
+			for k in n:
+				var p := p0.lerp(p1, (k + 0.5) / n) - into * 1.0
+				if p.length() > PARK_R or not _street_ok(p):
+					continue
+				var skip := false
+				for f in ferry:
+					if p.distance_to(f) < 45.0:
+						skip = true
+				for bp in beach:
+					if Geometry2D.is_point_in_polygon(p - into * 2.0, bp):
+						skip = true
+				if skip:
+					continue
+				var t := Transform3D(Basis(Vector3.UP, atan2(-dir.y, dir.x)).scaled(Vector3(ln / n / 3.0, 1, 1)),
+					Vector3(p.x, 0, p.y))
+				items.append(["RiverwalkRail", t])
+
 ## The map's own trees, the parks, the golf course and the scrub planted out
 ## at about the density the aerial photos show, street trees down the roads
 ## near the site, and mangroves in patches along the river's edge. Each spot
 ## gets a species from what grows there (scripts/flora.gd), kept off the roads.
-static func _trees(root: Node3D, d: Dictionary, rng: RandomNumberGenerator) -> void:
-	var roads := _road_grid(d)
-	var bank := _bank_grid(d)
+static func _trees(root: Node3D, d: Dictionary, roads: Dictionary, bank: Dictionary, taken: Dictionary,
+		rng: RandomNumberGenerator) -> void:
 	var plant: Array = []
 	var ok := func(p: Vector2) -> bool:
-		return _clear(p) and not TRUCK_ROAD.has_point(p) and not _on_road(p, roads, 1.2)
+		return _clear(p) and not TRUCK_ROAD.has_point(p) and not _on_road(p, roads, 1.2) and not _is_taken(p, taken, 2.0)
 	for t in d["trees"]:
 		var p := Vector2(t[0], t[1])
 		if ok.call(p):
@@ -250,13 +538,13 @@ static func _trees(root: Node3D, d: Dictionary, rng: RandomNumberGenerator) -> v
 				if mix == "park" and _near_bank(p, bank, 45.0):
 					mix = "riverside"
 				plant.append([Flora.pick(mix, rng), Vector3(p.x, 0, p.y)])
-	_street_trees(d, roads, plant, rng)
+	_street_trees(d, roads, taken, plant, rng)
 	_mangroves(d, bank, plant, rng)
 	Flora.plant(root, plant, rng)
 
 ## Street trees both sides of the local streets near the site, every 13 m or
 ## so, with lomandra and bottlebrush in the beds between.
-static func _street_trees(d: Dictionary, roads: Dictionary, plant: Array, rng: RandomNumberGenerator) -> void:
+static func _street_trees(d: Dictionary, roads: Dictionary, taken: Dictionary, plant: Array, rng: RandomNumberGenerator) -> void:
 	for r in d["roads"]:
 		if not r["kind"] in ["residential", "unclassified", "tertiary", "secondary", "living_street"]:
 			continue
@@ -277,7 +565,8 @@ static func _street_trees(d: Dictionary, roads: Dictionary, plant: Array, rng: R
 			while s < ln:
 				for side in [-1.0, 1.0]:
 					var p: Vector2 = a + dir * s + nrm * off * side
-					if p.length() > 450.0 or not _clear(p) or TRUCK_ROAD.has_point(p) or _on_road(p, roads, 1.0):
+					if p.length() > 450.0 or not _clear(p) or TRUCK_ROAD.has_point(p) or _on_road(p, roads, 1.0) \
+							or _is_taken(p, taken, 2.5):
 						continue
 					plant.append([Flora.pick("street", rng), Vector3(p.x, 0, p.y)])
 					if p.length() < 260.0:
@@ -317,8 +606,10 @@ static func _mangroves(d: Dictionary, bank: Dictionary, plant: Array, rng: Rando
 ## each sample its point and half-width.
 static func _road_grid(d: Dictionary) -> Dictionary:
 	var g := {}
+	var id := 0
 	for list in [d["roads"], d["paths"]]:
 		for r in list:
+			id += 1
 			var pts := _v2(r["pts"])
 			var hw := float(r["w"]) * 0.5
 			for i in pts.size() - 1:
@@ -332,15 +623,33 @@ static func _road_grid(d: Dictionary) -> Dictionary:
 					var c := Vector2i(floori(p.x / 20.0), floori(p.y / 20.0))
 					if not g.has(c):
 						g[c] = []
-					g[c].append([p, hw])
+					g[c].append([p, hw, id])
 	return g
 
-static func _on_road(p: Vector2, g: Dictionary, pad: float) -> bool:
+## Whether `p` is on (or within `pad` of) a road or path; `skip` leaves one
+## out (by its place in the grid's numbering: roads from 1, then paths).
+static func _on_road(p: Vector2, g: Dictionary, pad: float, skip := 0) -> bool:
 	var c := Vector2i(floori(p.x / 20.0), floori(p.y / 20.0))
 	for dx in [-1, 0, 1]:
 		for dz in [-1, 0, 1]:
 			for s in g.get(c + Vector2i(dx, dz), []):
-				if p.distance_to(s[0]) < float(s[1]) + pad:
+				if s[2] != skip and p.distance_to(s[0]) < float(s[1]) + pad:
+					return true
+	return false
+
+## Spots already taken by street furniture (a 10 m grid of points).
+static func _take(p: Vector2, taken: Dictionary) -> void:
+	var c := Vector2i(floori(p.x / 10.0), floori(p.y / 10.0))
+	if not taken.has(c):
+		taken[c] = []
+	taken[c].append(p)
+
+static func _is_taken(p: Vector2, taken: Dictionary, r: float) -> bool:
+	var c := Vector2i(floori(p.x / 10.0), floori(p.y / 10.0))
+	for dx in [-1, 0, 1]:
+		for dz in [-1, 0, 1]:
+			for q in taken.get(c + Vector2i(dx, dz), []):
+				if p.distance_to(q) < r:
 					return true
 	return false
 

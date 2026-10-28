@@ -54,6 +54,8 @@ func _initialize() -> void:
 			_site(world)
 		"trees":
 			_trees(world)
+		"street":
+			_street(world)
 
 func _crew(world: Node3D) -> void:
 	# Every named crew member, each in a job's kit, with the job's hat
@@ -264,4 +266,30 @@ func _trees(world: Node3D) -> void:
 		["trees_small", Vector3(60, 6.0, 52.0), Vector3(60, 4.0, 0.0)],
 		["trees_far", Vector3(0, 16.0, -240.0), Vector3(0, 6.0, -35.0)],
 		["trees_close", Vector3(-82, 5.0, 26.0), Vector3(-75, 6.0, 0.0)],
+	]
+
+func _street(world: Node3D) -> void:
+	# Each piece of street furniture in a row (scripts/street.gd)
+	world.add_child(F.box(Vector3(80, 0.1, 40), F.mat("grass"), Vector3(0, -0.04, 0)))
+	var Street := preload("res://scripts/street.gd")
+	var names := ["StreetLight", "ParkLight", "BusShelter", "BusStopSign", "ParkBench", "ParkBin", "Bubbler",
+		"PicnicTable", "BBQShelter", "StreetSign", "GiveWaySign", "TimberBollard", "BikeHoop", "RiverwalkRail"]
+	var widths := [3.0, 1.5, 5.0, 1.5, 2.5, 1.5, 1.2, 3.0, 7.0, 2.0, 1.5, 1.0, 1.5, 3.5]
+	var tot := 0.0
+	for w in widths:
+		tot += w
+	var x := -tot * 0.5
+	for i in names.size():
+		x += widths[i] * 0.5
+		var mi := MeshInstance3D.new()
+		mi.mesh = Street.mesh(names[i])
+		mi.position = Vector3(x, 0, 0)
+		world.add_child(mi)
+		if names[i] == "StreetSign":
+			Street.letter(world, mi.transform, "MacArthur Av")
+		x += widths[i] * 0.5
+	_shots = [
+		["street_all", Vector3(0, 7.0, 42.0), Vector3(0, 2.2, 0.0)],
+		["street_left", Vector3(-12, 3.5, 14.0), Vector3(-12, 2.0, 0.0)],
+		["street_right", Vector3(10, 3.5, 13.0), Vector3(10, 1.4, 0.0)],
 	]
