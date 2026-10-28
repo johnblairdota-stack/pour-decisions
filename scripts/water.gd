@@ -158,6 +158,7 @@ static func _revetment(root: Node3D, water: Array, ferry: Array, beach: Array, k
 				var nrm := Vector3(into.x, 1.2, into.y).normalized()
 				for j in rows.size() - 1:
 					var c := SAND.darkened(rng.randf_range(0.0, 0.06) + 0.1 * j) if sandy else ROCK.darkened(rng.randf_range(0.0, 0.15))
+					st.set_uv(Vector2(4 if sandy else 0, 0))
 					_quad(st, va[j], vb[j], vb[j + 1], va[j + 1], nrm, c)
 				if sandy:
 					continue
@@ -173,13 +174,9 @@ static func _revetment(root: Node3D, water: Array, ferry: Array, beach: Array, k
 	var mi := MeshInstance3D.new()
 	mi.name = "Revetment"
 	mi.mesh = st.commit()
-	var mat := StandardMaterial3D.new()
-	mat.vertex_color_use_as_albedo = true
-	mat.vertex_color_is_srgb = true
-	mat.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
-	mat.specular_mode = BaseMaterial3D.SPECULAR_TOON
-	mat.roughness = 0.95
-	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	# (the sand grained like the beach above it: shaders/ground.gdshader)
+	var mat := ShaderMaterial.new()
+	mat.shader = preload("res://shaders/ground.gdshader")
 	mi.material_override = mat
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	root.add_child(mi)

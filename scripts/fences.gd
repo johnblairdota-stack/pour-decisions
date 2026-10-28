@@ -1,4 +1,4 @@
-## The fences and gates round Riverlight: the 2017 estate's houses (slatted
+## The fences and gates round Riverlight: the estate's houses (slatted
 ## front fences with a gate and a driveway gate, Colorbond between the lots,
 ## pool glass to the golf course), low walls and slat fences round the
 ## apartment blocks, chain-link round the car yards with the gates where the
@@ -11,7 +11,7 @@ extends RefCounted
 
 const F := preload("res://scripts/factory.gd")
 const LIB := "res://assets/fences/fences.glb"
-const ESTATE := "res://data/hamilton_reach_2017.json"
+const ESTATE := "res://data/hamilton_reach.json"
 const BAY := 3.0
 const TILE := 120.0
 const NEAR := 650.0          # fence runs this close to the site

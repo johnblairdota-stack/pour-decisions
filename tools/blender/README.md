@@ -39,8 +39,8 @@ Or open Blender 5.2, Scripting tab, open the script and Run.
   haze, roof kit: air conditioners, lift overrun, solar panels, whirlybird;
   20 and 40 foot shipping containers) -> `assets/buildings/buildings.glb`,
   placed by `scripts/neighbours.gd`, which also draws the Hamilton Reach
-  estate next door (`data/hamilton_reach_2017.json`, traced off the 2017
-  aerial by `tools/estate_to_game.py`) and the corrugated sheds
+  estate next door (`data/hamilton_reach.json`, traced off the 2017
+  and 2022 aerials by `tools/estate_to_game.py`) and the corrugated sheds
   (`shaders/cladding.gdshader`).
 - `people.py`: the public (a chibi in civvies with the crew's joints, and
   extras for hair, hats, sunnies, backpacks, a coffee, a phone, a dog lead;
@@ -49,7 +49,7 @@ Or open Blender 5.2, Scripting tab, open the script and Run.
 - `cars.py`: the traffic (sedan, hatch, SUV, dual-cab ute with a rack, van,
   a city bus, and 24-triangle far boxes) -> `assets/cars/cars.glb`. The
   body is white so `scripts/cars.gd` gives each car its own colour; it
-  drives them along the real roads and parks the 2017 car yards traced in
+  drives them along the real roads and parks the riverside car park traced in
   `tools/estate_to_game.py`.
 - `citycat.py`: the CityCat (a 25 m catamaran, bow towards +x) and the
   Northshore Hamilton terminal (pontoon, shelter, gangway spans, landing)

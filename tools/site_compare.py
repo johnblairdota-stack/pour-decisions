@@ -7,7 +7,7 @@ measures the gaps. Feed it the top-down shots from tools/site_compare.gd:
     python3 tools/site_compare.py DIR
 
 Compares, in the game frame (tools/osm_to_game.py), 1 m a pixel:
-  - the game from above against the July 2017 aerial (Brisbane 2017 10 cm SISP)
+  - the game from above against the 2022 aerial (the up to date layout the game follows)
   - heights against the 2019 LiDAR surface (reference/elevation, 1 km tile
     round the site only), overall and building by building
   - the game's trees against the 2825 LiDAR tree tops
@@ -136,13 +136,13 @@ def main():
 	site = mask([SITE])
 	report = {}
 
-	# --- 1. From above against the July 2017 aerial
-	aer = np.asarray(Image.open(os.path.join(REF, "photos", "qld_aerial_2017_site_800m.jpg")).convert("RGB"))
+	# --- 1. From above against the 2022 aerial
+	aer = np.asarray(Image.open(os.path.join(REF, "photos", "qld_aerial_2022_site_800m.jpg")).convert("RGB"))
 	a = sample(aer, 2000 + e / 0.2, 2000 - n / 0.2)
 	a = np.nan_to_num(a, nan=255).astype(np.uint8)
 	col = np.asarray(Image.open(os.path.join(out, "game_colour.png")).convert("RGB"))
 	A, C = Image.fromarray(crop(a)), Image.fromarray(crop(col))
-	side(A, C, "Real: July 2017 aerial", "Game: same view", os.path.join(out, "1_aerial_vs_game.png"))
+	side(A, C, "Real: 2022 aerial", "Game: same view", os.path.join(out, "1_aerial_vs_game.png"))
 	Image.blend(A, C, 0.5).save(os.path.join(out, "1_aerial_game_blend.png"))
 
 	# --- 2. Heights against the 2019 LiDAR surface
@@ -171,7 +171,7 @@ def main():
 		"game_too_high_by_over_5m_pct": round(100 * float((diff[ok] > 5).mean()), 1),
 	}
 
-	# Building by building: every OSM footprint in the tile, plus the traced 2017 estate blocks
+	# Building by building: every OSM footprint in the tile, plus the traced estate blocks
 	rows_out = []
 	heights = {r["osm_id"]: r for r in csv.DictReader(open(os.path.join(REF, "elevation", "building_heights.csv")))}
 	feats = json.load(open(os.path.join(REF, "osm", "osm_buildings.geojson")))["features"]
@@ -181,9 +181,9 @@ def main():
 			continue
 		poly = [to_game(lon, lat) for lon, lat in g["coordinates"][0]]
 		rows_out.append((f["properties"].get("id"), f["properties"].get("name", ""), poly))
-	estate = json.load(open(os.path.join(ROOT, "data", "hamilton_reach_2017.json")))
+	estate = json.load(open(os.path.join(ROOT, "data", "hamilton_reach.json")))
 	for b in estate["blocks"]:
-		rows_out.append(("estate/" + b["name"], "%s %d storeys (traced 2017)" % (b["kind"], b["storeys"]), [tuple(p) for p in b["pts"]]))
+		rows_out.append(("estate/" + b["name"], "%s %d storeys (traced)" % (b["kind"], b["storeys"]), [tuple(p) for p in b["pts"]]))
 	builds = []
 	for oid, name, poly in rows_out:
 		m = mask([poly]) & ok
