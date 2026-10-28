@@ -817,14 +817,7 @@ var _topout_text := ""
 func _start_fly() -> void:
 	_fly_on = true
 	_fly_t = 0.0
-	_fly_boat = Node3D.new()
-	var navy := F.mat("citycat_blue")
-	for z in [-2.6, 2.6]:
-		_fly_boat.add_child(F.box(Vector3(25, 1.6, 1.8), navy, Vector3(0, 0.6, z)))
-	_fly_boat.add_child(F.box(Vector3(24, 1.4, 7.0), F.mat("white"), Vector3(0, 1.9, 0)))
-	_fly_boat.add_child(F.box(Vector3(18, 1.3, 6.4), F.color_mat(Color("2a3a48")), Vector3(-1.0, 3.2, 0)))
-	_fly_boat.add_child(F.box(Vector3(19, 0.35, 6.8), F.mat("white"), Vector3(-1.0, 4.0, 0)))
-	_fly_boat.add_child(F.box(Vector3(24.2, 0.4, 7.05), navy, Vector3(0, 2.3, 0)))
+	_fly_boat = preload("res://scripts/citycat.gd").boat()
 	# (heading downstream, east: -x)
 	_fly_boat.rotation.y = PI
 	add_child(_fly_boat)

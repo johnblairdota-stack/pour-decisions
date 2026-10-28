@@ -72,6 +72,10 @@ func _initialize() -> void:
 			_cars(world)
 		"traffic":
 			_traffic(world)
+		"citycat":
+			_citycat(world)
+		"terminal":
+			_terminal(world)
 
 func _crew(world: Node3D) -> void:
 	# Every named crew member, each in a job's kit, with the job's hat
@@ -514,5 +518,43 @@ func _traffic(world: Node3D) -> void:
 				var c: Node3D = t._drivers[i]["node"]
 				_shots.append(["traffic_%d" % i, c.position + Vector3(9, 5.0, 9).rotated(Vector3.UP, c.rotation.y), c.position + Vector3(0, 0.8, 0)])
 	_shots.append(["traffic_over", Vector3(60, 120.0, -160), Vector3(0, 0, 60)])
+	_cam.fov = 45
+	_cam.far = 4000
+
+func _citycat(world: Node3D) -> void:
+	# The CityCat on its own, and the terminal it calls at (scripts/citycat.gd)
+	var water := F.box(Vector3(120, 0.1, 80), F.color_mat(Color("4f7f8f")), Vector3(0, -0.05, 0))
+	world.add_child(water)
+	var C := preload("res://scripts/citycat.gd")
+	var b: Node3D = C.boat()
+	world.add_child(b)
+	var t := C.model("Terminal")
+	t.position = Vector3(0, 0, 30)
+	world.add_child(t)
+	_shots = [
+		["citycat_side", Vector3(6, 6.0, -30.0), Vector3(0, 2.5, 0)],
+		["citycat_bow", Vector3(26, 7.0, -14.0), Vector3(2, 2.5, 0)],
+		["citycat_stern", Vector3(-24, 9.0, 12.0), Vector3(-4, 2.0, 0)],
+		["terminal_front", Vector3(4, 5.0, 12.0), Vector3(0, 2.0, 30)],
+		["terminal_deck", Vector3(-10, 2.4, 25.0), Vector3(4, 1.8, 32)],
+	]
+	_cam.fov = 45
+
+func _terminal(world: Node3D) -> void:
+	# The stop at Northshore Hamilton in place, the CityCat on its run
+	# (scripts/surrounds.gd + citycat.gd)
+	var s := Node3D.new()
+	world.add_child(s)
+	preload("res://scripts/surrounds.gd").build(s)
+	var d: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://data/riverlight_osm.json"))
+	_shots = []
+	for fe in d.get("ferry", []):
+		var at := Vector3(fe["at"][0], 0, fe["at"][1])
+		var edge := Vector3(fe["edge"][0], 0, fe["edge"][1])
+		var out := (at - edge).normalized()
+		var along := out.cross(Vector3.UP)
+		_shots.append(["terminal_river", at + out * 45.0 + along * 25.0 + Vector3(0, 10, 0), at.lerp(edge, 0.4) + Vector3(0, 1.5, 0)])
+		_shots.append(["terminal_bank", edge - out * 12.0 + along * 10.0 + Vector3(0, 8, 0), at + Vector3(0, 1.5, 0)])
+		_shots.append(["terminal_high", at + out * 60.0 - along * 60.0 + Vector3(0, 50, 0), at.lerp(edge, 0.5)])
 	_cam.fov = 45
 	_cam.far = 4000
