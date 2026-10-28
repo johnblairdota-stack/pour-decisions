@@ -174,7 +174,7 @@ const CREW_COLORS := {
 }
 ## Small or painted-on parts: no outline (it would swallow them)
 const CREW_NO_OUTLINE := ["nose", "eye", "eye_hi", "cheek", "mouth", "tape", "pocket", "splat", "docket",
-	"wet", "wet_crust", "chain", "rope"]
+	"wet", "wet_crust", "chain", "rope", "fence_wire", "barrier", "band", "lamp", "sign_blue", "rebar"]
 ## What each job wears (role keys as in crew.gd)
 const CREW_KIT := {
 	"line": ["Kit_Radio", "Kit_Docket"],
@@ -193,6 +193,7 @@ static var _crew_scene: PackedScene
 ## each, by name (ScreedBoard, PokerHead, ClampHalfA, Pipe3m, Shovel ...).
 const PROPS_GLB := "res://assets/props/props.glb"
 const TOWERS := "res://assets/plant/towers.glb"
+const SITE := "res://assets/site/site.glb"
 const PROP_COLORS := {
 	"alu": Color("c9d1d8"), "grip": Color("22262b"), "dark_steel": Color("6b7480"), "machine": Color("ffc72c"),
 	"fuel": Color("e5383b"), "rubber": Color("1d1f23"), "pipe": Color("dce1e6"), "clamp": Color("c7d0da"),
@@ -205,6 +206,17 @@ const PROP_COLORS := {
 	"amber": Color("ffb020"), "machine_dark": Color("e0a800"), "water": Color("4f8fbf"), "grille": Color("2b2b2b"),
 	# The tall plant (tools/blender/towers.py)
 	"orange": Color("ff7a1a"), "ballast": Color("a7aaa6"),
+	# The site set-up (tools/blender/site.py)
+	"shed": Color("e8e6df"), "shed_roof": Color("5f7f9f"), "shed_trim": Color("9aa4ad"), "loo": Color("2f6fd1"),
+	"loo_roof": Color("f4f7fa"), "fence": Color("c9d1d8"), "fence_wire": Color("b9c2ca"), "cloth": Color("2e3a36"),
+	"fence_foot": Color("ff7a1a"), "skip": Color("2f7a4a"), "skip_dark": Color("245f3a"), "rubbish": Color("b98a55"),
+	"ply": Color("c48d55"), "ply_face": Color("d9a46c"), "rebar": Color("8a5a3c"), "tie": Color("2b2b2b"),
+	"bottle_ox": Color("2b2b2b"), "bottle_ac": Color("7a2430"), "white": Color("f4f7fa"), "genset": Color("4a6b8a"),
+	"lamp": Color("fff4c2"), "tank": Color("8fa6b8"), "first_aid": Color("2f8f6b"), "cone": Color("ff7a1a"),
+	"band": Color("f4f7fa"), "table": Color("f4f7fa"), "chair": Color("2f6fd1"), "esky": Color("e5383b"),
+	"umbrella": Color("ffc72c"), "umbrella_b": Color("f4f7fa"), "slurry": Color("6f7275"), "concrete": Color("b5b6b3"),
+	"bin_green": Color("2f6f3f"), "bin_lid": Color("e5383b"), "bin_yellow": Color("ffc72c"), "sign": Color("f4f7fa"),
+	"sign_blue": Color("2f6fd1"), "barrier": Color("ff7a1a"),
 }
 static var _libs := {}
 ## Props are small: a crew-weight outline would swallow a shovel handle

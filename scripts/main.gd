@@ -36,6 +36,7 @@ const SignsScript := preload("res://scripts/signs.gd")
 const ScreedScript := preload("res://scripts/screed.gd")
 const OpsScript := preload("res://scripts/ops.gd")
 const Surrounds := preload("res://scripts/surrounds.gd")
+const Yard := preload("res://scripts/yard.gd")
 
 # Riverlight: 11 levels; 10 lattice sections reached a 41.4 m free-stand.
 const FLOORS := 11
@@ -128,6 +129,7 @@ var _shot_wait := 0
 var building: Node3D
 var podium: Node3D
 var hoist_mast: Node3D
+var yard: Node3D          # the site set-up (yard.gd)
 var floor_nodes: Array[Node3D] = []
 var rig: Node3D
 var ground_st: Node3D
@@ -875,6 +877,11 @@ func _build_world() -> void:
 	world.position = -REAL_ORIGIN
 	add_child(world)
 	Surrounds.build(world)
+	# The site set-up: sheds, fencing, skips, laydown (scripts/yard.gd)
+	yard = Node3D.new()
+	yard.name = "Yard"
+	add_child(yard)
+	Yard.build(yard)
 	# Site hardstand around the pump and truck bay, north of the west wing,
 	# and into the notch at the boom tower's foot
 	var hard := F.color_mat(Color("8f908c"))
@@ -966,6 +973,7 @@ func _use_tut_frame() -> void:
 ## Turns the site into the water tower: round rails, the walkway run in to
 ## the round deck, a round slab.
 func _tut_site() -> void:
+	yard.visible = false
 	for r in _rect_rails:
 		r.visible = false
 	var ring_mat := StandardMaterial3D.new()
