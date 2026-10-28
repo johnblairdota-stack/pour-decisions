@@ -1,20 +1,22 @@
 #!/usr/bin/env python3
-"""The Hamilton Reach estate next door to Riverlight as it stood in July 2017,
-traced by hand off the Queensland Government aerial (Brisbane 2017 10 cm
-SISP, 1-19 Jul 2017; 800 x 800 m, 0.2 m a pixel, north up, centred on
+"""The Hamilton Reach estate next door to Riverlight, traced by hand off the
+Queensland Government aerials (Brisbane 2017 10 cm SISP, 1-19 Jul 2017, and
+the 2022 capture; 800 x 800 m, 0.2 m a pixel, north up, centred on
 Riverlight's footprint centroid; /mnt/project-files/visuals/photos/
-qld_aerial_2017_site_800m.jpg). OpenStreetMap only has a handful of these
-buildings, so the game's map (data/riverlight_osm.json) left the estate bare.
+qld_aerial_20{17,22}_site_800m.jpg). The surroundings follow the up to date
+map, so it's the estate as it stands now: the 2017 blocks plus the riverside
+terraces built since (N, O), and no car yard over MacArthur Avenue (Barcham
+and Karakul Roads run through it now). OpenStreetMap only has a handful of
+these buildings, so the game's map (data/riverlight_osm.json) left them out.
 
-Writes data/hamilton_reach_2017.json in the game frame (tools/osm_to_game.py)
+Writes data/hamilton_reach.json in the game frame (tools/osm_to_game.py)
 for scripts/neighbours.gd:
 
   blocks  [{name, kind, storeys, pts}]  apartment blocks and terrace rows
   houses  [{at, face}]                  the two-storey houses along the golf
                                         course, `face` the way the front looks
-  parked  [[x, z, yaw]]                 the car yard over MacArthur Avenue
-                                        (packed solid in 2017) and the cars in
-                                        the riverside car park by the CityCat
+  parked  [[x, z, yaw]]                 the cars in the riverside car park
+                                        by the CityCat
 
     python3 tools/estate_to_game.py
 
@@ -30,7 +32,7 @@ import random
 
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-OUT = os.path.join(ROOT, "data", "hamilton_reach_2017.json")
+OUT = os.path.join(ROOT, "data", "hamilton_reach.json")
 PX = 0.2            # metres a pixel
 MID = 2000.0        # the image's centre pixel is Riverlight's centroid
 TURN = -14.4        # as tools/osm_to_game.py
@@ -83,6 +85,9 @@ BLOCKS = {
 	"L": ("apartments", 4, [(2500, 2750), (2665, 2755), (2690, 2830), (2690, 2975), (2380, 2975),
 		(2350, 2900), (2410, 2830), (2500, 2830)]),
 	"M": ("apartments", 5, [(2130, 2750), (2410, 2740), (2410, 2900), (2130, 2910)]),
+	# the riverside terraces east of L, built after 2017 (off the 2022 aerial)
+	"N": ("terraces", 3, [(2695, 2830), (2995, 2835), (2995, 3005), (2695, 3000)]),
+	"O": ("terraces", 3, [(3030, 2820), (3385, 2825), (3385, 3000), (3030, 2995)]),
 }
 
 # The houses along the golf course, centres off a 0.8x crop at (1400, 600):
@@ -95,8 +100,6 @@ HOUSE_FACE = (-0.72, 0.70)
 # Car parks: (outline, holes, how full); cars nose up/down the image in
 # double rows with an aisle between
 CARPARKS = [
-	([(700, 880), (1010, 880), (1180, 1060), (1350, 1220), (1490, 1400), (1520, 1520), (1520, 2000),
-		(1100, 2000), (1100, 1850), (700, 1850)], [(830, 1530, 1000, 1810), (700, 1400, 1520, 1440)], 0.86),
 	([(790, 2090), (1090, 2100), (1180, 2350), (1100, 2520), (780, 2520)], [], 0.5),
 ]
 

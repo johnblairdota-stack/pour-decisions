@@ -346,21 +346,20 @@ func _setup_input() -> void:
 		InputMap.action_add_event(pair[0], e)
 
 var env: Environment
-var sky_mat: ProceduralSkyMaterial
+var sky_mat: ShaderMaterial
 var sun: DirectionalLight3D
 
 func _build_environment() -> void:
 	env = Environment.new()
 	env.background_mode = Environment.BG_SKY
 	var sky := Sky.new()
-	var sm := ProceduralSkyMaterial.new()
+	var sm := ShaderMaterial.new()
+	sm.shader = preload("res://shaders/sky.gdshader")
 	sky_mat = sm
-	# A pour-day morning in Brisbane: clear sky, the haze over the river, a
-	# high, hard sun from the north-east
-	sm.sky_top_color = Color("3a78c9")
-	sm.sky_horizon_color = Color("cfdfe8")
-	sm.ground_horizon_color = Color("cfdfe8")
-	sm.ground_bottom_color = Color("cfdfe8")
+	# A pour-day morning in Brisbane: blue sky with scattered fair-weather
+	# cloud, the haze over the river, a high, hard sun from the north-east
+	sm.set_shader_parameter("sky_top", Color("3a78c9"))
+	sm.set_shader_parameter("sky_horizon", Color("cfdfe8"))
 	sky.sky_material = sm
 	env.sky = sky
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
@@ -469,10 +468,8 @@ func _apply_daylight(u: float) -> void:
 	var b: Array = DAWN_KEYS[i + 1]
 	var w := clampf((u - a[0]) / (b[0] - a[0]), 0.0, 1.0)
 	var horizon: Color = (a[2] as Color).lerp(b[2], w)
-	sky_mat.sky_top_color = (a[1] as Color).lerp(b[1], w)
-	sky_mat.sky_horizon_color = horizon
-	sky_mat.ground_horizon_color = horizon
-	sky_mat.ground_bottom_color = horizon
+	sky_mat.set_shader_parameter("sky_top", (a[1] as Color).lerp(b[1], w))
+	sky_mat.set_shader_parameter("sky_horizon", horizon)
 	env.fog_light_color = horizon
 	env.ambient_light_energy = lerpf(a[5], b[5], w)
 	sun.light_color = (a[3] as Color).lerp(b[3], w)

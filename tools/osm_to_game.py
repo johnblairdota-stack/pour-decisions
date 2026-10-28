@@ -34,6 +34,13 @@ ROAD_W = {
     "unclassified": 8.0, "residential": 7.5, "living_street": 6.0, "service": 5.0,
     "motorway_link": 8.0, "trunk_link": 8.0, "primary_link": 7.0, "secondary_link": 7.0,
 }
+# Streets cars park on get a parking lane on each kerb (one, the left, on a
+# one-way carriageway); every street is one width all along, the same lanes
+# from end to end, so the roads read as complete and uniform
+LANE_W = 3.2
+PARK_W = 2.2
+KERB_STREETS = ("residential", "unclassified", "living_street")
+AISLE_W = 16.0      # a car park's aisle with a row of bays each side
 PATH_W = {"footway": 2.0, "cycleway": 2.5, "path": 1.5, "pedestrian": 4.0, "steps": 2.0, "bridleway": 2.0}
 BUILD_H = {
     "industrial": 9.0, "warehouse": 10.0, "container": 2.6, "shed": 3.5, "school": 8.0,
@@ -112,12 +119,14 @@ def flat_ground(out, order):
     from shapely.geometry import box
     layers = [("road", unary_union([LineString(r["pts"]).buffer(r["w"] / 2, quad_segs=4)
                                     for r in out["roads"] if not r["bridge"] and len(r["pts"]) > 1]))]
+    aisles = [LineString(a["pts"]).buffer(a["w"] / 2, cap_style=2, quad_segs=2)
+              for a in out["aisles"] if len(a["pts"]) > 1]
     layers.append(("path", unary_union([LineString(p["pts"]).buffer(p["w"] / 2, quad_segs=2)
                                         for p in out["paths"] if len(p["pts"]) > 1])))
     layers.append(("drain", unary_union([LineString(d["pts"]).buffer(d["w"] / 2, quad_segs=2)
                                          for d in out["drains"] if len(d["pts"]) > 1])))
     for kind in reversed(order):
-        geoms = []
+        geoms = list(aisles) if kind == "parking" else []
         for a in out["areas"]:
             if a["kind"] == kind and len(a["pts"]) > 3:
                 pg = Polygon(a["pts"], [h for h in a.get("holes", []) if len(h) > 3])
@@ -145,22 +154,50 @@ def flat_ground(out, order):
     return ground
 
 
-# The game is set in 2017: these roads went through the MacArthur Ave car
-# yard later (the July 2017 aerial shows cars there)
-NOT_YET = {"Barcham Road", "Karakul Road"}
-
-
 def lidar_heights():
     """Building heights measured off the 2019 LiDAR (reference/elevation/
-    building_heights.csv), for the buildings inside its tile that stood then;
-    None for the ones it shows weren't built yet."""
+    building_heights.csv), for the buildings inside its tile that stood then
+    (the ones built since keep the map's own height)."""
     out = {}
     with open(os.path.join(ROOT, "reference", "elevation", "building_heights.csv")) as f:
         for r in csv.DictReader(f):
-            if r["note"].startswith("nothing tall here in 2019"):
-                out[r["osm_id"]] = None     # not built yet in 2019, so not in 2017
-            elif r["height_above_ground_m"] and not r["note"]:
+            if r["height_above_ground_m"] and not r["note"]:
                 out[r["osm_id"]] = float(r["height_above_ground_m"])
+    return out
+
+
+def street_lanes(feats):
+    """How many lanes each street carries, the same all along it: one way
+    (most of a one-way street's length is one lane; the extra turning lanes
+    at the roundabouts don't count) or two."""
+    votes = {}
+    for f in feats:
+        p = f["properties"]
+        if p.get("highway") not in KERB_STREETS or f["geometry"]["type"] != "LineString":
+            continue
+        one = p.get("oneway") == "yes"
+        try:
+            n = int(p.get("lanes", "1" if one else "2"))
+        except ValueError:
+            n = 1 if one else 2
+        ln = LineString(f["geometry"]["coordinates"]).length
+        key = (p.get("name", ""), one)
+        votes.setdefault(key, {})
+        votes[key][n] = votes[key].get(n, 0.0) + ln
+    return {k: max(v, key=v.get) for k, v in votes.items()}
+
+
+def no_park():
+    """The kerbs nobody parks along: Brisbane City Council's No Stopping lines,
+    bus bays and loading zones (reference/council/parking-line-locations,
+    CC BY 4.0)."""
+    out = []
+    d = json.load(open(os.path.join(ROOT, "reference", "council", "parking-line-locations.geojson")))
+    for f in d["features"]:
+        if f["properties"].get("parkingrestrictiontype") in ("No Stopping", "Bus Bay", "Loading Zone"):
+            g = tx(shape(f["geometry"]))
+            for ln in lines(g):
+                out.append(rnd(ln.simplify(0.3).coords))
     return out
 
 
@@ -170,16 +207,17 @@ def load(name):
 
 def main():
     out = {
-        "source": "OpenStreetMap contributors, ODbL 1.0 (reference/osm)",
+        "source": "OpenStreetMap contributors, ODbL 1.0 (reference/osm); no_park: contains data from Brisbane City Council, CC BY 4.0",
         "origin": [LAT0, LON0], "turn_deg": TURN,
         "frame": "metres; x = west, z = north (after the turn); origin at Riverlight's centroid",
-        "roads": [], "paths": [], "buildings": [], "areas": [], "drains": [],
+        "roads": [], "aisles": [], "paths": [], "buildings": [], "areas": [], "drains": [],
         "trees": [], "lamps": [], "ferry": [], "piers": [], "riverlight": [], "fences": [],
     }
     seen = set()
     river_lines = []
     measured = lidar_heights()
     feats = load("osm_roads") + load("osm_landuse") + load("osm_buildings") + load("osm_landmarks_wide")
+    lanes_of = street_lanes(feats)
     for f in feats:
         p = f["properties"]
         fid = p.get("id") or f.get("id")
@@ -201,8 +239,6 @@ def main():
                                           "pts": rnd(pg.simplify(0.3).exterior.coords)})
             continue
         if "building" in p and polys(g):
-            if fid in measured and measured[fid] is None:
-                continue
             kind = p["building"]
             h = None
             if p.get("height"):
@@ -222,11 +258,20 @@ def main():
                                          "name": p.get("name", ""),
                                          "pts": rnd(pg.simplify(0.5).exterior.coords)})
             continue
-        if p.get("name") in NOT_YET:
+        if hw == "service" and p.get("service") == "parking_aisle":
+            # (drawn as car park: the aisle and its bays, not a road)
+            for ln in lines(g):
+                out["aisles"].append({"w": AISLE_W, "pts": rnd(ln.simplify(0.5).coords)})
             continue
         if hw in ROAD_W:
             w = ROAD_W[hw]
-            if p.get("width"):
+            one = p.get("oneway") == "yes"
+            lanes, park = 0, 0
+            if hw in KERB_STREETS:
+                lanes = lanes_of.get((p.get("name", ""), one), 1 if one else 2)
+                park = 1 if one else 2
+                w = lanes * LANE_W + park * PARK_W
+            elif p.get("width"):
                 try:
                     w = float(str(p["width"]).split()[0])
                 except ValueError:
@@ -237,9 +282,15 @@ def main():
                 except ValueError:
                     pass
             for ln in lines(g):
-                out["roads"].append({"kind": hw, "w": round(w, 1), "name": p.get("name", ""),
-                                     "bridge": p.get("bridge") == "yes", "layer": p.get("layer", "0"),
-                                     "pts": rnd(ln.simplify(0.5).coords)})
+                road = {"kind": hw, "w": round(w, 1), "name": p.get("name", ""),
+                        "bridge": p.get("bridge") == "yes", "layer": p.get("layer", "0"),
+                        "pts": rnd(ln.simplify(0.5).coords)}
+                if one:
+                    road["oneway"] = True
+                if lanes:
+                    road["lanes"] = lanes
+                    road["park"] = park
+                out["roads"].append(road)
             continue
         if hw in PATH_W:
             if polys(g):
@@ -344,6 +395,7 @@ def main():
              "paving", "beach", "golf_water", "water", "bridge"]
     out["areas"].sort(key=lambda a: (order.index(a["kind"]) if a["kind"] in order else 99))
     out["ground"] = flat_ground(out, order)
+    out["no_park"] = no_park()
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     json.dump(out, open(OUT, "w"), separators=(",", ":"))
     for k, v in out.items():

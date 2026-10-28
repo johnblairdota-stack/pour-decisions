@@ -72,6 +72,8 @@ func _initialize() -> void:
 			_cars(world)
 		"traffic":
 			_traffic(world)
+		"surrounds", "dawn":
+			_surrounds(world, env.environment, sun, which == "dawn")
 		"citycat":
 			_citycat(world)
 		"terminal":
@@ -509,7 +511,7 @@ func _traffic(world: Node3D) -> void:
 	preload("res://scripts/surrounds.gd").build(s)
 	var t = s.find_child("Traffic", true, false)
 	_shots = []
-	var e: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://data/hamilton_reach_2017.json"))
+	var e: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://data/hamilton_reach.json"))
 	var yard := Vector3.ZERO
 	var n := 0
 	for p in e.get("parked", []):
@@ -528,6 +530,92 @@ func _traffic(world: Node3D) -> void:
 	_shots.append(["traffic_over", Vector3(60, 120.0, -160), Vector3(0, 0, 60)])
 	_cam.fov = 45
 	_cam.far = 4000
+
+func _surrounds(world: Node3D, env: Environment, sun: DirectionalLight3D, dawn: bool) -> void:
+	# Down at street level round the site, under the game's own sky
+	# (shaders/sky.gdshader): the streets and their parking lanes, the
+	# footpath and riverwalk pavers, the beach, the grass, the clouds. `dawn`
+	# is a dawn pour's sky just before sunrise.
+	for c in world.get_children():
+		if c is MeshInstance3D and c.mesh is BoxMesh:
+			c.queue_free()
+	var sm := ShaderMaterial.new()
+	sm.shader = preload("res://shaders/sky.gdshader")
+	sm.set_shader_parameter("sky_top", Color("2f4f8e") if dawn else Color("3a78c9"))
+	sm.set_shader_parameter("sky_horizon", Color("f0a868") if dawn else Color("cfdfe8"))
+	env.background_mode = Environment.BG_SKY
+	env.sky = Sky.new()
+	env.sky.sky_material = sm
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
+	env.ambient_light_energy = 0.35 if dawn else 0.6
+	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	env.fog_enabled = true
+	env.fog_density = 0.00015
+	env.fog_light_color = Color("f0a868") if dawn else Color("cfdfe8")
+	env.fog_sky_affect = 0.0
+	if dawn:
+		sun.light_color = Color("ffb070")
+		sun.light_energy = 0.6
+		var east := Vector3(-1.0, 0.0, -0.45).normalized()
+		var to_sun := east * cos(deg_to_rad(6.0)) + Vector3.UP * sin(deg_to_rad(6.0))
+		sun.quaternion = Basis.looking_at(-to_sun, Vector3.UP).get_rotation_quaternion()
+	else:
+		sun.light_color = Color("fff2df")
+		sun.light_energy = 1.2
+		sun.rotation_degrees = Vector3(-42, -24, 0)
+	sun.directional_shadow_max_distance = 160.0
+	var s := Node3D.new()
+	world.add_child(s)
+	preload("res://scripts/surrounds.gd").build(s)
+	var d: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://data/riverlight_osm.json"))
+	var mid := func(name: String, near: Vector2) -> Array:
+		# the middle of the named street's longest stretch near `near`, and which way it runs
+		var best: Array = []
+		var bd := 1e9
+		for rd in d["roads"]:
+			if rd["name"] != name:
+				continue
+			for i in (rd["pts"] as Array).size() - 1:
+				var a := Vector2(rd["pts"][i][0], rd["pts"][i][1])
+				var b := Vector2(rd["pts"][i + 1][0], rd["pts"][i + 1][1])
+				var m := (a + b) * 0.5
+				if a.distance_to(b) > 25.0 and m.distance_to(near) < bd:
+					bd = m.distance_to(near)
+					best = [m, (b - a).normalized(), float(rd["w"])]
+		return best
+	_shots = []
+	_cam.fov = 50
+	_cam.far = 16000
+	for st in [["street_karakul", "Karakul Road", Vector2(150, 120)], ["street_barcham", "Barcham Road", Vector2(270, 100)],
+			["street_macarthur", "MacArthur Avenue", Vector2(200, -30)], ["street_parkside", "Parkside Circuit", Vector2(-150, -60)]]:
+		var m: Array = mid.call(st[1], st[2])
+		if m.is_empty():
+			continue
+		var at: Vector2 = m[0]
+		var dir: Vector2 = m[1]
+		var side := Vector2(dir.y, -dir.x)
+		var eye := at - dir * 22.0 + side * (float(m[2]) * 0.5 + 1.5)
+		_shots.append([st[0], Vector3(eye.x, 1.7, eye.y), Vector3(at.x + dir.x * 10.0, 1.0, at.y + dir.y * 10.0)])
+	if not dawn:
+		_shots.append(["street_over", Vector3(240, 40, -40), Vector3(170, 0, 110)])
+	# the riverwalk and the beach by the CityCat terminal, the park, the golf course
+	var fe: Array = d.get("ferry", [])
+	if not fe.is_empty():
+		var f := Vector2(fe[0]["at"][0], fe[0]["at"][1])
+		_shots.append(["riverwalk", Vector3(f.x + 40, 1.7, f.y + 20), Vector3(f.x - 10, 0.0, f.y + 6)])
+		_shots.append(["pavers_close", Vector3(f.x + 14, 2.5, f.y + 16), Vector3(f.x + 4, 0.0, f.y + 10)])
+	for a in d["areas"]:
+		if a["kind"] == "beach" and Vector2(a["pts"][0][0], a["pts"][0][1]).length() < 400.0:
+			var c := Vector2.ZERO
+			for q in a["pts"]:
+				c += Vector2(q[0], q[1])
+			c /= (a["pts"] as Array).size()
+			_shots.append(["beach", Vector3(c.x + 18, 4.0, c.y + 18), Vector3(c.x, 0.0, c.y - 4)])
+			break
+	_shots.append(["park_grass", Vector3(-60, 6, -110), Vector3(-20, 0, -150)])
+	_shots.append(["golf", Vector3(-200, 12, 300), Vector3(-320, 0, 420)])
+	_shots.append(["sky_east", Vector3(0, 30, -60), Vector3(-400, 120, -260)])
+	_shots.append(["sky_west", Vector3(0, 30, -60), Vector3(400, 110, -200)])
 
 func _citycat(world: Node3D) -> void:
 	# The CityCat on its own, and the terminal it calls at (scripts/citycat.gd)
@@ -598,7 +686,7 @@ func _fencing(world: Node3D) -> void:
 	var s := Node3D.new()
 	world.add_child(s)
 	preload("res://scripts/surrounds.gd").build(s)
-	var e: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://data/hamilton_reach_2017.json"))
+	var e: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://data/hamilton_reach.json"))
 	_shots = []
 	var h: Array = e["houses"][0]["at"]
 	var f: Array = e["houses"][0]["face"]

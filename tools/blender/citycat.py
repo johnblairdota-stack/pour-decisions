@@ -115,7 +115,8 @@ def citycat():
 	for z in (-2.4, 2.4):
 		p.append(box(2.4, 0.45, 0.5, "seat", at=(-10.6, 2.0, z)))
 		p.append(box(2.4, 0.5, 0.1, "seat", at=(-10.6, 2.45, z + (0.25 if z > 0 else -0.25))))
-	p.append(life_ring((-L + 0.42, 2.25, -2.3), 0).rot("y", math.pi / 2).move(0, 0, 0))
+	# (on the stern rail, facing aft: turned before it goes to the rail, not after)
+	p.append(torus(0.3, 0.07, "ring", 12, 6).rot("x", math.pi / 2).rot("y", math.pi / 2).move(-L + 0.36, 2.25, -2.3))
 	p.append(life_ring((x1 + 0.6, 2.3, -3.42), -1))
 	p.append(life_ring((x1 + 0.6, 2.3, 3.42), 1))
 	# boarding gates at the bow shoulders (yellow), black fenders on the bow

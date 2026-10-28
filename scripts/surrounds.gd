@@ -38,6 +38,7 @@ const TRUCK_ROAD := Rect2(-44.5, 21.1, 80.0, 9.0)
 ## The map's ground sits a little above the plain grass and under the game's own
 ## hardstand (6 cm) and truck road (4.5 cm), clear of both so nothing flickers.
 const GROUND_Y := 0.02
+const PARK_W := Cars.PARK_W   # a kerb parking lane, as tools/osm_to_game.py
 ## The river's surface: the land round it stands 3 to 4 m above the river
 ## (2019 LiDAR ground; the game's land is all at GROUND_Y)
 const RIVER_Y := Water.RIVER_Y
@@ -49,6 +50,12 @@ const AREA := {
 	"golf": Color("7fae58"), "park": Color("78a457"), "scrub": Color("5d7f45"),
 	"pitch": Color("6fae5c"), "parking": Color("8e9196"), "paving": Color("c8c4ba"),
 	"beach": Color("e6d7aa"), "golf_water": Color("4f6660"), "bridge": Color("9a9a96"),
+}
+## Each one's texture (shaders/ground_detail.gdshaderinc: 1 grass, 2 mown
+## grass, 3 scrub, 4 sand, 5 dirt, 6 pavers, 7 asphalt; the rest plain)
+const SURFACE := {
+	"park": 1, "golf": 2, "pitch": 2, "scrub": 3, "beach": 4, "vacant": 5,
+	"path": 6, "paving": 6, "road": 7, "parking": 7,
 }
 const ROAD := Color("4a4e55")
 const PATH := Color("cfcabd")
@@ -156,10 +163,13 @@ static func _ground(root: Node3D, d: Dictionary) -> void:
 		var t: SurfaceTool = wt if wet else st
 		t.set_color(Color.WHITE if wet else (ROAD if kind == "road" else (PATH if kind == "path" else AREA.get(kind, ROAD))))
 		t.set_normal(Vector3.UP)
+		if not wet:
+			t.set_uv(Vector2(SURFACE.get(kind, 0), 0))
 		var tris: Array = g["tris"]
 		for i in range(0, tris.size() - 5, 6):
 			for k in 3:
 				t.add_vertex(Vector3(tris[i + k * 2], RIVER_Y if wet else GROUND_Y, tris[i + k * 2 + 1]))
+	st.set_uv(Vector2.ZERO)
 	for pr in d["piers"]:
 		var line: PackedVector2Array
 		if pr.has("pts"):
@@ -176,7 +186,7 @@ static func _ground(root: Node3D, d: Dictionary) -> void:
 	_banks(st)
 	var land := MeshInstance3D.new()
 	land.mesh = st.commit()
-	land.material_override = _flat_mat()
+	land.material_override = ground_mat()
 	land.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	root.add_child(land)
 	var water := MeshInstance3D.new()
@@ -351,6 +361,9 @@ static func _street(root: Node3D, d: Dictionary, roads: Dictionary, bank: Dictio
 			var nrm := Vector2(-dir.y, dir.x)
 			# Kerbs, 2 m at a time, wherever they don't cross another road
 			var n := ceili(ln / 2.0)
+			# (and the parking lanes' edge lines: both kerbs, or the left one
+			# on a one-way, where nrm's side is the right)
+			var park_sides: Array = [] if int(r.get("park", 0)) == 0 else ([-1.0, 1.0] if int(r["park"]) == 2 else [-1.0])
 			for k in n:
 				var p0 := a + dir * (ln * k / n)
 				var p1 := a + dir * (ln * (k + 1) / n)
@@ -359,6 +372,11 @@ static func _street(root: Node3D, d: Dictionary, roads: Dictionary, bank: Dictio
 					var m: Vector2 = (p0 + p1) * 0.5 + o
 					if m.length() < STREET_R and _street_ok(m) and not _on_road(m, roads, 0.1, id):
 						kerbs.append([p0 + o, p1 + o])
+				for sd: float in park_sides:
+					var o: Vector2 = nrm * (hw - PARK_W) * sd
+					var m: Vector2 = (p0 + p1) * 0.5 + o
+					if m.length() < STREET_R and _street_ok(m) and not _on_road(m, roads, -0.5, id):
+						dashes.append([p0 + o, p1 + o])
 			if not local:
 				continue
 			# Centre line: 3 m dashes, 6 m gaps, on the two-way streets
@@ -931,8 +949,15 @@ static func _water() -> ShaderMaterial:
 		_river.set_shader_parameter("water", F.COLORS["river"])
 	return _river
 
+static var _ground_m: ShaderMaterial
+## The ground: vertex coloured, its surfaces textured by UV.x (SURFACE).
+static func ground_mat() -> ShaderMaterial:
+	if _ground_m == null:
+		_ground_m = ShaderMaterial.new()
+		_ground_m.shader = preload("res://shaders/ground.gdshader")
+	return _ground_m
+
 static var _tint: StandardMaterial3D
-static var _flat_m: StandardMaterial3D
 static var _solid_m: StandardMaterial3D
 
 ## Toon-lit, coloured per instance (for the fields of houses and trees).
@@ -940,13 +965,6 @@ static func _tinted() -> StandardMaterial3D:
 	if _tint == null:
 		_tint = _vertex_mat()
 	return _tint
-
-## The ground meshes: coloured per vertex, seen from either side.
-static func _flat_mat() -> StandardMaterial3D:
-	if _flat_m == null:
-		_flat_m = _vertex_mat()
-		_flat_m.cull_mode = BaseMaterial3D.CULL_DISABLED
-	return _flat_m
 
 static func _solid_mat() -> StandardMaterial3D:
 	if _solid_m == null:

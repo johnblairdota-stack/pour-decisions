@@ -1,8 +1,11 @@
 // The grass plane under the whole world (scripts/surrounds.gd), toon like
 // shaders/toon.gdshader, with a hole wherever data/river_mask.png says the
 // river is (tools/river_banks.py), so the river can lie down below the land.
+// Mottled like the rest of the grass (shaders/ground_detail.gdshaderinc).
 shader_type spatial;
 render_mode diffuse_toon, specular_toon;
+
+#include "res://shaders/ground_detail.gdshaderinc"
 
 uniform vec4 albedo : source_color = vec4(1.0);
 uniform sampler2D wet : filter_nearest, repeat_disable;
@@ -24,7 +27,8 @@ void fragment() {
 	if (texture(wet, uv).r > 0.5) {
 		discard;
 	}
-	ALBEDO = albedo.rgb;
+	float px = max(length(dFdx(wp)), length(dFdy(wp)));
+	ALBEDO = ground_detail(albedo.rgb, GD_GRASS, wp, px);
 	ROUGHNESS = 0.85;
 	SPECULAR = 0.2;
 	RIM = 0.35;

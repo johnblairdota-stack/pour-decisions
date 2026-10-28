@@ -1,5 +1,5 @@
 ## The buildings round Riverlight. The Hamilton Reach estate next door as it
-## stood in 2017 (data/hamilton_reach_2017.json, traced off the 2017 aerial by
+## stands now (data/hamilton_reach.json, traced off the 2017 and 2022 aerials by
 ## tools/estate_to_game.py: the apartment blocks and terrace rows with their
 ## balconied facades and roof plant, and the row of two-storey houses along
 ## the golf course); the map's warehouses and sheds near the site as
@@ -12,7 +12,7 @@ extends RefCounted
 
 const F := preload("res://scripts/factory.gd")
 const LIB := "res://assets/buildings/buildings.glb"
-const ESTATE := "res://data/hamilton_reach_2017.json"
+const ESTATE := "res://data/hamilton_reach.json"
 const CLADDING := preload("res://shaders/cladding.gdshader")
 const TILE := 160.0
 const STOREY := 3.1
