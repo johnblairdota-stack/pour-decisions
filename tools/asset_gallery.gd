@@ -76,6 +76,10 @@ func _initialize() -> void:
 			_citycat(world)
 		"terminal":
 			_terminal(world)
+		"fences":
+			_fences(world)
+		"fencing":
+			_fencing(world)
 
 func _crew(world: Node3D) -> void:
 	# Every named crew member, each in a job's kit, with the job's hat
@@ -556,5 +560,60 @@ func _terminal(world: Node3D) -> void:
 		_shots.append(["terminal_river", at + out * 45.0 + along * 25.0 + Vector3(0, 10, 0), at.lerp(edge, 0.4) + Vector3(0, 1.5, 0)])
 		_shots.append(["terminal_bank", edge - out * 12.0 + along * 10.0 + Vector3(0, 8, 0), at + Vector3(0, 1.5, 0)])
 		_shots.append(["terminal_high", at + out * 60.0 - along * 60.0 + Vector3(0, 50, 0), at.lerp(edge, 0.5)])
+	_cam.fov = 45
+	_cam.far = 4000
+
+func _fences(world: Node3D) -> void:
+	# Every fence and gate in a row, a bay or two of each (scripts/fences.gd)
+	world.add_child(F.box(Vector3(80, 0.1, 30), F.color_mat(Color("78a457")), Vector3(0, -0.06, 0)))
+	var Fe := preload("res://scripts/fences.gd")
+	var items: Array = []
+	var x := -30.0
+	var yes := func(_p: Vector2) -> bool: return true
+	for k in [["ChainLink", Color.WHITE, "FencePost"], ["Palisade", Color.WHITE, ""], ["Colorbond", Fe.COLORBOND[1], ""],
+			["Paling", Color("c9a77c"), ""], ["SlatFence", Fe.SLATS[1], "FencePier"], ["PoolGlass", Color.WHITE, ""],
+			["LowWall", Fe.RENDER[0], ""], ["Bollards", Color.WHITE, ""]]:
+		Fe.run(items, k[0], Vector2(x, 0), Vector2(x + 6.0, 0), k[1], yes, k[2])
+		x += 7.5
+	Fe.one(items, "SlidingGate", Vector2(-24, 6), Vector2(1, 0))
+	Fe.one(items, "DrivewayGate", Vector2(-12, 6), Vector2(1, 0), Fe.SLATS[0])
+	Fe.one(items, "PedGate", Vector2(-6, 6), Vector2(1, 0), Fe.SLATS[0])
+	Fe.one(items, "BoomGate", Vector2(-2, 6), Vector2(1, 0))
+	Fe.place(world, items)
+	_shots = [
+		["fences_row_a", Vector3(-19, 3.5, -11.0), Vector3(-19, 1.0, 0)],
+		["fences_row_b", Vector3(4, 3.5, -11.0), Vector3(4, 1.0, 0)],
+		["fences_gates", Vector3(-12, 3.0, 15.0), Vector3(-12, 1.0, 6)],
+		["fences_wire", Vector3(-27, 1.6, -3.0), Vector3(-27, 1.2, 0)],
+	]
+	_cam.fov = 45
+
+func _fencing(world: Node3D) -> void:
+	# The fences in place round the estate, the car yards, the sheds and the
+	# park (scripts/surrounds.gd + fences.gd)
+	var s := Node3D.new()
+	world.add_child(s)
+	preload("res://scripts/surrounds.gd").build(s)
+	var e: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://data/hamilton_reach_2017.json"))
+	_shots = []
+	var h: Array = e["houses"][0]["at"]
+	var f: Array = e["houses"][0]["face"]
+	var hp := Vector3(h[0], 0, h[1])
+	var hf := Vector3(f[0], 0, f[1])
+	_shots.append(["fencing_house", hp + hf * 26.0 + hf.cross(Vector3.UP) * 8.0 + Vector3(0, 4.5, 0), hp + hf * 9.0])
+	_shots.append(["fencing_houses_back", hp - hf * 30.0 + Vector3(0, 14.0, 0), hp])
+	var y: Array = e["yards"][0]["pts"][6]
+	_shots.append(["fencing_yard", Vector3(y[0] - 14, 5.0, y[1] - 14), Vector3(y[0], 1.0, y[1])])
+	var cp: Array = e["yards"][1]["pts"][0]
+	_shots.append(["fencing_carpark", Vector3(cp[0] + 12, 6.0, cp[1] + 12), Vector3(cp[0], 1.0, cp[1])])
+	for b in e["blocks"]:
+		if b["name"] == "B":
+			var c := Vector3.ZERO
+			for q in b["pts"]:
+				c += Vector3(q[0], 0, q[1]) / float(b["pts"].size())
+			var out := Vector3(c.x, 0, c.z).normalized()
+			_shots.append(["fencing_block_" + String(b["name"]), c + out * 34.0 + Vector3(0, 9.0, 0), c + Vector3(0, 1.0, 0)])
+	_shots.append(["fencing_sheds", Vector3(140, 22.0, 380.0), Vector3(90, 1.0, 450.0)])
+	_shots.append(["fencing_over", Vector3(120, 140.0, -120), Vector3(60, 0, 120)])
 	_cam.fov = 45
 	_cam.far = 4000

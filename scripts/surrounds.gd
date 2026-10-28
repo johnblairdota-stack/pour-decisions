@@ -18,6 +18,7 @@ const Neighbours := preload("res://scripts/neighbours.gd")
 const People := preload("res://scripts/people.gd")
 const Cars := preload("res://scripts/cars.gd")
 const CityCat := preload("res://scripts/citycat.gd")
+const Fences := preload("res://scripts/fences.gd")
 
 const DATA := "res://data/riverlight_osm.json"
 const SKYLINE := "res://data/riverlight_skyline.json"   # tools/skyline_to_game.py
@@ -82,10 +83,13 @@ static func build(root: Node3D) -> void:
 			_take_area(poly, taken)
 		_street(root, d, roads, bank, taken, rng)
 		_trees(root, d, roads, bank, taken, rng)
+		Fences.build(root, d, func(p: Vector2) -> bool: return _street_ok(p) and not _is_taken(p, taken, 0.9),
+			func(p: Vector2, pad: float) -> bool: return _on_road(p, roads, pad), _seeded(11))
 		Water.build(root, d, bank, func(p: Vector2) -> bool: return _clear(p), rng)
 		People.build(root, d, func(p: Vector2) -> bool: return _clear(p) and not TRUCK_ROAD.grow(2.0).has_point(p), rng)
 		Cars.build(root, d, func(p: Vector2) -> bool: return _clear(p) and not TRUCK_ROAD.grow(2.0).has_point(p),
-			func(p: Vector2) -> bool: return _is_taken(p, taken, 2.5), rng)
+			func(p: Vector2) -> bool: return _is_taken(p, taken, 2.5), func(p: Vector2, pad: float) -> bool: return _on_road(p, roads, pad),
+			rng)
 		_lamps(root, d)
 		_haze_ring(root, d, rng)
 		_gateway(root, d)
@@ -93,6 +97,12 @@ static func build(root: Node3D) -> void:
 			CityCat.terminal(root, fe)
 			CityCat.run(root, fe, d.get("cat_route", []))
 	_skyline(root, rng)
+
+## Its own random numbers, so adding a layer leaves the rest as it was.
+static func _seeded(s: int) -> RandomNumberGenerator:
+	var r := RandomNumberGenerator.new()
+	r.seed = s
+	return r
 
 static func _load() -> Dictionary:
 	if not FileAccess.file_exists(DATA):
