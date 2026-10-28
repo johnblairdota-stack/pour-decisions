@@ -56,6 +56,10 @@ func _initialize() -> void:
 			_trees(world)
 		"street":
 			_street(world)
+		"water":
+			_water(world)
+		"river":
+			_river(world)
 
 func _crew(world: Node3D) -> void:
 	# Every named crew member, each in a job's kit, with the job's hat
@@ -293,3 +297,44 @@ func _street(world: Node3D) -> void:
 		["street_left", Vector3(-12, 3.5, 14.0), Vector3(-12, 2.0, 0.0)],
 		["street_right", Vector3(10, 3.5, 13.0), Vector3(10, 1.4, 0.0)],
 	]
+
+func _water(world: Node3D) -> void:
+	# The boats and bits for the river in a row (scripts/water.gd)
+	world.add_child(F.box(Vector3(120, 0.1, 60), F.color_mat(Color("4f6660")), Vector3(0, -0.06, 0)))
+	var W := preload("res://scripts/water.gd")
+	var row := [["Tinny", 6.0], ["Yacht", 12.0], ["Cruiser", 13.0], ["RowingEight", 20.0], ["PileGreen", 3.0],
+		["PileRed", 3.0], ["MooringBuoy", 2.0], ["Pontoon", 14.0], ["Rock0", 2.0], ["Rock1", 2.0], ["Rock2", 2.0]]
+	var x := -45.0
+	for r in row:
+		x += r[1] * 0.5
+		var n: MeshInstance3D = W.node(r[0])
+		n.position = Vector3(x, 0, 0)
+		world.add_child(n)
+		x += r[1] * 0.5
+	var ship: MeshInstance3D = W.node("CruiseShip")
+	ship.position = Vector3(0, 0, -150)
+	world.add_child(ship)
+	_shots = [
+		["water_boats", Vector3(-22, 12.0, 48.0), Vector3(-22, 2.0, 0.0)],
+		["water_bits", Vector3(25, 6.0, 22.0), Vector3(25, 1.5, 0.0)],
+		["water_ship", Vector3(-180, 60.0, 120.0), Vector3(0, 15.0, -150.0)],
+	]
+
+func _river(world: Node3D) -> void:
+	# The real river round the site (scripts/surrounds.gd + water.gd), looked
+	# at from a few spots on the water
+	var s := Node3D.new()
+	world.add_child(s)
+	preload("res://scripts/surrounds.gd").build(s)
+	var ship: Node3D = s.find_child("CruiseShip", true, false)
+	var yacht: Node3D = s.find_child("Yacht", true, false)
+	var pont: Node3D = s.find_child("Pontoon", true, false)
+	_shots = [["river_bank", Vector3(60, 25.0, -260.0), Vector3(20, 0.0, -190.0)]]
+	if ship != null:
+		_shots.append(["river_ship", ship.position + Vector3(-200, 80, -250), ship.position + Vector3(0, 20, 0)])
+	if yacht != null:
+		_shots.append(["river_moorings", yacht.position + Vector3(-40, 14, -40), yacht.position])
+	if pont != null:
+		_shots.append(["river_pontoon", pont.position + Vector3(-25, 10, -25), pont.position])
+	_cam.fov = 50
+	_cam.far = 8000

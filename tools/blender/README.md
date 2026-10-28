@@ -30,6 +30,10 @@ Or open Blender 5.2, Scripting tab, open the script and Run.
   benches, bins, bubbler, BBQ shelter, picnic tables, signs, bike hoops, the
   riverwalk railing) -> `assets/street/street.glb`, drawn by `scripts/street.gd`
   where `scripts/surrounds.gd` places them, with the kerbs and centre lines.
+- `water.py`: the river (tinny, yachts, cruiser, rowing eight, channel piles,
+  mooring buoy, pontoon, rock wall stones, the cruise ship at Portside) ->
+  `assets/water/water.glb`, placed by `scripts/water.gd`; the water itself is
+  `shaders/river.gdshader`.
 
 Materials are named by what they are (`skin`, `vest`, `hat`, `tape` ...). The
 game replaces each with its own toon material and outline by that name
@@ -37,4 +41,4 @@ game replaces each with its own toon material and outline by that name
 
 To check a batch in the game's own look:
 
-    godot --path . --script res://tools/asset_gallery.gd -- --out=/tmp/gallery --set=crew   # or props, plant, towers, site, trees, street
+    godot --path . --script res://tools/asset_gallery.gd -- --out=/tmp/gallery --set=crew   # or props, plant, towers, site, trees, street, water, river
