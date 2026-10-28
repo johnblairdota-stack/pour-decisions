@@ -14,6 +14,7 @@ const F := preload("res://scripts/factory.gd")
 const Flora := preload("res://scripts/flora.gd")
 const Street := preload("res://scripts/street.gd")
 const Water := preload("res://scripts/water.gd")
+const Neighbours := preload("res://scripts/neighbours.gd")
 
 const DATA := "res://data/riverlight_osm.json"
 const SKYLINE := "res://data/riverlight_skyline.json"   # tools/skyline_to_game.py
@@ -70,10 +71,12 @@ static func build(root: Node3D) -> void:
 		push_warning("surrounds: %s missing, the world's bare" % DATA)
 	else:
 		_ground(root, d)
-		_buildings(root, d, rng)
+		var foot := _buildings(root, d, rng)
 		var roads := _road_grid(d)
 		var bank := _bank_grid(d)
 		var taken := {}
+		for poly in foot:
+			_take_area(poly, taken)
 		_street(root, d, roads, bank, taken, rng)
 		_trees(root, d, roads, bank, taken, rng)
 		Water.build(root, d, bank, func(p: Vector2) -> bool: return _clear(p), rng)
@@ -179,7 +182,11 @@ static func _ribbon(st: SurfaceTool, line: PackedVector2Array, w: float, y: floa
 
 ## Every building in the map data, extruded to its height (from its levels
 ## where the map has them). Shipping containers get their colours.
-static func _buildings(root: Node3D, d: Dictionary, rng: RandomNumberGenerator) -> void:
+## The map's buildings: the warehouses, sheds and containers near the site
+## go to scripts/neighbours.gd to be drawn properly, with the estate next
+## door; the rest are extruded here. Returns the footprints drawn there.
+static func _buildings(root: Node3D, d: Dictionary, rng: RandomNumberGenerator) -> Array:
+	Neighbours.begin()
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	for b in d["buildings"]:
@@ -193,6 +200,8 @@ static func _buildings(root: Node3D, d: Dictionary, rng: RandomNumberGenerator) 
 		if not _clear(c):
 			continue
 		var kind: String = b["kind"]
+		if Neighbours.claim(kind, poly, float(b["h"]), c.length(), rng):
+			continue
 		var cols: Array = BUILDING.get(kind, [WALLS[rng.randi() % WALLS.size()], ROOFS[rng.randi() % ROOFS.size()]])
 		if kind == "container":
 			var cc: Color = CONTAINERS[rng.randi() % CONTAINERS.size()]
@@ -202,6 +211,7 @@ static func _buildings(root: Node3D, d: Dictionary, rng: RandomNumberGenerator) 
 	mi.mesh = st.commit()
 	mi.material_override = _solid_mat()
 	root.add_child(mi)
+	return Neighbours.build(root, rng)
 
 static func _extrude(st: SurfaceTool, poly: PackedVector2Array, h: float, wall: Color, roof: Color) -> void:
 	# Which way round the ring goes decides which side of each wall is out
@@ -646,6 +656,21 @@ static func _take(p: Vector2, taken: Dictionary) -> void:
 		taken[c] = []
 	taken[c].append(p)
 
+## Marks a building's footprint taken, every 2.5 m.
+static func _take_area(poly: PackedVector2Array, taken: Dictionary) -> void:
+	var box := Rect2(poly[0], Vector2.ZERO)
+	for p in poly:
+		box = box.expand(p)
+	var x := box.position.x
+	while x <= box.end.x:
+		var z := box.position.y
+		while z <= box.end.y:
+			var p := Vector2(x, z)
+			if Geometry2D.is_point_in_polygon(p, poly):
+				_take(p, taken)
+			z += 2.5
+		x += 2.5
+
 static func _is_taken(p: Vector2, taken: Dictionary, r: float) -> bool:
 	var c := Vector2i(floori(p.x / 10.0), floori(p.y / 10.0))
 	for dx in [-1, 0, 1]:
@@ -745,32 +770,7 @@ static func _haze_ring(root: Node3D, d: Dictionary, rng: RandomNumberGenerator) 
 	Flora.plant(root, plant, rng)
 
 static func _house_field(root: Node3D, at: Array, rng: RandomNumberGenerator) -> void:
-	var walls := MultiMesh.new()
-	walls.transform_format = MultiMesh.TRANSFORM_3D
-	walls.use_colors = true
-	var bm := BoxMesh.new()
-	bm.size = Vector3(1, 1, 1)
-	walls.mesh = bm
-	walls.instance_count = at.size()
-	var roofs := MultiMesh.new()
-	roofs.transform_format = MultiMesh.TRANSFORM_3D
-	roofs.use_colors = true
-	var pr := PrismMesh.new()
-	pr.size = Vector3(1, 1, 1)
-	roofs.mesh = pr
-	roofs.instance_count = at.size()
-	for i in at.size():
-		var w := rng.randf_range(9, 14)
-		var dd := rng.randf_range(10, 16)
-		# Queenslanders stand up on stumps: a taller box under the roof
-		var h := rng.randf_range(3.2, 5.5)
-		var b := Basis(Vector3.UP, rng.randf() * PI)
-		walls.set_instance_transform(i, Transform3D(b * Basis.from_scale(Vector3(w, h, dd)), at[i] + Vector3(0, h * 0.5, 0)))
-		walls.set_instance_color(i, WALLS[rng.randi() % WALLS.size()])
-		roofs.set_instance_transform(i, Transform3D(b * Basis.from_scale(Vector3(w + 1.0, 2.4, dd + 1.0)), at[i] + Vector3(0, h + 1.2, 0)))
-		roofs.set_instance_color(i, ROOFS[rng.randi() % ROOFS.size()])
-	_add_multi(root, walls)
-	_add_multi(root, roofs)
+	Neighbours.house_field(root, at, rng)
 
 static func _add_multi(root: Node3D, mm: MultiMesh, shadows := false) -> void:
 	var mi := MultiMeshInstance3D.new()
