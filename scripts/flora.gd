@@ -90,7 +90,13 @@ static func mesh(sp: String) -> Mesh:
 	_meshes[sp] = m
 	return m
 
-## Plants `trees` (each [species, Vector3 on the ground]) under `root`.
+## How tall a species' model stands at scale 1.
+static func height(sp: String) -> float:
+	var m := mesh(sp)
+	return maxf(m.get_aabb().end.y, 0.5) if m != null else 8.0
+
+## Plants `trees` (each [species, Vector3 on the ground], or with a third
+## entry, the height it should stand) under `root`.
 static func plant(root: Node3D, trees: Array, rng: RandomNumberGenerator) -> void:
 	var groups := {}
 	for t in trees:
@@ -109,6 +115,8 @@ static func plant(root: Node3D, trees: Array, rng: RandomNumberGenerator) -> voi
 			groups[key] = []
 		var r: Array = SPECIES.get(sp, [0.0, 1.0, 1.0])
 		var s := rng.randf_range(r[1], r[2])
+		if t.size() > 2:
+			s = clampf(float(t[2]) / height(sp), 0.45, 2.4)
 		var b := Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(s, s * rng.randf_range(0.92, 1.08), s))
 		var v := rng.randf_range(0.86, 1.08)
 		var w := rng.randf_range(-0.04, 0.04)
