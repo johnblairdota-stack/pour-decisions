@@ -7,6 +7,7 @@
 extends Node3D
 
 const F := preload("res://scripts/factory.gd")
+const Water := preload("res://scripts/water.gd")
 const LIB := "res://assets/people/people.glb"
 const NEAR := 450.0          # paths this close to the site get people
 const SEE := 320.0           # nobody's drawn or animated further from the camera than this
@@ -391,7 +392,7 @@ func _commuters(d: Dictionary, rng: RandomNumberGenerator) -> void:
 		for i in 4:
 			var n := person(rng, "coffee" if i % 2 == 0 else "walk")
 			var local := Vector3(rng.randf_range(-9.0, 9.0), 0.8, rng.randf_range(-2.0, 2.5))
-			var p := Vector3(at.x, 0, at.y) + local.rotated(Vector3.UP, yaw)
+			var p := Vector3(at.x, Water.RIVER_Y, at.y) + local.rotated(Vector3.UP, yaw)
 			n.position = p
 			n.rotation.y = yaw + PI + rng.randf_range(-0.6, 0.6)
 			if i == 3:

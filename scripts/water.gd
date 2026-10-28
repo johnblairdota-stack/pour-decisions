@@ -20,6 +20,17 @@ const COLORS := {
 }
 const BANK_R := 1200.0    # the revetment this far from the site
 const ROCK := Color("8a8478")
+const SAND := Color("d8c9a3")
+## The river's surface, below the land (GROUND_Y in surrounds.gd): the
+## riverwalk and the estate stand 3 to 4 m above mean river level in the 2019
+## LiDAR ground; this is a bit under that, so the drop reads from the deck
+## without towering over the riverwalk
+const RIVER_Y := -2.5
+## The rock wall's profile, across the bank (m into the water from the edge,
+## height): from the riverwalk's edge down under the water
+const WALL := [[-2.0, 0.25], [0.0, 0.08], [1.8, RIVER_Y + 0.8], [3.6, RIVER_Y - 0.6]]
+## ...and the beach's: sand running down into the water
+const SHORE := [[-0.5, 0.03], [3.0, RIVER_Y * 0.45], [7.0, RIVER_Y - 0.3]]
 
 static var _lib: Node
 static var _meshes := {}
@@ -70,11 +81,16 @@ static func build(root: Node3D, d: Dictionary, bank: Dictionary, keep_clear: Cal
 	for r in d.get("cat_route", []):
 		route.append(Vector2(r[0], r[1]))
 	_revetment(root, water, ferry, beach, keep_clear, rng)
-	_moorings(root, bank, water, ferry, route, rng)
-	_piles(root, route, water)
-	_pontoon(root, bank, ferry, water)
-	_traffic(root, route, water)
-	_cruise_ship(root, d, water)
+	# everything afloat, down at the river's level
+	var river := Node3D.new()
+	river.name = "OnTheRiver"
+	river.position.y = RIVER_Y
+	root.add_child(river)
+	_moorings(river, bank, water, ferry, route, rng)
+	_piles(river, route, water)
+	_pontoon(river, bank, ferry, water)
+	_traffic(river, route, water)
+	_cruise_ship(river, d, water)
 
 static func _v2(pts: Array) -> PackedVector2Array:
 	var out := PackedVector2Array()
@@ -93,8 +109,9 @@ static func _wet(p: Vector2, water: Array) -> bool:
 # ------------------------------------------------------------------ the bank
 
 ## The rock wall down the bank: a sloping strip from just behind the edge to
-## under the water, rocks heaped along it. None on the beach or at the
-## ferry terminal.
+## under the water, rocks heaped along it; on the beach, sand running down
+## into the water instead. None at the ferry terminal (its wall's
+## surrounds.gd's plain bank).
 static func _revetment(root: Node3D, water: Array, ferry: Array, beach: Array, keep_clear: Callable,
 		rng: RandomNumberGenerator) -> void:
 	var st := SurfaceTool.new()
@@ -125,28 +142,31 @@ static func _revetment(root: Node3D, water: Array, ferry: Array, beach: Array, k
 				for f in ferry:
 					if m.distance_to(f) < 40.0:
 						skip = true
+				var sandy := false
 				for bp in beach:
 					if Geometry2D.is_point_in_polygon(m - into * 2.0, bp) or Geometry2D.is_point_in_polygon(m + into * 1.0, bp):
-						skip = true
+						sandy = true
 				if skip:
 					continue
-				# Three rows across: behind the edge, at it, under the water
-				var rows := [[-2.4, 0.32], [0.0, 0.12], [2.6, -0.9]]
+				# Rows across: behind the edge, at it, and on down under the water
+				var rows: Array = SHORE if sandy else WALL
 				var va: Array = []
 				var vb: Array = []
 				for r in rows:
 					va.append(Vector3(a.x + into.x * r[0], r[1], a.y + into.y * r[0]))
 					vb.append(Vector3(b.x + into.x * r[0], r[1], b.y + into.y * r[0]))
-				var nrm := Vector3(into.x, 1.6, into.y).normalized()
-				for j in 2:
-					var c := ROCK.darkened(rng.randf_range(0.0, 0.15))
+				var nrm := Vector3(into.x, 1.2, into.y).normalized()
+				for j in rows.size() - 1:
+					var c := SAND.darkened(rng.randf_range(0.0, 0.06) + 0.1 * j) if sandy else ROCK.darkened(rng.randf_range(0.0, 0.15))
 					_quad(st, va[j], vb[j], vb[j + 1], va[j + 1], nrm, c)
+				if sandy:
+					continue
 				# Rocks along it, half sunk
-				for q in 3:
+				for q in 4:
 					var t := rng.randf()
-					var across := rng.randf_range(-2.0, 1.6)
+					var across := rng.randf_range(-1.8, 2.8)
 					var at := a.lerp(b, t) + into * across
-					var y := lerpf(0.32, -0.9, clampf((across + 2.4) / 5.0, 0.0, 1.0))
+					var y := wall_y(across)
 					var s := rng.randf_range(0.7, 1.4)
 					var basis := Basis(Vector3.UP, rng.randf() * TAU) * Basis(Vector3.RIGHT, rng.randf_range(-0.3, 0.3))
 					rocks.append(["Rock%d" % rng.randi_range(0, 2), Transform3D(basis.scaled(Vector3(s, s, s)), Vector3(at.x, y, at.y))])
@@ -164,6 +184,13 @@ static func _revetment(root: Node3D, water: Array, ferry: Array, beach: Array, k
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	root.add_child(mi)
 	_multi(root, rocks, false)
+
+## How high the rock wall stands this far out from the bank's edge.
+static func wall_y(across: float) -> float:
+	for i in WALL.size() - 1:
+		if across <= WALL[i + 1][0]:
+			return lerpf(WALL[i][1], WALL[i + 1][1], clampf((across - WALL[i][0]) / (WALL[i + 1][0] - WALL[i][0]), 0.0, 1.0))
+	return WALL[WALL.size() - 1][1]
 
 static func _quad(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, d: Vector3, n: Vector3, col: Color) -> void:
 	st.set_color(col)

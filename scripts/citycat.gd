@@ -5,6 +5,7 @@
 extends RefCounted
 
 const F := preload("res://scripts/factory.gd")
+const Water := preload("res://scripts/water.gd")
 const LIB := "res://assets/citycat/citycat.glb"
 const SPAN := 6.0          # one GangwaySpan, m
 
@@ -46,7 +47,7 @@ static func model(name: String) -> MeshInstance3D:
 	mi.mesh = mesh(name)
 	return mi
 
-## A CityCat, bow towards +x, waterline at y = 0.
+## A CityCat, bow towards +x, waterline at its origin (put it at Water.RIVER_Y).
 static func boat() -> Node3D:
 	return model("CityCat")
 
@@ -56,7 +57,7 @@ static func terminal(root: Node3D, fe: Dictionary) -> void:
 	var at := Vector2(fe["at"][0], fe["at"][1])
 	var edge := Vector2(fe["edge"][0], fe["edge"][1])
 	var t := model("Terminal")
-	t.position = Vector3(at.x, 0, at.y)
+	t.position = Vector3(at.x, Water.RIVER_Y, at.y)
 	t.rotation.y = -deg_to_rad(float(fe["bank_deg"]))
 	root.add_child(t)
 	# gangway: from the pontoon's bank side to the bank, as whole spans
@@ -65,12 +66,16 @@ static func terminal(root: Node3D, fe: Dictionary) -> void:
 	var run := start.distance_to(edge)
 	var n := maxi(1, ceili(run / SPAN))
 	var yaw := atan2(dir.x, dir.y)
+	# (up from the pontoon's deck to the landing on the bank)
+	var y0 := Water.RIVER_Y + 0.82
+	var y1 := 0.8
+	var pitch := -atan2(y1 - y0, run)
+	var step := Vector2(run, y1 - y0).length() / n
 	for i in n:
 		var g := model("GangwaySpan")
 		var p := start + dir * (run * i / n)
-		g.position = Vector3(p.x, 0.82, p.y)
-		g.rotation.y = yaw
-		g.scale = Vector3(1, 1, run / n / SPAN)
+		g.position = Vector3(p.x, lerpf(y0, y1, float(i) / n), p.y)
+		g.basis = Basis(Vector3.UP, yaw) * Basis(Vector3.RIGHT, pitch) * Basis.from_scale(Vector3(1, 1, step / SPAN))
 		root.add_child(g)
 	var land := model("GangwayLanding")
 	land.position = Vector3(edge.x, 0.8, edge.y) + Vector3(dir.x, 0, dir.y) * 1.5
@@ -86,8 +91,8 @@ static func run(root: Node3D, fe: Dictionary, route: Array) -> void:
 	var berth := at + (at - edge).normalized() * 9.0
 	var pts: Array = []
 	for r in route:
-		pts.append(Vector3(r[0], 0, r[1]))
-	pts.append(Vector3(berth.x, 0, berth.y))
+		pts.append(Vector3(r[0], Water.RIVER_Y, r[1]))
+	pts.append(Vector3(berth.x, Water.RIVER_Y, berth.y))
 	b.position = pts[0]
 	root.add_child(b)
 	var tw := b.create_tween().set_loops()

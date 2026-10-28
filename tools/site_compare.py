@@ -11,7 +11,7 @@ Compares, in the game frame (tools/osm_to_game.py), 1 m a pixel:
   - heights against the 2019 LiDAR surface (reference/elevation, 1 km tile
     round the site only), overall and building by building
   - the game's trees against the 2825 LiDAR tree tops
-  - the game's flat ground against the real ground heights (AHD)
+  - the game's flat ground and its river against the real ground heights (AHD)
 
 Writes PNGs and report.json into DIR. Needs numpy and Pillow.
 """
@@ -263,12 +263,14 @@ def main():
 	big = np.kron(cd, np.ones((cell, cell)))
 	Image.fromarray(crop(colourise(big, -12, 12, DIVERGE))).save(os.path.join(out, "3_tree_density_diff.png"))
 
-	# --- 4. Ground: the game is flat; the real ground isn't
+	# --- 4. Ground: the game's land is flat with the river set down below it;
+	# the real ground isn't flat
 	real_g_all = sample(gnd, cols, rows)
 	land = (game_h > -0.5) & ~np.isnan(real_g_all) & (game_h < 1.5)
-	water = np.abs(game_h + game_g - 0.02) < 0.05
+	water = (game_h < -1.0) & (game_h > -4.0)
 	report["ground"] = {
 		"game_ground_y": round(float(game_g), 2),
+		"game_river_below_land_m": round(float(-np.nanmedian(game_h[water])), 2) if water.any() else 0.0,
 		"real_ground_ahd_median_on_game_land_m": round(float(np.nanmedian(real_g_all[land & ~water])), 2),
 		"real_ground_ahd_p10_p90_m": [round(float(v), 2) for v in np.nanpercentile(real_g_all[land & ~water], [10, 90])],
 		"real_ground_ahd_at_site_m": round(float(np.nanmedian(real_g_all[site])), 2),

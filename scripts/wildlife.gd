@@ -8,6 +8,7 @@
 extends Node3D
 
 const F := preload("res://scripts/factory.gd")
+const Water := preload("res://scripts/water.gd")
 const Flora := preload("res://scripts/flora.gd")
 const LIB := "res://assets/wildlife/wildlife.glb"
 const NEAR := 380.0          # where the ground animals live
@@ -269,7 +270,7 @@ func _riverside(edge: Array, ok: Callable, water: Callable, rng: RandomNumberGen
 			var p: Vector2 = e[0] - e[1] * rng.randf_range(20.0, 60.0)
 			if water.call(p):
 				var n := model("Pelican")
-				n.position = Vector3(p.x, 0.0, p.y)
+				n.position = Vector3(p.x, Water.RIVER_Y, p.y)
 				n.rotation.y = rng.randf() * TAU
 				add_child(n)
 				_floaters.append({"node": n, "home": p, "ph": rng.randf() * TAU})
@@ -303,7 +304,7 @@ func _process(delta: float) -> void:
 		var ph: float = f["ph"]
 		var home: Vector2 = f["home"]
 		# (drifting slowly about where it started)
-		n.position = Vector3(home.x + (sin(_t * 0.05 + ph) - sin(ph)) * 6.0, sin(_t * 1.3 + ph) * 0.04,
+		n.position = Vector3(home.x + (sin(_t * 0.05 + ph) - sin(ph)) * 6.0, Water.RIVER_Y + sin(_t * 1.3 + ph) * 0.04,
 			home.y + (cos(_t * 0.04 + ph) - cos(ph)) * 6.0)
 		n.rotation.y = _t * 0.03 + ph
 		(n.get_node("Head") as Node3D).rotation.y = sin(_t * 0.3 + ph) * 0.4

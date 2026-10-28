@@ -110,6 +110,10 @@ func _process(_delta: float) -> bool:
 		for g in _all(_world):
 			if g is GeometryInstance3D:
 				g.material_override = m
+			# (the grass plane under everything has a hole for the river that
+			# this shader can't cut, so it's left out: bare verges read no data)
+			if g is MeshInstance3D and g.mesh is PlaneMesh:
+				g.visible = false
 		_env.background_color = Color.BLACK
 		_env.ambient_light_energy = 0.0
 	elif p == "height":
