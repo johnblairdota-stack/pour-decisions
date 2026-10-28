@@ -13,6 +13,7 @@ extends RefCounted
 const F := preload("res://scripts/factory.gd")
 const Flora := preload("res://scripts/flora.gd")
 const Street := preload("res://scripts/street.gd")
+const Water := preload("res://scripts/water.gd")
 
 const DATA := "res://data/riverlight_osm.json"
 const SKYLINE := "res://data/riverlight_skyline.json"   # tools/skyline_to_game.py
@@ -75,6 +76,7 @@ static func build(root: Node3D) -> void:
 		var taken := {}
 		_street(root, d, roads, bank, taken, rng)
 		_trees(root, d, roads, bank, taken, rng)
+		Water.build(root, d, bank, func(p: Vector2) -> bool: return _clear(p), rng)
 		_lamps(root, d)
 		_haze_ring(root, d, rng)
 		_gateway(root, d)
@@ -780,15 +782,15 @@ static func _add_multi(root: Node3D, mm: MultiMesh, shadows := false) -> void:
 
 # ------------------------------------------------------------------ materials
 
-## The river: the Brisbane River's olive-brown, glossy enough to pick up the
-## sky so it reads as water from up high.
-static func _water() -> StandardMaterial3D:
-	var m := StandardMaterial3D.new()
-	m.albedo_color = F.COLORS["river"]
-	m.roughness = 0.12
-	m.metallic_specular = 0.8
-	m.cull_mode = BaseMaterial3D.CULL_DISABLED
-	return m
+## The river (shaders/river.gdshader): the Brisbane River's olive green-grey,
+## rippling, picking up the sky.
+static var _river: ShaderMaterial
+static func _water() -> ShaderMaterial:
+	if _river == null:
+		_river = ShaderMaterial.new()
+		_river.shader = preload("res://shaders/river.gdshader")
+		_river.set_shader_parameter("water", F.COLORS["river"])
+	return _river
 
 static var _tint: StandardMaterial3D
 static var _flat_m: StandardMaterial3D
