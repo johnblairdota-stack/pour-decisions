@@ -50,6 +50,8 @@ func _initialize() -> void:
 			_plant(world)
 		"towers":
 			_towers(world)
+		"site":
+			_site(world)
 
 func _crew(world: Node3D) -> void:
 	# Every named crew member, each in a job's kit, with the job's hat
@@ -211,4 +213,19 @@ func _towers(world: Node3D) -> void:
 		["towers_hoist", Vector3(-1.0, 3.5, 7.0), Vector3(-5.5, 1.6, 0)],
 		["towers_crane", Vector3(14.0, 6.0, -12.0), Vector3(-2.0, 0.0, -30)],
 		["towers_crane_far", Vector3(30.0, 18.0, 0.0), Vector3(14.0, 0.0, -30)],
+	]
+
+func _site(world: Node3D) -> void:
+	# The yard as the game lays it out (scripts/yard.gd), on a big ground
+	world.add_child(F.box(Vector3(160, 0.1, 80), F.mat("grass"), Vector3(10, -0.06, -5)))
+	var y := Node3D.new()
+	world.add_child(y)
+	preload("res://scripts/yard.gd").build(y)
+	_shots = [
+		["site_sheds", Vector3(-8.0, 9.0, -6.0), Vector3(-17.0, 2.0, 6.0)],
+		["site_crib", Vector3(-12.0, 4.0, -2.0), Vector3(-17.0, 1.0, 5.0)],
+		["site_gate", Vector3(36.0, 6.0, 24.0), Vector3(36.0, 1.0, 11.0)],
+		["site_west", Vector3(36.0, 7.0, 0.0), Vector3(44.5, 0.8, 7.0)],
+		["site_laydown", Vector3(-6.0, 7.0, -32.0), Vector3(-6.0, 0.5, -22.0)],
+		["site_wide", Vector3(10.0, 45.0, 45.0), Vector3(10.0, 0.0, 4.0)],
 	]
