@@ -60,6 +60,12 @@ Or open Blender 5.2, Scripting tab, open the script and Run.
   plus sliding, driveway, pedestrian and boom gates ->
   `assets/fences/fences.glb`, laid round the estate, car yards, sheds, golf
   course and park by `scripts/fences.gd`.
+- `wildlife.py`: brush-turkey, white ibis, masked lapwing, bush
+  stone-curlew, magpie, kookaburra, rainbow lorikeet, pelican, koala,
+  brushtail possum and eastern water dragon -> `assets/wildlife/wildlife.glb`,
+  with Head, Tail, Leg and Wing joints that `scripts/wildlife.gd` moves
+  (walking and pecking, flocks flying, pelicans drifting; possums only on a
+  dawn pour).
 
 Materials are named by what they are (`skin`, `vest`, `hat`, `tape` ...). The
 game replaces each with its own toon material and outline by that name
@@ -67,4 +73,4 @@ game replaces each with its own toon material and outline by that name
 
 To check a batch in the game's own look:
 
-    godot --path . --script res://tools/asset_gallery.gd -- --out=/tmp/gallery --set=crew   # or props, plant, towers, site, trees, street, water, river, buildings, estate, people, crowd, cars, traffic, citycat, terminal, fences, fencing
+    godot --path . --script res://tools/asset_gallery.gd -- --out=/tmp/gallery --set=crew   # or props, plant, towers, site, trees, street, water, river, buildings, estate, people, crowd, cars, traffic, citycat, terminal, fences, fencing, wildlife, critters

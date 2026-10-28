@@ -37,6 +37,7 @@ const ScreedScript := preload("res://scripts/screed.gd")
 const OpsScript := preload("res://scripts/ops.gd")
 const Surrounds := preload("res://scripts/surrounds.gd")
 const Street := preload("res://scripts/street.gd")
+const Wildlife := preload("res://scripts/wildlife.gd")
 const Yard := preload("res://scripts/yard.gd")
 
 # Riverlight: 11 levels; 10 lattice sections reached a 41.4 m free-stand.
@@ -500,6 +501,8 @@ func _update_daylight(delta: float) -> void:
 		pour.smat.set_shader_parameter("low_light", 1.0 - smoothstep(0.35, 0.8, _day_u))
 	# (the street lights stay on till the sun's well up)
 	Street.set_lit(1.0 - smoothstep(0.3, 0.6, _day_u) if is_dawn() else 0.0)
+	# (and the possums are still out)
+	Wildlife.dawn = 1.0 - smoothstep(0.3, 0.6, _day_u) if is_dawn() else 0.0
 	var want := is_dawn() and _day_u < SUNRISE_U and phase in ["columns", "deck", "inspect", "pour"]
 	if want != _floods_on:
 		if _floods.is_empty():
