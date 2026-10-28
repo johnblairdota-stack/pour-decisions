@@ -23,6 +23,7 @@ const Wildlife := preload("res://scripts/wildlife.gd")
 
 const DATA := "res://data/riverlight_osm.json"
 const SKYLINE := "res://data/riverlight_skyline.json"   # tools/skyline_to_game.py
+const LIDAR_TREES := "res://data/riverlight_trees_2019.json"   # tools/lidar_trees_to_game.py
 const CITY := 7000.0          # the suburbs' houses reach out to here
 const NEAR := 1600.0          # the map data reaches this far
 const FAR := 2500.0           # the haze ring of houses goes out to here
@@ -538,15 +539,18 @@ static func _riverwalk(d: Dictionary, items: Array) -> void:
 					Vector3(p.x, 0, p.y))
 				items.append(["RiverwalkRail", t])
 
-## The map's own trees, the parks, the golf course and the scrub planted out
+## Round the site, the trees the LiDAR found (_lidar_trees). Past that, the
+## map's own trees, the parks, the golf course and the scrub planted out
 ## at about the density the aerial photos show, street trees down the roads
 ## near the site, and mangroves in patches along the river's edge. Each spot
 ## gets a species from what grows there (scripts/flora.gd), kept off the roads.
 static func _trees(root: Node3D, d: Dictionary, roads: Dictionary, bank: Dictionary, taken: Dictionary,
 		rng: RandomNumberGenerator) -> void:
 	var plant: Array = []
+	var lidar := _lidar_trees(d, roads, bank, taken, plant, rng)
 	var ok := func(p: Vector2) -> bool:
-		return _clear(p) and not TRUCK_ROAD.has_point(p) and not _on_road(p, roads, 1.2) and not _is_taken(p, taken, 2.0)
+		return _clear(p) and not TRUCK_ROAD.has_point(p) and not _on_road(p, roads, 1.2) and not _is_taken(p, taken, 2.0) \
+			and not Geometry2D.is_point_in_polygon(p, lidar)
 	for t in d["trees"]:
 		var p := Vector2(t[0], t[1])
 		if ok.call(p):
@@ -569,13 +573,68 @@ static func _trees(root: Node3D, d: Dictionary, roads: Dictionary, bank: Diction
 				if mix == "park" and _near_bank(p, bank, 45.0):
 					mix = "riverside"
 				plant.append([Flora.pick(mix, rng), Vector3(p.x, 0, p.y)])
-	_street_trees(d, roads, taken, plant, rng)
-	_mangroves(d, bank, plant, rng)
+	_street_trees(d, roads, taken, lidar, plant, rng)
+	_mangroves(d, bank, lidar, plant, rng)
 	Flora.plant(root, plant, rng)
+
+## Inside the 1 km LiDAR tile round the site, a tree at every tree top the
+## 2019 LiDAR found, at its real height, the species going by where it stands:
+## mangroves on the drains and the river's edge, the golf course's gums and
+## paperbarks, street trees by the roads, park trees in the parks, garden trees
+## elsewhere. Returns the tile's outline, so the made-up planting stays out.
+static func _lidar_trees(d: Dictionary, roads: Dictionary, bank: Dictionary, taken: Dictionary, plant: Array,
+		rng: RandomNumberGenerator) -> PackedVector2Array:
+	if not FileAccess.file_exists(LIDAR_TREES):
+		return PackedVector2Array()
+	var data: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(LIDAR_TREES))
+	var areas := {"golf": [], "park": [], "water": [], "scrub": []}
+	for a in d["areas"]:
+		if areas.has(a["kind"]):
+			areas[a["kind"]].append(_v2(a["pts"]))
+	var drains: Array = []
+	for r in d.get("drains", []):
+		drains.append(_v2(r["pts"]))
+	var inside := func(p: Vector2, kind: String) -> bool:
+		for poly in areas[kind]:
+			if Geometry2D.is_point_in_polygon(p, poly):
+				return true
+		return false
+	for t in data["trees"]:
+		var p := Vector2(t[0], t[1])
+		var h: float = t[2]
+		if not _clear(p) or TRUCK_ROAD.has_point(p) or _on_road(p, roads, 0.5) or _is_taken(p, taken, 1.0):
+			continue
+		var sp: String
+		if inside.call(p, "water") or (p.length() > 260.0 and _near_bank(p, bank, 10.0) and rng.randf() < 0.7) \
+				or (_near_line(p, drains, 14.0) and rng.randf() < 0.75):
+			sp = "Mangrove" if h < 12.0 else "Paperbark"
+		elif inside.call(p, "golf"):
+			sp = Flora.pick("golf", rng)
+		elif _on_road(p, roads, 7.0):
+			sp = Flora.pick("street", rng)
+		elif inside.call(p, "park"):
+			sp = Flora.pick("riverside" if _near_bank(p, bank, 45.0) else "park", rng)
+		elif inside.call(p, "scrub"):
+			sp = Flora.pick("scrub", rng)
+		else:
+			sp = Flora.pick("suburb", rng)
+		# The tall ones are figs and gums whatever the mix says
+		if h > 15.0 and not sp in ["Fig", "Gum", "Paperbark"]:
+			sp = "Fig" if rng.randf() < 0.4 else "Gum"
+		plant.append([sp, Vector3(p.x, 0, p.y), h])
+	return _v2(data["tile"])
+
+static func _near_line(p: Vector2, lines: Array, dist: float) -> bool:
+	for line in lines:
+		for i in line.size() - 1:
+			if p.distance_to(Geometry2D.get_closest_point_to_segment(p, line[i], line[i + 1])) < dist:
+				return true
+	return false
 
 ## Street trees both sides of the local streets near the site, every 13 m or
 ## so, with lomandra and bottlebrush in the beds between.
-static func _street_trees(d: Dictionary, roads: Dictionary, taken: Dictionary, plant: Array, rng: RandomNumberGenerator) -> void:
+static func _street_trees(d: Dictionary, roads: Dictionary, taken: Dictionary, lidar: PackedVector2Array, plant: Array,
+		rng: RandomNumberGenerator) -> void:
 	for r in d["roads"]:
 		if not r["kind"] in ["residential", "unclassified", "tertiary", "secondary", "living_street"]:
 			continue
@@ -599,7 +658,8 @@ static func _street_trees(d: Dictionary, roads: Dictionary, taken: Dictionary, p
 					if p.length() > 450.0 or not _clear(p) or TRUCK_ROAD.has_point(p) or _on_road(p, roads, 1.0) \
 							or _is_taken(p, taken, 2.5):
 						continue
-					plant.append([Flora.pick("street", rng), Vector3(p.x, 0, p.y)])
+					if not Geometry2D.is_point_in_polygon(p, lidar):
+						plant.append([Flora.pick("street", rng), Vector3(p.x, 0, p.y)])
 					if p.length() < 260.0:
 						for k in 3:
 							var q: Vector2 = p + dir * rng.randf_range(2.5, 10.0) + nrm * side * rng.randf_range(-0.6, 0.6)
@@ -610,7 +670,7 @@ static func _street_trees(d: Dictionary, roads: Dictionary, taken: Dictionary, p
 ## Grey mangroves in patches on the river's edge, standing in the shallows;
 ## none on the frontage in front of Riverlight (rock wall and riverwalk) or by
 ## the ferry terminal.
-static func _mangroves(d: Dictionary, bank: Dictionary, plant: Array, rng: RandomNumberGenerator) -> void:
+static func _mangroves(d: Dictionary, bank: Dictionary, lidar: PackedVector2Array, plant: Array, rng: RandomNumberGenerator) -> void:
 	var avoid: Array = []
 	for fe in d.get("ferry", []):
 		avoid.append(Vector2(fe["at"][0], fe["at"][1]))
@@ -618,7 +678,7 @@ static func _mangroves(d: Dictionary, bank: Dictionary, plant: Array, rng: Rando
 		for e in bank[cell]:
 			var p: Vector2 = e[0]
 			var dist := p.length()
-			if dist < 260.0 or dist > 1100.0:
+			if dist < 260.0 or dist > 1100.0 or Geometry2D.is_point_in_polygon(p, lidar):
 				continue
 			var near_ferry := false
 			for f in avoid:
