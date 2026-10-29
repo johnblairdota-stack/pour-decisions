@@ -184,6 +184,7 @@ func _build_crew_page(root: Control) -> void:
 		col.add_child(peg)
 		var hat := UI.Hat.new()
 		hat.color = UI.ROLE[role]
+		hat.icon = role
 		hat.custom_minimum_size = Vector2(120, 100)
 		hat.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 		col.add_child(hat)
@@ -201,6 +202,11 @@ func _build_crew_page(root: Control) -> void:
 		var who := UI.label("", 16, UI.BONE, 0)
 		who.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		tr.add_child(who)
+		var ask := UI.head(UI.ROLE_ASK[role], 17, Color("1b1308"))
+		ask.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		ask.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		ask.custom_minimum_size = Vector2(170, 0)
+		col.add_child(ask)
 		var line := UI.label(UI.ROLE_SHORT[role], 13, Color("3d2c18"), 0)
 		line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		line.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER

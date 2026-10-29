@@ -16,6 +16,7 @@ const F := preload("res://scripts/factory.gd")
 const UI := preload("res://scripts/ui.gd")
 const Icons := preload("res://scripts/icons.gd")
 const Utes := preload("res://scripts/utes.gd")
+const Wallet := preload("res://scripts/wallet.gd")
 const Surrounds := preload("res://scripts/surrounds.gd")
 const Water := preload("res://scripts/water.gd")
 const Cars := preload("res://scripts/cars.gd")
@@ -81,6 +82,7 @@ var _back_hold := 0.0
 
 var utes: Array = []         # {name, node, pos, yaw, v (Vector2), yaw_rate, steer, pitch, roll, pv, rv, spin, rpm}
 var car: Dictionary = {}     # the one you're driving
+var _kit_sig := ""           # whose ute and kit is parked at the kerb
 var _smoke: Array = []
 
 var _cam_yaw := 0.0
@@ -289,6 +291,14 @@ func enter(who = null) -> void:
 	_badge.visible = false
 	_main_cam = game.camera
 	cam.current = true
+	# (re-parked when this person's ute or kit isn't what's at the kerb,
+	# say after a shop at Smoko)
+	var sig := "%s|%s|%s" % [_my_ute(), _kit_on("Hilux"), [_kit_on("Ranger"), _kit_on("Shark")]]
+	if not utes.is_empty() and sig != _kit_sig and car.is_empty():
+		for c in utes:
+			(c["node"] as Node3D).queue_free()
+		utes.clear()
+	_kit_sig = sig
 	if utes.is_empty():
 		_park_utes()
 	_spawn_me()
@@ -369,10 +379,18 @@ func _park_utes() -> void:
 ## has picked ("Hilux", "Ranger" or "Shark", "" for none) and the kit
 ## fitted to one of theirs.
 func _my_ute() -> String:
-	return ""
+	var id := String(Wallet.of(_char()).get("ute", ""))
+	return id.capitalize() if id in Wallet.UTES.map(func(u): return u["id"]) else ""
 
-func _kit_on(_name: String) -> Array:
-	return []
+## (only on the utes they own: the others at the kerb are stock)
+func _kit_on(name: String) -> Array:
+	var w := Wallet.of(_char())
+	if not (w.get("utes", []) as Array).has(name.to_lower()):
+		return []
+	return Array((w.get("kit", {}) as Dictionary).get(name.to_lower(), []))
+
+func _char() -> String:
+	return String(_who.char_id) if _who != null and "char_id" in _who and _who.char_id != "" else ""
 
 func _spawn_me() -> void:
 	if me == null:

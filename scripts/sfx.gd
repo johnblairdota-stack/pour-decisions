@@ -16,6 +16,8 @@ const WHISTLES := {
 	"emergency": [[1.5, 0.0]],
 }
 
+const BIRD_CHIRPS := [0.0, 0.16, 0.5, 0.64, 1.0, 1.12, 1.26]   # s, when each chirp of "birds" starts
+
 var pumping := false
 var rattle := 0.0           # 0..1, how hard the worn clamp is shaking
 var muted := false
@@ -176,7 +178,7 @@ func _ready() -> void:
 	_load_samples()
 
 ## kind: "bang", "clank", "thunk", "buzz", "ding", "clang", "tink", "hiss",
-## "knock", "ring", "thud", "beep", "whip", "rain", "bleep", "bleep_s",
+## "knock", "ring", "thud", "beep", "whip", "rain", "birds", "bleep", "bleep_s",
 ## or "whistle:<code>" with a code from WHISTLES
 func hit(kind: String) -> void:
 	# Never stack: a new whistle replaces the one still sounding, and the same
@@ -303,6 +305,13 @@ func _process(delta: float) -> void:
 					s += sin(TAU * (520.0 - 900.0 * a) * a) * exp(-a * 30.0) * 0.12
 				"chime":
 					s += (sin(TAU * 1568.0 * a) * 0.14 + sin(TAU * 2093.0 * a) * 0.08) * exp(-a * 6.0)
+				"birds":
+					# A few quick rising chirps, the way the lorikeets
+					# turn up once the site goes quiet
+					for c0 in BIRD_CHIRPS:
+						var u: float = a - c0
+						if u > 0.0 and u < 0.09:
+							s += sin(TAU * (3000.0 + 9000.0 * u) * u) * sin(u / 0.09 * PI) * 0.06
 				"ding":
 					s += sin(TAU * 988.0 * a) * exp(-a * 3.5) * 0.2 + sin(TAU * 1318.0 * a) * exp(-a * 4.0) * 0.14
 				"bleep", "bleep_s":

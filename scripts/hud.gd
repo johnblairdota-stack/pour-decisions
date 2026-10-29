@@ -413,6 +413,7 @@ func _build_crew() -> void:
 		h.add_child(col)
 		var hat := UI.Hat.new()
 		hat.color = UI.ROLE[role]
+		hat.icon = role
 		hat.custom_minimum_size = Vector2(40, 30)
 		col.add_child(hat)
 		var tag := UI.pill(Color("5d606b"), Vector4(5, 0, 5, 0))
@@ -506,8 +507,9 @@ func _animate_crew(delta: float) -> void:
 # ------------------------------------------------------------------ top bar
 
 ## What the crew's doing now. `title` is short ("Pour · bay 3 of 4"); `sub`
-## only when there's something to do that isn't shown anywhere else.
-func set_task(title: String, sub := "") -> void:
+## only when there's something to do that isn't shown anywhere else, in the
+## colour of `role`'s job when it's one job's step (the start-up, the washout).
+func set_task(title: String, sub := "", role := "") -> void:
 	var chip := ""
 	var t := title
 	var dot := title.find(" · ")
@@ -520,6 +522,7 @@ func set_task(title: String, sub := "") -> void:
 	task_box.visible = title != ""
 	sub_label.text = sub
 	sub_label.visible = sub != ""
+	sub_label.add_theme_color_override("font_color", UI.ROLE.get(role, UI.WHITE) if role != "" else UI.WHITE)
 
 func set_progress(p: float) -> void:
 	UI.set_bar(prog_fill, p)
@@ -545,6 +548,16 @@ func set_bottom_inset(h: float) -> void:
 	if facts != null:
 		UI.place(facts, Vector2(0.5, 1), Vector2(0, -60 - h))
 
+## The pause hint shows for the first minute of play, then fades for good.
+const PAUSE_HINT_T := 60.0
+var _hint_t := 0.0
+
+func tick_pause_hint(delta: float, playing: bool) -> void:
+	if playing:
+		_hint_t += delta
+	_pause_hint.visible = _hint_t < PAUSE_HINT_T
+	_pause_hint.modulate.a = clampf((PAUSE_HINT_T - _hint_t) / 2.0, 0.0, 1.0)
+
 func set_gauge(spike: bool, tripped: bool) -> void:
 	gauge.spike = spike
 	gauge.tripped = tripped
@@ -555,7 +568,7 @@ func set_floor(done: int, total: int) -> void:
 ## Crew points, counting up to the real total, with the rank ladder under it.
 func set_score(total: int, rank: String, next_rank: String, frac: float, bump: float) -> void:
 	_shown_score = move_toward(_shown_score, total, maxf(4.0, absf(total - _shown_score) * 0.18))
-	score_label.text = UI.thousands(int(_shown_score))
+	score_label.text = "$" + UI.thousands(int(_shown_score))
 	score_label.pivot_offset = score_label.size * Vector2(1.0, 0.5)
 	score_label.scale = Vector2.ONE * (1.0 + 0.15 * bump)
 	rank_label.text = rank.to_upper() + ("  →  " + next_rank if next_rank != "" else "")
@@ -585,13 +598,16 @@ func set_pump(on: bool, info := {}) -> void:
 		return
 	var fill: float = info.get("hopper", 0.0)
 	var c := UI.GREEN
-	if fill < 0.2:
+	# (red only means act now: an empty hopper before the first load is normal)
+	if info.get("startup", false):
+		c = UI.MUTED
+	elif fill < 0.2:
 		c = UI.RED
 	elif fill < 0.45:
 		c = UI.YELLOW
 	hopper_fill.color = c
 	UI.set_bar(hopper_fill, fill)
-	hopper_pct.text = "%d%%   ·   %s" % [int(fill * 100.0), "HIGH" if info.get("high", true) else "LOW"]
+	hopper_pct.text = "%d%%   ·   pump %s" % [int(fill * 100.0), "HIGH" if info.get("high", true) else "LOW"]
 	hopper_pct.add_theme_color_override("font_color", c)
 	# Just the counts: what each truck needs doing is on the job list
 	var bits := []
@@ -735,7 +751,7 @@ func show_slab(d: Dictionary, seconds := 6.0) -> void:
 	hl.add_theme_constant_override("separation", 18)
 	tv.add_child(hl)
 	hl.add_child(UI.head(mnames[m], 44, mcols[m]))
-	hl.add_child(UI.head("+" + _thousands(int(d.get("points", 0))), 44, UI.GOLD))
+	hl.add_child(UI.head("+$" + _thousands(int(d.get("points", 0))), 44, UI.GOLD))
 	var q := UI.head("QUALITY %d%%  ·  %s" % [int(d.get("quality", 0)), String(d.get("verdict", "")).to_upper()], 20, UI.BONE)
 	q.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	hl.add_child(q)
@@ -821,6 +837,7 @@ func _hat_card(r: Dictionary, star: bool) -> PanelContainer:
 	v.add_child(th)
 	var hat := UI.Hat.new()
 	hat.color = col
+	hat.icon = String(r["role"])
 	hat.custom_minimum_size = Vector2(36, 30)
 	hat.dim = bool(r["bot"])
 	th.add_child(hat)
@@ -832,7 +849,12 @@ func _hat_card(r: Dictionary, star: bool) -> PanelContainer:
 	jn.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	v.add_child(jn)
 	var pts := int(r["pts"])
-	v.add_child(UI.head(("+" if pts >= 0 else "") + _thousands(pts), 26, UI.GOLD if star else UI.BONE))
+	v.add_child(UI.head(("+$" if pts >= 0 else "-$") + _thousands(pts), 26, UI.GOLD if star else UI.BONE))
+	if r.has("wallet"):
+		# (a person's own share, banked in their wallet)
+		var wl := UI.label("%s in %s's wallet" % [("$" + _thousands(int(r["wallet"]))), String(r["name"])], 12, UI.GREEN, 0)
+		wl.clip_text = true
+		v.add_child(wl)
 	var why := UI.label(String(r["why"]), 13, UI.DIM, 0)
 	why.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	why.custom_minimum_size = Vector2(122, 34)
@@ -984,22 +1006,14 @@ class Gauge extends Control:
 		draw_line(c, tip, Color.WHITE, 3.5, true)
 		draw_circle(c, 5.0, Color.WHITE)
 		var font := UI.font("head")
-		var txt := "KILL IT" if spike else ("TRIPPED · RESTART" if tripped else "%d bar" % int(bar))
+		# (a spike's A is on the close-up and over the operator: here it's just the reading)
+		var txt := "TRIPPED · RESTART" if tripped and not spike else "%d bar" % int(bar)
 		var col := Color("ff6b5f") if spike else (Color("f2b51f") if tripped else Color("c9c6bd"))
 		var fs := 18
 		var tw := font.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
-		var gw := 26.0 if spike else 0.0
+		var gw := 0.0
 		var x0 := c.x - (tw + gw) * 0.5
 		var ty := c.y - r * 0.35
-		if spike:
-			# The A to press, as the Site Kit button
-			var gc := Vector2(x0 + 10.0, ty - fs * 0.32)
-			var k := 1.0 + 0.1 * (0.5 - 0.5 * cos(_t * TAU / UI.GOLD_T))
-			draw_circle(gc + Vector2(0, 1), 12.0 * k, Color.WHITE, true, -1.0, true)
-			draw_circle(gc + Vector2(0, 2.5), 10.5 * k, UI.LIP["A"], true, -1.0, true)
-			draw_circle(gc, 10.5 * k, UI.GLYPH["A"], true, -1.0, true)
-			var aw := font.get_string_size("A", HORIZONTAL_ALIGNMENT_LEFT, -1, 15).x
-			draw_string(font, gc + Vector2(-aw * 0.5, 5.5), "A", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, UI.GLYPH_INK["A"])
 		draw_string(font, Vector2(x0 + gw, ty), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, col)
 
 ## A docket gauge: the scale, the accepted band in green, and a marker.
@@ -1091,6 +1105,7 @@ func show_toolbox(d: Dictionary) -> void:
 		row.custom_minimum_size = Vector2(345, 0)
 		var hat := UI.Hat.new()
 		hat.color = UI.ROLE.get(m["role"], UI.WHITE).darkened(0.08)
+		hat.icon = String(m["role"]) if UI.ROLE.has(m["role"]) else ""
 		hat.custom_minimum_size = Vector2(34, 28)
 		hat.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 		row.add_child(hat)

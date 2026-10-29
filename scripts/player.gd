@@ -20,6 +20,10 @@ const BARK_WRAP := 330.0    # px of text before a spoken line wraps
 const Settings := preload("res://scripts/settings.gd")
 const GOLD := Color("ffd23f")
 
+## Cue words the TV leaves off (the phone still shows them): a pressure
+## spike is said once, by the gauge close-up with its A and this red A.
+const TV_QUIET := ["KILL THE PUMP"]
+
 const BTN := {"action": "A", "leave": "B", "alt": "X", "slow": "Y"}
 const BTN_COLORS := {"A": Color("3fe0c5"), "B": Color("ff5a5f"), "X": Color("9b6bff"), "Y": Color("ffc23d")}
 ## The keyboard key behind each button, for people playing on the keys
@@ -543,11 +547,21 @@ func cue(what: String, verb := "", progress := -1.0, urgent := false, zone := Ve
 var _cue_added := false
 
 ## The gold assist: the button just cued lights up gold when this is the
-## moment (or the spot) to press it. A setting turns the hints off; a hold's
-## own gold band (the hammer) always shows.
+## moment (or the spot) to press it. It's a spectrum, not a switch: bright and
+## sparkly for someone new to the job, fading as they get it right, back up
+## if they slip (main.gold_level). A hold's own gold band (the hammer) always
+## shows. The cue carries how bright (0 none .. 1 full sparkle).
 func gold(on := true) -> void:
 	if on and _cue_added and not cues.is_empty():
-		cues[-1][6] = true
+		var lvl: float = get_parent().gold_level(self) if get_parent().has_method("gold_level") else 1.0
+		cues[-1][6] = lvl if lvl > GOLD_MIN else 0.0
+
+## Below this the assist is gone: only the button itself is left.
+const GOLD_MIN := 0.06
+
+## How bright this cue's gold assist is (0 when there's none).
+static func gold_amount(cu: Array) -> float:
+	return float(cu[6]) if cu.size() > 6 and cu[6] is float else (1.0 if cu.size() > 6 and cu[6] is bool and cu[6] else 0.0)
 
 ## Colours the button just cued (the slump call's water-blue X).
 func tint(col: Color) -> void:
@@ -559,9 +573,10 @@ static func is_gold(cu: Array) -> bool:
 	var zv: Vector2 = cu[4] if cu.size() > 4 else Vector2(-1, -1)
 	if zv.x >= 0.0 and float(cu[2]) >= zv.x and float(cu[2]) <= zv.y:
 		return true
-	return cu.size() > 6 and cu[6] and bool(Settings.value("gold_assist"))
+	return gold_amount(cu) > GOLD_MIN
 
 var _was_gold := [false, false, false]
+var _gold_wait := [0.0, 0.0, 0.0]   # how long each cue's sat gold without a press
 
 ## A short status line under the head (a height, a count), not an action.
 func say(text: String) -> void:
@@ -619,23 +634,42 @@ func show_cues(cam_right: Vector3, t: float, cam_pos := Vector3.ZERO, cam_k := 1
 		m.set_shader_parameter("progress", cu[2])
 		m.set_shader_parameter("zone", cu[4] if cu.size() > 4 else Vector2(-1, -1))
 		var in_zone: bool = is_gold(cu) and not alarm
-		# (the assist, as against a hold's own gold band)
-		var assisted: bool = in_zone and cu.size() > 6 and cu[6]
-		m.set_shader_parameter("assist", 1.0 if assisted else 0.0)
-		m.set_shader_parameter("gold_on", 1.0 if in_zone else 0.0)
+		# (the assist, as against a hold's own gold band, which is always full)
+		var zv: Vector2 = cu[4] if cu.size() > 4 else Vector2(-1, -1)
+		var banded: bool = zv.x >= 0.0 and float(cu[2]) >= zv.x and float(cu[2]) <= zv.y
+		var gl: float = 1.0 if banded else gold_amount(cu)
+		var assisted: bool = in_zone and not banded
+		# The spectrum: full sparkle (rings, sparks, a shower, a buzz) for
+		# someone new; the extras drop away as they get good, till only a
+		# gold face is left, then nothing but the button
+		m.set_shader_parameter("assist", clampf(gl * 1.4 - 0.4, 0.0, 1.0) if assisted else 0.0)
+		m.set_shader_parameter("gold_on", (0.35 + 0.65 * gl) if in_zone else 0.0)
 		var tr: CPUParticles3D = c["trickle"]
-		tr.emitting = in_zone
+		tr.emitting = in_zone and gl > 0.45
 		if in_zone and not _was_gold[k]:
-			(c["sparks"] as CPUParticles3D).restart()
-			if not bot:
+			if gl > 0.3:
+				(c["sparks"] as CPUParticles3D).restart()
+			if not bot and gl > 0.2:
 				# A little buzz in the hand the moment it goes gold
 				get_parent().haptic(self, UI.BUZZ["gold"])
 		_was_gold[k] = in_zone
+		# Getting it right while it's gold fades the assist; leaving it
+		# sitting gold brings it back
+		if assisted and not bot:
+			_gold_wait[k] += get_process_delta_time()
+			if _gold_wait[k] > 4.0:
+				_gold_wait[k] = -999.0
+				if get_parent().has_method("slipped"):
+					get_parent().slipped(self, 0.02)
+		else:
+			_gold_wait[k] = 0.0
 		# The press squash: 90 ms down onto the lip, then a springy overshoot
 		var what: String = BTN.find_key(btn) if BTN.values().has(btn) else ""
 		var down := what != "" and not bot and _held(what)
 		if down and not c["was_down"]:
 			c["pressed_at"] = t
+			if assisted and get_parent().has_method("gold_hit"):
+				get_parent().gold_hit(self)
 		c["was_down"] = down
 		var since: float = t - float(c["pressed_at"])
 		if since < 0.0:
@@ -663,20 +697,20 @@ func show_cues(cam_right: Vector3, t: float, cam_pos := Vector3.ZERO, cam_k := 1
 			amp = 0.08
 		elif in_zone:
 			period = UI.GOLD_T
-			amp = 0.1
+			amp = 0.03 + 0.07 * gl
 		elif cu[3]:
 			period = UI.URGENT_T
 			amp = UI.URGENT_S - 1.0
 		var pl := 0.5 - 0.5 * cos(t * TAU / period + k)
 		m.set_shader_parameter("pulse", (0.7 + 0.3 * pl) if alarm or in_zone else (0.25 + 0.5 * pl * (1.0 if cu[3] else 0.4)))
-		m.set_shader_parameter("scale_mul", (1.0 + amp * pl) * press_k * gk * (1.18 if in_zone else 1.0))
+		m.set_shader_parameter("scale_mul", (1.0 + amp * pl) * press_k * gk * ((1.0 + 0.18 * gl) if in_zone else 1.0))
 		var letter: Label3D = c["letter"]
 		letter.text = btn
 		letter.position = Vector3(0, 0.035 * (1.0 - 0.7 * squash), 0.01)
 		letter.modulate = Color("2a1d00") if in_zone else (Color.WHITE if alarm else UI.GLYPH_INK.get(btn, Color("0f1b2d")))
 		letter.scale = Vector3.ONE * (1.0 + amp * pl) * press_k * (1.18 if in_zone else 1.0)
 		var verb: Label3D = c["verb"]
-		var words: String = cu[1]
+		var words: String = "" if TV_QUIET.has(cu[1]) else cu[1]
 		if in_zone and words != "":
 			words = words.to_upper()
 		if on_keys:
