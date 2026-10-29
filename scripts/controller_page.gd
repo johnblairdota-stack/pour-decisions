@@ -249,7 +249,7 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 #wallet .wl .k{font-size:3.2vmin;color:var(--muted);letter-spacing:.08em}
 #wallet .wl .cash{font-size:11vmin;line-height:.9;color:#7cd992}
 #wallet .wl .sub{font-size:3.4vmin;color:#b9b6ad}
-#wallet .wl svg.purse{width:100%;height:26vmin}
+#wallet .wl .purse svg{width:100%;height:26vmin;display:block}
 #wallet .wr{flex:1;display:flex;flex-direction:column;min-width:0}
 #wallet .tabs{display:flex;gap:1.2vmin;padding:2.4vmin 3vmin 1.4vmin;align-items:center}
 #wallet .tabs button{font-size:4.2vmin;padding:1vmin 3vmin;border-radius:99px;background:#22252d;color:#b9b6ad}
@@ -347,7 +347,7 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
     <div class="k hd" id="wwho">WALLET</div>
     <div class="cash hd" id="wcash">$0</div>
     <div class="sub" id="wpour"></div>
-    <svg class="purse" id="wpurse" viewBox="0 0 200 120"></svg>
+    <div class="purse" id="wpurse"></div>
     <div class="sub" id="wbanked"></div>
   </div>
   <div class="wr">
@@ -870,17 +870,6 @@ function closeWallet() { walletOpen = false; $('wallet').classList.remove('on');
 $('walletbtn').addEventListener('pointerdown', (e) => { e.preventDefault(); walletOpen ? closeWallet() : openWallet(); });
 $('wx').addEventListener('pointerdown', (e) => { e.preventDefault(); closeWallet(); });
 document.querySelectorAll('#wallet .tabs button[data-tab]').forEach(b => b.addEventListener('pointerdown', (e) => { e.preventDefault(); wTab = b.dataset.tab; wPick = ''; drawWallet(); buzz(BUZZ.press); }));
-// The wallet gets fatter with what's in it: thin for a new start, bursting for a legend
-function purseSvg(cash) {
-  const f = Math.max(0, Math.min(1, Math.log10(cash + 1) / 5.2)), th = 6 + 44 * f, n = Math.round(1 + 9 * f);
-  const cols = ['#c75fa8', '#3f8fd8', '#e2513f', '#f2c12e', '#3fae5a'];
-  let notes = '';
-  for (let i = 0; i < n; i++) notes += '<rect x="' + (34 + i * 3) + '" y="' + (58 - th - 10 + i * (th / n)) + '" width="112" height="22" rx="2" fill="' + cols[Math.min(4, Math.floor(i / 2))] + '" transform="rotate(' + (-4 + i * 1.2) + ' 100 60)"/>';
-  return notes + '<rect x="24" y="' + (60 - th / 2) + '" width="152" height="' + (46 + th) + '" rx="10" fill="#6b4a32"/>' +
-    '<rect x="24" y="' + (76 - th / 2) + '" width="152" height="' + (30 + th) + '" rx="10" fill="#8a6142"/>' +
-    '<path d="M24 ' + (92) + ' h152" stroke="#5a3d28" stroke-width="2" stroke-dasharray="4 4"/>' +
-    '<circle cx="158" cy="' + (88 + th / 4) + '" r="6" fill="#e9c46a"/>';
-}
 // A side-on ute, with the kit that's fitted
 function uteSvg(id, kit) {
   const u = shop.utes.find(x => x.id === id) || {col: 'cfcfcf'}, has = (k) => kit.includes(k);
@@ -917,7 +906,7 @@ function drawWallet() {
   $('wcash').textContent = money(wal.cash);
   $('wpour').textContent = wal.pour ? 'This pour: +' + money(wal.pour) : 'Every job you do pays in here.';
   $('wbanked').textContent = 'Earned all up: ' + money(wal.banked);
-  $('wpurse').innerHTML = purseSvg(wal.cash);
+  $('wpurse').innerHTML = wal.purse || '';
   document.querySelectorAll('#wallet .tabs button[data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === wTab));
   const body = $('wbody');
   let note = '', can = false;

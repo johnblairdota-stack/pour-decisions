@@ -23,6 +23,7 @@
 extends Node
 
 const Wallet := preload("res://scripts/wallet.gd")
+const CashArt := preload("res://scripts/cash_art.gd")
 
 const PORTS := [[8080, 8081], [8090, 8091], [8180, 8181], [18080, 18081]]
 const VIRTUAL := ["virtualbox", "vmware", "vethernet", "hyper-v", "wsl", "docker", "loopback", "bluetooth", "tailscale", "zerotier", "hamachi", "vpn", "tap-", "tun"]
@@ -454,7 +455,9 @@ func wallet(p) -> Dictionary:
 	if game.score != null:
 		pour = int(game.score.wallet_pour.get(p.char_id, 0))
 	return {"t": "wallet", "name": p.char_name, "cash": int(w.get("cash", 0)), "pour": pour, "banked": int(w.get("banked", 0)),
-		"utes": w.get("utes", []), "ute": w.get("ute", ""), "kit": Wallet.kit_on(p.char_id)}
+		"utes": w.get("utes", []), "ute": w.get("ute", ""), "kit": Wallet.kit_on(p.char_id),
+		# (the wallet's art, fatter the more's in it: thin at the start, full at $500,000)
+		"purse": CashArt.wallet_svg(clampf(log(float(w.get("cash", 0)) + 1.0) / log(500001.0), 0.0, 1.0))}
 
 ## Who's on every job: {t, r: [{id, name, col, line, p (0: a bot), pc, who, lock}]}.
 func roster() -> Dictionary:

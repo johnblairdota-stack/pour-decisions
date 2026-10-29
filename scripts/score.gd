@@ -8,6 +8,7 @@ extends Node
 
 const F := preload("res://scripts/factory.gd")
 const Wallet := preload("res://scripts/wallet.gd")
+const CashArt := preload("res://scripts/cash_art.gd")
 
 ## The site's rate card: what each kind of work is worth against the
 ## points the jobs hand out. Steady work (screeding, pouring) pays by the
@@ -181,15 +182,6 @@ func _rank_up() -> void:
 		game.confetti.restart()
 		game.confetti.emitting = true
 
-## Banknote colours by size, like the polymer notes in your pocket
-const DENOM := [[100, Color("3fae5a")], [50, Color("f2c12e")], [20, Color("e2513f")], [10, Color("3f8fd8")], [0, Color("c75fa8")]]
-
-static func bill_color(dollars: int) -> Color:
-	for d in DENOM:
-		if absi(dollars) >= int(d[0]):
-			return d[1]
-	return DENOM[-1][1]
-
 ## Money rising off the work: a banknote with the amount on it (or the
 ## amount in red when it's docked).
 func _pop(who, pts: int, at: Vector3) -> void:
@@ -209,18 +201,7 @@ func _pop(who, pts: int, at: Vector3) -> void:
 	if e.is_empty():
 		var n := Node3D.new()
 		game.add_child(n)
-		var note := MeshInstance3D.new()
-		var q := QuadMesh.new()
-		q.size = Vector2(1.5, 0.72)
-		note.mesh = q
-		var m := StandardMaterial3D.new()
-		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		m.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
-		m.no_depth_test = true
-		m.render_priority = 24
-		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		note.material_override = m
-		note.layers = 2
+		var note := Node3D.new()   # (turned to face the camera; holds the note)
 		n.add_child(note)
 		var l: Label3D = F.label3d("", 40, POP)
 		l.layers = 2
@@ -229,7 +210,7 @@ func _pop(who, pts: int, at: Vector3) -> void:
 		l.no_depth_test = true
 		l.render_priority = 25
 		n.add_child(l)
-		e = {"node": n, "note": note, "mat": m, "label": l}
+		e = {"node": n, "note": note, "label": l, "shown": 0}
 	e["t"] = 0.0
 	e["who"] = who
 	e["amount"] = pts
@@ -239,14 +220,25 @@ func _pop(who, pts: int, at: Vector3) -> void:
 	_dress(e)
 	_pops.append(e)
 
+## Pay is a Site Cash note (cash_art.gd) with the amount printed on it;
+## money docked is the amount in red.
 func _dress(e: Dictionary) -> void:
 	var v: int = e["amount"]
 	var l: Label3D = e["label"]
 	l.text = Wallet.money(v)
-	l.modulate = Color("1d1a14") if v > 0 else LOSS
-	l.outline_modulate = Color(1, 1, 1, 0.85) if v > 0 else Color(0.08, 0.06, 0.02, 1)
-	(e["note"] as MeshInstance3D).visible = v > 0
-	(e["mat"] as StandardMaterial3D).albedo_color = bill_color(v)
+	l.modulate = LOSS
+	l.visible = v <= 0
+	var note: Node3D = e["note"]
+	note.visible = v > 0
+	if v > 0 and int(e["shown"]) != v:
+		e["shown"] = v
+		for c in note.get_children():
+			c.queue_free()
+		var b := CashArt.bill(v)
+		b.scale = Vector3.ONE * 5.0
+		for c in b.find_children("*", "Label3D", true, false):
+			(c as Label3D).render_priority = 25
+		note.add_child(b)
 
 func update(delta: float) -> void:
 	bump = maxf(0.0, bump - delta * 3.0)
@@ -267,7 +259,11 @@ func update(delta: float) -> void:
 		n.scale = Vector3.ONE * k * pop * 0.55
 		var a := clampf((1.0 - t) * 3.0, 0.0, 1.0)
 		(e["label"] as Label3D).modulate.a = a
-		(e["mat"] as StandardMaterial3D).albedo_color.a = a
+		# the note faces the camera, and folds away as it fades
+		var note: Node3D = e["note"]
+		note.scale = Vector3.ONE * maxf(0.01, a)
+		if n.global_position.distance_to(cam.global_position) > 0.1:
+			note.look_at(cam.global_position, Vector3.UP, true)
 
 ## The slab report's points section.
 func report_rows() -> Array:
