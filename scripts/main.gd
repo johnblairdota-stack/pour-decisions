@@ -17,6 +17,7 @@ const PauseScript := preload("res://scripts/pause.gd")
 const CoachScript := preload("res://scripts/coach.gd")
 const Icons := preload("res://scripts/icons.gd")
 const Settings := preload("res://scripts/settings.gd")
+const Wallet := preload("res://scripts/wallet.gd")
 const CueBadge := preload("res://scripts/cue_badge.gd")
 const SlumpGuide := preload("res://scripts/slump_guide.gd")
 const F := preload("res://scripts/factory.gd")
@@ -1963,6 +1964,31 @@ func cam_test_roles() -> Array:
 var _cam_roles: Array = []
 
 ## A buzz in a phone player's hand.
+## How bright a person's gold assist is at their job right now: 1 full
+## sparkle for someone new, fading to 0 (just the button) as they get it
+## right, back up when they slip. The setting can lock it full or off; the
+## tutorial is always full.
+func gold_level(p) -> float:
+	var mode := int(Settings.value("gold_mode"))
+	if mode == 2:
+		return 0.0
+	if mode == 1 or tutorial or p.bot:
+		return 1.0
+	return clampf(1.0 - Wallet.skill(p.char_id, p.role) * 1.15, 0.0, 1.0)
+
+## A person pressed while their button was gold: a step toward their ticket.
+func gold_hit(p) -> void:
+	if not p.bot:
+		Wallet.add_skill(p.char_id, p.role, GOLD_STEP)
+
+## A person slipped (a mistake, a missed moment, a crewmate covering for
+## them): the gold comes back up a bit.
+func slipped(p, amount: float) -> void:
+	if p != null and not p.bot:
+		Wallet.add_skill(p.char_id, p.role, -amount)
+
+const GOLD_STEP := 0.01   # about a hundred right presses to lose the gold
+
 func haptic(p, pattern: String) -> void:
 	if p != null and phones != null and not p.bot and p.remote_id >= 0:
 		phones.vibrate(p, pattern)
@@ -2397,6 +2423,7 @@ func _grade() -> void:
 		note += "\nThe bots are working at %s pace now" % score.MEDALS[score.bot_tier].to_lower()
 	hud.show_slab(_slab_report(quality, verdict, medal, note, rows), -1.0 if not crew.humans().is_empty() and not autotest or "report" in _shot_only or "lastreport" in _shot_only else 6.0)
 	_save_medal(medal)
+	Wallet.save()
 	if autotest:
 			print("[autotest]   level %d: +%d pts (total %d, %s), quality %.0f, medal %s in %.1fs (bots %s) | %s | %s" % [k + 1, score.level, score.total, score.rank_name(), quality, score.MEDALS[medal], pour_clock, score.MEDALS[was_tier], " | ".join(score.report_rows()), " | ".join(rows)])
 
@@ -2411,6 +2438,8 @@ func _slab_report(quality: float, verdict: String, medal: int, note: String, los
 		var pts := int(score.by_role.get(role, 0))
 		var why: String = score.top_reason(role)
 		crew_rows.append({"role": role, "p": p.index, "bot": p.bot, "name": p.char_name, "pts": pts, "why": why if why != "" else "Kept out of trouble"})
+		if not p.bot:
+			crew_rows[-1]["wallet"] = int(score.wallet_pour.get(p.char_id, 0))
 		if (not p.bot or _cam_roles.has(role)) and pts > star_pts:
 			star_pts = pts
 			star = role
@@ -2545,7 +2574,7 @@ func _top_out() -> void:
 			"Water tower · tutorial done\n" +
 			"Shafts like this are cast in lifts a couple of metres high with jump forms (or slipformed day and night).\n" +
 			"On top, the tank floor and the roof are pumped onto forms, and the boom climbs to keep up.\n\n" +
-			"Your crew: %s points · %s\n%s%s" % [hud._thousands(score.total), score.rank_name(), medal_line, _people_line()] +
+			"Your crew: $%s · %s\n%s%s" % [hud._thousands(score.total), score.rank_name(), medal_line, _people_line()] +
 			Settings.branded("Press R to start again, and pick Riverlight for the real job"))
 		return
 	var kit_line := Settings.branded("SCP kit: Putzmeister MX42 placing boom on a free-standing lattice tower, 10 sections to a 41.4 m free-stand, with SCP's self-climbing frame")
@@ -2556,7 +2585,7 @@ func _top_out() -> void:
 		"11 levels · 10,000 m³ pumped · 57 m vertical pumping\n" +
 		kit_line + "\n" +
 		Settings.branded("Main contractor: Watpac Construction\n\n") +
-		"Your crew: %s points · %s\n%s%s" % [hud._thousands(score.total), score.rank_name(), medal_line, _people_line()] +
+		"Your crew: $%s · %s\n%s%s" % [hud._thousands(score.total), score.rank_name(), medal_line, _people_line()] +
 		"Press R to pour it again · Tab to zoom further out")
 	if _ink_node != null:
 		# (the signed square's bare concrete, left clear of the membrane)
@@ -3860,9 +3889,11 @@ func _cover(p, delta: float) -> void:
 		return
 	if p.idle_in > NUDGE_CALL and not bool(p.get_meta("called", false)) and not autotest_human(p):
 		p.set_meta("called", true)
+		slipped(p, 0.04)
 		_call_out(p)
 	if not p.covering and p.idle_in > COVER_AFTER and not autotest_human(p):
 		p.covering = true
+		slipped(p, 0.08)
 		hud.toast("P%d's job is waiting: the leading hand's doing this step. Press anything to take it back." % p.index, 3.0)
 
 ## A crewmate shouts across to someone the job's waiting on, by name.
