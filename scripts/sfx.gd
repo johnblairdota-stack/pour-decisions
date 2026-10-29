@@ -2,6 +2,30 @@
 ## stroke thump, a worn clamp's rattle, the dogman's whistle and one-shot hits.
 extends AudioStreamPlayer
 
+const Settings := preload("res://scripts/settings.gd")
+
+# ------------------------------------------------------------------ the mix
+# Three volumes, set in Smoko (settings vol_site, vol_band, vol_alerts):
+# the site (machines, tools, the place), the Site Band, and alerts (a burst,
+# an alarm sign, the emergency whistle). An alert also dips the rest for a
+# moment, so it's heard over the band.
+const ALERTS := ["bang", "buzz", "sign_alarm", "whistle:emergency"]
+const DUCK := 0.55          # how far the site and band dip under an alert
+const DUCK_T := 1.6         # s it takes them to come back
+var _duck := 0.0
+var _g_site := 1.0
+var _g_band := 1.0
+var _g_alert := 1.0
+
+# Recorded sounds: drop res://sounds/sfx/<kind>.ogg (or .wav, .mp3) into the
+# project and hit(kind) plays it instead of the made-up one. Ambience loops
+# go in res://sounds/amb/<name>.ogg and main fades them with set_ambience().
+const KINDS := ["bang", "clank", "thunk", "buzz", "ding", "clang", "tink", "hiss", "knock", "ring", "thud",
+	"beep", "whip", "scrape", "plop", "chime", "birds", "sign_chat", "sign_call", "sign_alarm", "sign_gold",
+	"sign_thanks", "sign_slip"]
+var _hit_samples := {}      # kind -> AudioStreamPlayer
+var _amb := {}              # name -> {"pl": AudioStreamPlayer or null, "want": 0..1, "lv": 0..1}
+
 const RATE := 22050.0
 
 # Dogman whistle code as used on Australian sites: [blast seconds, gap seconds].
@@ -72,6 +96,18 @@ func band_level(lane: String) -> float:
 ## Where the beat is, 0 on the beat to 1 just before the next.
 func beat_phase() -> float:
 	return fmod(_bt, BEAT) / BEAT
+
+func _load_hits() -> void:
+	for kind in KINDS:
+		for ext in ["ogg", "wav", "mp3"]:
+			var path := "res://sounds/sfx/%s.%s" % [kind, ext]
+			if ResourceLoader.exists(path):
+				var pl := AudioStreamPlayer.new()
+				pl.stream = load(path)
+				pl.max_polyphony = 4
+				add_child(pl)
+				_hit_samples[kind] = pl
+				break
 
 func _load_samples() -> void:
 	for lane in LANES:
@@ -163,7 +199,7 @@ func _play_queued(delta: float) -> void:
 		q[0] -= delta
 		if q[0] <= 0.0:
 			var pl: AudioStreamPlayer = _samples[q[1]]
-			pl.volume_db = linear_to_db(maxf(0.001, _lv[LANES.find(q[1])] * _master)) + volume_db + 8.0
+			pl.volume_db = -80.0 if muted else linear_to_db(maxf(0.001, _lv[LANES.find(q[1])] * _master * _g_band * (1.0 - DUCK * _duck))) + volume_db + 8.0
 			pl.play()
 	_queued = _queued.filter(func(q): return q[0] > 0.0)
 
@@ -176,6 +212,7 @@ func _ready() -> void:
 	play()
 	_playback = get_stream_playback() as AudioStreamGeneratorPlayback
 	_load_samples()
+	_load_hits()
 
 ## kind: "bang", "clank", "thunk", "buzz", "ding", "clang", "tink", "hiss",
 ## "knock", "ring", "thud", "beep", "whip", "rain", "birds", "sign_<kind>" (hand_signs.gd),
@@ -191,7 +228,51 @@ func hit(kind: String) -> void:
 		for e in _events:
 			if e[0] == kind and e[1] < 0.18:
 				return
+	if kind in ALERTS:
+		_duck = 1.0
+	if _hit_samples.has(kind):
+		var pl: AudioStreamPlayer = _hit_samples[kind]
+		pl.volume_db = -80.0 if muted else volume_db + 6.0 + linear_to_db(maxf(0.001, _g_alert if kind in ALERTS else _g_site))
+		pl.play()
+		_events.append(["~" + kind, 0.0])   # (only so the same hit doesn't double up)
+		return
 	_events.append([kind, 0.0])
+
+## How loud an ambience loop (res://sounds/amb/<name>.ogg) should be, 0..1.
+## Nothing happens if the file isn't there.
+func set_ambience(name: String, level: float) -> void:
+	if not _amb.has(name):
+		var pl: AudioStreamPlayer = null
+		for ext in ["ogg", "wav", "mp3"]:
+			var path := "res://sounds/amb/%s.%s" % [name, ext]
+			if ResourceLoader.exists(path):
+				var st: AudioStream = load(path)
+				if st is AudioStreamOggVorbis:
+					(st as AudioStreamOggVorbis).loop = true
+				elif st is AudioStreamMP3:
+					(st as AudioStreamMP3).loop = true
+				elif st is AudioStreamWAV:
+					(st as AudioStreamWAV).loop_mode = AudioStreamWAV.LOOP_FORWARD
+					(st as AudioStreamWAV).loop_end = int((st as AudioStreamWAV).get_length() * (st as AudioStreamWAV).mix_rate)
+				pl = AudioStreamPlayer.new()
+				pl.stream = st
+				pl.volume_db = -80.0
+				add_child(pl)
+				pl.play()
+				break
+		_amb[name] = {"pl": pl, "want": 0.0, "lv": 0.0}
+	_amb[name]["want"] = clampf(level, 0.0, 1.0)
+
+func _update_mix(delta: float) -> void:
+	_g_site = float(Settings.value("vol_site"))
+	_g_band = float(Settings.value("vol_band"))
+	_g_alert = float(Settings.value("vol_alerts"))
+	var dip := 1.0 - DUCK * _duck
+	for name in _amb:
+		var a: Dictionary = _amb[name]
+		a["lv"] = move_toward(float(a["lv"]), float(a["want"]), delta * 0.4)
+		if a["pl"] != null:
+			(a["pl"] as AudioStreamPlayer).volume_db = -80.0 if muted else volume_db + 4.0 + linear_to_db(maxf(0.0001, float(a["lv"]) * _g_site * dip))
 
 ## One soft-edged beep of `f` Hz, `len` s long, starting `at` s into a hit
 ## (a square wave when `hard`, for alarms).
@@ -220,6 +301,7 @@ func _whistle_on(code: String, a: float) -> bool:
 func _process(delta: float) -> void:
 	if _playback == null:
 		return
+	_update_mix(delta)
 	_play_queued(delta)
 	var n := _playback.get_frames_available()
 	if n <= 0:
@@ -244,8 +326,10 @@ func _process(delta: float) -> void:
 			_master += (want_m - _master) * 0.01
 			for i in 6:
 				_lv[i] += (tgt[i] - _lv[i]) * 0.012
+		var sb := 0.0
+		var sa := 0.0
 		if _master > 0.002:
-			s += _band_sample(_bt)
+			sb = _band_sample(_bt)
 		if pumping:
 			# (on the beat clock, so the band's kick lands on the stroke)
 			_stroke = fmod(_bt, BEAT)
@@ -276,8 +360,13 @@ func _process(delta: float) -> void:
 			var kind: String = e[0]
 			if kind.begins_with("whistle:"):
 				if _whistle_on(kind.substr(8), a):
-					s += sin(TAU * (2850.0 + 60.0 * sin(TAU * 32.0 * a)) * a) * 0.07
+					var w := sin(TAU * (2850.0 + 60.0 * sin(TAU * 32.0 * a)) * a) * 0.07
+					if kind in ALERTS:
+						sa += w
+					else:
+						s += w
 				continue
+			var s0 := s
 			match kind:
 				"bang":
 					s += ((randf() * 2.0 - 1.0) * 0.6 + sin(TAU * 38.0 * a) * 0.3 + sin(TAU * 110.0 * a) * 0.3) * exp(-a * 4.5)
@@ -343,6 +432,12 @@ func _process(delta: float) -> void:
 							s += sin(TAU * (3000.0 + 9000.0 * u) * u) * sin(u / 0.09 * PI) * 0.06
 				"ding":
 					s += sin(TAU * 988.0 * a) * exp(-a * 3.5) * 0.2 + sin(TAU * 1318.0 * a) * exp(-a * 4.0) * 0.14
+			if kind in ALERTS:
+				sa += s - s0
+				s = s0
+		var dip := 1.0 - DUCK * _duck
+		_duck = maxf(0.0, _duck - dt / DUCK_T)
+		s = (s * _g_site + sb * _g_band) * dip + sa * _g_alert
 		# Soft limiter so stacked sounds never clip into a wall of noise
 		s = tanh(s * 1.1) * 0.85
 		buf[f] = Vector2(s, s)
