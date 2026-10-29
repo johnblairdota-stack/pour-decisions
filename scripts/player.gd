@@ -564,7 +564,12 @@ func say(text: String) -> void:
 
 func begin_cues() -> void:
 	cues.clear()
+	big_cue = ""
 	prompt.text = ""
+
+## A cue (by its verb) the HUD draws as the big hold A instead (main sets it
+## each frame): its small button by the head stays hidden.
+var big_cue := ""
 
 func show_cues(cam_right: Vector3, t: float, cam_pos := Vector3.ZERO, cam_k := 1.0) -> void:
 	# Keep glyphs a steady size on screen however far away the camera is
@@ -581,7 +586,7 @@ func show_cues(cam_right: Vector3, t: float, cam_pos := Vector3.ZERO, cam_k := 1
 	for k in _cue_nodes.size():
 		var c: Dictionary = _cue_nodes[k]
 		var n: Node3D = c["node"]
-		n.visible = k < cues.size()
+		n.visible = k < cues.size() and not (big_cue != "" and cues[k][1] == big_cue)
 		if not n.visible:
 			_was_gold[k] = false
 			(c["trickle"] as CPUParticles3D).emitting = false

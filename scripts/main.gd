@@ -2663,6 +2663,7 @@ func _process(delta: float) -> void:
 
 	pumping = false
 	_human_a = false
+	_big_hold_on = false
 	for p in players:
 		if p.zone == "deck" and p.busy != "rigger":
 			# Standing on the wet concrete, boots just into it, not wading
@@ -2740,6 +2741,8 @@ func _process(delta: float) -> void:
 			p.show_cues(cam_right, phase_t, band_cam.global_position, BAND_CUE_K)
 		else:
 			p.show_cues(cam_right, phase_t, camera.global_position)
+	if not _big_hold_on:
+		hud.hide_big_hold()
 	_scale_world_labels()
 	if shot_dir != "":
 		_maybe_shot()
@@ -3442,8 +3445,16 @@ func _handle_player(p, delta: float) -> void:
 			# The slurry, or the washout, into the bin, not the slab
 			var ob: bool = ops.over_bin(discharge())
 			# (the A fills with concrete as the bin does, on the TV and the phone)
-			p.cue("action", "pump into the bin" if ob else "hose over the BIN", ops.bin_progress(), true)
+			var verb := "pump into the bin" if ob else "hose over the BIN"
+			p.cue("action", verb, ops.bin_progress(), true)
 			p.gold(not p.bot and ob)
+			if ob and (not p.bot or p.show_bot_cues) and not camera.is_position_behind(p.global_position):
+				# Over the bin, the long hold gets the big A: concrete fills it
+				# and the gold ring goes round as the bin fills
+				p.big_cue = verb
+				var at := camera.unproject_position(p.global_position + Vector3(0, 1.7, 0)) + Vector2(70, -46)
+				hud.show_big_hold(at, ops.bin_progress(), verb.to_upper())
+				_big_hold_on = true
 		elif not ops.primed or ops.busy():
 			p.say("start-up…" if not ops.primed else "washout…")
 		elif pipe_calls():
@@ -3933,6 +3944,7 @@ var ops                         # the start-up and the washout (ops.gd)
 var hose_holder = null          # the pipe guy on the end hose, if anyone
 var hose_call := false          # the pipe guy's calling for concrete (holding A)
 var _hose_segs: Array = []      # the end hose drawn to the pipe guy's hands
+var _big_hold_on := false       # the HUD's big hold A is up this frame
 const BOOT_SINK := 0.06         # m the crew's boots sink into the wet concrete
 const HOSE_REACH := 2.0         # m the end hose reaches from under the boom tip
 const HOSE_QUIET := 6.0         # s without a call before a bot boom carries on regardless

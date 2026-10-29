@@ -1149,6 +1149,39 @@ func set_toolbox(hold: float, left: float, secs: float) -> void:
 	_tb_fill.size.x = 712.0 * clampf(left, 0.0, 1.0)
 	_tb_left.text = "STARTS ITSELF IN %ds" % int(ceil(secs))
 
+## The big hold A over a person's head for a long hold out on site (the
+## slurry and the washout into the bin): the same A as the toolbox talk's,
+## filling with concrete as the job's done, the gold ring going round, and
+## the job's word beside it.
+var _big_hold: HBoxContainer
+var _big_glyph: HoldGlyph
+var _big_word: Label
+
+func show_big_hold(at: Vector2, prog: float, text: String) -> void:
+	if _big_hold == null:
+		_big_hold = HBoxContainer.new()
+		_big_hold.add_theme_constant_override("separation", 6)
+		_big_hold.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_root.add_child(_big_hold)
+		_big_glyph = HoldGlyph.new()
+		_big_glyph.custom_minimum_size = Vector2(78, 78)
+		_big_glyph.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		_big_hold.add_child(_big_glyph)
+		var pill := UI.panel(UI.CARD, 12, UI.EDGE, 1, Vector4(12, 5, 12, 5))
+		pill.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		_big_hold.add_child(pill)
+		_big_word = UI.head("", 22, UI.GOLD)
+		pill.add_child(_big_word)
+	_big_hold.visible = true
+	_big_glyph.prog = maxf(prog, 0.001)
+	_big_word.text = text
+	_big_hold.reset_size()
+	_big_hold.position = at - Vector2(39, 39)
+
+func hide_big_hold() -> void:
+	if _big_hold != null:
+		_big_hold.visible = false
+
 ## A Site Kit A that fills with concrete while it's held, ringed in gold.
 class HoldGlyph extends Control:
 	var prog := 0.0
