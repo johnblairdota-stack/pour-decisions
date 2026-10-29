@@ -84,15 +84,16 @@ static func build(root: Node3D) -> void:
 	# 2 cm up, would fight it for the depth buffer)
 	ground.position.y = -0.4
 	root.add_child(ground)
-	# The game's truck lane in from the street
-	root.add_child(F.box(Vector3(TRUCK_ROAD.size.x, 0.05, TRUCK_ROAD.size.y), F.mat("road"),
-		Vector3(TRUCK_ROAD.get_center().x, 0.02, TRUCK_ROAD.get_center().y), false))
+	# (the trucks' site road is part of the map's road surface, joined to the
+	# streets at each end: tools/osm_to_game.py SITE_ROAD)
 	var d := _load()
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 2017
 	if d.is_empty():
 		push_warning("surrounds: %s missing, the world's bare" % DATA)
 	else:
+		# the public streets past the site, kept whole through its clearance
+		_through = _road_grid({"roads": d["roads"].filter(func(r) -> bool: return r["name"] != ""), "paths": []})
 		_ground(root, d)
 		var foot := _buildings(root, d, rng)
 		var roads := _road_grid(d)
@@ -106,9 +107,12 @@ static func build(root: Node3D) -> void:
 			func(p: Vector2, pad: float) -> bool: return _on_road(p, roads, pad), _seeded(11))
 		Water.build(root, d, bank, func(p: Vector2) -> bool: return _clear(p), rng)
 		People.build(root, d, func(p: Vector2) -> bool: return _clear(p) and not TRUCK_ROAD.grow(2.0).has_point(p), rng)
-		Cars.build(root, d, func(p: Vector2) -> bool: return _clear(p) and not TRUCK_ROAD.grow(2.0).has_point(p),
-			func(p: Vector2) -> bool: return _is_taken(p, taken, 2.5), func(p: Vector2, pad: float) -> bool: return _on_road(p, roads, pad),
-			rng)
+		# (traffic drives on through along the streets past the site, across
+		# the site road's mouth; nobody parks by the site)
+		Cars.build(root, d, func(p: Vector2) -> bool:
+				return (_clear(p) and not TRUCK_ROAD.grow(2.0).has_point(p)) or _on_road(p, _through, 0.0),
+			func(p: Vector2) -> bool: return _is_taken(p, taken, 2.5) or not _clear(p) or TRUCK_ROAD.grow(6.0).has_point(p),
+			func(p: Vector2, pad: float) -> bool: return _on_road(p, roads, pad), rng)
 		var grass := func(p: Vector2) -> bool: return _street_ok(p) and not _on_road(p, roads, 1.0) and not _is_taken(p, taken, 1.5)
 		Wildlife.build(root, d, grass, _seeded(12))
 		_lamps(root, d)
@@ -417,7 +421,12 @@ static func _street(root: Node3D, d: Dictionary, roads: Dictionary, bank: Dictio
 	Street.kerbs(root, kerbs)
 	Street.lines(root, dashes)
 
+static var _through := {}
+## Clear for kerbs, street lights and lines: off the site, but along the
+## streets that run past it (to just past the kerb) wherever they go.
 static func _street_ok(p: Vector2) -> bool:
+	if _on_road(p, _through, 1.5):
+		return not TRUCK_ROAD.has_point(p)
 	return _clear(p) and not TRUCK_ROAD.has_point(p)
 
 ## Where two named streets meet: the name blades on a post at the corner, and

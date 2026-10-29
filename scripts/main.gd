@@ -124,6 +124,11 @@ var k := 0
 var cfg := {}
 var autotest := false
 var skyline := false
+## How far out the skyline view is: 1 the whole of Riverlight, 2 the
+## neighbourhood round it, 3 the reach of the river out to the city. Tab steps
+## through them from the game's own view and back round.
+var sky_zoom := 1
+const SKY_ZOOMS := 3
 var _frames := 0
 var shot_dir := ""          # dev only: `-- --autotest --shots=<dir>` saves screenshots
 var _shots_taken := {}
@@ -864,6 +869,7 @@ func _end_fly() -> void:
 		_fly_boat.queue_free()
 		_fly_boat = null
 	skyline = true
+	sky_zoom = 1
 	hud.show_topout(_topout_text)
 
 func _build_world() -> void:
@@ -2551,7 +2557,7 @@ func _top_out() -> void:
 		kit_line + "\n" +
 		Settings.branded("Main contractor: Watpac Construction\n\n") +
 		"Your crew: %s points · %s\n%s%s" % [hud._thousands(score.total), score.rank_name(), medal_line, _people_line()] +
-		"Press R to pour it again · Tab to toggle the skyline view")
+		"Press R to pour it again · Tab to zoom further out")
 	if _ink_node != null:
 		# (the signed square's bare concrete, left clear of the membrane)
 		_ink_node.add_child(F.box(Vector3(INK_SIZE.x + 0.3, 0.012, INK_SIZE.y + 0.3), F.color_mat(Color("a8a49b")), Vector3(0, -0.008, 0), false))
@@ -2605,7 +2611,13 @@ func _process(delta: float) -> void:
 	work_y = lerpf(work_y, work_target, minf(1.0, delta * 3.0))
 	rig.position.y = work_y
 	if Input.is_action_just_pressed("skyline"):
-		skyline = not skyline
+		if not skyline:
+			skyline = true
+			sky_zoom = 1
+		elif sky_zoom < SKY_ZOOMS:
+			sky_zoom += 1
+		else:
+			skyline = false
 	if Input.is_action_just_pressed("restart"):
 		get_tree().reload_current_scene()
 		return
@@ -4602,7 +4614,12 @@ func _update_see_through(delta: float) -> void:
 		_cut_t = 0.5
 		var roots: Array = [hoist_mast, hoist_cage, lattice, yaw_node.get_child(0)] + head_deco
 		if climb != null:
+			# (the climbing frame, the section on the hook or set down on the
+			# deck, and the tower crane's mast)
 			roots.append(climb.platform)
+			roots.append(climb.load)
+			if climb.crane_slew != null:
+				roots.append(climb.crane_slew.get_parent())
 		if line != null:
 			roots += line.ladder_rails + line.brackets + [line.ladder_rungs]
 			for sec in line.sections:
@@ -4659,8 +4676,17 @@ func _cut_showing(at: Vector3) -> bool:
 	return near and camera.unproject_position(at).distance_to(camera.unproject_position(d)) < 60.0
 
 ## Swaps the cut-away copy of its own material onto `n` and everything under it.
+## (the modelled parts are painted a surface at a time, each its own colour:
+## each surface gets its own cut-away copy)
 func _give_cut(n: Node) -> void:
-	if n is GeometryInstance3D:
+	if n is MeshInstance3D and (n as MeshInstance3D).material_override == null and (n as MeshInstance3D).mesh != null:
+		var mi := n as MeshInstance3D
+		for i in mi.mesh.get_surface_count():
+			var s := mi.get_surface_override_material(i)
+			var cut := _cut_of(s if s != null else mi.mesh.surface_get_material(i))
+			if cut != null:
+				mi.set_surface_override_material(i, cut)
+	elif n is GeometryInstance3D:
 		var gi := n as GeometryInstance3D
 		var src: Material = gi.material_override
 		if src == null:
@@ -4808,13 +4834,24 @@ func _update_camera(delta: float) -> void:
 		# (straight down onto the wet square they're signing)
 		focus = ink_centre()
 		dist = 9.0
+	var pitch := cam_pitch
 	if skyline:
 		var top := maxf(head.position.y, (k + 1) * FH)
 		# (the whole of Riverlight, both wings)
 		focus = (Vector3.ZERO if tutorial else -REAL_ORIGIN) + Vector3(0, top * 0.45, -8.0)
 		dist = maxf(110.0, top * 2.4)
+		if sky_zoom == 2:
+			# the neighbourhood: the estate, the park, the golf course, the reach
+			focus.y = top * 0.2
+			dist = 420.0
+			pitch = maxf(cam_pitch, 0.55)
+		elif sky_zoom >= 3:
+			# out over the river: Bulimba, the Gateway Bridge, the city up the river
+			focus.y = 0.0
+			dist = 1500.0
+			pitch = maxf(cam_pitch, 0.75)
 	cam_focus = cam_focus.lerp(focus, minf(1.0, delta * 2.5))
-	var off := Vector3(sin(cam_yaw) * cos(cam_pitch), sin(cam_pitch), cos(cam_yaw) * cos(cam_pitch)) * dist
+	var off := Vector3(sin(cam_yaw) * cos(pitch), sin(pitch), cos(cam_yaw) * cos(pitch)) * dist
 	var want := cam_focus + off
 	camera.position = camera.position.lerp(want, minf(1.0, delta * 3.0)) if _frames > 2 else want
 	if not _shot_cam.is_empty():

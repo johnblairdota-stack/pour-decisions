@@ -51,11 +51,15 @@ const PIN_CRATE := Vector3(12.2, 0, 5.0) # bags of tower pins for climb days
 const QUEUE_X := 10.0
 const ROAD_Z := 15.6
 # The site road runs across the lot north of Riverlight (vacant in 2017) from
-# MacArthur Avenue, where the trucks come in, to Angora Road, where they leave,
-# and this is which way Angora runs off from there
+# MacArthur Avenue, where the trucks come in, to Angora Road, where they leave:
+# out of the site road's mouth and left into Angora's southbound lane (keeping
+# left, as in Brisbane), then off down it the way it runs
 const MACARTHUR_X := -28.0
-const ANGORA_X := 51.0
 const ANGORA_DIR := Vector3(0.534, 0, -0.846)
+const ANGORA_LANE := Vector3(49.35, 0, 15.25)   # the southbound lane's middle, level with the site road
+const TURN_T := 2.6                             # s to swing out of the mouth into the lane
+var _traffic: Node                              # the street traffic (scripts/cars.gd), to wait for a gap
+var _traffic_looked := false
 # Concrete supply rate. Volumes are game scale: Riverlight's east wing (about
 # 3.4x the old 16 x 12 slab) takes the same truckloads in the same time,
 # because each game m³ out of the hose covers pour.vol_k times more deck
@@ -1399,6 +1403,18 @@ func _leave_path(slot: String) -> Array:
 	var at: Vector3 = _slot_pose(slot)[0]
 	return [at, at + Vector3(7.0, 0, 0), Vector3(37.0, 0, EXIT_Z), Vector3(40.0, 0, EXIT_Z)]
 
+## Whether a car in the street traffic is within `r` of `at` (game ground).
+func _street_busy(at: Vector3, r: float) -> bool:
+	if not _traffic_looked:
+		_traffic_looked = true
+		_traffic = get_tree().root.find_child("Traffic", true, false)
+	if _traffic == null or not is_instance_valid(_traffic):
+		return false
+	for c in _traffic.get_children():
+		if c is MeshInstance3D and (c as Node3D).global_position.distance_to(at) < r:
+			return true
+	return false
+
 func _yard_busy(except = null) -> bool:
 	for t in trucks:
 		if t != except and t["state"] in ["approach", "back", "leave"]:
@@ -1604,12 +1620,22 @@ func _update_trucks(delta: float) -> void:
 				if u4 >= 1.0:
 					_set_truck(t, "road")
 			"road":
-				# Pull across into the far lane and head back to the plant
-				var vel := Vector3(9.0, 0, clampf((EXIT_Z - node.position.z) * 1.5, -2.5, 2.5))
-				if node.position.x > ANGORA_X:
-					vel = ANGORA_DIR * 9.0
-				node.position += vel * delta
-				node.rotation.y = _yaw_for(vel)
+				# Out of the mouth, left into Angora Road and away down it to
+				# the plant (waiting at the mouth for a gap in the traffic)
+				var p0 := Vector3(40.0, 0, EXIT_Z)
+				var p3 := ANGORA_LANE + ANGORA_DIR * 10.0
+				if t["t"] < 0.5 and _street_busy(ANGORA_LANE, 18.0):
+					t["t"] = 0.0
+				if t["t"] < TURN_T:
+					var k: float = t["t"] / TURN_T
+					var u := smoothstep(0.0, 1.0, k) * 0.5 + k * 0.5
+					var c1 := p0 + Vector3(7.0, 0, 0)
+					var c2 := p3 - ANGORA_DIR * 7.0
+					node.position = _bez(p0, c1, c2, p3, u)
+					node.rotation.y = _yaw_for(_bez_d(p0, c1, c2, p3, clampf(u, 0.02, 0.98)))
+				else:
+					node.position = p3 + ANGORA_DIR * 9.0 * (t["t"] - TURN_T)
+					node.rotation.y = _yaw_for(ANGORA_DIR)
 				if node.position.z < -70.0:
 					t["state"] = "gone"
 	for t in trucks:
