@@ -1157,7 +1157,8 @@ var _big_hold: HBoxContainer
 var _big_glyph: HoldGlyph
 var _big_word: Label
 
-func show_big_hold(at: Vector2, prog: float, text: String) -> void:
+## `drain`: the washout's A starts full of water and drains as it's done.
+func show_big_hold(at: Vector2, prog: float, text: String, drain := false) -> void:
 	if _big_hold == null:
 		_big_hold = HBoxContainer.new()
 		_big_hold.add_theme_constant_override("separation", 6)
@@ -1174,6 +1175,7 @@ func show_big_hold(at: Vector2, prog: float, text: String) -> void:
 		pill.add_child(_big_word)
 	_big_hold.visible = true
 	_big_glyph.prog = maxf(prog, 0.001)
+	_big_glyph.drain = drain
 	_big_word.text = text
 	_big_hold.reset_size()
 	_big_hold.position = at - Vector2(39, 39)
@@ -1185,6 +1187,7 @@ func hide_big_hold() -> void:
 ## A Site Kit A that fills with concrete while it's held, ringed in gold.
 class HoldGlyph extends Control:
 	var prog := 0.0
+	var drain := false     # full of water at the start, emptying as it goes
 	var _t := 0.0
 	func _process(delta: float) -> void:
 		_t += delta
@@ -1200,8 +1203,9 @@ class HoldGlyph extends Control:
 		draw_circle(c + Vector2(0, 1.5), r + 2.0, Color.WHITE, true, -1.0, true)
 		draw_circle(c + Vector2(0, 3.0), r, UI.LIP["A"], true, -1.0, true)
 		draw_circle(c, r, UI.GLYPH["A"], true, -1.0, true)
-		if prog > 0.0:
-			var top := r - 2.0 * r * clampf(prog, 0.0, 1.0)
+		var level := (1.0 - clampf(prog, 0.0, 1.0)) if drain else clampf(prog, 0.0, 1.0)
+		if level > 0.0 and (prog > 0.0 or drain):
+			var top := r - 2.0 * r * level
 			var pts := PackedVector2Array()
 			for i in 33:
 				var a := TAU * i / 32.0
@@ -1209,7 +1213,7 @@ class HoldGlyph extends Control:
 				if p.y < top:
 					p.y = top
 				pts.append(c + p)
-			draw_colored_polygon(pts, Color(0.62, 0.61, 0.58, 0.75))
+			draw_colored_polygon(pts, Color(0.3, 0.62, 0.95, 0.8) if drain else Color(0.62, 0.61, 0.58, 0.75))
 		var f := UI.font("head")
 		var fs := int(r * 1.25)
 		var w := f.get_string_size("A", HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x

@@ -3453,7 +3453,8 @@ func _handle_player(p, delta: float) -> void:
 				# and the gold ring goes round as the bin fills
 				p.big_cue = verb
 				var at := camera.unproject_position(p.global_position + Vector3(0, 1.7, 0)) + Vector2(70, -46)
-				hud.show_big_hold(at, ops.bin_progress(), verb.to_upper())
+				# (the washout's starts full of water and drains)
+				hud.show_big_hold(at, ops.bin_progress(), verb.to_upper(), ops.stage == "push")
 				_big_hold_on = true
 		elif not ops.primed or ops.busy():
 			p.say("start-up…" if not ops.primed else "washout…")
