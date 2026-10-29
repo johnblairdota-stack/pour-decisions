@@ -16,6 +16,7 @@ signal back_to_crew
 const UI := preload("res://scripts/ui.gd")
 const Settings := preload("res://scripts/settings.gd")
 const QR := preload("res://scripts/qr.gd")
+const Story := preload("res://scripts/story.gd")
 
 const KITS := [
 	{"id": "tower", "name": "Tower boom", "sub": "Stationary pump + placing boom on a lattice tower", "ok": true, "tag": "WHAT SCP RAN HERE"},
@@ -73,6 +74,7 @@ var _site_ring: Ring
 var _site_note: Label
 var _lvl_k: Label
 var _lvl_title: Label
+var _lvl_line: Label         # the day's line from the tower's story
 var _lvl_chips: HBoxContainer
 var _kit_cards: Array = []
 
@@ -488,6 +490,10 @@ func _build_site_page(root: Control) -> void:
 	rv.add_child(_lvl_k)
 	_lvl_title = UI.head("", 46, UI.BONE)
 	rv.add_child(_lvl_title)
+	_lvl_line = UI.label("", 21, UI.BONE, 0)
+	_lvl_line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_lvl_line.custom_minimum_size = Vector2(680, 0)
+	rv.add_child(_lvl_line)
 	_lvl_chips = HBoxContainer.new()
 	_lvl_chips.add_theme_constant_override("separation", 10)
 	rv.add_child(_lvl_chips)
@@ -576,17 +582,17 @@ func _refresh_site() -> void:
 		if poured:
 			sb.bg_color = Color("a8a296")
 			sb.border_color = UI.GOLD if sel else Color(0, 0, 0, 0)
-			lab.text = "Poured" + ("  ·  pour it again" if sel else "")
+			lab.text = Story.title(i) + ("  ·  pour it again" if sel else "")
 			lab.add_theme_color_override("font_color", Color("1b1a17"))
 		elif next:
 			sb.bg_color = Color("2a2410")
 			sb.border_color = UI.GOLD
-			lab.text = "NEXT · pour today"
+			lab.text = "NEXT · " + Story.title(i)
 			lab.add_theme_color_override("font_color", UI.GOLD)
 		else:
 			sb.bg_color = Color(0, 0, 0, 0)
 			sb.border_color = Color("3a3e4a")
-			lab.text = "Not yet"
+			lab.text = Story.title(i)
 			lab.add_theme_color_override("font_color", UI.DIM)
 		sb.set_border_width_all(3 if sel or next else 2)
 		(e["bar"] as Control).modulate.a = 0.4 if tut else 1.0
@@ -600,9 +606,11 @@ func _refresh_site() -> void:
 	if tut:
 		_lvl_k.text = "TUTORIAL"
 		_lvl_title.text = "Water tower · a short guided job"
+		_lvl_line.text = ""
 	else:
 		_lvl_k.text = "LEVEL %d OF %d" % [lvl, FLOORS]
-		_lvl_title.text = "Level %d · east wing slab, 30 × 21.8 m" % lvl
+		_lvl_title.text = "Level %d · %s" % [lvl, Story.title(lvl - 1)]
+		_lvl_line.text = Story.line(lvl - 1)
 	for c in _lvl_chips.get_children():
 		_lvl_chips.remove_child(c)
 		c.queue_free()
