@@ -94,8 +94,13 @@ static func run(root: Node3D, fe: Dictionary, route: Array) -> void:
 		pts.append(Vector3(r[0], Water.RIVER_Y, r[1]))
 	pts.append(Vector3(berth.x, Water.RIVER_Y, berth.y))
 	b.position = pts[0]
+	b.name = "CityCatRun"
 	root.add_child(b)
 	var tw := b.create_tween().set_loops()
+	# (explore.gd: you can catch it at the terminal when you knock off, and
+	# hurry the trip along)
+	b.set_meta("tween", tw)
+	b.set_meta("berth", berth)
 	var legs := [pts, pts.duplicate()]
 	legs[1].reverse()
 	for leg in legs:

@@ -40,6 +40,7 @@ const Street := preload("res://scripts/street.gd")
 const Wildlife := preload("res://scripts/wildlife.gd")
 const Yard := preload("res://scripts/yard.gd")
 const WestWing := preload("res://scripts/west_wing.gd")
+const ExploreScript := preload("res://scripts/explore.gd")
 
 # Riverlight: 11 levels; 10 lattice sections reached a 41.4 m free-stand.
 const FLOORS := 11
@@ -156,6 +157,7 @@ var phones
 var hud
 var selector
 var pause_menu
+var explore                  # knocking off: off the clock, wandering the area (explore.gd)
 var coach
 var shake_on := true
 var lattice: Node3D
@@ -286,6 +288,10 @@ func _ready() -> void:
 	pause_menu = PauseScript.new()
 	add_child(pause_menu)
 	pause_menu.setup(self)
+	explore = ExploreScript.new()
+	explore.name = "Explore"
+	add_child(explore)
+	explore.setup(self)
 	coach = CoachScript.new()
 	add_child(coach)
 	coach.setup(self)
@@ -2238,6 +2244,7 @@ const BRIEF_HOLD := 0.8      # s of A to start
 const BRIEF_AUTO := 20.0     # s till it starts itself
 const REPORT_AUTO := 15.0    # s the slab report waits for an A before moving on
 var _human_a := false        # a person pressed A this frame (for the brief and the slab report)
+var _a_by                    # ...and who
 
 func incident_level() -> int:
 	for arg in OS.get_cmdline_user_args():
@@ -2700,6 +2707,7 @@ func _process(delta: float) -> void:
 		_cover(p, delta)
 		if not p.bot and not p.covering and p.action_pressed():
 			_human_a = true
+			_a_by = p
 		if phase != "sign":
 			_handle_player(p, delta)
 		p.end_frame()
@@ -2817,6 +2825,9 @@ func _process(delta: float) -> void:
 		"topout":
 			if _fly_on:
 				_update_fly(delta)
+			# A (the beer button): knock off and go for a wander
+			if _human_a and phase_t > 1.0 and not autotest:
+				explore.enter(_a_by)
 			# (the vista shots wait for 1.5s, so hang on for them)
 			var vistas: bool = "vista" in _shot_only or "vista2" in _shot_only or _next_ext() != ""
 			var fly_shots: bool = "fly1" in _shot_only or "fly2" in _shot_only or "fly3" in _shot_only
