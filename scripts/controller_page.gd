@@ -16,7 +16,19 @@ extends RefCounted
 const MANIFEST := '{"name": "Pour Decisions controller", "short_name": "Pour Decisions", "start_url": "/", "display": "fullscreen", "orientation": "landscape", "background_color": "#0b0c10", "theme_color": "#0b0c10", "icons": [{"src": "/icon.png", "sizes": "192x192", "type": "image/png"}]}'
 
 static func html(ws_port: int) -> String:
-	return PAGE.replace("__WS_PORT__", str(ws_port))
+	return PAGE.replace("__WS_PORT__", str(ws_port)).replace("__ICONS__", JSON.stringify(_icons()))
+
+const Icons := preload("res://scripts/icons.gd")
+static var _icon_uris := {}
+
+## The jobs' icons as PNG data (white on clear, tinted on the phone through a
+## mask), the same ones the TV draws on the hats.
+static func _icons() -> Dictionary:
+	if _icon_uris.is_empty():
+		for role in Icons.ROLES:
+			var png: PackedByteArray = Icons.texture(role, 96).get_image().save_png_to_buffer()
+			_icon_uris[role] = "data:image/png;base64," + Marshalls.raw_to_base64(png)
+	return _icon_uris
 
 const PAGE := """<!doctype html>
 <html lang="en">
@@ -86,6 +98,12 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 .st .k{min-width:5.6vmin;height:5.6vmin;padding:0 1vmin;border-radius:99px;display:flex;align-items:center;justify-content:center;font-family:"Barlow Condensed",sans-serif;font-weight:800;font-size:3.4vmin;flex-shrink:0}
 .st.now{background:#fff6d6;border-color:var(--gold);font-weight:700;animation:nowpulse 1.4s ease-in-out infinite}
 .st.past{color:#8c887d}
+.st.go{background:color-mix(in srgb,var(--job) 22%,#fff);border-color:var(--job);font-weight:800;font-size:4vmin;align-items:center}
+.st.go svg{width:5.6vmin;height:5.6vmin;flex-shrink:0}
+.st.brief{flex-direction:column;align-items:stretch;gap:1.4vmin}
+.st.brief .bar{height:2.2vmin;border-radius:99px;background:#e2dccb;overflow:hidden}
+.st.brief .bar i{display:block;height:100%;background:var(--gold);width:0}
+#ljobs .job .q{font-size:3.3vmin;color:var(--bone);font-weight:700;line-height:1.2}
 .st .v{display:block;font-size:2.8vmin;color:#7a5a00;margin-top:.4vmin}
 @keyframes nowpulse{0%,100%{box-shadow:0 0 0 0 rgba(255,210,63,0)}50%{box-shadow:0 0 0 1vmin rgba(255,210,63,.3)}}
 #tfoot{padding:1.4vmin 2.8vmin 2vmin;background:#e6e0d0;font-size:2.8vmin;color:#4d4a42}
@@ -183,7 +201,7 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 #ljobs .job{background:#1a1c23;border-color:#2c2f39}
 #ljobs .job .n{color:var(--bone)}
 #ljobs .job .n .sq{width:7vmin;height:7vmin;border-radius:2vmin;background:var(--c);display:flex;align-items:center;justify-content:center;color:#111;flex-shrink:0}
-#ljobs .job .n .sq svg{width:5vmin;height:4.2vmin}
+#ljobs .job .n .sq svg{width:6.4vmin;height:5.4vmin}
 #ljobs .job.mine{background:#22242c;border:3px solid var(--me);box-shadow:0 0 0 1vmin color-mix(in srgb,var(--me) 25%,transparent);transform:translateY(-.5vmin);opacity:1}
 #ljobs .job.taken{opacity:.45}
 .charpick{display:flex;align-items:center;gap:1.4vmin;font-size:4.2vmin}
@@ -247,7 +265,7 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
   <div id="zone"><div class="lbl">Stick</div><div id="base"><div id="wedge"></div><div class="call" id="call0"></div><div class="call" id="call1"></div><div class="call" id="call2"></div><div class="call" id="call3"></div><div id="knob"></div></div></div>
   <div id="ticket">
     <button id="thead" aria-label="Your job, tap to swap">
-      <svg class="hat" viewBox="0 0 24 20"><path d="M1 16h22v2H1z M3.5 16v-3a8.5 8.5 0 0 1 17 0v3z" fill="currentColor"/></svg>
+      <svg class="hat" id="thhat" viewBox="0 0 24 20"><path d="M1 16h22v2H1z M3.5 16v-3a8.5 8.5 0 0 1 17 0v3z" fill="currentColor"/></svg>
       <span class="tt hd"><span class="k" id="tk">YOUR JOB</span><span class="n" id="tn">…</span></span>
       <span class="sw hd" id="tsw"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4L3 8l4 4"/><path d="M3 8h14"/><path d="M17 20l4-4-4-4"/><path d="M21 16H7"/></svg>SWAP</span>
     </button>
@@ -314,6 +332,21 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 const PORT = __WS_PORT__;
 const $ = (id) => document.getElementById(id);
 const HAT = '<svg viewBox="0 0 24 20"><path d="M1 16h22v2H1z M3.5 16v-3a8.5 8.5 0 0 1 17 0v3z" fill="currentColor"/></svg>';
+// The job icons, as on the TV's hats: the hat in currentColor, the icon on
+// the front of the dome (on a dark badge when the hat's in the job colour)
+const ICONS = __ICONS__;
+const HAT_PATH = '<path d="M1 16h22v2H1z M3.5 16v-3a8.5 8.5 0 0 1 17 0v3z" fill="currentColor"/>';
+// (each hat its own mask id: a mask inside a hidden screen draws nothing, so
+// two hats can't share one)
+let maskN = 0;
+function hatInner(role, col, badge) {
+  if (!ICONS[role]) return HAT_PATH;
+  const id = 'ic' + (++maskN);
+  return '<defs><mask id="' + id + '" maskContentUnits="userSpaceOnUse"><image href="' + ICONS[role] + '" x="6.7" y="5.5" width="10.6" height="10.6"/></mask></defs>' + HAT_PATH +
+    (badge ? '<circle cx="12" cy="10.8" r="6.2" fill="#0f1b2d"/>' : '') + '<rect x="6.7" y="5.5" width="10.6" height="10.6" fill="' + col + '" mask="url(#' + id + ')"/>';
+}
+function hat(role, col, badge) { return '<svg viewBox="0 0 24 20">' + hatInner(role, col, badge) + '</svg>'; }
+const PIN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"><path d="M12 22s7-7.2 7-12.5A7 7 0 0 0 5 9.5C5 14.8 12 22 12 22z"/><circle cx="12" cy="9.5" r="2.6"/></svg>';
 const LOCK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" style="width:4vmin;height:4vmin"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
 // The Site Kit's buttons and buzzes: the same numbers as the TV
 const KEY = {A: ['#3fe0c5', '#04281f'], B: ['#ff5a5f', '#2b0606'], X: ['#9b6bff', '#1b0d3a'], Y: ['#ffc23d', '#2a1d00'], stick: ['#3a3d47', '#ffffff']};
@@ -409,6 +442,7 @@ function drawTicket() {
   if (!card) return;
   const col = '#' + card.col;
   document.documentElement.style.setProperty('--job', col);
+  if ($('thhat').dataset.role !== card.role) { $('thhat').dataset.role = card.role; $('thhat').innerHTML = hatInner(card.role, col, false); }
   const t = $('ticket');
   let name = card.name, goal = card.goal, foot = '';
   t.classList.toggle('pump', card.role === 'pump' && screen === 'play' && !now.climb);
@@ -421,7 +455,7 @@ function drawTicket() {
   $('tsw').style.display = screen === 'play' ? 'flex' : 'none';
   drawSteps();
 }
-let lastStep = -1;
+let lastStep = -1, lastGo = '';
 function drawSteps() {
   if (!card) return;
   const el = $('steps');
@@ -435,7 +469,13 @@ function drawSteps() {
     html += '<div class="st' + (on ? ' now' : '') + '">' + chip(s[0]) + '<span>' + esc(s[1]) + (on && now.verb ? '<span class="v">Now: ' + esc(now.verb) + '</span>' : '') + '</span></div>';
   });
   if (now.i < 0 && now.verb) html = '<div class="st now">' + chip(now.btn || 'A') + '<span>' + esc(now.verb) + '</span></div>' + (pump ? '' : html);
+  // Nothing to press yet, but the job wants you somewhere: say where
+  if (now.go) html = '<div class="st go">' + PIN + '<span>' + esc(now.go) + '</span></div>' + html;
+  // The toolbox talk's up on the TV: hold A here to start, the same as there
+  if (now.brief >= 0) html = '<div class="st now brief"><div style="display:flex;gap:1.8vmin;align-items:center">' + chip('A') + '<span>Hold A to start the pour</span></div><div class="bar"><i style="width:' + Math.round(now.brief * 100) + '%"></i></div><span class="v" style="color:#5f5a4c">Toolbox talk on the TV. Anyone holding A starts it.</span></div>';
   el.innerHTML = html;
+  if (now.go && now.go !== lastGo) buzz(BUZZ.turn);
+  lastGo = now.go || '';
   if (now.i !== lastStep && now.i >= 0) buzz(BUZZ.press);
   lastStep = now.i;
 }
@@ -634,7 +674,8 @@ function holdButton(el, ms, done) {
 }
 // ---------------------------------------------------------------- lobby
 function jobCard(r, cls, extra) {
-  return '<button class="job ' + cls + '" data-id="' + r.id + '" style="--c:#' + r.col + '"><span class="n"><span class="sq">' + HAT + '</span>' + esc(r.name) + extra + '</span><span class="w">' + esc(r.line) + '</span></button>';
+  return '<button class="job ' + cls + '" data-id="' + r.id + '" style="--c:#' + r.col + '"><span class="n"><span class="sq">' + hat(r.id, '#' + r.col, false) + '</span>' + esc(r.name) + extra + '</span>' +
+    (r.ask ? '<span class="q">' + esc(r.ask) + '</span>' : '') + '<span class="w">' + esc(r.line) + '</span></button>';
 }
 function drawLobby() {
   if (!roster.length) return;
@@ -647,7 +688,7 @@ function drawLobby() {
     return jobCard(r, '', '');
   }).join('');
   const m = mine();
-  if (m) { $('ln').textContent = m.name; document.documentElement.style.setProperty('--job', '#' + m.col); }
+  if (m) { $('ln').textContent = m.name; document.documentElement.style.setProperty('--job', '#' + m.col); $('lhat').innerHTML = hatInner(m.id, '#' + m.col, true); }
   $('lk').textContent = 'P' + me.p + ' · LOCKED IN';
   $('crewlist').innerHTML = roster.map(r => '<div class="cl' + (r.p === me.p ? ' me' : (r.p ? '' : ' bot')) + '"><i style="background:#' + r.col + '"></i><span>' + esc(r.name) + '</span>' + (r.p ? '<span class="ptag" style="background:#' + r.pc + '">P' + r.p + (r.p === me.p ? ' · you' : '') + '</span>' : '<span style="font-size:3vmin;flex-grow:0">bot · ' + esc(r.who) + '</span>') + '</div>').join('');
 }
@@ -672,9 +713,9 @@ function closeSwap() { swapOpen = false; $('swap').classList.remove('on'); $('zo
 function drawSwap() {
   if (!swapOpen) return;
   $('jobs').innerHTML = roster.map(r => {
-    if (r.p === me.p) return '<div class="job mine" style="--c:#' + r.col + '"><span class="n">' + HAT + esc(r.name) + '</span><span class="w">you, P' + r.p + '</span></div>';
+    if (r.p === me.p) return '<div class="job mine" style="--c:#' + r.col + '"><span class="n">' + hat(r.id, '#' + r.col, true) + esc(r.name) + '</span><span class="w">you, P' + r.p + '</span></div>';
     if (r.p > 0) return '<div class="job taken" style="--c:#' + r.col + '"><span class="n">' + LOCK + esc(r.name) + '<span class="ptag" style="background:#' + r.pc + '">P' + r.p + '</span></span><span class="w">' + esc(r.who) + '</span></div>';
-    return '<button class="job' + (r.id === swapPick ? ' pick' : '') + '" data-id="' + r.id + '" style="--c:#' + r.col + '"><span class="n">' + HAT + esc(r.name) + '</span><span class="w">bot ' + esc(r.who) + ' · ' + esc(r.line) + '</span></button>';
+    return '<button class="job' + (r.id === swapPick ? ' pick' : '') + '" data-id="' + r.id + '" style="--c:#' + r.col + '"><span class="n">' + hat(r.id, '#' + r.col, true) + esc(r.name) + '</span><span class="w">bot ' + esc(r.who) + ' · ' + esc(r.line) + '</span></button>';
   }).join('');
   const free = roster.filter(r => !r.p).length;
   $('swapgo').disabled = !swapPick;

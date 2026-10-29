@@ -20,6 +20,10 @@ const BARK_WRAP := 330.0    # px of text before a spoken line wraps
 const Settings := preload("res://scripts/settings.gd")
 const GOLD := Color("ffd23f")
 
+## Cue words the TV leaves off (the phone still shows them): a pressure
+## spike is said once, by the gauge close-up with its A and this red A.
+const TV_QUIET := ["KILL THE PUMP"]
+
 const BTN := {"action": "A", "leave": "B", "alt": "X", "slow": "Y"}
 const BTN_COLORS := {"A": Color("3fe0c5"), "B": Color("ff5a5f"), "X": Color("9b6bff"), "Y": Color("ffc23d")}
 ## The keyboard key behind each button, for people playing on the keys
@@ -668,7 +672,7 @@ func show_cues(cam_right: Vector3, t: float, cam_pos := Vector3.ZERO, cam_k := 1
 		letter.modulate = Color("2a1d00") if in_zone else (Color.WHITE if alarm else UI.GLYPH_INK.get(btn, Color("0f1b2d")))
 		letter.scale = Vector3.ONE * (1.0 + amp * pl) * press_k * (1.18 if in_zone else 1.0)
 		var verb: Label3D = c["verb"]
-		var words: String = cu[1]
+		var words: String = "" if TV_QUIET.has(cu[1]) else cu[1]
 		if in_zone and words != "":
 			words = words.to_upper()
 		if on_keys:

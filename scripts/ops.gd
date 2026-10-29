@@ -54,10 +54,10 @@ const STEPS := {
 	"air": ["The dragon's breathing?", "hose", "hose", "RADIO: DRAGON'S BREATHING"],
 	"slurry_in": ["Slurry into the hopper", "pump", "panel", "SLURRY IN"],
 	"slurry_go": ["Slurry's on its way up", "", "", ""],
-	"slurry_out": ["Slurry into the bin, not the slab", "boom", "bin", "SLURRY INTO THE BIN"],
+	"slurry_out": ["Slurry into the bin, not the slab", "boom", "bin", "BIN"],
 	"concrete": ["Concrete's on?", "hose", "hose", "RADIO: CONCRETE'S ON"],
 	"water_in": ["Clean the hopper, water in", "pump", "panel", "WATER IN"],
-	"push": ["The last of it into the bin", "boom", "bin", "WASHOUT INTO THE BIN"],
+	"push": ["The last of it into the bin", "boom", "bin", "BIN"],
 	"valve": ["Blow the water back", "pump", "valve", "OPEN THE VALVE"],
 }
 const PRIME_ORDER := ["start", "air", "slurry_in", "slurry_go", "slurry_out", "concrete"]

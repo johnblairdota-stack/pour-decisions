@@ -342,6 +342,10 @@ func _send_cues(c: Dictionary) -> void:
 	if p == null or not is_instance_valid(p):
 		return
 	var list := []
+	# The toolbox talk's on the TV: the phone's A starts the pour too
+	var bh: float = game.brief_hold() if game.has_method("brief_hold") else -1.0
+	if bh >= 0.0 and p.cues.is_empty():
+		list.append("A:start_the_pour:%.2f:1:1:0" % snappedf(bh, 0.05))
 	for cu in p.cues:
 		if cu[0] in ["A", "B", "X", "Y"]:
 			var prog: float = cu[2]
@@ -395,7 +399,9 @@ func _send_state(c: Dictionary) -> void:
 	_json(c, "roster", roster())
 	_json(c, "card", card(p.role))
 	var climb_day: bool = game.climb != null and game.climb.active
-	var now := {"t": "now", "i": -1, "verb": "", "btn": "", "climb": climb_day}
+	var now := {"t": "now", "i": -1, "verb": "", "btn": "", "climb": climb_day,
+		"go": game.where_to(p) if game.has_method("where_to") and scr == "play" else "",
+		"brief": game.brief_hold() if game.has_method("brief_hold") and scr == "play" else -1.0}
 	if not p.cues.is_empty():
 		var cu: Array = p.cues[0]
 		now["btn"] = cu[0]
@@ -426,7 +432,7 @@ func roster() -> Dictionary:
 	var sel = game.selector if is_instance_valid(game.selector) else null
 	for role in game.crew.ROLES:
 		var q = game.crew.crew[role]
-		out.append({"id": role, "name": UI.ROLE_NAME[role], "col": UI.ROLE[role].to_html(false), "line": UI.ROLE_SHORT[role],
+		out.append({"id": role, "name": UI.ROLE_NAME[role], "col": UI.ROLE[role].to_html(false), "line": UI.ROLE_SHORT[role], "ask": UI.ROLE_ASK[role],
 			"p": 0 if q.bot else q.index, "pc": q.tag_color.to_html(false), "who": q.char_name,
 			"lock": (not q.bot) and sel != null and bool(sel._ready_p.get(q.index, false))})
 	return {"t": "roster", "r": out}

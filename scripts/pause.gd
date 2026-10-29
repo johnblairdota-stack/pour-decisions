@@ -191,6 +191,7 @@ func _make_row(text: String, action: String) -> Dictionary:
 	if action.begins_with("role:"):
 		var hat := UI.Hat.new()
 		hat.color = UI.ROLE[action.substr(5)]
+		hat.icon = action.substr(5)
 		hat.custom_minimum_size = Vector2(30, 24)
 		lead = hat
 	elif action == "resume":
