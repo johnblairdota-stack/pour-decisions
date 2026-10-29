@@ -100,3 +100,15 @@ static func drivable(name: String, paint: Color) -> Node3D:
 			wm.rotation.y = PI
 		spin.add_child(wm)
 	return root
+
+## Fits the bought 4x4 kit (scripts/ute_kit.gd, assets/cars/ute_kit.glb) to a
+## drivable ute: each item's part goes under the Body, so it rides the springs.
+static func apply_kit(node: Node3D, ute: String, kit: Array) -> void:
+	if kit.is_empty() or not ResourceLoader.exists("res://scripts/ute_kit.gd"):
+		return
+	var K: Script = load("res://scripts/ute_kit.gd")
+	var body := node.get_node("Body") as Node3D
+	for item in kit:
+		var part = K.part(String(item), ute)
+		if part is Node3D:
+			body.add_child(part)

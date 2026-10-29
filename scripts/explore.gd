@@ -347,9 +347,16 @@ func _park_utes() -> void:
 	if traffic != null:
 		traffic.clear_parked_near(kerb, 16.0)
 	var face := u if Vector2(u.y, -u.x).dot(-n) > 0.0 else -u
-	for i in Utes.NAMES.size():
-		var nm: String = Utes.NAMES[i]
+	var order: Array = Utes.NAMES.duplicate()
+	var mine := _my_ute()
+	if mine != "":
+		# (yours at the front of the queue)
+		order.erase(mine)
+		order.push_front(mine)
+	for i in order.size():
+		var nm: String = order[i]
 		var node := Utes.drivable(nm, Utes.OWN_PAINT[nm])
+		Utes.apply_kit(node, nm.to_lower(), _kit_on(nm))
 		add_child(node)
 		var c := {"name": nm, "node": node, "pos": kerb + face * (1 - i) * 8.5, "yaw": atan2(face.x, face.y),
 			"v": Vector2.ZERO, "yaw_rate": 0.0, "steer": 0.0, "pitch": 0.0, "roll": 0.0, "pv": 0.0, "rv": 0.0,
@@ -357,6 +364,15 @@ func _park_utes() -> void:
 		utes.append(c)
 		_place_car(c, 0.0)
 	_fer["spawn"] = kerb - n * 3.6
+
+## Hooks for the wallet (scripts/wallet.gd): the ute this person owns and
+## has picked ("Hilux", "Ranger" or "Shark", "" for none) and the kit
+## fitted to one of theirs.
+func _my_ute() -> String:
+	return ""
+
+func _kit_on(_name: String) -> Array:
+	return []
 
 func _spawn_me() -> void:
 	if me == null:
