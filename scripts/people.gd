@@ -31,6 +31,11 @@ const KINDS := {
 	"bike": [0.11, 5.0, 2.2], "pram": [0.05, 1.0, 4.6],
 }
 
+## How much room each takes on the path, side to side (a dog walker's dog
+## trots beside them, a pram's pushed out in front)
+const ROOM := {"walk": 0.4, "coffee": 0.4, "dog": 0.8, "jog": 0.45, "bike": 0.55, "pram": 0.6}
+const KEEP_LEFT := {"walk": 0.8, "coffee": 0.8, "dog": 0.5, "jog": 0.8, "bike": 1.2, "pram": 0.8}
+
 static var _lib: Node
 static var _mats := {}
 
@@ -222,7 +227,9 @@ func _walker(kind: String, route: Dictionary, rng: RandomNumberGenerator) -> Dic
 	add_child(n)
 	var w := {"kind": kind, "node": n, "route": route, "s": rng.randf() * float(route["len"]),
 		"dir": 1.0 if rng.randf() < 0.5 else -1.0, "speed": float(KINDS[kind][1]) * rng.randf_range(0.85, 1.15),
-		"phase": rng.randf() * TAU, "pause": 0.0, "yaw": 0.0, "side": 1.6 if rng.randf() < 0.5 else -1.6}
+		"phase": rng.randf() * TAU, "pause": 0.0, "yaw": 0.0, "side": 1.6,
+		"lat": float(KEEP_LEFT[kind]), "v": 0.0, "c": Vector2.ZERO, "fwd": Vector2.ZERO}
+	w["v"] = w["speed"]
 	if kind == "dog":
 		var cols: Array = DOGS[rng.randi() % DOGS.size()]
 		var dg := _model("Dog", {"dog": cols[0], "dog_dark": cols[1]})
@@ -246,6 +253,8 @@ func _process(delta: float) -> void:
 	var cam := get_viewport().get_camera_3d()
 	var eye := cam.global_position if cam != null else Vector3.ZERO
 	for w in _walkers:
+		_make_way(w, delta)
+	for w in _walkers:
 		_step(w, delta, eye)
 	for it in _idlers:
 		var n: Node3D = it[0]
@@ -258,6 +267,58 @@ func _process(delta: float) -> void:
 			var point := fmod(_t + ph * 7.0, 14.0) < 2.5
 			var arm := n.get_node("ArmR") as Node3D
 			arm.rotation.x = lerpf(arm.rotation.x, -1.5 if point else 0.0, minf(1.0, delta * 4.0))
+
+## Passing on the path without walking through each other: step aside for
+## anyone coming the other way, and on catching someone up (or the few
+## stood watching the pour), go round them if the way's clear, otherwise
+## drop in behind at their pace. (Judged on the path's middle line, so
+## someone part way round doesn't cut back in until they're past.)
+func _make_way(w: Dictionary, delta: float) -> void:
+	var c: Vector2 = w["c"]
+	var fwd: Vector2 = w["fwd"]
+	var kind: String = w["kind"]
+	var v: float = w["speed"]
+	var reach := minf(3.0 + v * 2.0, 13.0)
+	var lead := -1.0
+	var lead_v := 0.0
+	var oncoming := false
+	for o in _walkers:
+		if is_same(o, w):
+			continue
+		var d: Vector2 = (o["c"] as Vector2) - c
+		var along := d.dot(fwd)
+		if along < -1.8 or along > reach or absf(d.cross(fwd)) > 1.0:
+			continue
+		var moving := float(o["pause"]) <= 0.0
+		if moving and (o["fwd"] as Vector2).dot(fwd) < 0.0:
+			if along > 0.0:
+				oncoming = true
+		else:
+			var ov: float = o["v"] if moving else 0.0
+			if ov < v - 0.05 and (lead < 0.0 or along < lead):
+				lead = maxf(along, 0.0)
+				lead_v = ov
+	for it in _idlers:
+		if not (it[0] as Node).has_meta("on_path"):
+			continue
+		var n: Node3D = it[0]
+		var d := Vector2(n.position.x, n.position.z) - c
+		var along := d.dot(fwd)
+		if along > -1.8 and along < reach and absf(d.cross(fwd)) < 1.6 and (lead < 0.0 or along < lead):
+			lead = maxf(along, 0.0)
+			lead_v = 0.0
+	var lat := float(KEEP_LEFT[kind])
+	if oncoming:
+		lat += 0.6
+	if lead >= 0.0:
+		if not oncoming:
+			# out round them, on the right
+			lat -= 1.5 + float(ROOM[kind])
+		else:
+			# wait behind for the way to clear
+			v = minf(v, lead_v + maxf(lead - 1.6, 0.0) * 0.6)
+	w["lat"] = move_toward(float(w["lat"]), lat, delta * 1.4)
+	w["v"] = move_toward(float(w["v"]), v, delta * 3.0)
 
 static func _dist(n: Node3D, eye: Vector3) -> float:
 	return (n.global_position if n.is_inside_tree() else n.position).distance_to(eye)
@@ -272,7 +333,7 @@ func _step(w: Dictionary, delta: float, eye: Vector3) -> void:
 		if not far:
 			_pose(w, 0.0, delta)
 		return
-	var v: float = w["speed"]
+	var v: float = w["v"]
 	var s: float = float(w["s"]) + v * float(w["dir"]) * delta
 	if s < 0.0 or s > float(r["len"]):
 		# the end of the path: turn round (a dog walker stops for a sniff first)
@@ -285,7 +346,9 @@ func _step(w: Dictionary, delta: float, eye: Vector3) -> void:
 	var p: Vector2 = at[0]
 	var fwd: Vector2 = (at[1] as Vector2) * float(w["dir"])
 	# keep to the left, as Queenslanders do
-	var off := Vector2(fwd.y, -fwd.x) * (0.8 if kind != "bike" else 1.2)
+	w["c"] = p
+	w["fwd"] = fwd
+	var off := Vector2(fwd.y, -fwd.x) * float(w["lat"])
 	p += off
 	var yaw := atan2(fwd.x, fwd.y)
 	w["yaw"] = lerp_angle(float(w["yaw"]), yaw, minf(1.0, delta * 5.0))
@@ -378,6 +441,7 @@ func _supers(d: Dictionary, keep_clear: Callable, rng: RandomNumberGenerator) ->
 		var p := best + along * (i - 1.0) * 0.9
 		n.position = Vector3(p.x, 0, p.y)
 		n.rotation.y = atan2(face.x, face.y) + rng.randf_range(-0.3, 0.3)
+		n.set_meta("on_path", true)
 		add_child(n)
 		var it := [n, n.rotation.y, rng.randf() * TAU]
 		if i == 0:

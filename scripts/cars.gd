@@ -25,6 +25,8 @@ const PAINT := [Color("f4f4f2"), Color("f4f4f2"), Color("f4f4f2"), Color("c4c8cc
 	Color("2f5f4f")]
 const KINDS := [["Sedan", 0.3], ["Hatch", 0.22], ["SUV", 0.24], ["Ute", 0.16], ["Van", 0.08]]
 const BUS := Color("f4f4f2")
+const HEADWAY := 1.3         # seconds behind the car in front, as on a real road
+const STOP_GAP := 2.0        # metres bumper to bumper in a queue
 
 static var _lib: Node
 static var _meshes := {}
@@ -65,6 +67,14 @@ func setup(d: Dictionary, keep_clear: Callable, taken: Callable, road: Callable,
 	_rng.seed = rng.randi()
 	for i in DRIVERS:
 		var r: Dictionary = starts[rng.randi() % starts.size()]
+		var dir := 1.0 if r["oneway"] or rng.randf() < 0.5 else -1.0
+		var s := rng.randf() * float(r["len"])
+		# (not starting on top of another car in the same lane)
+		for tries in 12:
+			if not _drivers.any(func(o: Dictionary) -> bool:
+					return is_same(o["route"], r) and float(o["dir"]) == dir and absf(float(o["s"]) - s) < 18.0):
+				break
+			s = rng.randf() * float(r["len"])
 		var bus := i < 2
 		var name := "Bus" if bus else _kind(rng)
 		var mi := MeshInstance3D.new()
@@ -73,9 +83,10 @@ func setup(d: Dictionary, keep_clear: Callable, taken: Callable, road: Callable,
 		mi.visibility_range_end = 900.0
 		add_child(mi)
 		var limit := 12.5 if r["kind"] == "trunk" else 10.0
-		_drivers.append({"node": mi, "route": r, "s": rng.randf() * float(r["len"]),
-			"dir": 1.0 if r["oneway"] or rng.randf() < 0.5 else -1.0,
-			"speed": limit * rng.randf_range(0.75, 1.0) * (0.8 if bus else 1.0), "pick": rng.randf(), "yaw": 0.0})
+		var cruise := limit * rng.randf_range(0.75, 1.0) * (0.8 if bus else 1.0)
+		var size := mi.mesh.get_aabb().size
+		_drivers.append({"node": mi, "route": r, "s": s, "dir": dir, "cruise": cruise, "speed": cruise,
+			"len": maxf(size.x, size.z), "i": i, "pick": rng.randf(), "yaw": 0.0, "p": Vector2.ZERO, "fwd": Vector2.ZERO})
 		_drive(_drivers[-1], 0.0)
 
 static func _kind(rng: RandomNumberGenerator) -> String:
@@ -233,7 +244,7 @@ static func _add_route(out: Array, pts: PackedVector2Array, r: Dictionary) -> vo
 	if cum[cum.size() - 1] > 1.0:
 		out.append({"pts": pts, "cum": cum, "len": cum[cum.size() - 1], "kind": r["kind"], "w": float(r["w"]),
 			"oneway": bool(r.get("oneway", false)), "lanes": int(r.get("lanes", 0)), "park": int(r.get("park", 0)),
-			"next": [], "prev": []})
+			"next": [], "prev": [], "meet": [false, false]})
 
 static func _key(p: Vector2) -> String:
 	return "%d,%d" % [roundi(p.x * 2.0), roundi(p.y * 2.0)]
@@ -253,15 +264,30 @@ static func _link(routes: Array) -> void:
 		var pts: PackedVector2Array = r["pts"]
 		for end in [0, 1]:
 			var list: Array = []
+			var back: Array = []
+			var out := _heading(r, end)
 			for o in at.get(_key(pts[0] if end == 0 else pts[pts.size() - 1]), []):
 				if is_same(o[0], r):
 					continue
 				var fwd: bool = o[1] == 0
+				# Where a divided road's two one-way carriageways close up into
+				# one: drive the last bit as a two-way street, each in its own
+				# lane, and don't U-turn into the other carriageway
+				if r["oneway"] and o[0]["oneway"] and o[1] != end and out.dot(_heading(o[0], o[1])) > 0.5:
+					r["meet"][end] = true
+					back.append([o[0], fwd])
+					continue
 				# (a one-way is only driven from its start)
 				if o[0]["oneway"] and not fwd:
 					continue
 				list.append([o[0], fwd])
-			r["next" if end == 1 else "prev"] = list
+			r["next" if end == 1 else "prev"] = list if not list.is_empty() else back
+
+## Which way a route points at one end, outwards (from that end, away from the route)
+static func _heading(r: Dictionary, end: int) -> Vector2:
+	var pts: PackedVector2Array = r["pts"]
+	var n := pts.size()
+	return (pts[0] - pts[1]).normalized() if end == 0 else (pts[n - 1] - pts[n - 2]).normalized()
 
 ## How far left of the way's line a car drives: in its lane (the left one on a
 ## two-way street, the travel lane beside the parking lane on a one-way).
@@ -280,7 +306,48 @@ static func _lane(r: Dictionary, pick: float) -> float:
 
 func _process(delta: float) -> void:
 	for dv in _drivers:
+		_follow(dv, delta)
+	for dv in _drivers:
 		_drive(dv, delta)
+
+## Keeps a safe gap behind whatever's in front in the same lane: easing off as
+## it closes, stopping short in a queue, and pulling away again when it goes.
+func _follow(dv: Dictionary, delta: float) -> void:
+	var p: Vector2 = dv["p"]
+	var fwd: Vector2 = dv["fwd"]
+	var want: float = dv["cruise"]
+	for o in _drivers:
+		if is_same(o, dv):
+			continue
+		var d: Vector2 = (o["p"] as Vector2) - p
+		var along := d.dot(fwd)
+		if along <= 0.0 or along > 45.0:
+			continue
+		var side := absf(d.cross(fwd))
+		var ofwd: Vector2 = o["fwd"]
+		var lens := (float(dv["len"]) + float(o["len"])) * 0.5
+		var same := ofwd.dot(fwd)
+		if same >= 0.5 and side < 2.0:
+			# going the same way, in this lane
+			want = minf(want, maxf(along - lens - STOP_GAP, 0.0) / HEADWAY)
+		elif same > -0.95:
+			# coming across, merging in or turning across at a corner: if we'd
+			# meet, whoever's got further to go to the other gives way (just
+			# the one of them; oncoming in the other lane pass by)
+			var dist := d.length()
+			if dist > 20.0:
+				continue
+			var w := ofwd * float(o["speed"]) - fwd * float(dv["speed"])
+			var t := clampf(-d.dot(w) / maxf(w.length_squared(), 0.01), 0.0, 2.5)
+			if (d + w * t).length() > (lens * 0.5 + 1.0 if same > -0.5 else 2.2):
+				continue
+			var theirs := -d.dot(ofwd)
+			if along < theirs or (along == theirs and int(dv["i"]) < int(o["i"])):
+				continue
+			want = minf(want, maxf(dist - lens - 1.0, 0.0) / HEADWAY)
+	var v: float = dv["speed"]
+	# (gentle away, firmer on the brakes)
+	dv["speed"] = move_toward(v, want, delta * (2.5 if want > v else 7.0))
 
 func _drive(dv: Dictionary, delta: float) -> void:
 	var r: Dictionary = dv["route"]
@@ -322,9 +389,18 @@ func _drive(dv: Dictionary, delta: float) -> void:
 	var p := a.lerp(b, clampf((s - cum[i - 1]) / maxf(cum[i] - cum[i - 1], 0.001), 0.0, 1.0))
 	var fwd := (b - a).normalized() * float(dv["dir"])
 	# keep left
-	p += Vector2(fwd.y, -fwd.x) * _lane(r, float(dv["pick"]))
+	var lane := _lane(r, float(dv["pick"]))
+	# (closing up with the other carriageway: into the left lane of a two-way)
+	var meet: Array = r["meet"]
+	for end in [0, 1]:
+		if meet[end]:
+			var to_end := s if end == 0 else float(r["len"]) - s
+			lane = lerpf(LANE_W * 0.5, lane, smoothstep(0.0, 30.0, to_end))
+	p += Vector2(fwd.y, -fwd.x) * lane
 	var yaw := atan2(fwd.x, fwd.y)
 	dv["yaw"] = yaw if delta == 0.0 else lerp_angle(float(dv["yaw"]), yaw, minf(1.0, delta * 4.0))
+	dv["p"] = p
+	dv["fwd"] = fwd
 	var n: Node3D = dv["node"]
 	n.position = Vector3(p.x, 0.02, p.y)
 	n.rotation.y = float(dv["yaw"])
