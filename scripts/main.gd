@@ -255,6 +255,7 @@ func _ready() -> void:
 	camera.fov = 50.0
 	camera.near = 0.5      # (the default 5 cm loses the map's ground to the depth buffer this far out)
 	camera.far = 16000.0   # the CBD 6.4 km up the river, Mt Coot-tha at 13 km
+	camera.cull_mask = 0xFFFFF & ~CLOSE_ONLY
 	add_child(camera)
 	sfx = SfxScript.new()
 	add_child(sfx)
@@ -1587,6 +1588,7 @@ func _build_band() -> void:
 	band_cam = Camera3D.new()
 	band_cam.fov = 34.0
 	band_cam.far = 400.0
+	band_cam.cull_mask = 0xFFFFF & ~CLOSE_ONLY
 	band_view.add_child(band_cam)
 	band_edge = ColorRect.new()
 	band_edge.anchor_right = 1.0
@@ -3356,6 +3358,11 @@ func _label_k(at: Vector3) -> float:
 		cam = band_cam
 	return clampf(cam.global_position.distance_to(at) / 24.0, 1.0, 2.2)
 
+## The camera a floating word down here is seen through (the street band's,
+## when the screen's split and it's on the street), for sizing it.
+func view_cam(at: Vector3) -> Camera3D:
+	return band_cam if _split > 0.5 and band_cam != null and _street_label(at) else camera
+
 ## A word that pops up where something just got done, rises and fades.
 func pop(text: String, at: Vector3, col := Color("7cd992")) -> void:
 	var l: Label3D = null
@@ -3382,7 +3389,8 @@ func _update_pops(delta: float) -> void:
 		var t: float = l.get_meta("t") + delta
 		l.set_meta("t", t)
 		l.position.y += delta * 0.9
-		var k := clampf(camera.global_position.distance_to(l.global_position) / 15.0, 0.9, 3.0)
+		var cam := view_cam(l.global_position)
+		var k := clampf(cam.global_position.distance_to(l.global_position) / 15.0 * (BAND_CUE_K if cam == band_cam else 1.0), 0.5, 3.0)
 		l.scale = Vector3.ONE * k * (0.3 + 0.9 * minf(1.0, t * 6.0) - 0.2 * minf(1.0, t * 3.0))
 		l.modulate.a = clampf(1.6 - t, 0.0, 1.0)
 		if t > 1.6:
@@ -4173,10 +4181,8 @@ func _declutter_labels() -> void:
 				dl.visible = true
 				if dl.text != "":
 					items.append([dl, 40, "hide"])
-	# The slump reading and the quick "Good load" pop-ups say what just
-	# happened: they win over the docket and the station names
-	if line and line.slump and line.slump._reading.visible and line.slump._reading.text != "":
-		items.append([line.slump._reading, 90, "fixed"])
+	# The quick "Good load" pop-ups say what just happened: they win over
+	# the docket and the station names
 	for pl in _pops:
 		if pl.visible:
 			pl.offset.y = 0.0
@@ -4185,8 +4191,7 @@ func _declutter_labels() -> void:
 	var placed: Array = []
 	for it in items:
 		var l: Label3D = it[0]
-		if camera.is_position_behind(l.global_position):
-			continue
+		# (behind whichever camera shows it: _label_rect checks the right one)
 		var r := _label_rect(l)
 		if r.size.x <= 0.0:
 			continue
@@ -4844,6 +4849,9 @@ func _cut_of(src: Material) -> Material:
 	_cut_mats[src] = m
 	return m
 
+## Render layer for words only the close-ups show (the slump reading): the
+## deck view and the street band leave them out, so they're not said twice.
+const CLOSE_ONLY := 1 << 10
 const TIGHT_MIN := 15.0      # m: the closest the mid-pour deck view comes in
 var _tight := 0.0            # 0 whole slab .. 1 framed on the crew and the wet edge
 
@@ -5103,7 +5111,7 @@ func _update_camera(delta: float) -> void:
 		# small views of someone off screen keep the name tags but not the
 		# button glyphs (layer 4), which are sized for the main camera and
 		# would fill the view: the badge in the corner shows the button
-		cam.cull_mask = 1 if v["close"] else (0xFFFFF & ~8)
+		cam.cull_mask = (1 | CLOSE_ONLY) if v["close"] else (0xFFFFF & ~8 & ~CLOSE_ONLY)
 		cam.fov = 42.0 if v["close"] else 55.0
 		if v["close"]:
 			# Look at the work from outside, a couple of metres off
