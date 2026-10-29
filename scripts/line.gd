@@ -122,6 +122,7 @@ const PIN_T := 0.9           # s holding A to push a safety pin home
 const SPIKE_LIMIT := 3.0     # s of pumping into a spike before it blocks
 const SPIKE_BAR := 232.0     # where the needle goes
 const SPIKE_WARN := 0.5      # s of warning: the gauge close-up pops up just before
+const QUIET_WARN := 2.5      # the quiet level's one spike: the needle creeps up this long first
 const RESTART_HOLD := 0.8    # s holding A at the panel to restart
 const RESTART_AUTO := 16.0   # s tripped before the leading hand restarts it
 ## [reaction under s, points, label]
@@ -742,8 +743,11 @@ func _truck_mesh() -> Node3D:
 # ------------------------------------------------------------------ pour flow
 
 ## Called when a pour starts. `cfg` holds the level's outside factors.
+var quiet := false           # level 1: good loads, one well-warned spike, nothing else
+
 func start_pour(need: float, cfg: Dictionary) -> void:
 	needed_m3 = need
+	quiet = bool(cfg.get("quiet", false))
 	interval = 9.5 * float(cfg.get("traffic", 1.0))
 	late_extra = float(cfg.get("late", 0.0))
 	ordered = 0.0
@@ -831,6 +835,9 @@ func _spike_gap(first := false) -> float:
 	var gap: Vector2 = [Vector2(40, 60), Vector2(22, 34), Vector2(16, 26), Vector2(11, 19)][clampi(lvl, 0, 3)]
 	if game and game.tutorial:
 		gap = Vector2(26, 34)
+	if quiet:
+		# (one, once the pumping's settled in, and that's it)
+		return randf_range(30.0, 40.0) if first else INF
 	return randf_range(gap.x, gap.y) * (0.6 if first else 1.0)
 
 ## Every frame of the pour: run the spike that's on, count down to one a
@@ -857,7 +864,8 @@ func _spikes(delta: float) -> void:
 		return
 	_spike_in -= delta
 	# Half a second before, the gauge close-up pops up: eyes on the needle
-	spike_warn = _spike_in <= SPIKE_WARN
+	# (on the quiet level, longer, with the needle creeping up first)
+	spike_warn = _spike_in <= (QUIET_WARN if quiet else SPIKE_WARN)
 	if _spike_in <= 0.0:
 		_start_spike("")
 
@@ -868,7 +876,8 @@ func _start_spike(cause: String) -> void:
 	_spike_cause = cause
 	stats["spikes"] += 1
 	game.sfx.hit("hiss")
-	game.hud.toast("PRESSURE SPIKE!", 1.2)
+	# (said once: the gauge close-up with its A, the red A over the pump
+	# operator and their phone. No banner, no ticket.)
 	var op = game.crew.crew.get("pump") if game.crew else null
 	if op != null:
 		game.haptic(op, "80,40,80")
@@ -1264,7 +1273,7 @@ func _spawn_truck(waiting: bool, top_up := false) -> void:
 		return
 	var load := load_m3 if top_up else minf(load_m3, needed_m3 * 1.12 - ordered + 0.5)
 	ordered += load
-	var r := randf()
+	var r := 1.0 if quiet else randf()
 	var slump := randf_range(SPEC_SLUMP - 17.0, SPEC_SLUMP + 17.0)
 	var age := randf_range(22.0, 45.0)
 	if r < 0.09:
@@ -1808,12 +1817,12 @@ func _park(t: Dictionary, sl: String) -> void:
 	if _wants_test(t):
 		# (now and then the plant's sent the wrong mix: it's on the docket,
 		# and it goes back whatever the slump reads)
-		if kit == "tower" and _backed_in > 1 and randf() < MIX_WRONG:
+		if kit == "tower" and _backed_in > 1 and not quiet and randf() < MIX_WRONG:
 			t["mix_wrong"] = ["mpa", "stone", "site"][randi() % 3]
 		return
 	t["checked"] = true
 	t["eyeballed"] = true
-	if _backed_in > 1 and randf() < MIX_WRONG:
+	if _backed_in > 1 and not quiet and randf() < MIX_WRONG:
 		t["mix_wrong"] = ["mpa", "stone", "site"][randi() % 3]
 		t["why"] = "wrong mix"
 	_set_truck(t, "docket")
@@ -1930,6 +1939,8 @@ func update(delta: float, in_pour: bool) -> void:
 		target = (55.0 + riser_top * 1.1) * (1.0 if speed_high else 0.72)
 		if fail_i >= 0:
 			target += 55.0 * wear
+		if quiet and spike_warn and _pending_cause == "":
+			target += 90.0 * clampf(1.0 - _spike_in / QUIET_WARN, 0.0, 1.0)
 	elif live:
 		target = minf(pressure, static_p + 8.0)
 	else:
@@ -1942,7 +1953,7 @@ func update(delta: float, in_pour: bool) -> void:
 	_kill_show_t = maxf(0.0, _kill_show_t - delta)
 	if gauge_label:
 		if spike_on:
-			gauge_label.text = "SPIKE  %d bar" % int(pressure)
+			gauge_label.text = "%d bar" % int(pressure)
 			gauge_label.modulate = Color("ff5a5f") if fmod(_knock_phase, 0.3) < 0.18 else Color.WHITE
 		elif tripped:
 			gauge_label.text = "PUMP OFF  %d bar" % int(pressure)
@@ -1969,7 +1980,8 @@ func update(delta: float, in_pour: bool) -> void:
 	hopper_fill.position.y = 0.95 + fill * 0.8
 	hopper_fill.visible = hopper > 0.02
 	# The level's on the HUD; over the hopper it only speaks up when it's low
-	hopper_label.text = "LOW" if fill < 0.2 and in_pour else ""
+	# (not in the start-up: an empty hopper's normal before the first load)
+	hopper_label.text = "LOW" if fill < 0.2 and in_pour and game.ops != null and game.ops.primed else ""
 	hopper_label.modulate = Color("ff4d4d")
 	# Pump body thumps with each stroke
 	var stroke_u := absf(sin(_knock_phase * PI / 0.8)) if pumping else 0.0
@@ -3040,7 +3052,7 @@ func hud_info() -> Dictionary:
 		stand = names.get(staged["state"], "")
 		if staged["state"] == "bay" and staged["checked"]:
 			stand = "waiting on a call"
-	return {"hopper": hopper / HOPPER_CAP, "high": speed_high, "queue": q, "bay": bay, "standby": stand, "next": maxf(0.0, _arrive_t), "ages": ages}
+	return {"hopper": hopper / HOPPER_CAP, "startup": game.ops != null and not game.ops.primed, "high": speed_high, "queue": q, "bay": bay, "standby": stand, "next": maxf(0.0, _arrive_t), "ages": ages}
 
 ## The gauge close-up wants to be on screen: just before a spike, through it,
 ## and a moment after (to see the needle drop).

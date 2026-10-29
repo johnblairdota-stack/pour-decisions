@@ -73,7 +73,7 @@ In the main game there's no step-by-step instruction text: every action is a pul
 The screen stays clear: most of what you need is in the world (the hand signs, the button by your head, the close-up cameras), so the HUD only carries what you can't see there, and nothing is said twice.
 
 - **Top centre:** what the crew's doing now ("POUR bay 3 of 4", "CLIMB pin 2 of 4: drive the pin"), its progress bar and the pour clock.
-- **Top right:** level, points and rank. Under it while pouring, the pump: hopper level and whether it's on HIGH or LOW, trucks at the pump and on the road, and the line pressure. The wind shows only on climb days or when it's gusting.
+- **Top right:** level, the crew's cash and rank. Under it while pouring, the pump: hopper level and whether it's on HIGH or LOW, trucks at the pump and on the road, and the line pressure. The wind shows only on climb days or when it's gusting.
 - **Left:** the live jobs, most urgent first, each with a countdown bar and the icon of the job it's for, in that job's colour. Urgent ones get a coloured border and pulse. The boom operator's one is their progress: "Bay 2 of 4 · 64% · edge fresh", its bar filling with the bay and coloured by the wet edge (green fresh, amber ageing, red going off).
 - **Centre:** one-line call-outs that fade.
 - **Close-up zoom-ins:** hands-on work a person's doing (a clamp, a pin, a slump test) pops up a zoom-in right beside the spot where it's happening, in whichever view shows it (the deck view, or the street band when the screen's split), framed in the colour of the job, with your button cue in the corner. It's sized to the screen, stays inside its own view, and keeps clear of the other pop-ups and of the pump. A failing clamp gets one when the pump operator's a person. Bots' work gets no pop-up. Anyone off the screen gets a small view in the deck view's bottom right corner.
@@ -129,9 +129,11 @@ Every job's button lights up **gold** at the moment, or in the spot, where press
 | Pipe guy | Radio the moment the hose puffs or the colour changes |
 | Climb day | Pump the ram, podger in when the holes line up, sling when the hook's down, lower when the load's over the ghost, let go in the hammer's gold band |
 
-Gold belongs to the assist and nothing else: the assist ring has its own look (a white inner ring, a gold outer one and gold dashes turning round it), the "+N" points pops are white, and a screeded patch that's ready glows a cool green-white.
+Gold belongs to the assist and nothing else: the assist ring has its own look (a white inner ring, a gold outer one and gold dashes turning round it), the cash pops are banknotes, and a screeded patch that's ready glows a cool green-white.
 
-**Gold assist** is a setting in the pause menu (on by default), so you can try the game with and without it. The hammer's gold band is the mechanic itself, so it always shows.
+**Gold fades as you learn.** The gold is on a spectrum, kept for each person (their crew name) at each job. Someone new at a job gets the lot: bright gold, the ring, the sparks, the trickle and the buzz. Every time they press on the gold their sureness at that job goes up a notch, and the effects fall away one by one (the trickle, then the sparks, then the buzz, then the ring) until only the button's gold tint is left, then nothing but the action itself. If they slip, it comes back: a call-out for their step, a crewmate covering them, a cue left waiting over 4 seconds or a costly mistake each knock their sureness down, so the gold brightens again until they've got it back. The tutorial and the bots always show full gold.
+
+**Gold assist** in the pause menu has three settings: *fades as you learn* (the default), *full sparkle* (locked on at full for everyone, for casual nights) and *off*. The hammer's gold band is the mechanic itself, so it always shows.
 
 ### The scaffold walkway
 
@@ -155,13 +157,17 @@ Every work spot on the ground and the deck (BOOM REMOTE, DOGMAN, TAG LINE, RIGGE
 
 Anything that needs a worker gets a small orange marker with a hand on it and the icon of the job it's for, floating over the spot: the poker's drive unit when nobody's holding it, a truck waiting on its slump test, the pump panel when it's ready to restart, a clamp weeping up the riser. When it gets urgent it turns red, and when it's critical it shakes and throws sparks. Bots run for their red signs. Bots also call out what they're doing in little speech balloons that float up off their heads and pop ("Clamp coming up!", "On it!"). A balloon is sized to its words, with a tail down to whoever said it: a long line wraps onto two or three lines rather than running wide, and newer balloons push older ones up so they never overlap. A sign for your job that's off the edge of the screen (or behind the street band) gets an arrow on the screen's edge in your job's colour, pointing to it.
 
-### Points and ranks
+### Cash, wallets and ranks
 
-There are no stars. Every bit of real work earns points the moment it's done, and a small "+N" rises off whoever did it: concrete placed in the right bay, each spot poked, screeding, slump tests, good calls on bad loads, every repair step, safety pins, sections landed, clean hammer blows, R-clips. Mistakes cost points (a burst, a hose whip, a bad load accepted, a pin left without its clip).
+There are no stars and no points: the work pays. Every bit of real work earns cash the moment it's done, and a banknote with the amount on it rises off whoever did it (green for $100 and up, yellow $50, red $20, blue $10, pink under that): concrete placed in the right bay, each spot poked, screeding, slump tests, good calls on bad loads, every repair step, safety pins, sections landed, clean hammer blows, R-clips. Mistakes cost money (a burst, a hose whip, a bad load accepted, a pin left without its clip). The site's rate card pays the quick calls and reactions, where a person makes the difference, more than the steady square-metre work: a killed spike or a bad load turned away pays three times its old points, screeding about a third.
 
-At the end of each slab the report adds a **quality bonus** (the engineer's score out of 100, times six) and a bonus for finishing early. The total climbs a rank ladder with no ceiling on points: Labourer, Apprentice, Concreter, Leading Hand, Foreman, Site Super, Concrete Legend. An all-bot crew finishes the chapter around Site Super.
+**The crew pool and your wallet.** The whole crew's take is the slab's score and climbs the rank ladder. Each person also keeps their own **wallet**, saved between sessions under the crew name they play: everything they earned themselves, plus an even share of crew-wide money like the quality bonus. The slab report shows what went into each person's wallet.
 
-Every slab also gets a **medal**, the way a builder would judge the pour: was it good, and was it quick? Silver takes 85% quality inside the silver time, gold 95% inside the gold time (the report shows both, and they ease up a little as the riser grows, plus 3 s for every person playing, since people talk, look about and learn). The times are set against what bots do: bronze bots on the tower take about 80 to 110 s, so silver (86 s) and gold (77 s) mean a crew that's working well together. The chapter's end tallies them.
+**The wallet on the phone.** A wallet button sits top left of the phone controller during the pour and at Smoko. It opens the wallet: the balance, what this pour paid, and a leather wallet that gets fatter the more you've got. Spend it in the shop: buy a **4x4 ute** (Toyota Hilux, Ford Ranger or BYD Shark, the utes you drive in explore mode), then kit it out from the **4x4** tab (mud-terrain tyres, lift kit, bull bar, winch, snorkel, light bar, spotlights) and the **Camping** tab (roof rack, rooftop tent, awning, canopy, drawers, fridge, jerry cans, swag). Some kit needs other kit first (the winch needs the bull bar, the tent needs the roof rack). Pick an item and hold the button to buy it; the garage tab shows your ute with everything fitted.
+
+At the end of each slab the report adds a **quality bonus** (the engineer's score out of 100) and a bonus for finishing early. The crew's total climbs a rank ladder in dollars: Labourer, Apprentice ($25,000), Concreter ($70,000), Leading Hand ($130,000), Foreman ($200,000), Site Super ($290,000), Concrete Legend ($400,000). A bronze crew takes about $30,000 a slab, so it tops out around Site Super; Legend takes a crew that pours better than the bots.
+
+Every slab also gets a **medal**, the way a builder would judge the pour: was it good, and was it quick? Silver takes 85% quality inside the silver time, gold 95% inside the gold time (the report shows both, and they ease up a little as the riser grows, plus 3 s for every person playing, since people talk, look about and learn). The times are set against what bots do on the full-size slab: bronze bots on the tower take about 140 to 175 s and silver or gold bots about 120 s, so silver (135 s) means a crew that's working well together and gold (121 s, and 95% quality) a crew as sharp as the best bots. The chapter's end tallies them.
 
 **Bots slip, like people.** A bronze bot loses about 6 seconds twice a slab ("Where'd I put the…", a phone call, a boot lace), a silver one once, a gold one never, so a bot crew isn't a perfect machine to measure yourself against.
 
@@ -384,7 +390,8 @@ When the top slab's screeded, before it goes off, everyone playing signs it (bot
 | `scripts/ops.gd` | The start-up (priming the line) and the washout, step by step |
 | `scripts/roster.gd` | The named crew: names, looks and one-liners |
 | `scripts/bots.gd` | The crew bots, one brain per job, driving the same buttons a person uses |
-| `scripts/score.gd` | Points, the rising "+N" counters, the rank ladder |
+| `scripts/score.gd` | Cash: the rate card, the rising banknotes, the crew pool, medals and the rank ladder |
+| `scripts/wallet.gd` | Each crew member's wallet, their ute and kit, the shop, and their sureness at each job (fades the gold) |
 | `scripts/signs.gd` | The hands-needed signs |
 | `scripts/screed.gd` | The screed board, the surplus roll, the sawing motion |
 | `scripts/slump.gd` | The slump test at the truck bay: cone, rod, barrow, tape and the close-up |

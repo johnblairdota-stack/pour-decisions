@@ -7,9 +7,10 @@
 ##   poker   a poker: a rod with vibration waves either side
 ##   screed  a screed board: a long bar with two handles
 ##   hose    the rubber end hose: a curving hose, its nozzle and drops
+##   beer    a schooner with a head on it: knocking off
 extends RefCounted
 
-const ROLES := ["boom", "line", "pump", "poker", "screed", "hose"]
+const ROLES := ["boom", "line", "pump", "poker", "screed", "hose"]   # (and "beer", not a job)
 static var _cache := {}
 
 static func texture(role: String, size := 128) -> ImageTexture:
@@ -117,5 +118,17 @@ static func _sdf(role: String, p: Vector2) -> float:
 			d = minf(d, (p - Vector2(80, 122)).length() - 4.5)                # drops
 			d = minf(d, (p - Vector2(98, 120)).length() - 4.5)
 			d = minf(d, (p - Vector2(89, 126)).length() - 3.5)
+			return d
+		"beer":
+			# the glass, narrowing to the base, with a line under the head
+			var t := clampf((p.y - 40.0) / 80.0, 0.0, 1.0)
+			var d := _box(p, Vector2(60, 80), Vector2(lerpf(34.0, 26.0, t), 40), 6.0)
+			d = maxf(d, -(absf(p.y - 50.0) - 3.0))
+			# the head spilling over the rim, a drip down the side
+			for c in [Vector2(36, 38), Vector2(54, 30), Vector2(74, 32), Vector2(88, 40)]:
+				d = minf(d, (p - c).length() - 14.0)
+			d = minf(d, _seg(p, Vector2(28, 42), Vector2(28, 58), 5.0))
+			# a handle, so it reads as a glass at any size
+			d = minf(d, absf(_box(p, Vector2(100, 78), Vector2(14, 20), 10.0)) - 5.0)
 			return d
 	return 999.0

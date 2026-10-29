@@ -85,26 +85,28 @@ func update(delta: float) -> void:
 		h.add_child(l)
 		_rows.add_child(h)
 
-## [title, the story so far] for where the job's up to.
+## [title, one short line] for where the job's up to. The coach says one
+## thing, in a few words; the facts wait for the slab report.
 func _story_now() -> Array:
 	var g = game
 	var floor_name := "TANK FLOOR" if g.k == g.TUT_FIRST else "ROOF SLAB"
 	match g.phase:
 		"columns", "deck":
 			if g.k == g.TUT_FIRST:
-				return ["WATER TOWER · THE TANK FLOOR", "The shaft below was cast in 3 m lifts with jump forms: pour a lift, climb the forms, pour the next. Up top, the cone flares out to carry the tank."]
-			return ["WATER TOWER · THE TANK WALL", "The tank's wall goes up on the tank floor. The boom has to climb a section to reach over it for the roof."]
+				return ["WATER TOWER · THE TANK FLOOR", "The forms are going up."]
+			return ["WATER TOWER · THE TANK WALL", "The boom climbs to reach the roof."]
 		"inspect":
-			return ["WATER TOWER · " + floor_name, "Pre-pour check: forms, steel and bar chairs. Then the trucks start arriving."]
+			return ["WATER TOWER · " + floor_name, "Pre-pour check, then the trucks."]
 		"pour":
-			return ["WATER TOWER · POUR THE " + floor_name, "A round slab, pumped from the far side back to the boom. Keep the wet edge alive and keep the pokers and the screed board right behind it."]
+			return ["WATER TOWER · POUR THE " + floor_name, "Keep the wet edge alive."]
 		"screed", "cure":
-			return ["WATER TOWER · " + floor_name, "Poured. It's screeded, then left to cure."]
+			return ["WATER TOWER · " + floor_name, "Poured. Now it cures."]
 		"climb":
-			return ["WATER TOWER · CLIMB THE BOOM", "The placing boom climbs with the job: one lattice section, slung on the street, flown up by the tower crane, dogged in and pinned."]
+			return ["WATER TOWER · CLIMB THE BOOM", "One new section, up by crane."]
 	return ["WATER TOWER", ""]
 
-## What this person's job needs from them next ("" if nothing).
+## What this person's job needs from them next ("" if nothing): one line,
+## one verb, the place in capitals.
 func _tip(p) -> String:
 	var g = game
 	var line = g.line
@@ -113,48 +115,48 @@ func _tip(p) -> String:
 		match p.role:
 			"line":
 				if climb.needs_sling():
-					return "Street: the crane's hook is over the LAYDOWN. Go there and hold A to sling the section." if climb.hook_ready() or p.position.distance_to(climb.LAYDOWN) > 3.5 else "The hook's coming down. Hold A once it's there."
+					return "Hold A at the LAYDOWN to sling it." if climb.hook_ready() or p.position.distance_to(climb.LAYDOWN) > 3.5 else "Wait for the hook, then hold A."
 				if climb.needs_pins():
 					if p.held_kind == "pins":
-						return "Take the bag to the HAUL ROPE and press A: it goes up to the rigger."
-					return "Now the pins: grab a PIN BAG at the foot of the tower (A). Four pins, R-clips on, in one sealed bag."
-				return "Slung, and the pins are up. Watch it fly."
+						return "Take the bag to the HAUL ROPE: A."
+					return "Grab a PIN BAG at the tower foot: A."
+				return "Done. Watch it fly."
 			"screed":
-				return "Nothing for the screeder on a climb day. Have a breather (and a twirl)."
+				return "Nothing to do. Have a breather."
 			"boom":
 				if climb.stage in ["jack", "fly"]:
-					return "You're the dogman for this. Wait at DOGMAN for the load."
+					return "Wait at DOGMAN for the load."
 				if climb.stage == "guide":
-					return "Push the stick toward the green ghost: each push is a whistle to the crane. Hold A to lower it in. Y means \"slowly\"."
+					return "Push toward the green ghost. Hold A to lower."
 			"poker":
 				if climb.stage in ["fly", "guide"]:
 					if climb.tag_hand == p:
-						return "Keep holding A: you've got the tag line. Let go and you drop it."
-					return "Wait at TAG LINE. Once the load's up over the deck, hold A: you run out, grab the line and walk it back."
+						return "Keep holding A on the tag line."
+					return "Wait at TAG LINE, then hold A."
 			"pump":
 				if p.busy != "rigger":
-					return "Go to RIGGER and press A to work the climbing frame."
+					return "Go to RIGGER and press A."
 				match climb.stage:
 					"jack":
-						return "Press A to pump the rams. Each stroke lifts the boom about half a metre."
+						return "Press A to pump the rams."
 					"roll":
-						return "Hold A to roll the new section in along the runway."
+						return "Hold A to roll the section in."
 					"pin":
 						match climb.pin_sub:
 							"wait":
-								return "Waiting for the pins: the truck hand sends them up the haul rope."
+								return "Wait for the pins."
 							"split":
-								return "Take a pin set and pull its R-clip off: press A."
+								return "Press A to pull the R-clip."
 							"align":
-								return "Stick up or down till the holes glow green, then A for the podger."
+								return "Stick till the holes glow green, then A."
 							"drive":
-								return "Hold A to wind the hammer back, let go in the gold. Three clean blows."
+								return "Hold A, let go in the gold."
 							"clip":
-								return "Hold A: the R-clip back on through the pin."
+								return "Hold A to clip the pin."
 		return ""
 	if g.phase == "inspect":
 		if p.role == "line":
-			return "Head to the TRUCK BAY: the first truck's already backed on."
+			return "Head to the TRUCK BAY."
 		return ""
 	if g.phase != "pour":
 		return ""
@@ -163,71 +165,71 @@ func _tip(p) -> String:
 	if ops.busy() and ops.role() == p.role:
 		match ops.stage:
 			"start":
-				return "Start-up: at the PUMP PANEL, hold A to start the pump."
+				return "Hold A at the PUMP PANEL to start."
 			"air":
-				return "The pump's pushing the air out ahead of it: hot air out of the end hose, the dragon breathing. Press A to radio it down." if ops.step_t >= ops.TRAVEL_T else "Watch the end of the hose: hot air's coming."
+				return "Press A to radio the air's out." if ops.step_t >= ops.TRAVEL_T else "Watch the hose: air's coming."
 			"slurry_in":
-				return "Hold A at the PUMP PANEL to tip the slurry in: cement, sand and water. It coats the inside of the line so the concrete slides."
+				return "Hold A at the PUMP PANEL: slurry in."
 			"slurry_out":
-				return "The slurry's at the hose. It mustn't go in the slab: swing the hose over the BIN on the scaffold (the button goes gold) and hold A to pump it in."
+				return "Hose over the BIN, hold A."
 			"concrete":
-				return "Concrete's coming through. Press A to radio: concrete's on!"
+				return "Press A: concrete's on!"
 			"water_in":
-				return "Washout: hold A at the PUMP PANEL to clean out the hopper and fill it with water."
+				return "Hold A at the PUMP PANEL: water in."
 			"push":
-				return "The water's pushing the last of the concrete out. Hose over the BIN (gold) and hold A: concrete, then water, into the bin."
+				return "Hose over the BIN, hold A."
 			"valve":
-				return "Hold A at the RELEASE VALVE by the pump: the water blows back down into the settling tank."
+				return "Hold A at the RELEASE VALVE."
 	if ops.busy() and p.role in ["boom", "hose"]:
-		return "Start-up first: the line has to be primed before any concrete goes in." if not ops.primed else "Washout under way."
+		return "Wait: the line's being primed." if not ops.primed else "Wait: washout under way."
 	match p.role:
 		"hose":
 			if p.busy != "hose":
-				return "Take the END HOSE: it hangs under the boom tip. Walk under it and press A."
-			return "Walk the hose where it's wanted: where it glows gold, right out to the forms and into the corners. The concrete's your call: hold A for the pump, let go to stop."
+				return "Walk under the END HOSE, press A."
+			return "Walk the hose to the gold. Hold A to pump."
 		"boom":
 			if p.busy != "boom":
-				return "Walk to BOOM REMOTE and press A to take it."
+				return "Press A at the BOOM REMOTE."
 			var adv: Dictionary = g.speed_advice
 			if adv["want"] != "" and adv["level"] >= 1:
-				return "X is up: switch the pump to %s (%s)." % [adv["want"].to_upper(), adv["why"]]
+				return "Press X: pump to %s." % adv["want"].to_upper()
 			if g.pipe_calls():
-				return "The pipe guy calls the concrete on and off. Steer the boom with the stick so the end hose reaches where they're working, and keep it along the wet edge."
+				return "Steer the hose to the pipe guy."
 			if not line.pumping:
-				return "Hold A to pump (nobody's on the end hose). The stick steers the hose. Start in the green bay."
-			return "Lay it against the wet edge so it stays green. Amber means it's getting old: get back to it."
+				return "Hold A to pump. Steer with the stick."
+			return "Keep it on the wet edge."
 		"poker":
 			if p.tool != "poker":
-				return "Pick up the poker at its drive unit (A)."
-			return "Hold A in the purple concrete until the bubbles stop and it goes glossy, then move on."
+				return "Pick up the POKER: A."
+			return "Hold A in purple till the bubbles stop."
 		"screed":
-			return "Hold A to bring the board down, then walk backwards over the gold. The board pulls the surplus along into the low spots."
+			return "Hold A, walk back over the gold."
 		"pump":
 			if line.spike_on:
-				return "SPIKE! A now, wherever you are: kill the pump. The faster, the more it's worth."
+				return "SPIKE! Press A now."
 			if line.fix_i >= 0 or (line.blocked and not line.block_found) or (line.fail_i >= 0 and line.burst):
-				return "The riser needs you: grab the part (CLAMP KITS or PIPES), up the LADDER, and fix it."
+				return "Grab the part, fix it up the LADDER."
 			if line.fail_i >= 0:
-				return "A clamp's weeping. The pump's off: grab a CLAMP KIT and up the LADDER to swap it, then restart."
+				return "Grab a CLAMP KIT, swap it up the LADDER."
 			if line.tripped:
-				return "Pump's off and the pressure's easing. Hold A at the PUMP PANEL to restart it."
+				return "Hold A at the PUMP PANEL to restart."
 			if line.live and line.idle_t > line.SET_TIME * 0.5 and not line.line_down():
-				return "The line's standing still. A at the PUMP PANEL strokes it so it doesn't go off."
-			return "Watch the gauge on the side of the pump. The moment the needle jumps into the red, A kills the pump."
+				return "Press A at the PUMP PANEL: stroke it."
+			return "Watch the gauge. Red needle: press A."
 		"line":
 			for tr in line.trucks:
 				if tr["state"] in ["called", "approach", "back"] and tr.get("spotter") != null:
-					return "Spot the truck back: hold A to wave it on and watch the metres over its tail. Let go the moment it flashes green STOP. Too far and it backs into the hopper."
+					return "Hold A to back it. Let go at STOP."
 			var chk = line.needs_check()
 			if chk != null:
 				if chk.get("too_old", false):
-					return "The docket says it was batched over 90 minutes ago. No test needed: B sends it straight back to the plant."
+					return "Too old: press B to send it back."
 				if chk["state"] == "docket":
-					return "Not due a test: read the docket on the truck against the ORDER line above it. Same mix, A pours it. Wrong strength, stone or site, B sends it back before it goes in."
+					return "Check the docket against the ORDER."
 				if not chk["checked"]:
-					return "Truck in: slump test at the TRUCK BAY, four presses. A: fetch a sample in the tray. Hold A: fill and rod (it stops itself). Hold A: lift it steady. A: measure. The truck keeps feeding while you test."
-				return "Your reading against the order, 100 mm ±20: in it, A uses the load. Under 80 (stiff), X adds the water the plant held back, then test again. Over 120, B sends it back."
+					return "Slump test at the TRUCK BAY."
+				return "80 to 120: A. Stiff: X. Wet: B."
 			if line.can_wave_in():
-				return "Wave the next truck in (A at the TRUCK BAY), then spot it back onto the hopper."
-			return "Keep the trucks coming. Each new load that opens before the hopper runs low grows your changeover streak."
+				return "Press A at the TRUCK BAY: wave it in."
+			return "Keep the trucks coming."
 	return ""

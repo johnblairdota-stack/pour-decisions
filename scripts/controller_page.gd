@@ -16,7 +16,19 @@ extends RefCounted
 const MANIFEST := '{"name": "Pour Decisions controller", "short_name": "Pour Decisions", "start_url": "/", "display": "fullscreen", "orientation": "landscape", "background_color": "#0b0c10", "theme_color": "#0b0c10", "icons": [{"src": "/icon.png", "sizes": "192x192", "type": "image/png"}]}'
 
 static func html(ws_port: int) -> String:
-	return PAGE.replace("__WS_PORT__", str(ws_port))
+	return PAGE.replace("__WS_PORT__", str(ws_port)).replace("__ICONS__", JSON.stringify(_icons()))
+
+const Icons := preload("res://scripts/icons.gd")
+static var _icon_uris := {}
+
+## The jobs' icons as PNG data (white on clear, tinted on the phone through a
+## mask), the same ones the TV draws on the hats.
+static func _icons() -> Dictionary:
+	if _icon_uris.is_empty():
+		for role in Icons.ROLES:
+			var png: PackedByteArray = Icons.texture(role, 96).get_image().save_png_to_buffer()
+			_icon_uris[role] = "data:image/png;base64," + Marshalls.raw_to_base64(png)
+	return _icon_uris
 
 const PAGE := """<!doctype html>
 <html lang="en">
@@ -86,6 +98,12 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 .st .k{min-width:5.6vmin;height:5.6vmin;padding:0 1vmin;border-radius:99px;display:flex;align-items:center;justify-content:center;font-family:"Barlow Condensed",sans-serif;font-weight:800;font-size:3.4vmin;flex-shrink:0}
 .st.now{background:#fff6d6;border-color:var(--gold);font-weight:700;animation:nowpulse 1.4s ease-in-out infinite}
 .st.past{color:#8c887d}
+.st.go{background:color-mix(in srgb,var(--job) 22%,#fff);border-color:var(--job);font-weight:800;font-size:4vmin;align-items:center}
+.st.go svg{width:5.6vmin;height:5.6vmin;flex-shrink:0}
+.st.brief{flex-direction:column;align-items:stretch;gap:1.4vmin}
+.st.brief .bar{height:2.2vmin;border-radius:99px;background:#e2dccb;overflow:hidden}
+.st.brief .bar i{display:block;height:100%;background:var(--gold);width:0}
+#ljobs .job .q{font-size:3.3vmin;color:var(--bone);font-weight:700;line-height:1.2}
 .st .v{display:block;font-size:2.8vmin;color:#7a5a00;margin-top:.4vmin}
 @keyframes nowpulse{0%,100%{box-shadow:0 0 0 0 rgba(255,210,63,0)}50%{box-shadow:0 0 0 1vmin rgba(255,210,63,.3)}}
 #tfoot{padding:1.4vmin 2.8vmin 2vmin;background:#e6e0d0;font-size:2.8vmin;color:#4d4a42}
@@ -120,7 +138,8 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 .btn.cue.alarm .verb{color:#ff8b80;box-shadow:0 0 0 2px var(--alarm)}
 .btn.cue.alarm .verb i{background:var(--alarm)}
 .btn.gold{--face:#ffd23f;--lip:#b17a00;--ink:#2a1d00;--ringc:#ffd23f}
-.btn.gold .face{animation:goldbeat .3s ease-in-out infinite;box-shadow:0 1.4vmin 0 var(--lip),0 0 0 1.2vmin rgba(255,210,63,.35),0 0 8vmin rgba(255,210,63,.8)}
+.btn.gold .face{animation:goldbeat .3s ease-in-out infinite;box-shadow:0 1.4vmin 0 var(--lip),0 0 0 calc(1.2vmin * var(--gl,1)) rgba(255,210,63,.35),0 0 calc(8vmin * var(--gl,1)) rgba(255,210,63,calc(.8 * var(--gl,1)))}
+.btn.gold.faint .face{animation:none}
 .btn.gold .verb{color:var(--gold);box-shadow:0 0 0 2px var(--gold);text-transform:uppercase}
 .btn.down .face,.btn.boing .face{animation-name:none}
 .btn.down.gold .face{animation:none}
@@ -145,8 +164,10 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 #ghost.on{display:block;animation:tap 1.1s ease-in-out infinite}
 #ghost div{position:absolute;left:30%;top:20%;width:40%;height:62%;border-radius:45% 45% 40% 40%;background:rgba(255,255,255,.55);border:.5vmin solid rgba(255,255,255,.9);box-shadow:0 0 4vmin rgba(255,255,255,.5)}
 @keyframes tap{0%,100%{transform:translate(4vmin,6vmin) scale(1);opacity:.2}45%{transform:translate(0,0) scale(.92);opacity:1}60%{transform:translate(0,0) scale(.86);opacity:1}}
-#helping{position:absolute;left:34vw;width:33vw;bottom:4vmin;z-index:14;background:#2a2410;border:2px solid var(--gold);color:var(--bone);border-radius:3vmin;padding:1.6vmin 2.4vmin;font-size:3.1vmin;display:none}
-#helping.on{display:block}
+#helping{position:absolute;left:34vw;width:33vw;bottom:4vmin;z-index:14;background:#ffe95a;border:0.6vmin solid #c8170f;color:#1d1a14;border-radius:3vmin;padding:1.6vmin 2.4vmin;font-size:3.1vmin;display:none}
+#helping.on{display:block;animation:spray .16s infinite}
+#helping b{display:block;color:#a10d0d;font-size:4.2vmin;font-weight:800;line-height:1.1;margin-bottom:.6vmin}
+@keyframes spray{0%{transform:translate(0,0) rotate(-1deg)}50%{transform:translate(.4vmin,-.3vmin) rotate(1deg)}100%{transform:translate(-.3vmin,.2vmin) rotate(-.5deg)}}
 /* --- swap panel */
 #swap{position:absolute;left:20vw;width:60vw;top:2.6vmin;bottom:2.6vmin;border-radius:4.6vmin;background:#1b1e26;border:2px solid #3a3e4a;padding:3vmin;display:none;flex-direction:column;gap:2vmin;box-shadow:0 4vmin 9vmin rgba(0,0,0,.6);z-index:15;animation:flip .45s cubic-bezier(.3,1.3,.5,1) both}
 #swap.on{display:flex}
@@ -183,7 +204,7 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 #ljobs .job{background:#1a1c23;border-color:#2c2f39}
 #ljobs .job .n{color:var(--bone)}
 #ljobs .job .n .sq{width:7vmin;height:7vmin;border-radius:2vmin;background:var(--c);display:flex;align-items:center;justify-content:center;color:#111;flex-shrink:0}
-#ljobs .job .n .sq svg{width:5vmin;height:4.2vmin}
+#ljobs .job .n .sq svg{width:6.4vmin;height:5.4vmin}
 #ljobs .job.mine{background:#22242c;border:3px solid var(--me);box-shadow:0 0 0 1vmin color-mix(in srgb,var(--me) 25%,transparent);transform:translateY(-.5vmin);opacity:1}
 #ljobs .job.taken{opacity:.45}
 .charpick{display:flex;align-items:center;gap:1.4vmin;font-size:4.2vmin}
@@ -235,6 +256,41 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 #status{position:fixed;right:3vmin;bottom:2vmin;font-size:2.6vmin;color:var(--dim);z-index:12}
 @media (orientation:portrait){#rotate{display:flex}}
 @media (prefers-reduced-motion:reduce){*{animation-duration:.01s!important;animation-iteration-count:1!important}}
+/* --- the wallet: cash banked, and the ute shop */
+#walletbtn{position:fixed;left:15vmin;top:2.6vmin;height:10vmin;padding:0 2.6vmin;border-radius:2.6vmin;border:1px solid #3a3d47;background:var(--card);display:none;align-items:center;gap:1.6vmin;z-index:12;font-size:4vmin}
+#walletbtn.on{display:flex}
+#walletbtn svg{width:6vmin;height:5vmin}
+#walletbtn b{color:#7cd992}
+#walletbtn.bump{animation:wbump .5s cubic-bezier(.3,1.6,.5,1)}
+@keyframes wbump{0%{transform:scale(1)}40%{transform:scale(1.18)}100%{transform:scale(1)}}
+#wallet{position:fixed;inset:2.6vmin;border-radius:4.6vmin;background:#14161c;border:2px solid #3a3e4a;display:none;z-index:35;box-shadow:0 4vmin 9vmin rgba(0,0,0,.6);overflow:hidden}
+#wallet.on{display:flex;animation:flip .45s cubic-bezier(.3,1.3,.5,1) both}
+#wallet .wl{width:34%;padding:3vmin;display:flex;flex-direction:column;gap:1.4vmin;background:#1b1e26;border-right:1px solid #2c2f37}
+#wallet .wl .k{font-size:3.2vmin;color:var(--muted);letter-spacing:.08em}
+#wallet .wl .cash{font-size:11vmin;line-height:.9;color:#7cd992}
+#wallet .wl .sub{font-size:3.4vmin;color:#b9b6ad}
+#wallet .wl .purse svg{width:100%;height:26vmin;display:block}
+#wallet .wr{flex:1;display:flex;flex-direction:column;min-width:0}
+#wallet .tabs{display:flex;gap:1.2vmin;padding:2.4vmin 3vmin 1.4vmin;align-items:center}
+#wallet .tabs button{font-size:4.2vmin;padding:1vmin 3vmin;border-radius:99px;background:#22252d;color:#b9b6ad}
+#wallet .tabs button.on{background:var(--gold);color:#2a1d00}
+#wallet .tabs .x{margin-left:auto;width:9vmin;height:9vmin;border-radius:50%;background:#22252d;display:flex;align-items:center;justify-content:center}
+#wallet .tabs .x svg{width:4.4vmin;height:4.4vmin}
+#wallet .body{flex:1;overflow-y:auto;padding:0 3vmin 3vmin;touch-action:pan-y}
+#wallet .garage svg{width:100%;height:auto;max-height:44vmin;display:block}
+#wallet .garage .n{font-size:5.4vmin}
+#wallet .garage .kitl{font-size:3.2vmin;color:#b9b6ad;margin-top:1vmin}
+#wallet .items{display:grid;grid-template-columns:1fr 1fr;gap:1.6vmin}
+#wallet .it{background:#1f222a;border:2px solid #2c2f37;border-radius:2.6vmin;padding:2vmin 2.4vmin;text-align:left;display:flex;flex-direction:column;gap:.6vmin}
+#wallet .it .n{font-size:4.2vmin}
+#wallet .it .l{font-size:2.9vmin;color:#9a978f}
+#wallet .it .pr{font-size:4vmin;color:#7cd992}
+#wallet .it.pick{border-color:var(--gold)}
+#wallet .it.have{opacity:.6}
+#wallet .it.have .pr{color:var(--muted)}
+#wallet .it.short .pr{color:#ff8a7a}
+#wallet .buyrow{display:flex;gap:2vmin;align-items:center;padding:1.6vmin 3vmin 2.4vmin;border-top:1px solid #2c2f37}
+#wallet .buyrow .note{flex:1;font-size:3.4vmin;color:#b9b6ad}
 </style>
 </head>
 <body>
@@ -247,7 +303,7 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
   <div id="zone"><div class="lbl">Stick</div><div id="base"><div id="wedge"></div><div class="call" id="call0"></div><div class="call" id="call1"></div><div class="call" id="call2"></div><div class="call" id="call3"></div><div id="knob"></div></div></div>
   <div id="ticket">
     <button id="thead" aria-label="Your job, tap to swap">
-      <svg class="hat" viewBox="0 0 24 20"><path d="M1 16h22v2H1z M3.5 16v-3a8.5 8.5 0 0 1 17 0v3z" fill="currentColor"/></svg>
+      <svg class="hat" id="thhat" viewBox="0 0 24 20"><path d="M1 16h22v2H1z M3.5 16v-3a8.5 8.5 0 0 1 17 0v3z" fill="currentColor"/></svg>
       <span class="tt hd"><span class="k" id="tk">YOUR JOB</span><span class="n" id="tn">…</span></span>
       <span class="sw hd" id="tsw"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4L3 8l4 4"/><path d="M3 8h14"/><path d="M17 20l4-4-4-4"/><path d="M21 16H7"/></svg>SWAP</span>
     </button>
@@ -256,7 +312,7 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
     <div id="steps"></div>
     <div id="tfoot"></div>
   </div>
-  <div id="helping">The leading hand's helping with this step. Press anything to take it back.</div>
+  <div id="helping"><b></b><span></span></div>
   <div id="pad">
     <div class="btn" id="Y"><div class="ring"></div><div class="face"><div class="wet"></div><span>Y</span></div><div class="verb"><i></i><b></b></div></div>
     <div class="btn" id="B"><div class="ring"></div><div class="face"><div class="wet"></div><span>B</span></div><div class="verb"><i></i><b></b></div></div>
@@ -305,6 +361,21 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
   <canvas id="slab"></canvas>
 </div>
 <div id="joined"><div class="big" id="jbig">P?</div><div><div class="k hd" id="jk">You're on the crew</div><div class="t hd" id="jt">You are Player ?</div><div class="s">Look for your tag on the TV. Everyone scans the same code; the next phone gets the next number.</div><div id="pdots"></div></div></div>
+<button id="walletbtn" aria-label="Your wallet"><svg viewBox="0 0 30 24"><rect x="1" y="4" width="28" height="18" rx="3" fill="#6b4a32"/><rect x="3" y="1" width="20" height="8" rx="1" fill="#3fae5a"/><rect x="1" y="7" width="28" height="15" rx="3" fill="#8a6142"/><circle cx="23" cy="14.5" r="2.4" fill="#e9c46a"/></svg><b class="hd" id="wbal">$0</b></button>
+<div id="wallet">
+  <div class="wl">
+    <div class="k hd" id="wwho">WALLET</div>
+    <div class="cash hd" id="wcash">$0</div>
+    <div class="sub" id="wpour"></div>
+    <div class="purse" id="wpurse"></div>
+    <div class="sub" id="wbanked"></div>
+  </div>
+  <div class="wr">
+    <div class="tabs"><button data-tab="garage" class="hd on">Your ute</button><button data-tab="utes" class="hd">Utes</button><button data-tab="4x4" class="hd">4x4</button><button data-tab="camping" class="hd">Camping</button><button class="x" id="wx" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div class="body" id="wbody"></div>
+    <div class="buyrow"><div class="note" id="wnote">Every job you do pays into this wallet. It's kept for next time, under your crew name.</div><button class="holdbtn" id="wbuy" disabled><div class="fill"></div><span>HOLD TO BUY</span></button></div>
+  </div>
+</div>
 <div id="ghost"><div></div></div>
 <div id="rotate">Turn your phone sideways<br><small style="color:#9a978f">the controller works in landscape</small></div>
 <div id="gate"><b>POUR DECISIONS</b><span class="go"><span class="first">TAP TO JOIN THE CREW</span><span class="again">TAP TO CARRY ON</span></span><div id="ios"><b>Full screen on iPhone:</b> tap Share, then <b>Add to Home Screen</b>, and open Pour Decisions from your home screen.</div></div>
@@ -314,6 +385,21 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 const PORT = __WS_PORT__;
 const $ = (id) => document.getElementById(id);
 const HAT = '<svg viewBox="0 0 24 20"><path d="M1 16h22v2H1z M3.5 16v-3a8.5 8.5 0 0 1 17 0v3z" fill="currentColor"/></svg>';
+// The job icons, as on the TV's hats: the hat in currentColor, the icon on
+// the front of the dome (on a dark badge when the hat's in the job colour)
+const ICONS = __ICONS__;
+const HAT_PATH = '<path d="M1 16h22v2H1z M3.5 16v-3a8.5 8.5 0 0 1 17 0v3z" fill="currentColor"/>';
+// (each hat its own mask id: a mask inside a hidden screen draws nothing, so
+// two hats can't share one)
+let maskN = 0;
+function hatInner(role, col, badge) {
+  if (!ICONS[role]) return HAT_PATH;
+  const id = 'ic' + (++maskN);
+  return '<defs><mask id="' + id + '" maskContentUnits="userSpaceOnUse"><image href="' + ICONS[role] + '" x="6.7" y="5.5" width="10.6" height="10.6"/></mask></defs>' + HAT_PATH +
+    (badge ? '<circle cx="12" cy="10.8" r="6.2" fill="#0f1b2d"/>' : '') + '<rect x="6.7" y="5.5" width="10.6" height="10.6" fill="' + col + '" mask="url(#' + id + ')"/>';
+}
+function hat(role, col, badge) { return '<svg viewBox="0 0 24 20">' + hatInner(role, col, badge) + '</svg>'; }
+const PIN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"><path d="M12 22s7-7.2 7-12.5A7 7 0 0 0 5 9.5C5 14.8 12 22 12 22z"/><circle cx="12" cy="9.5" r="2.6"/></svg>';
 const LOCK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" style="width:4vmin;height:4vmin"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
 // The Site Kit's buttons and buzzes: the same numbers as the TV
 const KEY = {A: ['#3fe0c5', '#04281f'], B: ['#ff5a5f', '#2b0606'], X: ['#9b6bff', '#1b0d3a'], Y: ['#ffc23d', '#2a1d00'], stick: ['#3a3d47', '#ffffff']};
@@ -369,9 +455,12 @@ function onJson(j) {
   else if (j.t === 'card') { card = j; drawTicket(); drawLobby(); }
   else if (j.t === 'now') { now = j; drawSteps(); }
   else if (j.t === 'gauge') drawGauge(j);
-  else if (j.t === 'nudge') setNudge(j.lvl);
+  else if (j.t === 'nudge') { setNudge(j.lvl); setSpray(j); }
   else if (j.t === 'toast') toast(j.msg);
   else if (j.t === 'dog') drawDog(j);
+  else if (j.t === 'wallet') onWallet(j);
+  else if (j.t === 'shop') { shop = j; if (walletOpen) drawWallet(); }
+  else if (j.t === 'bought') onBought(j);
 }
 // The dogman: each crane call sits round the stick the way you push for it
 let dogLit = '';
@@ -398,6 +487,7 @@ function showScreen() {
   $('sign').classList.toggle('on', sign);
   if (sign) startSign();
   if (!lobby) closeSwap();
+  showWalletBtn();
   drawTicket();
 }
 let toastT = null;
@@ -409,6 +499,7 @@ function drawTicket() {
   if (!card) return;
   const col = '#' + card.col;
   document.documentElement.style.setProperty('--job', col);
+  if ($('thhat').dataset.role !== card.role) { $('thhat').dataset.role = card.role; $('thhat').innerHTML = hatInner(card.role, col, false); }
   const t = $('ticket');
   let name = card.name, goal = card.goal, foot = '';
   t.classList.toggle('pump', card.role === 'pump' && screen === 'play' && !now.climb);
@@ -421,7 +512,7 @@ function drawTicket() {
   $('tsw').style.display = screen === 'play' ? 'flex' : 'none';
   drawSteps();
 }
-let lastStep = -1;
+let lastStep = -1, lastGo = '';
 function drawSteps() {
   if (!card) return;
   const el = $('steps');
@@ -435,7 +526,13 @@ function drawSteps() {
     html += '<div class="st' + (on ? ' now' : '') + '">' + chip(s[0]) + '<span>' + esc(s[1]) + (on && now.verb ? '<span class="v">Now: ' + esc(now.verb) + '</span>' : '') + '</span></div>';
   });
   if (now.i < 0 && now.verb) html = '<div class="st now">' + chip(now.btn || 'A') + '<span>' + esc(now.verb) + '</span></div>' + (pump ? '' : html);
+  // Nothing to press yet, but the job wants you somewhere: say where
+  if (now.go) html = '<div class="st go">' + PIN + '<span>' + esc(now.go) + '</span></div>' + html;
+  // The toolbox talk's up on the TV: hold A here to start, the same as there
+  if (now.brief >= 0) html = '<div class="st now brief"><div style="display:flex;gap:1.8vmin;align-items:center">' + chip('A') + '<span>Hold A to start the pour</span></div><div class="bar"><i style="width:' + Math.round(now.brief * 100) + '%"></i></div><span class="v" style="color:#5f5a4c">Toolbox talk on the TV. Anyone holding A starts it.</span></div>';
   el.innerHTML = html;
+  if (now.go && now.go !== lastGo) buzz(BUZZ.turn);
+  lastGo = now.go || '';
   if (now.i !== lastStep && now.i >= 0) buzz(BUZZ.press);
   lastStep = now.i;
 }
@@ -466,6 +563,19 @@ function setNudge(l) {
   $('helping').classList.toggle('on', l >= 3);
   placeGhost();
 }
+// The leading hand covering: his spray on the phone too, bleeped
+const SPRAY = ['OI! WAKE UP, YA #@%&!', 'WHAT THE $#!@ ARE YA DOIN\'?!', 'MOVE YA %&#@ FEET!', 'MY NAN POURS FASTER, YA #@%&!', 'FAIR #%@& DINKUM!'];
+let sprayOn = false;
+function setSpray(j) {
+  const on = j.lvl >= 3;
+  if (on && !sprayOn) {
+    const h = $('helping');
+    h.querySelector('b').textContent = (j.lh || 'MACCA').toUpperCase() + ': ' + SPRAY[Math.floor(Math.random() * SPRAY.length)];
+    h.querySelector('span').textContent = j.firm ? 'He\'s doing this one. Watch where you go: that\'s the job.' : 'He\'s doing this step. Press anything to take it back.';
+    buzz([60, 40, 60, 40, 120]);
+  }
+  sprayOn = on;
+}
 function placeGhost() {
   const g = $('ghost');
   const b = document.querySelector('.btn.cue');
@@ -479,7 +589,7 @@ function placeGhost() {
 let anyAlarm = false;
 function onCues(s) {
   const want = {};
-  s.split(',').forEach(x => { if (x) { const f = x.split(':'); want[f[0]] = {verb: (f[1] || '').replace(/_/g, ' '), p: parseFloat(f[2] || '-1'), urgent: f[3] === '1', gold: f[4] === '1', alarm: f[5] === '1'}; } });
+  s.split(',').forEach(x => { if (x) { const f = x.split(':'); want[f[0]] = {verb: (f[1] || '').replace(/_/g, ' '), p: parseFloat(f[2] || '-1'), urgent: f[3] === '1', gold: parseFloat(f[4] || '0'), alarm: f[5] === '1'}; } });
   let alarm = false;
   ['A', 'B', 'X', 'Y'].forEach(b => {
     const el = $(b), w = want[b];
@@ -490,9 +600,14 @@ function onCues(s) {
     if (w && w.alarm && !wasAlarm) buzz(BUZZ.alarm);
     alarm = alarm || !!(w && w.alarm);
     el.classList.toggle('hold', !!(w && w.p >= 0));
-    const g = !!(w && w.gold);
-    if (g && !el.classList.contains('gold')) { stars(el, 14); buzz(BUZZ.gold); }
+    // (gold is a spectrum: full sparkle for someone new to the job, fading
+    // to a plain gold face, then just the button, as they get good)
+    const gl = w ? (w.gold || 0) : 0, g = gl > 0.05;
+    if (g && !el.classList.contains('gold')) { if (gl > 0.3) stars(el, Math.round(14 * gl)); if (gl > 0.2) buzz(BUZZ.gold); }
     el.classList.toggle('gold', g);
+    el.classList.toggle('faint', g && gl < 0.45);
+    el.style.setProperty('--gl', gl.toFixed(2));
+    el.dataset.gl = gl.toFixed(2);
     el.style.setProperty('--p', w && w.p >= 0 ? Math.min(1, w.p) : 0);
     el.querySelector('.wet').style.height = (w && w.p >= 0 ? Math.min(1, w.p) * 100 : 0) + '%';
     if (w) el.querySelector('.verb b').textContent = w.verb || b;
@@ -517,6 +632,7 @@ function stars(el, n) {
 }
 setInterval(() => {
   document.querySelectorAll('.btn.gold').forEach(el => {
+    if (Math.random() > parseFloat(el.dataset.gl || '1') * 1.3 - 0.3) return;
     const r = el.getBoundingClientRect(), a = Math.random() * Math.PI * 2;
     parts.push({x: r.left + r.width / 2 + Math.cos(a) * r.width * .55, y: r.top + r.height / 2 + Math.sin(a) * r.width * .55, vx: Math.cos(a) * 50, vy: -70 - Math.random() * 50, life: 0, max: .5, size: 5, rot: 0});
   });
@@ -584,7 +700,7 @@ function sendStick(force) {
   }
 }
 zone.addEventListener('pointerdown', (e) => {
-  if (swapOpen) return;
+  if (swapOpen || walletOpen) return;
   e.preventDefault(); sid = e.pointerId; zone.setPointerCapture(sid);
   const r = zone.getBoundingClientRect(), R = radius();
   // Centre the stick under the thumb, kept inside the zone
@@ -634,7 +750,8 @@ function holdButton(el, ms, done) {
 }
 // ---------------------------------------------------------------- lobby
 function jobCard(r, cls, extra) {
-  return '<button class="job ' + cls + '" data-id="' + r.id + '" style="--c:#' + r.col + '"><span class="n"><span class="sq">' + HAT + '</span>' + esc(r.name) + extra + '</span><span class="w">' + esc(r.line) + '</span></button>';
+  return '<button class="job ' + cls + '" data-id="' + r.id + '" style="--c:#' + r.col + '"><span class="n"><span class="sq">' + hat(r.id, '#' + r.col, false) + '</span>' + esc(r.name) + extra + '</span>' +
+    (r.ask ? '<span class="q">' + esc(r.ask) + '</span>' : '') + '<span class="w">' + esc(r.line) + '</span></button>';
 }
 function drawLobby() {
   if (!roster.length) return;
@@ -647,7 +764,7 @@ function drawLobby() {
     return jobCard(r, '', '');
   }).join('');
   const m = mine();
-  if (m) { $('ln').textContent = m.name; document.documentElement.style.setProperty('--job', '#' + m.col); }
+  if (m) { $('ln').textContent = m.name; document.documentElement.style.setProperty('--job', '#' + m.col); $('lhat').innerHTML = hatInner(m.id, '#' + m.col, true); }
   $('lk').textContent = 'P' + me.p + ' · LOCKED IN';
   $('crewlist').innerHTML = roster.map(r => '<div class="cl' + (r.p === me.p ? ' me' : (r.p ? '' : ' bot')) + '"><i style="background:#' + r.col + '"></i><span>' + esc(r.name) + '</span>' + (r.p ? '<span class="ptag" style="background:#' + r.pc + '">P' + r.p + (r.p === me.p ? ' · you' : '') + '</span>' : '<span style="font-size:3vmin;flex-grow:0">bot · ' + esc(r.who) + '</span>') + '</div>').join('');
 }
@@ -672,9 +789,9 @@ function closeSwap() { swapOpen = false; $('swap').classList.remove('on'); $('zo
 function drawSwap() {
   if (!swapOpen) return;
   $('jobs').innerHTML = roster.map(r => {
-    if (r.p === me.p) return '<div class="job mine" style="--c:#' + r.col + '"><span class="n">' + HAT + esc(r.name) + '</span><span class="w">you, P' + r.p + '</span></div>';
+    if (r.p === me.p) return '<div class="job mine" style="--c:#' + r.col + '"><span class="n">' + hat(r.id, '#' + r.col, true) + esc(r.name) + '</span><span class="w">you, P' + r.p + '</span></div>';
     if (r.p > 0) return '<div class="job taken" style="--c:#' + r.col + '"><span class="n">' + LOCK + esc(r.name) + '<span class="ptag" style="background:#' + r.pc + '">P' + r.p + '</span></span><span class="w">' + esc(r.who) + '</span></div>';
-    return '<button class="job' + (r.id === swapPick ? ' pick' : '') + '" data-id="' + r.id + '" style="--c:#' + r.col + '"><span class="n">' + HAT + esc(r.name) + '</span><span class="w">bot ' + esc(r.who) + ' · ' + esc(r.line) + '</span></button>';
+    return '<button class="job' + (r.id === swapPick ? ' pick' : '') + '" data-id="' + r.id + '" style="--c:#' + r.col + '"><span class="n">' + hat(r.id, '#' + r.col, true) + esc(r.name) + '</span><span class="w">bot ' + esc(r.who) + ' · ' + esc(r.line) + '</span></button>';
   }).join('');
   const free = roster.filter(r => !r.p).length;
   $('swapgo').disabled = !swapPick;
@@ -793,6 +910,102 @@ function unzoom() {
 }
 if (window.visualViewport) { visualViewport.addEventListener('resize', unzoom); visualViewport.addEventListener('scroll', unzoom); }
 setInterval(unzoom, 1000);
+// ---------------------------------------------------------------- the wallet and the ute shop
+let wal = {cash: 0, pour: 0, banked: 0, utes: [], ute: '', kit: [], name: ''}, shop = {utes: [], kit: []};
+let walletOpen = false, wTab = 'garage', wPick = '';
+const money = (n) => (n < 0 ? '-$' : '$') + Math.abs(n).toLocaleString('en-AU');
+function onWallet(j) {
+  const more = j.cash > wal.cash;
+  wal = j;
+  $('wbal').textContent = money(j.cash);
+  if (more) { const b = $('walletbtn'); b.classList.remove('bump'); void b.offsetWidth; b.classList.add('bump'); }
+  if (walletOpen) drawWallet();
+}
+function openWallet() { walletOpen = true; wPick = ''; endStick(); closeSwap(); $('wallet').classList.add('on'); send('wallet 1'); drawWallet(); buzz(BUZZ.press); }
+function closeWallet() { walletOpen = false; $('wallet').classList.remove('on'); send('wallet 0'); }
+$('walletbtn').addEventListener('pointerdown', (e) => { e.preventDefault(); walletOpen ? closeWallet() : openWallet(); });
+$('wx').addEventListener('pointerdown', (e) => { e.preventDefault(); closeWallet(); });
+document.querySelectorAll('#wallet .tabs button[data-tab]').forEach(b => b.addEventListener('pointerdown', (e) => { e.preventDefault(); wTab = b.dataset.tab; wPick = ''; drawWallet(); buzz(BUZZ.press); }));
+// A side-on ute, with the kit that's fitted
+function uteSvg(id, kit) {
+  const u = shop.utes.find(x => x.id === id) || {col: 'cfcfcf'}, has = (k) => kit.includes(k);
+  const lift = has('lift') ? 7 : 0, r = has('mudtyres') ? 21 : 17, gy = 124, d = -lift - (r - 17);
+  const col = '#' + u.col, dark = '#2a2d33';
+  let s = '<svg viewBox="0 0 300 130">';
+  s += '<path d="M0 ' + (gy + 1) + ' h300" stroke="#3a3d47" stroke-width="2"/>';
+  const wheel = (x) => '<circle cx="' + x + '" cy="' + (gy - r) + '" r="' + r + '" fill="#16171a"/>' + (has('mudtyres') ? '<circle cx="' + x + '" cy="' + (gy - r) + '" r="' + r + '" fill="none" stroke="#3b3d42" stroke-width="5" stroke-dasharray="3 3"/>' : '') + '<circle cx="' + x + '" cy="' + (gy - r) + '" r="' + (r * 0.5) + '" fill="#8b9097"/>';
+  s += '<g transform="translate(0 ' + d + ')">';
+  if (has('canopy')) s += '<rect x="190" y="38" width="88" height="30" rx="3" fill="#c9ced3" stroke="#8b9097"/><rect x="198" y="44" width="72" height="14" rx="2" fill="#3c4a57"/>';
+  else {
+    if (has('drawers')) s += '<rect x="196" y="58" width="78" height="9" fill="#555b62"/>';
+    const lift2 = has('drawers') ? 9 : 0;
+    if (has('fridge')) s += '<rect x="198" y="' + (52 - lift2) + '" width="24" height="16" rx="2" fill="#5d7f9e"/>';
+    if (has('jerrycans')) s += '<rect x="226" y="' + (54 - lift2) + '" width="10" height="14" rx="1" fill="#c8372d"/><rect x="238" y="' + (54 - lift2) + '" width="10" height="14" rx="1" fill="#3c7a3a"/>';
+    if (has('swag')) s += '<rect x="250" y="' + (58 - lift2) + '" width="26" height="10" rx="5" fill="#5f6b3a"/>';
+  }
+  s += '<path d="M22 96 L24 75 Q26 68 40 67 L106 64 L128 40 L188 40 L192 66 L280 66 L282 96 Z" fill="' + col + '" stroke="#1b1c20" stroke-width="2"/>';
+  s += '<path d="M113 64 L131 45 L156 45 L156 64 Z M160 64 L160 45 L183 45 L186 64 Z" fill="#2f3a44"/>';
+  s += '<path d="M22 86 h260" stroke="rgba(0,0,0,.18)" stroke-width="3"/>';
+  if (has('bullbar')) s += '<path d="M10 98 V64 H26 M10 72 H26 M10 82 H26 M18 64 V98" fill="none" stroke="#2a2d33" stroke-width="4" stroke-linejoin="round"/>';
+  if (has('winch')) s += '<rect x="11" y="86" width="13" height="8" rx="2" fill="#111"/>';
+  if (has('spotlights')) s += '<circle cx="14" cy="58" r="6" fill="#ffe680" stroke="#222" stroke-width="2"/>';
+  if (has('snorkel')) s += '<path d="M102 70 L108 38 L118 30" fill="none" stroke="#111" stroke-width="5" stroke-linecap="round"/>';
+  if (has('roofrack')) s += '<rect x="124" y="33" width="68" height="4" fill="' + dark + '"/><path d="M130 37 v3 M186 37 v3" stroke="' + dark + '" stroke-width="3"/>';
+  if (has('rooftent')) s += '<rect x="120" y="18" width="76" height="15" rx="3" fill="#5f6b3a" stroke="#3e4626"/>';
+  if (has('awning')) s += '<rect x="124" y="37" width="66" height="4" rx="2" fill="#2f3a2a"/>';
+  if (has('lightbar')) s += '<rect x="130" y="' + (has('roofrack') ? 29 : 35) + '" width="50" height="4" rx="2" fill="#fff7c2" stroke="#222"/>';
+  s += '</g>' + wheel(72) + wheel(232) + '</svg>';
+  return s;
+}
+function drawWallet() {
+  $('wwho').textContent = (wal.name || 'YOUR').toUpperCase() + "'S WALLET";
+  $('wcash').textContent = money(wal.cash);
+  $('wpour').textContent = wal.pour ? 'This pour: +' + money(wal.pour) : 'Every job you do pays in here.';
+  $('wbanked').textContent = 'Earned all up: ' + money(wal.banked);
+  $('wpurse').innerHTML = wal.purse || '';
+  document.querySelectorAll('#wallet .tabs button[data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === wTab));
+  const body = $('wbody');
+  let note = '', can = false;
+  if (wTab === 'garage') {
+    if (!wal.ute) body.innerHTML = '<div class="garage"><div class="n hd">No ute yet</div><div class="kitl">Save up and pick one from the Utes tab. A Hilux is ' + money((shop.utes[0] || {price: 0}).price) + '.</div></div>';
+    else {
+      const u = shop.utes.find(x => x.id === wal.ute) || {name: wal.ute};
+      const names = wal.kit.map(k => (shop.kit.find(x => x.id === k) || {name: k}).name);
+      body.innerHTML = '<div class="garage">' + uteSvg(wal.ute, wal.kit) + '<div class="n hd">' + esc(u.name) + '</div><div class="kitl">' + (names.length ? esc(names.join(' · ')) : 'Stock standard. Kit it out from the 4x4 and Camping tabs.') + '</div></div>';
+    }
+    note = 'Your ute is yours to drive when the crew knocks off.';
+  } else {
+    const list = wTab === 'utes' ? shop.utes : shop.kit.filter(k => k.shop === wTab);
+    body.innerHTML = '<div class="items">' + list.map(it => {
+      const owned = wTab === 'utes' ? wal.utes.includes(it.id) : wal.kit.includes(it.id);
+      const short = !owned && wal.cash < it.price;
+      const cls = 'it' + (it.id === wPick ? ' pick' : '') + (owned ? ' have' : '') + (short ? ' short' : '');
+      const pr = owned ? (wTab === 'utes' ? (wal.ute === it.id ? 'Driving it' : 'Yours: tap to drive') : 'Fitted') : money(it.price) + (short ? ' · ' + money(it.price - wal.cash) + ' short' : '');
+      return '<button class="' + cls + '" data-id="' + it.id + '"><span class="n hd">' + esc(it.name) + '</span><span class="l">' + esc(it.line || 'Ute') + '</span><span class="pr hd">' + pr + '</span></button>';
+    }).join('') + '</div>';
+    const it = list.find(x => x.id === wPick);
+    if (!it) note = wTab === 'utes' ? 'Pick a ute. You drive the one you picked last.' : (wal.ute ? 'Pick some kit for your ute.' : 'Buy a ute first, then kit it out.');
+    else {
+      const owned = wTab === 'utes' ? wal.utes.includes(it.id) : wal.kit.includes(it.id);
+      const need = it.needs && !wal.kit.includes(it.needs) ? (shop.kit.find(x => x.id === it.needs) || {}).name : '';
+      if (owned && wTab === 'utes') { note = 'Hold to drive the ' + it.name + '.'; can = wal.ute !== it.id; }
+      else if (owned) note = 'Already on the ute.';
+      else if (wTab !== 'utes' && !wal.ute) note = 'Buy a ute first.';
+      else if (need) note = 'Needs the ' + need.toLowerCase() + ' first.';
+      else if (wal.cash < it.price) note = money(it.price - wal.cash) + ' to go. Keep pouring.';
+      else { note = it.name + ' for ' + money(it.price) + '. Leaves ' + money(wal.cash - it.price) + '.'; can = true; }
+    }
+  }
+  $('wnote').textContent = note;
+  $('wbuy').disabled = !can;
+  $('wbuy').style.display = wTab === 'garage' ? 'none' : '';
+  const drive = wTab === 'utes' && wal.utes.includes(wPick);
+  $('wbuy').querySelector('span').textContent = drive ? 'HOLD TO DRIVE' : 'HOLD TO BUY';
+}
+$('wbody').addEventListener('pointerdown', (e) => { const b = e.target.closest('button.it'); if (!b) return; wPick = b.dataset.id; drawWallet(); buzz(BUZZ.press); });
+holdButton($('wbuy'), 700, () => { if (wPick) send('buy ' + wPick); });
+function onBought(j) { if (j.why) toast(j.why); else { buzz(BUZZ.done); stars($('wcash'), 20); wPick = ''; wTab = 'garage'; } setTimeout(drawWallet, 120); }
+function showWalletBtn() { $('walletbtn').classList.toggle('on', screen === 'play' || screen === 'pause'); if (walletOpen && screen !== 'play' && screen !== 'pause') closeWallet(); if (screen === 'sign' && walletOpen) closeWallet(); }
 connect();
 </script>
 </body>
