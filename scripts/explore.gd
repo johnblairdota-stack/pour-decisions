@@ -113,7 +113,8 @@ var _squeal := 0.0
 var _thud := 0.0
 var _noise_lp := 0.0
 
-var _demo := OS.get_cmdline_user_args().has("--explore")   # dev: a scripted run with screenshots
+var _demo := OS.get_cmdline_user_args().has("--explore") or OS.get_cmdline_user_args().has("--explore=river")
+		# (dev: a scripted run with screenshots; `=river` starts at the CityCat)
 var _demo_t := 0.0
 var _fake := {}
 var _shots := {}
@@ -327,7 +328,7 @@ func leave() -> void:
 		get_tree().paused = false
 
 ## Three utes nose to tail in the kerb lane on Angora Road, across from the
-## site: the Hilux, the Ranger and the Shark.
+## site: the Hilux at the front, then the Ranger and the Shark.
 func _park_utes() -> void:
 	var a := Vector2(16, 56)
 	var b := Vector2(100, -77)
@@ -350,7 +351,7 @@ func _park_utes() -> void:
 		var nm: String = Utes.NAMES[i]
 		var node := Utes.drivable(nm, Utes.OWN_PAINT[nm])
 		add_child(node)
-		var c := {"name": nm, "node": node, "pos": kerb + face * (i - 1) * 7.2, "yaw": atan2(face.x, face.y),
+		var c := {"name": nm, "node": node, "pos": kerb + face * (1 - i) * 8.5, "yaw": atan2(face.x, face.y),
 			"v": Vector2.ZERO, "yaw_rate": 0.0, "steer": 0.0, "pitch": 0.0, "roll": 0.0, "pv": 0.0, "rv": 0.0,
 			"spin": 0.0, "rpm": 800.0, "vf_prev": 0.0, "bob": 0.0}
 		utes.append(c)
@@ -1069,9 +1070,11 @@ func _boat_ready() -> bool:
 
 func _board() -> void:
 	mode = "ride"
-	# on at the boarding gate, then wherever you like on deck
+	# on through the boarding gate at the bow shoulder, the pontoon's side
 	var local := _boat.to_local(to_global(me.position))
-	_deck = Vector3(clampf(local.x, -11.5, 10.5), 1.75, clampf(local.z, -3.0, 3.0))
+	_deck = Vector3(7.6, 1.75, 2.6 * (signf(local.z) if local.z != 0.0 else 1.0))
+	_cam_dist = maxf(_cam_dist, 10.0)
+	_cam_pitch = maxf(_cam_pitch, 0.5)
 	_toast_msg("All aboard. Hold %s to hurry the trip." % ("RB" if _pad else "F"))
 
 func _leave_boat() -> void:
@@ -1101,7 +1104,7 @@ func _ride(dt: float, inp: Dictionary) -> void:
 	_swim = false
 	_pose(dt, mv.length() * 3.0)
 	if _boat.has_meta("tween"):
-		(_boat.get_meta("tween") as Tween).set_speed_scale(5.0 if inp["run"] and not _boat_ready() else 1.0)
+		(_boat.get_meta("tween") as Tween).set_speed_scale(5.0 if inp["run"] else 1.0)
 	if _boat_ready() and inp["use"]:
 		_leave_boat()
 	elif inp["jump"] and not _boat_ready():
@@ -1313,7 +1316,7 @@ func _update_ui(dt: float) -> void:
 		"ride":
 			if _boat_ready():
 				key = "X"
-				text = "Get off at Northshore Hamilton"
+				text = "Get off at Northshore Hamilton · hold %s to cast off" % _key_name("Y")
 			else:
 				key = "Y"
 				text = "Hold to hurry the trip · A: jump over the side"
@@ -1379,7 +1382,13 @@ var _demo_mark := 0.0
 var _demo_dv: Dictionary = {}
 
 func _run_demo(dt: float) -> void:
+	if _demo_t == 0.0 and OS.get_cmdline_user_args().has("--explore=river"):
+		_demo_step = 7
 	_demo_t += dt
+	if Engine.get_process_frames() % 20 == 0:
+		print("[explore] t %.1f step %d mode %s at %s" % [_demo_t, _demo_step, mode, me.position])
+	# (the autotest only draws frames it wants a shot of)
+	RenderingServer.render_loop_enabled = true
 	var t := _demo_t - _demo_mark
 	_fake["move"] = Vector2.ZERO
 	_fake["gas"] = 0.0
@@ -1479,10 +1488,9 @@ func _run_demo(dt: float) -> void:
 			elif t > 120.0:
 				_next()
 		9:
-			if t > 4.0 and _boat_ready():
-				pass
+			# away up the river, then over the side
 			_fake["run"] = t > 1.0
-			if t > 6.0:
+			if t > 7.0 and not _boat_ready():
 				_shot("citycat")
 				_fake["jump"] = true
 				_next()
@@ -1492,6 +1500,8 @@ func _run_demo(dt: float) -> void:
 				_next()
 		11:
 			# along the riverwalk to the water's edge
+			if mode == "ride":
+				_leave_boat()
 			var at: Vector2 = _fer["edge"]
 			var dir: Vector2 = _fer["dir"]
 			var along := Vector2(-dir.y, dir.x)
