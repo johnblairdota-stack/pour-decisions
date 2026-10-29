@@ -148,7 +148,7 @@ func setup(owner_line, at: Vector3) -> void:
 	root.add_child(_scoop)
 	# The reading, big, in the close-up
 	_reading = F.label3d("", 22, Color("ffc72c"))
-	_reading.layers = 1
+	_reading.layers = 1 << 10   # (main.gd CLOSE_ONLY: in the close-ups only)
 	_reading.pixel_size = 0.004
 	_reading.position = Vector3(TEST_X, 0.62, 0)
 	_reading.outline_size = 10

@@ -2,6 +2,8 @@
 ## shared by the HUD, the front-end screens and the pause menu.
 extends RefCounted
 
+const Icons := preload("res://scripts/icons.gd")
+
 const INK := Color("0f1b2d")
 const GLASS := Color(0.04, 0.07, 0.12, 0.78)
 const GLASS_SOLID := Color(0.05, 0.08, 0.14, 0.94)
@@ -116,6 +118,16 @@ const ROLE_SHORT := {
 	"screed": "Strikes the slab flat behind the pokers.",
 	"hose": "On the end hose: puts the concrete exactly where it's wanted.",
 }
+## The question each job asks of whoever picks it, on the crew page and the
+## phone lobby: not what it feels like, what it'll ask of you.
+const ROLE_ASK := {
+	"boom": "Can you swing a 30 m boom without whipping the hose?",
+	"hose": "Can you run the whole pour from the end of a hose?",
+	"line": "Would you send a truck of concrete back?",
+	"pump": "Can you kill the pump in half a second?",
+	"poker": "Can you tell when the bubbles stop?",
+	"screed": "Can you walk backwards dead straight?",
+}
 const ROLE_CLIMB := {"boom": "Climb days: dogman", "line": "Climb days: slinger and pins", "poker": "Climb days: tag line", "pump": "Climb days: rigger", "screed": "", "hose": ""}
 ## The job ticket: what each job is for and its steps on a pour, in order,
 ## as the phone shows it (with the live step highlighted), the pause menu's
@@ -125,7 +137,7 @@ const ROLE_CLIMB := {"boom": "Climb days: dogman", "line": "Climb days: slinger 
 const JOB_CARD := {
 	"boom": {"goal": "Steer the boom and fill each bay.", "watch": "where the pipe guy is heading. Fast swings whip the hose.",
 		"steps": [["stick", "Swing the hose over the bay (push harder to go faster)", ["boom remote", "steer", "swing"]],
-			["stick", "Keep the boom over the pipe guy: he calls the pump", ["pump", "bin"]],
+			["stick", "Keep the boom over the pipe guy: they call the pump", ["pump", "bin"]],
 			["X", "High or low output", ["high", "low", "output"]],
 			["B", "Put the remote down", ["put down", "step off"]]]},
 	"line": {"goal": "Get good concrete off every truck.", "watch": "the docket. Wrong mix or too old: send it back.",
@@ -196,6 +208,7 @@ static func job_ticket(role: String, who: String, pi: int, compact := false, cli
 	v.add_child(top)
 	var hat := Hat.new()
 	hat.color = col.darkened(0.08)
+	hat.icon = role if ROLE.has(role) else ""
 	hat.custom_minimum_size = Vector2(36, 30)
 	top.add_child(hat)
 	var jn := head(ROLE_NAME.get(role, role).to_upper(), 24, ink)
@@ -424,6 +437,12 @@ class Hat extends Control:
 		set(v):
 			check = v
 			queue_redraw()
+	## The job's icon on the front of the dome, so a job's never told apart
+	## by colour alone ("" for a plain hat)
+	var icon := "":
+		set(v):
+			icon = v
+			queue_redraw()
 
 	func _init() -> void:
 		mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -456,6 +475,12 @@ class Hat extends Control:
 		draw_line(o + Vector2(12, 4.6) * k, o + Vector2(12, 13) * k, c.lightened(0.25), 1.6 * k, true)
 		# Brim
 		draw_rect(Rect2(o + Vector2(1, 16) * k, Vector2(22, 2) * k), c.darkened(0.12))
+		if icon != "":
+			# (no ridge behind it: a dark badge on the dome, the icon in the hat's colour)
+			var ic := o + Vector2(12, 10.8) * k
+			draw_circle(ic, 6.2 * k, Color(INK, 0.9 if not dim else 0.45), true, -1.0, true)
+			var isz := 10.6 * k
+			draw_texture_rect(Icons.texture(icon, 64 if isz < 48.0 else 128), Rect2(ic - Vector2(isz, isz) * 0.5, Vector2(isz, isz)), false, c.lightened(0.15))
 		if check:
 			var g2 := Color("4fb36b")
 			var cc := o + Vector2(20, 5) * k
