@@ -254,7 +254,8 @@ func update(delta: float) -> void:
 		if e["who"] != null:
 			base = (e["who"] as Node3D).global_position + Vector3(0, 2.3, 0)
 		n.position = base + Vector3(0, 0.4 + 1.3 * ease(t, 0.5), 0)
-		var k := clampf(cam.global_position.distance_to(n.global_position) / 15.0, 0.8, 2.6)
+		var vc: Camera3D = game.view_cam(n.global_position) if game.has_method("view_cam") else cam
+		var k := clampf(vc.global_position.distance_to(n.global_position) / 15.0, 0.8 if vc == cam else 0.5, 2.6)
 		var pop := 1.0 + 0.5 * sin(clampf(t * 7.0, 0.0, PI))
 		n.scale = Vector3.ONE * k * pop * 0.55
 		var a := clampf((1.0 - t) * 3.0, 0.0, 1.0)

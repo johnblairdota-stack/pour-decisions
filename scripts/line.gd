@@ -868,7 +868,8 @@ func _start_spike(cause: String) -> void:
 	_spike_cause = cause
 	stats["spikes"] += 1
 	game.sfx.hit("hiss")
-	game.hud.toast("PRESSURE SPIKE!", 1.2)
+	# (said once: the gauge close-up with its A, the red A over the pump
+	# operator and their phone. No banner, no ticket.)
 	var op = game.crew.crew.get("pump") if game.crew else null
 	if op != null:
 		game.haptic(op, "80,40,80")
@@ -1944,7 +1945,7 @@ func update(delta: float, in_pour: bool) -> void:
 	_kill_show_t = maxf(0.0, _kill_show_t - delta)
 	if gauge_label:
 		if spike_on:
-			gauge_label.text = "SPIKE  %d bar" % int(pressure)
+			gauge_label.text = "%d bar" % int(pressure)
 			gauge_label.modulate = Color("ff5a5f") if fmod(_knock_phase, 0.3) < 0.18 else Color.WHITE
 		elif tripped:
 			gauge_label.text = "PUMP OFF  %d bar" % int(pressure)
@@ -1971,7 +1972,8 @@ func update(delta: float, in_pour: bool) -> void:
 	hopper_fill.position.y = 0.95 + fill * 0.8
 	hopper_fill.visible = hopper > 0.02
 	# The level's on the HUD; over the hopper it only speaks up when it's low
-	hopper_label.text = "LOW" if fill < 0.2 and in_pour else ""
+	# (not in the start-up: an empty hopper's normal before the first load)
+	hopper_label.text = "LOW" if fill < 0.2 and in_pour and game.ops != null and game.ops.primed else ""
 	hopper_label.modulate = Color("ff4d4d")
 	# Pump body thumps with each stroke
 	var stroke_u := absf(sin(_knock_phase * PI / 0.8)) if pumping else 0.0
@@ -3042,7 +3044,7 @@ func hud_info() -> Dictionary:
 		stand = names.get(staged["state"], "")
 		if staged["state"] == "bay" and staged["checked"]:
 			stand = "waiting on a call"
-	return {"hopper": hopper / HOPPER_CAP, "high": speed_high, "queue": q, "bay": bay, "standby": stand, "next": maxf(0.0, _arrive_t), "ages": ages}
+	return {"hopper": hopper / HOPPER_CAP, "startup": game.ops != null and not game.ops.primed, "high": speed_high, "queue": q, "bay": bay, "standby": stand, "next": maxf(0.0, _arrive_t), "ages": ages}
 
 ## The gauge close-up wants to be on screen: just before a spike, through it,
 ## and a moment after (to see the needle drop).
