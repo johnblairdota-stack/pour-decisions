@@ -107,8 +107,14 @@ def lines(g):
     return []
 
 
-# The game's own site (its slab, hardstand and truck road) keeps the ground clear
+# The game's own site (its slab, hardstand and yard) keeps the ground clear,
+# all but the public streets that run past it (MacArthur Avenue and Angora
+# Road), which carry on through unbroken
 SITE_CUT = [(-45, -14, 50, 24), (-44.5, 21.1, 35.5, 30.1)]
+# The site road the concrete trucks use, in off MacArthur Avenue and out onto
+# Angora Road (scripts/line.gd; the game frame is this one less main.gd's
+# REAL_ORIGIN): part of the road surface, joined to both streets
+SITE_ROAD = {"w": 9.0, "pts": [[-43.6, 25.6], [34.9, 25.6]]}
 
 
 def flat_ground(out, order):
@@ -117,8 +123,12 @@ def flat_ground(out, order):
     so no two pieces fight over the same spot on screen. Roads win over paths,
     paths over drains and water, and so on down the area draw order."""
     from shapely.geometry import box
-    layers = [("road", unary_union([LineString(r["pts"]).buffer(r["w"] / 2, quad_segs=4)
-                                    for r in out["roads"] if not r["bridge"] and len(r["pts"]) > 1]))]
+    site_road = LineString(SITE_ROAD["pts"]).buffer(SITE_ROAD["w"] / 2, cap_style=2)
+    streets = [LineString(r["pts"]).buffer(r["w"] / 2, quad_segs=4)
+               for r in out["roads"] if not r["bridge"] and len(r["pts"]) > 1]
+    layers = [("road", unary_union(streets + [site_road]))]
+    through = unary_union([LineString(r["pts"]).buffer(r["w"] / 2, quad_segs=4)
+                           for r in out["roads"] if r["name"] and not r["bridge"] and len(r["pts"]) > 1] + [site_road])
     aisles = [LineString(a["pts"]).buffer(a["w"] / 2, cap_style=2, quad_segs=2)
               for a in out["aisles"] if len(a["pts"]) > 1]
     layers.append(("path", unary_union([LineString(p["pts"]).buffer(p["w"] / 2, quad_segs=2)
@@ -133,7 +143,7 @@ def flat_ground(out, order):
                 geoms.append(pg if pg.is_valid else pg.buffer(0))
         if geoms:
             layers.append((kind, unary_union(geoms)))
-    taken = unary_union([box(*r) for r in SITE_CUT])
+    taken = unary_union([box(*r) for r in SITE_CUT]).difference(through)
     ground = []
     for kind, g in layers:
         g = g.difference(taken).simplify(0.2)
