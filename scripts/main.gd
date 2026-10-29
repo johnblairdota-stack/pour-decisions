@@ -4861,13 +4861,6 @@ func _update_camera(delta: float) -> void:
 		pts.append(p.position)
 	if phase == "pour" and ops != null and ops.wants_bin() and not main_follow.is_empty() and main_follow[0].zone == "deck":
 		pts.append(ops.bin_world())
-	# Mid-pour the deck view's on the crew and the wet edge (where the boom's
-	# putting it in), not the whole 30 m slab: the chibis read at couch
-	# distance. The whole slab shows at the start and the end of the pour.
-	var on_crew: bool = phase == "pour" and ops != null and ops.primed and _filled_ratio() > 0.03 and _filled_ratio() < 0.97 \
-		and not main_follow.is_empty() and main_follow[0].zone == "deck" and not climb.active
-	if on_crew and tip != null:
-		pts.append(Vector3(tip.global_position.x, work_y, tip.global_position.z))
 	if pts.size() > 0:
 		var avg := Vector3.ZERO
 		for q in pts:
@@ -4875,12 +4868,10 @@ func _update_camera(delta: float) -> void:
 		avg /= pts.size()
 		for q in pts:
 			spread = maxf(spread, (q - avg).length())
-		focus = focus.lerp(avg + Vector3(0, 2.5, 0), (0.95 if on_crew else 0.72) if main_follow[0].zone == "deck" else 1.0)
+		focus = focus.lerp(avg + Vector3(0, 2.5, 0), 0.72 if main_follow[0].zone == "deck" else 1.0)
 	# Closer in on the people playing: one person gets a tighter shot, a few
 	# get pulled back just enough to keep them all in
 	var dist := maxf(cam_dist * 0.82, spread * 1.6 + 10.0) if pts.size() > 1 else cam_dist * 0.82
-	if on_crew:
-		dist = maxf(cam_dist * 0.64, spread * 1.35 + 8.0)
 	# (split, the deck view's only the top two-thirds of the screen: back off
 	# a little so its near edge isn't lost behind the street band)
 	dist *= 1.0 + 0.22 * ease(_split, -1.8)
