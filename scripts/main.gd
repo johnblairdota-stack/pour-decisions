@@ -4852,6 +4852,8 @@ func _cut_of(src: Material) -> Material:
 ## Render layer for words only the close-ups show (the slump reading): the
 ## deck view and the street band leave them out, so they're not said twice.
 const CLOSE_ONLY := 1 << 10
+const TIGHT_MIN := 15.0      # m: the closest the mid-pour deck view comes in
+var _tight := 0.0            # 0 whole slab .. 1 framed on the crew and the wet edge
 
 func _update_camera(delta: float) -> void:
 	# Who's up top and who's down on the street. While the deck's low, one
@@ -4910,6 +4912,14 @@ func _update_camera(delta: float) -> void:
 		pts.append(p.position)
 	if phase == "pour" and ops != null and ops.wants_bin() and not main_follow.is_empty() and main_follow[0].zone == "deck":
 		pts.append(ops.bin_world())
+	# Mid-pour, the deck view's on the crew and the wet edge (where the hose
+	# is putting it in), not the whole slab: the whole slab's for the start
+	# and the end
+	var tight: bool = phase == "pour" and ops != null and ops.primed and _filled_ratio() < 1.0 and not ops.busy() \
+			and not climb.active and not main_follow.is_empty() and main_follow[0].zone == "deck"
+	_tight = move_toward(_tight, 1.0 if tight else 0.0, delta * 0.5)
+	if tight:
+		pts.append(discharge())
 	if pts.size() > 0:
 		var avg := Vector3.ZERO
 		for q in pts:
@@ -4917,10 +4927,13 @@ func _update_camera(delta: float) -> void:
 		avg /= pts.size()
 		for q in pts:
 			spread = maxf(spread, (q - avg).length())
-		focus = focus.lerp(avg + Vector3(0, 2.5, 0), 0.72 if main_follow[0].zone == "deck" else 1.0)
+		focus = focus.lerp(avg + Vector3(0, 2.5, 0), lerpf(0.72, 1.0, _tight) if main_follow[0].zone == "deck" else 1.0)
 	# Closer in on the people playing: one person gets a tighter shot, a few
 	# get pulled back just enough to keep them all in
 	var dist := maxf(cam_dist * 0.82, spread * 1.6 + 10.0) if pts.size() > 1 else cam_dist * 0.82
+	# (tight: only as far back as the crew and the hose need, chibis big)
+	var close_d := clampf(spread * 1.5 + 9.0, TIGHT_MIN * cam_dist / 32.0, cam_dist * 0.82)
+	dist = lerpf(dist, minf(dist, close_d), ease(_tight, -1.8))
 	# (split, the deck view's only the top two-thirds of the screen: back off
 	# a little so its near edge isn't lost behind the street band)
 	dist *= 1.0 + 0.22 * ease(_split, -1.8)
@@ -5201,6 +5214,8 @@ func _maybe_shot() -> void:
 		key = "every_%s_%03d" % [phase, int(phase_t / 6.0)]
 	elif "spike" in _shot_only and line != null and line.spike_on and line.spike_t > 0.25 and not _shots_taken.has("spike"):
 		key = "spike"
+	elif "midpour" in _shot_only and phase == "pour" and _tight > 0.95 and _filled_ratio() > 0.35 and not _shots_taken.has("midpour"):
+		key = "midpour"
 	elif "trans1" in _shot_only and _split > 0.2 and _split < 0.5 and not _shots_taken.has("trans1"):
 		key = "trans1"
 	elif "trans2" in _shot_only and _split > 0.45 and _split < 0.75 and not _shots_taken.has("trans2"):
