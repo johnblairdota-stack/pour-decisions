@@ -78,6 +78,7 @@ var steam: CPUParticles3D
 var water_fx: CPUParticles3D
 var tank: Node3D
 var tank_label: Label3D
+var hose: MeshInstance3D    # from the release valve over the tank's lip
 var _tank_water: MeshInstance3D
 var _tank_ring: MeshInstance3D
 var _tank_ring_mat: StandardMaterial3D
@@ -178,7 +179,7 @@ func setup(owner_game) -> void:
 	# The hose from the release valve over the tank's lip
 	var vp: Vector3 = game.GROUND_STATIONS["valve"]["pos"] + Vector3(0.3, 0.55, 0)
 	var lip := tank.position + Vector3(-0.7, 1.25, 0.1)
-	var hose := MeshInstance3D.new()
+	hose = MeshInstance3D.new()
 	var hm := CylinderMesh.new()
 	hm.top_radius = 0.07
 	hm.bottom_radius = 0.07

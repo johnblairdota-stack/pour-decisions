@@ -827,6 +827,10 @@ var _fly_t := 0.0
 var _fly_boat: Node3D
 var _topout_text := ""
 
+var _hardstand: Array = []         # the site's hardstand, slurry and tyre tracks
+var handover                       # the site packing up after the fly-past (handover.gd), or null
+const HANDOVER_SHOTS := {"handover0": 0.2, "handover1": 3.8, "handover2": 8.0, "handover": 9.0}   # dev: s into the handover
+
 func _start_fly() -> void:
 	_fly_on = true
 	_fly_t = 0.0
@@ -877,7 +881,13 @@ func _end_fly() -> void:
 		_fly_boat = null
 	skyline = true
 	sky_zoom = 1
-	hud.show_topout(_topout_text)
+	if tutorial:
+		hud.show_topout(_topout_text)
+		return
+	handover = preload("res://scripts/handover.gd").new()
+	add_child(handover)
+	handover.finished.connect(func(): hud.show_topout(_topout_text))
+	handover.start(self)
 
 func _build_world() -> void:
 	# The real place: the river, the park, the neighbours, Bulimba over the
@@ -895,19 +905,22 @@ func _build_world() -> void:
 	# Site hardstand around the pump and truck bay, north of the west wing,
 	# and into the notch at the boom tower's foot
 	var hard := F.color_mat(Color("8f908c"))
-	add_child(F.box(Vector3(26.5, 0.06, 11.3), hard, Vector3(21.75, 0.03, 7.35), false))
-	add_child(F.box(Vector3(5.9, 0.06, 2.9), hard, Vector3(11.35, 0.03, 0.25), false))
+	# (kept in _hardstand: it turns to lawn at the handover)
+	_hardstand.append(F.box(Vector3(26.5, 0.06, 11.3), hard, Vector3(21.75, 0.03, 7.35), false))
+	_hardstand.append(F.box(Vector3(5.9, 0.06, 2.9), hard, Vector3(11.35, 0.03, 0.25), false))
 	# Wet slurry under the hopper and the chutes, a wash-out run to the
 	# settling tank, tyre tracks down the truck lane and a kerb on the street
 	var wet := F.color_mat(Color("6f7275"))
 	for at in [Vector3(22.3, 0, 6.0), Vector3(25.6, 0, 4.4), Vector3(25.6, 0, 7.6)]:
 		var patch := F.cylinder(1.6, 0.012, wet, at + Vector3(0, 0.079, 0), 16)
 		patch.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		add_child(patch)
-	add_child(F.box(Vector3(5.0, 0.012, 0.7), wet, Vector3(17.0, 0.079, 7.6), false))
+		_hardstand.append(patch)
+	_hardstand.append(F.box(Vector3(5.0, 0.012, 0.7), wet, Vector3(17.0, 0.079, 7.6), false))
 	var track := F.color_mat(Color("7c7e7b"))
 	for z in [3.6, 5.2, 6.8, 8.4]:
-		add_child(F.box(Vector3(11.0, 0.01, 0.45), track, Vector3(29.5, 0.065, z), false))
+		_hardstand.append(F.box(Vector3(11.0, 0.01, 0.45), track, Vector3(29.5, 0.065, z), false))
+	for h in _hardstand:
+		add_child(h)
 	add_child(F.box(Vector3(26.5, 0.15, 0.3), F.color_mat(Color("c8c4ba")), Vector3(21.75, 0.075, 13.05), false))
 
 	rain = CPUParticles3D.new()
@@ -2742,6 +2755,13 @@ func _process(delta: float) -> void:
 		p.end_frame()
 	if autotest and phase == "columns" and k == 0 and OS.get_cmdline_user_args().has("--skip") and kit == "tower":
 		_dev_skip(CLIMB_LEVELS[0])
+	# (dev `--topout`: every floor poured, straight to the top-out)
+	if autotest and phase == "columns" and k == 0 and OS.get_cmdline_user_args().has("--topout") and kit == "tower":
+		_dev_skip(floors() - 1)
+		_lock_slab(k, true)
+		k += 1
+		_top_out()
+		return
 	# (`--startlevel=N`, or a later floor picked on the site page)
 	if phase == "columns" and k == 0 and _start_level > 1:
 		_dev_skip(_start_level - 1)
@@ -2854,13 +2874,22 @@ func _process(delta: float) -> void:
 		"topout":
 			if _fly_on:
 				_update_fly(delta)
+				# (dev: the handover shots don't wait for the fly-past)
+				if autotest and _handover_shots():
+					_end_fly()
+			elif handover != null and handover.active:
+				# (A skips the handover; the next A knocks off)
+				if _human_a and handover.t > 0.5:
+					handover.skip()
+				else:
+					handover.tick(delta)
 			# A (the beer button): knock off and go for a wander
-			if _human_a and phase_t > 1.0 and not autotest:
+			elif _human_a and phase_t > 1.0 and not autotest:
 				explore.enter(_a_by)
 			# (the vista shots wait for 1.5s, so hang on for them)
 			var vistas: bool = "vista" in _shot_only or "vista2" in _shot_only or _next_ext() != ""
 			var fly_shots: bool = "fly1" in _shot_only or "fly2" in _shot_only or "fly3" in _shot_only
-			if autotest and not (_fly_on and fly_shots) and phase_t > (2.5 + 0.3 * EXT_SHOTS.size() if vistas else 1.0):
+			if autotest and not (_fly_on and fly_shots) and not _handover_shots() and phase_t > (2.5 + 0.3 * EXT_SHOTS.size() if vistas else 1.0):
 				print("[autotest] TOPPED OUT with %d points (%s) in %d frames (kit %s)" % [score.total, score.rank_name(), _frames, kit])
 				get_tree().quit(0)
 
@@ -3270,6 +3299,8 @@ func _on_climb_done() -> void:
 # ------------------------------------------------------------------ players and stations
 
 func _station_visible(key: String) -> bool:
+	if handover != null:
+		return false
 	match key:
 		"tag":
 			return climb.active and climb.stage in ["fly", "guide"]
@@ -4311,7 +4342,7 @@ func _update_stations() -> void:
 		# (a hand sign over the station already names it)
 		# (a hand sign over the station already names it; so does the
 		# start-up's sign over the bin)
-		(st["label"] as Node3D).visible = (on or near) and not _signed_keys.has(key) and not (key == "bin" and ops.wants_bin())
+		(st["label"] as Node3D).visible = n.visible and (on or near) and not _signed_keys.has(key) and not (key == "bin" and ops.wants_bin())
 		ring.scale = Vector3.ONE * (pulse if on else 1.0)
 		# A spot right under the camera (the deck view zooms in on the bin for
 		# the start-up, with the poker's spot beside it) fades out rather than
@@ -4644,6 +4675,18 @@ const EXT_SHOTS := {
 	"sky_city": [Vector2(4928, -4050)], "sky_gate": [Vector2(-1984, 14)],
 	"sky_north": [Vector2(-300, 3000)], "sky_south": [Vector2(1200, -2400)],
 }
+func _handover_key() -> String:
+	for key in HANDOVER_SHOTS:
+		if key in _shot_only and not _shots_taken.has(key) and handover.t >= HANDOVER_SHOTS[key]:
+			return key
+	return ""
+
+func _handover_shots() -> bool:
+	for key in HANDOVER_SHOTS:
+		if key in _shot_only and not _shots_taken.has(key):
+			return true
+	return false
+
 func _next_ext() -> String:
 	for k in EXT_SHOTS:
 		if k in _shot_only and not _shots_taken.has(k):
@@ -4913,7 +4956,15 @@ func _update_camera(delta: float) -> void:
 		# (the whole of Riverlight, both wings)
 		focus = (Vector3.ZERO if tutorial else -REAL_ORIGIN) + Vector3(0, top * 0.45, -8.0)
 		dist = maxf(110.0, top * 2.4)
-		if sky_zoom == 2:
+		if handover != null and sky_zoom == 1:
+			# The handover: round to the street side, over the forecourt
+			# where the hardstand was, the tower behind it
+			cam_yaw = lerp_angle(cam_yaw, 0.32, minf(1.0, delta * 1.2))
+			cam_pitch = lerpf(cam_pitch, 0.4, minf(1.0, delta * 1.2))
+			pitch = cam_pitch
+			focus = Vector3(18.0, top * 0.22, 2.0)
+			dist = 62.0
+		elif sky_zoom == 2:
 			# the neighbourhood: the estate, the park, the golf course, the reach
 			focus.y = top * 0.2
 			dist = 420.0
@@ -5252,6 +5303,8 @@ func _maybe_shot() -> void:
 		key = "fly2"
 	elif _fly_on and "fly3" in _shot_only and _fly_t > 20.0 and not _shots_taken.has("fly3"):
 		key = "fly3"
+	elif handover != null and _handover_key() != "":
+		key = _handover_key()
 	elif phase == "topout" and phase_t > 1.5 and "vista" in _shot_only and not _shots_taken.has("vista"):
 		key = "vista"
 	elif phase == "topout" and phase_t > 1.5 and "vista2" in _shot_only and not _shots_taken.has("vista2"):
