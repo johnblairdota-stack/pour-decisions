@@ -5,7 +5,9 @@
 ##   world_text  1.0 / 1.25 / 1.5: names, station labels and signs in the world
 ##   docket_help the right call on a truck docket glows (always on in the tutorial)
 ##   fullscreen  the game fills the screen (F11 flips it)
-##   gold_assist buttons light up gold when it's the moment (or the spot) to press them
+##   gold_mode   the gold assist (buttons light up gold when it's the moment, or
+##               the spot, to press them): 0 fades as each person gets good at a
+##               job and comes back if they slip · 1 locked on at full sparkle · 2 off
 ##   dog_help    the dogman's help on climb days: 0 First Day (the swing mostly
 ##               damped, a quick driver, the stop ghost) · 1 On Site (the stop
 ##               ghost) · 2 Ticketed (full swing and lag, no ghost)
@@ -19,8 +21,9 @@ extends RefCounted
 const PATH := "user://settings.cfg"
 const INCIDENT_NAMES := ["None", "Normal", "Busy", "Chaos"]
 const DOG_HELP_NAMES := ["First Day", "On Site", "Ticketed"]
+const GOLD_NAMES := ["fades as you learn", "full sparkle", "off"]
 
-static var data := {"incidents": 1, "ui_scale": 1.25, "world_text": 1.25, "docket_help": false, "fullscreen": false, "gold_assist": true, "dog_help": 0, "real_names": true, "split": true, "band": true, "ver": 2, "medals": []}
+static var data := {"incidents": 1, "ui_scale": 1.25, "world_text": 1.25, "docket_help": false, "fullscreen": false, "gold_assist": true, "gold_mode": 0, "dog_help": 0, "real_names": true, "split": true, "band": true, "ver": 2, "medals": []}
 static var _loaded := false
 
 ## Camera test (not saved: it's for trying out the multiplayer cameras on
@@ -50,6 +53,9 @@ static func ensure() -> void:
 		if int(cf.get_value("game", "ver", 1)) < 2:
 			data["ui_scale"] = maxf(float(data["ui_scale"]), 1.25)
 			data["ver"] = 2
+		# (the old on/off gold switch: off stays off)
+		if not cf.has_section_key("game", "gold_mode") and not bool(data["gold_assist"]):
+			data["gold_mode"] = 2
 
 static func value(key: String):
 	ensure()

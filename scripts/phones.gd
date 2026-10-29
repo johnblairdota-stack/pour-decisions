@@ -22,6 +22,9 @@
 ## The token lets a phone that drops out reconnect to the same chibi.
 extends Node
 
+const Wallet := preload("res://scripts/wallet.gd")
+const CashArt := preload("res://scripts/cash_art.gd")
+
 const PORTS := [[8080, 8081], [8090, 8091], [8180, 8181], [18080, 18081]]
 const VIRTUAL := ["virtualbox", "vmware", "vethernet", "hyper-v", "wsl", "docker", "loopback", "bluetooth", "tailscale", "zerotier", "hamachi", "vpn", "tap-", "tun"]
 const MIN_TAP_MS := 90         # a tap counts as held at least this long
@@ -244,6 +247,22 @@ func _on_message(c: Dictionary, msg: String) -> void:
 		"pick", "lock", "unlock", "char", "swap":
 			_on_pick(c, parts)
 			return
+		"buy":
+			# The wallet's shop: a ute, or kit for the ute they drive
+			var bp = c["player"]
+			if bp != null and parts.size() >= 2:
+				var why: String = Wallet.buy(bp.char_id, parts[1])
+				if why == "":
+					var what: Dictionary = Wallet.ute(parts[1]) if not Wallet.ute(parts[1]).is_empty() else Wallet.item(parts[1])
+					game.hud.toast("%s bought a %s" % [bp.char_name, String(what.get("name", "")).to_lower()], 2.0)
+					game.sfx.hit("ding")
+				(c["ws"] as WebSocketPeer).send_text("J " + JSON.stringify({"t": "bought", "id": parts[1], "why": why}))
+			return
+		"wallet":
+			# (the wallet's open: the chibi stands still meanwhile)
+			if c["player"] != null:
+				c["player"].set_meta("wallet_open", parts.size() >= 2 and parts[1] == "1")
+			return
 		"ink":
 			if parts.size() >= 3 and c["player"] != null:
 				game.ink_point(c["player"], Vector2(parts[1].to_float(), parts[2].to_float()))
@@ -346,7 +365,11 @@ func _send_cues(c: Dictionary) -> void:
 		if cu[0] in ["A", "B", "X", "Y"]:
 			var prog: float = cu[2]
 			# button:verb:hold progress (-1 none):urgent:gold:alarm
-			list.append("%s:%s:%s:%d:%d:%d" % [cu[0], str(cu[1]).replace(" ", "_").replace(":", "").replace(",", ""), ("%.2f" % snappedf(prog, 0.05)) if prog >= 0.0 else "-1", 1 if (cu[3] or cu[5]) else 0, 1 if (p.is_gold(cu) and not cu[5]) else 0, 1 if cu[5] else 0])
+			# (gold is how bright, 0..1: the assist fades as the person gets good)
+			var zv: Vector2 = cu[4] if cu.size() > 4 else Vector2(-1, -1)
+			var banded: bool = zv.x >= 0.0 and prog >= zv.x and prog <= zv.y
+			var gl: float = 0.0 if cu[5] or not p.is_gold(cu) else (1.0 if banded else p.gold_amount(cu))
+			list.append("%s:%s:%s:%d:%s:%d" % [cu[0], str(cu[1]).replace(" ", "_").replace(":", "").replace(",", ""), ("%.2f" % snappedf(prog, 0.05)) if prog >= 0.0 else "-1", 1 if (cu[3] or cu[5]) else 0, "%.1f" % gl, 1 if cu[5] else 0])
 	var text := "c " + ",".join(list)
 	if text != c["last_cues"]:
 		c["last_cues"] = text
@@ -419,6 +442,22 @@ func _send_state(c: Dictionary) -> void:
 		dog = {"t": "dog", "on": true, "c": calls, "lit": cl._call}
 	_json(c, "dog", dog)
 	_json(c, "nudge", {"t": "nudge", "lvl": int(game.nudge_level(p)) if game.has_method("nudge_level") else 0})
+	_json(c, "wallet", wallet(p))
+	if not c.has("shop_sent"):
+		c["shop_sent"] = true
+		(c["ws"] as WebSocketPeer).send_text("J " + JSON.stringify({"t": "shop", "utes": Wallet.UTES, "kit": Wallet.KIT}))
+
+## What's in this person's wallet: {t, name, cash, pour (this slab), banked,
+## utes, ute (the one they drive), kit (on it)}.
+func wallet(p) -> Dictionary:
+	var w: Dictionary = Wallet.of(p.char_id)
+	var pour := 0
+	if game.score != null:
+		pour = int(game.score.wallet_pour.get(p.char_id, 0))
+	return {"t": "wallet", "name": p.char_name, "cash": int(w.get("cash", 0)), "pour": pour, "banked": int(w.get("banked", 0)),
+		"utes": w.get("utes", []), "ute": w.get("ute", ""), "kit": Wallet.kit_on(p.char_id),
+		# (the wallet's art, fatter the more's in it: thin at the start, full at $500,000)
+		"purse": CashArt.wallet_svg(clampf(log(float(w.get("cash", 0)) + 1.0) / log(500001.0), 0.0, 1.0))}
 
 ## Who's on every job: {t, r: [{id, name, col, line, p (0: a bot), pc, who, lock}]}.
 func roster() -> Dictionary:

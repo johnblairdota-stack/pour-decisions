@@ -8,6 +8,7 @@
 extends Node3D
 
 const F := preload("res://scripts/factory.gd")
+const Utes := preload("res://scripts/utes.gd")
 const LIB := "res://assets/cars/cars.glb"
 const ESTATE := "res://data/hamilton_reach.json"
 const TILE := 80.0
@@ -23,7 +24,12 @@ const PARK_W := 2.2
 const PAINT := [Color("f4f4f2"), Color("f4f4f2"), Color("f4f4f2"), Color("c4c8cc"), Color("c4c8cc"), Color("8d9196"),
 	Color("2b2f36"), Color("1d1f24"), Color("1f3a5f"), Color("8c1c1c"), Color("d9302c"), Color("3a5f8f"), Color("e8e2d0"),
 	Color("2f5f4f")]
-const KINDS := [["Sedan", 0.3], ["Hatch", 0.22], ["SUV", 0.24], ["Ute", 0.16], ["Van", 0.08]]
+const KINDS := [["Sedan", 0.3], ["Hatch", 0.22], ["SUV", 0.24], ["Ute", 0.06], ["Hilux", 0.045], ["Ranger", 0.035],
+	["Shark", 0.02], ["Van", 0.08]]
+## Half width and half length of each, for knocking people over (explore.gd)
+const SIZE := {"Bus": Vector2(1.25, 6.25), "Van": Vector2(0.95, 2.65), "Ute": Vector2(0.93, 2.65), "Hilux": Vector2(0.93, 2.67),
+	"Ranger": Vector2(0.94, 2.68), "Shark": Vector2(0.99, 2.73), "SUV": Vector2(0.95, 2.35), "Sedan": Vector2(0.9, 2.35),
+	"Hatch": Vector2(0.88, 2.05)}
 const BUS := Color("f4f4f2")
 const HEADWAY := 1.3         # seconds behind the car in front, as on a real road
 const STOP_GAP := 2.0        # metres bumper to bumper in a queue
@@ -33,6 +39,8 @@ static var _meshes := {}
 static var _mats := {}
 
 var _drivers: Array = []
+var parked: Array = []        # [kind, Transform3D, [[multimesh, index], ...]]: what's parked where
+var blockers: Array = []      # Vector2s: cars the traffic pulls up behind (your ute, when you knock off)
 var _routes_all: Array = []
 var _rng: RandomNumberGenerator
 
@@ -86,7 +94,7 @@ func setup(d: Dictionary, keep_clear: Callable, taken: Callable, road: Callable,
 		var cruise := limit * rng.randf_range(0.75, 1.0) * (0.8 if bus else 1.0)
 		var size := mi.mesh.get_aabb().size
 		_drivers.append({"node": mi, "route": r, "s": s, "dir": dir, "cruise": cruise, "speed": cruise,
-			"len": maxf(size.x, size.z), "i": i, "pick": rng.randf(), "yaw": 0.0, "p": Vector2.ZERO, "fwd": Vector2.ZERO})
+			"len": maxf(size.x, size.z), "i": i, "kind": name, "pick": rng.randf(), "yaw": 0.0, "p": Vector2.ZERO, "fwd": Vector2.ZERO})
 		_drive(_drivers[-1], 0.0)
 
 static func _kind(rng: RandomNumberGenerator) -> String:
@@ -102,6 +110,10 @@ static func _kind(rng: RandomNumberGenerator) -> String:
 ## A model's mesh, painted by part; "body" takes each car's own colour.
 static func mesh(name: String) -> Mesh:
 	if _meshes.has(name):
+		return _meshes[name]
+	if name.trim_suffix("Lite") in Utes.NAMES:
+		# (the Hilux, Ranger and Shark: tools/blender/utes.py)
+		_meshes[name] = Utes.mesh(name)
 		return _meshes[name]
 	if _lib == null:
 		_lib = (load(LIB) as PackedScene).instantiate()
@@ -193,8 +205,9 @@ func _place_parked(items: Array) -> void:
 		groups[key].append(it)
 	for key in groups:
 		var name: String = (key as String).split("|")[0]
-		var far := {"Sedan": "SedanFar", "Hatch": "SedanFar", "SUV": "SUVFar", "Ute": "UteFar", "Van": "SUVFar"}[name] as String
-		for lod in [[name, 0.0, DETAIL], [far, DETAIL, 2500.0]]:
+		var far := {"Sedan": "SedanFar", "Hatch": "SedanFar", "SUV": "SUVFar", "Ute": "UteFar", "Van": "SUVFar"}.get(name, "UteFar") as String
+		var near := name + "Lite" if name in Utes.NAMES else name
+		for lod in [[near, 0.0, DETAIL], [far, DETAIL, 2500.0]]:
 			var m := mesh(lod[0])
 			if m == null:
 				continue
@@ -207,6 +220,10 @@ func _place_parked(items: Array) -> void:
 			for i in list.size():
 				mm.set_instance_transform(i, list[i][1])
 				mm.set_instance_color(i, list[i][2])
+				if list[i].size() < 4:
+					list[i].append([])
+					parked.append([list[i][0], list[i][1], list[i][3]])
+				list[i][3].append([mm, i])
 			var mi := MultiMeshInstance3D.new()
 			mi.name = "Parked_" + (key as String).replace("|", "_") + ("_far" if lod[1] > 0.0 else "")
 			mi.multimesh = mm
@@ -304,6 +321,16 @@ static func _lane(r: Dictionary, pick: float) -> float:
 		return w * 0.25
 	return LANE_W * 0.5
 
+## Moves parked cars out of the way (squashed to nothing), for the utes you
+## can drive when you knock off.
+func clear_parked_near(p: Vector2, r: float) -> void:
+	for it in parked:
+		var t: Transform3D = it[1]
+		if Vector2(t.origin.x, t.origin.z).distance_to(p) < r:
+			for ref in it[2]:
+				(ref[0] as MultiMesh).set_instance_transform(ref[1], Transform3D(Basis.from_scale(Vector3.ONE * 0.0001), t.origin))
+			it[0] = ""
+
 func _process(delta: float) -> void:
 	for dv in _drivers:
 		_follow(dv, delta)
@@ -345,6 +372,13 @@ func _follow(dv: Dictionary, delta: float) -> void:
 			if along < theirs or (along == theirs and int(dv["i"]) < int(o["i"])):
 				continue
 			want = minf(want, maxf(dist - lens - 1.0, 0.0) / HEADWAY)
+	# ...and behind a ute parked or stopped in the lane (yours, when you
+	# knock off: explore.gd)
+	for b: Vector2 in blockers:
+		var d := b - p
+		var along := d.dot(fwd)
+		if along > 0.0 and along < 30.0 and absf(d.cross(fwd)) < 2.0:
+			want = minf(want, maxf(along - float(dv["len"]) * 0.5 - 2.7 - STOP_GAP, 0.0) / HEADWAY)
 	var v: float = dv["speed"]
 	# (gentle away, firmer on the brakes)
 	dv["speed"] = move_toward(v, want, delta * (2.5 if want > v else 7.0))
