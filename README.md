@@ -355,6 +355,24 @@ While the concrete's going in, the site plays a tune made out of its own noises,
 
 Every part is made in code (`scripts/sfx.gd`), like the rest of the sound. To use a recorded sound for a part instead, drop `sounds/band/<part>.wav` (or `.ogg`) into the project, where the part is `pump`, `hose`, `poker`, `screed`, `line` or `boom`: it plays on that part's beats in place of the made-up one.
 
+## The tower's story
+
+Each floor is a named day, so the eleven slabs read as the story of the building going up. The site page lists them, the day's name pops up as the level starts, and the toolbox talk opens with its line. Each day sets its own weather and light (`scripts/story.gd`):
+
+| Level | Day | Light and weather |
+|---|---|---|
+| 1 | First slab | Clear morning, still and mild, the client on the deck |
+| 2 | Hold point | Mid-morning; the engineer finds something to fix before the pour |
+| 3 | Friday arvo | Warm afternoon sun from the west; traffic on Kingsford Smith Drive |
+| 4 | Up a floor | Climb day, bright mid-morning, no wind |
+| 5 | School holidays | Clear, high sun, not a cloud |
+| 6 | Hot one | 36 °C, the sun overhead, a pale heat haze; the edge goes off fast |
+| 7 | Storm's coming | Climb day under cloud; the sky closes in and a storm hits mid-pour, then lifts |
+| 8 | Dawn pour | Starts in the dark at 5:10 am; sunrise over Bulimba is the clock |
+| 9 | Engineer's back | Grey and still; a second look at the steel |
+| 10 | Last climb | Golden late afternoon, the sun low in the west; gusty |
+| 11 | Top-out | Sundown over the city, the street lights coming on |
+
 ## The dawn pour
 
 Level 8 is a big pour, so it starts before sunrise: the first truck at 5:10 am under the floodlights, with the river still black. The sun comes up over Bulimba as the slab fills, so the sky is the pour clock (the time shows on the pour line of the HUD). At 5:38 the sun's up and the floodlights go off; by full morning the slab should be in. The trucks beat the traffic and it's cool before sunrise, so a dawn pour never has traffic and the concrete stays workable a little longer.

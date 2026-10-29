@@ -18,6 +18,7 @@ const CoachScript := preload("res://scripts/coach.gd")
 const LeadingHand := preload("res://scripts/leading_hand.gd")
 const Icons := preload("res://scripts/icons.gd")
 const Settings := preload("res://scripts/settings.gd")
+const Story := preload("res://scripts/story.gd")
 const Wallet := preload("res://scripts/wallet.gd")
 const CueBadge := preload("res://scripts/cue_badge.gd")
 const SlumpGuide := preload("res://scripts/slump_guide.gd")
@@ -503,10 +504,55 @@ func _apply_daylight(u: float) -> void:
 	# (from the low dawn sun round to the usual morning one over the last quarter)
 	sun.quaternion = q.slerp(_day_q, clampf((u - 0.75) / 0.25, 0.0, 1.0))
 
+var _light_now: Array = []   # the story light as last shown ([] after a dawn pour)
+
+## Every day but the dawn pour: the light for that day in the tower's story,
+## eased in from the last one, and on the storm day the sky closing in as the
+## shower comes and lifting after it.
+func _update_story_light(delta: float) -> void:
+	var want: Array = Story.LIGHTS["morning"] if tutorial else Story.light(k)
+	if cfg.get("rain", false) and not tutorial:
+		var t0: float = cfg["rain_at"]
+		var t1: float = t0 + float(cfg["rain_len"])
+		var clock := pour_clock if phase == "pour" else (t1 + 99.0 if phase in ["screed", "cure", "topout"] else 0.0)
+		var f := smoothstep(t0 - 25.0, t0, clock) * (1.0 - smoothstep(t1, t1 + 25.0, clock))
+		want = Story.mix(want, Story.LIGHTS["storm"], f)
+	if _light_now.is_empty():
+		_light_now = Story.LIGHTS["morning"]
+	_light_now = Story.mix(_light_now, want, minf(1.0, delta * 0.6))
+	var l := _light_now
+	sky_mat.set_shader_parameter("sky_top", l[0])
+	sky_mat.set_shader_parameter("sky_horizon", l[1])
+	sky_mat.set_shader_parameter("cover", l[8])
+	env.fog_light_color = l[1]
+	env.fog_density = l[7]
+	env.ambient_light_energy = l[4]
+	sun.light_color = l[2]
+	sun.light_energy = l[3]
+	var elev := deg_to_rad(l[5])
+	var dir: Vector2 = (l[6] as Vector2).normalized()
+	var to_sun := Vector3(dir.x, 0.0, dir.y) * cos(elev) + Vector3.UP * sin(elev)
+	sun.quaternion = Basis.looking_at(-to_sun, Vector3.UP).get_rotation_quaternion()
+	# (the street lights come on as the sun goes down on top-out day)
+	Street.set_lit(1.0 - smoothstep(4.0, 12.0, l[5]))
+	Wildlife.dawn = 0.0
+	if pour != null and pour.smat != null:
+		pour.smat.set_shader_parameter("low_light", 0.0)
+	_day_shown = -1.0
+
 func _update_daylight(delta: float) -> void:
+	if not is_dawn() and _day_u >= 1.0:
+		if _floods_on:
+			_floods_on = false
+			for f in _floods:
+				(f["node"] as Node3D).visible = false
+		_update_story_light(delta)
+		return
+	_light_now = []
+	env.fog_density = 0.00015
+	sky_mat.set_shader_parameter("cover", 0.42)
 	if not is_dawn():
-		if _day_u < 1.0:
-			_day_u = move_toward(_day_u, 1.0, delta * 0.5)
+		_day_u = move_toward(_day_u, 1.0, delta * 0.5)
 	else:
 		match phase:
 			"pour":
@@ -2170,6 +2216,14 @@ func _level_cfg(level: int) -> Dictionary:
 	c["gusty"] = level >= 4 and randf() < 0.2
 	c["gust_at"] = randf_range(12.0, 30.0)
 	c["dawn"] = level == DAWN_LEVEL or (_dawn_flag and level == maxi(0, _start_level - 1))
+	# The day in the tower's story sets the weather to match its light
+	if not tutorial:
+		var dawn: bool = c["dawn"]
+		for key in Story.day(level)[3]:
+			c[key] = Story.day(level)[3][key]
+		c["dawn"] = dawn or c.get("dawn", false)
+		c["open"] = 44.0 - (int(c["temp"]) - 21) * 1.0
+		c["late"] = 26.0 if c["traffic"] > 1.0 else 0.0
 	# Level 1 is the quiet one: good loads, no clamps letting go, and the
 	# pump operator's one spike comes with plenty of warning
 	c["quiet"] = level == 0
@@ -2198,12 +2252,13 @@ func _toolbox(wait: bool) -> Dictionary:
 	var chips: Array = []
 	var notes: Array = []
 	var t: int = cfg["temp"]
+	if not tutorial:
+		notes.append(Story.line(k))
 	if bool(cfg.get("quiet", false)):
-		chips.append(["FIRST SLAB · A QUIET ONE", ""])
+		chips.append(["A QUIET ONE", ""])
 		notes.append("Good loads all day. Pump operator: one spike, and you'll see the needle climb first.")
 	if is_dawn():
 		chips.append(["DAWN POUR · 5:10 AM", "warn"])
-		notes.append("Big pour, so it starts in the dark under the floodlights. The sun comes up over Bulimba as the slab fills: by full light it should be in.")
 	if t >= 31:
 		chips.append(["HOT · %d°C" % t, "hot"])
 		notes.append("Concrete goes off fast: about %ds to keep an edge wet. Started at first light." % int(cfg["open"]))
@@ -2228,7 +2283,7 @@ func _toolbox(wait: bool) -> Dictionary:
 		if st.is_empty():
 			continue
 		moves.append({"role": role, "btn": st[0][0], "text": st[0][1], "p": p.index, "bot": p.bot})
-	return {"title": ("WATER TOWER" if tutorial else "LEVEL %d" % (k + 1)) + " · TOOLBOX TALK",
+	return {"title": "WATER TOWER · TOOLBOX TALK" if tutorial else "LEVEL %d · %s" % [k + 1, Story.title(k).to_upper()],
 		"plan": "%d bays, far end first, back toward the boom. Keep the edge wet." % pour.BAYS,
 		"chips": chips, "notes": notes, "moves": moves, "wait": wait}
 
@@ -2268,6 +2323,7 @@ func _start_floor() -> void:
 	work_target = k * FH
 	cfg = _level_cfg(k)
 	if not tutorial:
+		hud.toast("LEVEL %d · %s" % [k + 1, Story.title(k).to_upper()], 3.5)
 		if west == null:
 			west = WestWing.new()
 			add_child(west)
