@@ -17,6 +17,7 @@ const PauseScript := preload("res://scripts/pause.gd")
 const CoachScript := preload("res://scripts/coach.gd")
 const Icons := preload("res://scripts/icons.gd")
 const Settings := preload("res://scripts/settings.gd")
+const Wallet := preload("res://scripts/wallet.gd")
 const CueBadge := preload("res://scripts/cue_badge.gd")
 const SlumpGuide := preload("res://scripts/slump_guide.gd")
 const F := preload("res://scripts/factory.gd")
@@ -40,6 +41,7 @@ const Street := preload("res://scripts/street.gd")
 const Wildlife := preload("res://scripts/wildlife.gd")
 const Yard := preload("res://scripts/yard.gd")
 const WestWing := preload("res://scripts/west_wing.gd")
+const ExploreScript := preload("res://scripts/explore.gd")
 
 # Riverlight: 11 levels; 10 lattice sections reached a 41.4 m free-stand.
 const FLOORS := 11
@@ -158,6 +160,7 @@ var phones
 var hud
 var selector
 var pause_menu
+var explore                  # knocking off: off the clock, wandering the area (explore.gd)
 var coach
 var shake_on := true
 var lattice: Node3D
@@ -289,6 +292,10 @@ func _ready() -> void:
 	pause_menu = PauseScript.new()
 	add_child(pause_menu)
 	pause_menu.setup(self)
+	explore = ExploreScript.new()
+	explore.name = "Explore"
+	add_child(explore)
+	explore.setup(self)
 	coach = CoachScript.new()
 	add_child(coach)
 	coach.setup(self)
@@ -823,6 +830,10 @@ var _fly_t := 0.0
 var _fly_boat: Node3D
 var _topout_text := ""
 
+var _hardstand: Array = []         # the site's hardstand, slurry and tyre tracks
+var handover                       # the site packing up after the fly-past (handover.gd), or null
+const HANDOVER_SHOTS := {"handover0": 0.2, "handover1": 3.8, "handover2": 8.0, "handover": 9.0}   # dev: s into the handover
+
 func _start_fly() -> void:
 	_fly_on = true
 	_fly_t = 0.0
@@ -873,7 +884,13 @@ func _end_fly() -> void:
 		_fly_boat = null
 	skyline = true
 	sky_zoom = 1
-	hud.show_topout(_topout_text)
+	if tutorial:
+		hud.show_topout(_topout_text)
+		return
+	handover = preload("res://scripts/handover.gd").new()
+	add_child(handover)
+	handover.finished.connect(func(): hud.show_topout(_topout_text))
+	handover.start(self)
 
 func _build_world() -> void:
 	# The real place: the river, the park, the neighbours, Bulimba over the
@@ -891,19 +908,22 @@ func _build_world() -> void:
 	# Site hardstand around the pump and truck bay, north of the west wing,
 	# and into the notch at the boom tower's foot
 	var hard := F.color_mat(Color("8f908c"))
-	add_child(F.box(Vector3(26.5, 0.06, 11.3), hard, Vector3(21.75, 0.03, 7.35), false))
-	add_child(F.box(Vector3(5.9, 0.06, 2.9), hard, Vector3(11.35, 0.03, 0.25), false))
+	# (kept in _hardstand: it turns to lawn at the handover)
+	_hardstand.append(F.box(Vector3(26.5, 0.06, 11.3), hard, Vector3(21.75, 0.03, 7.35), false))
+	_hardstand.append(F.box(Vector3(5.9, 0.06, 2.9), hard, Vector3(11.35, 0.03, 0.25), false))
 	# Wet slurry under the hopper and the chutes, a wash-out run to the
 	# settling tank, tyre tracks down the truck lane and a kerb on the street
 	var wet := F.color_mat(Color("6f7275"))
 	for at in [Vector3(22.3, 0, 6.0), Vector3(25.6, 0, 4.4), Vector3(25.6, 0, 7.6)]:
 		var patch := F.cylinder(1.6, 0.012, wet, at + Vector3(0, 0.079, 0), 16)
 		patch.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		add_child(patch)
-	add_child(F.box(Vector3(5.0, 0.012, 0.7), wet, Vector3(17.0, 0.079, 7.6), false))
+		_hardstand.append(patch)
+	_hardstand.append(F.box(Vector3(5.0, 0.012, 0.7), wet, Vector3(17.0, 0.079, 7.6), false))
 	var track := F.color_mat(Color("7c7e7b"))
 	for z in [3.6, 5.2, 6.8, 8.4]:
-		add_child(F.box(Vector3(11.0, 0.01, 0.45), track, Vector3(29.5, 0.065, z), false))
+		_hardstand.append(F.box(Vector3(11.0, 0.01, 0.45), track, Vector3(29.5, 0.065, z), false))
+	for h in _hardstand:
+		add_child(h)
 	add_child(F.box(Vector3(26.5, 0.15, 0.3), F.color_mat(Color("c8c4ba")), Vector3(21.75, 0.075, 13.05), false))
 
 	rain = CPUParticles3D.new()
@@ -1967,6 +1987,31 @@ func cam_test_roles() -> Array:
 var _cam_roles: Array = []
 
 ## A buzz in a phone player's hand.
+## How bright a person's gold assist is at their job right now: 1 full
+## sparkle for someone new, fading to 0 (just the button) as they get it
+## right, back up when they slip. The setting can lock it full or off; the
+## tutorial is always full.
+func gold_level(p) -> float:
+	var mode := int(Settings.value("gold_mode"))
+	if mode == 2:
+		return 0.0
+	if mode == 1 or tutorial or p.bot:
+		return 1.0
+	return clampf(1.0 - Wallet.skill(p.char_id, p.role) * 1.15, 0.0, 1.0)
+
+## A person pressed while their button was gold: a step toward their ticket.
+func gold_hit(p) -> void:
+	if not p.bot:
+		Wallet.add_skill(p.char_id, p.role, GOLD_STEP)
+
+## A person slipped (a mistake, a missed moment, a crewmate covering for
+## them): the gold comes back up a bit.
+func slipped(p, amount: float) -> void:
+	if p != null and not p.bot:
+		Wallet.add_skill(p.char_id, p.role, -amount)
+
+const GOLD_STEP := 0.01   # about a hundred right presses to lose the gold
+
 func haptic(p, pattern: String) -> void:
 	if p != null and phones != null and not p.bot and p.remote_id >= 0:
 		phones.vibrate(p, pattern)
@@ -2249,6 +2294,7 @@ const BRIEF_HOLD := 0.8      # s of A to start
 const BRIEF_AUTO := 20.0     # s till it starts itself
 const REPORT_AUTO := 15.0    # s the slab report waits for an A before moving on
 var _human_a := false        # a person pressed A this frame (for the brief and the slab report)
+var _a_by                    # ...and who
 
 func incident_level() -> int:
 	for arg in OS.get_cmdline_user_args():
@@ -2408,6 +2454,7 @@ func _grade() -> void:
 		note += "\nThe bots are working at %s pace now" % score.MEDALS[score.bot_tier].to_lower()
 	hud.show_slab(_slab_report(quality, verdict, medal, note, rows), -1.0 if not crew.humans().is_empty() and not autotest or "report" in _shot_only or "lastreport" in _shot_only else 6.0)
 	_save_medal(medal)
+	Wallet.save()
 	if autotest:
 			print("[autotest]   level %d: +%d pts (total %d, %s), quality %.0f, medal %s in %.1fs (bots %s) | %s | %s" % [k + 1, score.level, score.total, score.rank_name(), quality, score.MEDALS[medal], pour_clock, score.MEDALS[was_tier], " | ".join(score.report_rows()), " | ".join(rows)])
 
@@ -2422,6 +2469,8 @@ func _slab_report(quality: float, verdict: String, medal: int, note: String, los
 		var pts := int(score.by_role.get(role, 0))
 		var why: String = score.top_reason(role)
 		crew_rows.append({"role": role, "p": p.index, "bot": p.bot, "name": p.char_name, "pts": pts, "why": why if why != "" else "Kept out of trouble"})
+		if not p.bot:
+			crew_rows[-1]["wallet"] = int(score.wallet_pour.get(p.char_id, 0))
 		if (not p.bot or _cam_roles.has(role)) and pts > star_pts:
 			star_pts = pts
 			star = role
@@ -2556,7 +2605,7 @@ func _top_out() -> void:
 			"Water tower · tutorial done\n" +
 			"Shafts like this are cast in lifts a couple of metres high with jump forms (or slipformed day and night).\n" +
 			"On top, the tank floor and the roof are pumped onto forms, and the boom climbs to keep up.\n\n" +
-			"Your crew: %s points · %s\n%s%s" % [hud._thousands(score.total), score.rank_name(), medal_line, _people_line()] +
+			"Your crew: $%s · %s\n%s%s" % [hud._thousands(score.total), score.rank_name(), medal_line, _people_line()] +
 			Settings.branded("Press R to start again, and pick Riverlight for the real job"))
 		return
 	var kit_line := Settings.branded("SCP kit: Putzmeister MX42 placing boom on a free-standing lattice tower, 10 sections to a 41.4 m free-stand, with SCP's self-climbing frame")
@@ -2567,7 +2616,7 @@ func _top_out() -> void:
 		"11 levels · 10,000 m³ pumped · 57 m vertical pumping\n" +
 		kit_line + "\n" +
 		Settings.branded("Main contractor: Watpac Construction\n\n") +
-		"Your crew: %s points · %s\n%s%s" % [hud._thousands(score.total), score.rank_name(), medal_line, _people_line()] +
+		"Your crew: $%s · %s\n%s%s" % [hud._thousands(score.total), score.rank_name(), medal_line, _people_line()] +
 		"Press R to pour it again · Tab to zoom further out")
 	if _ink_node != null:
 		# (the signed square's bare concrete, left clear of the membrane)
@@ -2711,11 +2760,19 @@ func _process(delta: float) -> void:
 		_cover(p, delta)
 		if not p.bot and not p.covering and p.action_pressed():
 			_human_a = true
+			_a_by = p
 		if phase != "sign":
 			_handle_player(p, delta)
 		p.end_frame()
 	if autotest and phase == "columns" and k == 0 and OS.get_cmdline_user_args().has("--skip") and kit == "tower":
 		_dev_skip(CLIMB_LEVELS[0])
+	# (dev `--topout`: every floor poured, straight to the top-out)
+	if autotest and phase == "columns" and k == 0 and OS.get_cmdline_user_args().has("--topout") and kit == "tower":
+		_dev_skip(floors() - 1)
+		_lock_slab(k, true)
+		k += 1
+		_top_out()
+		return
 	# (`--startlevel=N`, or a later floor picked on the site page)
 	if phase == "columns" and k == 0 and _start_level > 1:
 		_dev_skip(_start_level - 1)
@@ -2828,10 +2885,22 @@ func _process(delta: float) -> void:
 		"topout":
 			if _fly_on:
 				_update_fly(delta)
+				# (dev: the handover shots don't wait for the fly-past)
+				if autotest and _handover_shots():
+					_end_fly()
+			elif handover != null and handover.active:
+				# (A skips the handover; the next A knocks off)
+				if _human_a and handover.t > 0.5:
+					handover.skip()
+				else:
+					handover.tick(delta)
+			# A (the beer button): knock off and go for a wander
+			elif _human_a and phase_t > 1.0 and not autotest:
+				explore.enter(_a_by)
 			# (the vista shots wait for 1.5s, so hang on for them)
 			var vistas: bool = "vista" in _shot_only or "vista2" in _shot_only or _next_ext() != ""
 			var fly_shots: bool = "fly1" in _shot_only or "fly2" in _shot_only or "fly3" in _shot_only
-			if autotest and not (_fly_on and fly_shots) and phase_t > (2.5 + 0.3 * EXT_SHOTS.size() if vistas else 1.0):
+			if autotest and not (_fly_on and fly_shots) and not _handover_shots() and phase_t > (2.5 + 0.3 * EXT_SHOTS.size() if vistas else 1.0):
 				print("[autotest] TOPPED OUT with %d points (%s) in %d frames (kit %s)" % [score.total, score.rank_name(), _frames, kit])
 				get_tree().quit(0)
 
@@ -3241,6 +3310,8 @@ func _on_climb_done() -> void:
 # ------------------------------------------------------------------ players and stations
 
 func _station_visible(key: String) -> bool:
+	if handover != null:
+		return false
 	match key:
 		"tag":
 			return climb.active and climb.stage in ["fly", "guide"]
@@ -3917,9 +3988,11 @@ func _cover(p, delta: float) -> void:
 		return
 	if p.idle_in > NUDGE_CALL and not bool(p.get_meta("called", false)) and not autotest_human(p):
 		p.set_meta("called", true)
+		slipped(p, 0.04)
 		_call_out(p)
 	if not p.covering and p.idle_in > COVER_AFTER and not autotest_human(p):
 		p.covering = true
+		slipped(p, 0.08)
 		hud.toast("P%d's job is waiting: the leading hand's doing this step. Press anything to take it back." % p.index, 3.0)
 
 ## A crewmate shouts across to someone the job's waiting on, by name.
@@ -4358,7 +4431,7 @@ func _update_stations() -> void:
 		# (a hand sign over the station already names it)
 		# (a hand sign over the station already names it; so does the
 		# start-up's sign over the bin)
-		(st["label"] as Node3D).visible = (on or near) and not _signed_keys.has(key) and not (key == "bin" and ops.wants_bin())
+		(st["label"] as Node3D).visible = n.visible and (on or near) and not _signed_keys.has(key) and not (key == "bin" and ops.wants_bin())
 		ring.scale = Vector3.ONE * (pulse if on else 1.0)
 		# A spot right under the camera (the deck view zooms in on the bin for
 		# the start-up, with the poker's spot beside it) fades out rather than
@@ -4689,6 +4762,18 @@ const EXT_SHOTS := {
 	"sky_city": [Vector2(4928, -4050)], "sky_gate": [Vector2(-1984, 14)],
 	"sky_north": [Vector2(-300, 3000)], "sky_south": [Vector2(1200, -2400)],
 }
+func _handover_key() -> String:
+	for key in HANDOVER_SHOTS:
+		if key in _shot_only and not _shots_taken.has(key) and handover.t >= HANDOVER_SHOTS[key]:
+			return key
+	return ""
+
+func _handover_shots() -> bool:
+	for key in HANDOVER_SHOTS:
+		if key in _shot_only and not _shots_taken.has(key):
+			return true
+	return false
+
 func _next_ext() -> String:
 	for k in EXT_SHOTS:
 		if k in _shot_only and not _shots_taken.has(k):
@@ -4975,7 +5060,15 @@ func _update_camera(delta: float) -> void:
 		# (the whole of Riverlight, both wings)
 		focus = (Vector3.ZERO if tutorial else -REAL_ORIGIN) + Vector3(0, top * 0.45, -8.0)
 		dist = maxf(110.0, top * 2.4)
-		if sky_zoom == 2:
+		if handover != null and sky_zoom == 1:
+			# The handover: round to the street side, over the forecourt
+			# where the hardstand was, the tower behind it
+			cam_yaw = lerp_angle(cam_yaw, 0.32, minf(1.0, delta * 1.2))
+			cam_pitch = lerpf(cam_pitch, 0.4, minf(1.0, delta * 1.2))
+			pitch = cam_pitch
+			focus = Vector3(18.0, top * 0.22, 2.0)
+			dist = 62.0
+		elif sky_zoom == 2:
 			# the neighbourhood: the estate, the park, the golf course, the reach
 			focus.y = top * 0.2
 			dist = 420.0
@@ -5318,6 +5411,8 @@ func _maybe_shot() -> void:
 		key = "fly2"
 	elif _fly_on and "fly3" in _shot_only and _fly_t > 20.0 and not _shots_taken.has("fly3"):
 		key = "fly3"
+	elif handover != null and _handover_key() != "":
+		key = _handover_key()
 	elif phase == "topout" and phase_t > 1.5 and "vista" in _shot_only and not _shots_taken.has("vista"):
 		key = "vista"
 	elif phase == "topout" and phase_t > 1.5 and "vista2" in _shot_only and not _shots_taken.has("vista2"):

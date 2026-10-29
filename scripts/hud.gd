@@ -567,7 +567,7 @@ func set_floor(done: int, total: int) -> void:
 ## Crew points, counting up to the real total, with the rank ladder under it.
 func set_score(total: int, rank: String, next_rank: String, frac: float, bump: float) -> void:
 	_shown_score = move_toward(_shown_score, total, maxf(4.0, absf(total - _shown_score) * 0.18))
-	score_label.text = UI.thousands(int(_shown_score))
+	score_label.text = "$" + UI.thousands(int(_shown_score))
 	score_label.pivot_offset = score_label.size * Vector2(1.0, 0.5)
 	score_label.scale = Vector2.ONE * (1.0 + 0.15 * bump)
 	rank_label.text = rank.to_upper() + ("  →  " + next_rank if next_rank != "" else "")
@@ -750,7 +750,7 @@ func show_slab(d: Dictionary, seconds := 6.0) -> void:
 	hl.add_theme_constant_override("separation", 18)
 	tv.add_child(hl)
 	hl.add_child(UI.head(mnames[m], 44, mcols[m]))
-	hl.add_child(UI.head("+" + _thousands(int(d.get("points", 0))), 44, UI.GOLD))
+	hl.add_child(UI.head("+$" + _thousands(int(d.get("points", 0))), 44, UI.GOLD))
 	var q := UI.head("QUALITY %d%%  ·  %s" % [int(d.get("quality", 0)), String(d.get("verdict", "")).to_upper()], 20, UI.BONE)
 	q.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	hl.add_child(q)
@@ -848,7 +848,12 @@ func _hat_card(r: Dictionary, star: bool) -> PanelContainer:
 	jn.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	v.add_child(jn)
 	var pts := int(r["pts"])
-	v.add_child(UI.head(("+" if pts >= 0 else "") + _thousands(pts), 26, UI.GOLD if star else UI.BONE))
+	v.add_child(UI.head(("+$" if pts >= 0 else "-$") + _thousands(pts), 26, UI.GOLD if star else UI.BONE))
+	if r.has("wallet"):
+		# (a person's own share, banked in their wallet)
+		var wl := UI.label("%s in %s's wallet" % [("$" + _thousands(int(r["wallet"]))), String(r["name"])], 12, UI.GREEN, 0)
+		wl.clip_text = true
+		v.add_child(wl)
 	var why := UI.label(String(r["why"]), 13, UI.DIM, 0)
 	why.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	why.custom_minimum_size = Vector2(122, 34)

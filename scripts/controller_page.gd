@@ -138,7 +138,8 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 .btn.cue.alarm .verb{color:#ff8b80;box-shadow:0 0 0 2px var(--alarm)}
 .btn.cue.alarm .verb i{background:var(--alarm)}
 .btn.gold{--face:#ffd23f;--lip:#b17a00;--ink:#2a1d00;--ringc:#ffd23f}
-.btn.gold .face{animation:goldbeat .3s ease-in-out infinite;box-shadow:0 1.4vmin 0 var(--lip),0 0 0 1.2vmin rgba(255,210,63,.35),0 0 8vmin rgba(255,210,63,.8)}
+.btn.gold .face{animation:goldbeat .3s ease-in-out infinite;box-shadow:0 1.4vmin 0 var(--lip),0 0 0 calc(1.2vmin * var(--gl,1)) rgba(255,210,63,.35),0 0 calc(8vmin * var(--gl,1)) rgba(255,210,63,calc(.8 * var(--gl,1)))}
+.btn.gold.faint .face{animation:none}
 .btn.gold .verb{color:var(--gold);box-shadow:0 0 0 2px var(--gold);text-transform:uppercase}
 .btn.down .face,.btn.boing .face{animation-name:none}
 .btn.down.gold .face{animation:none}
@@ -253,6 +254,41 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 #status{position:fixed;right:3vmin;bottom:2vmin;font-size:2.6vmin;color:var(--dim);z-index:12}
 @media (orientation:portrait){#rotate{display:flex}}
 @media (prefers-reduced-motion:reduce){*{animation-duration:.01s!important;animation-iteration-count:1!important}}
+/* --- the wallet: cash banked, and the ute shop */
+#walletbtn{position:fixed;left:15vmin;top:2.6vmin;height:10vmin;padding:0 2.6vmin;border-radius:2.6vmin;border:1px solid #3a3d47;background:var(--card);display:none;align-items:center;gap:1.6vmin;z-index:12;font-size:4vmin}
+#walletbtn.on{display:flex}
+#walletbtn svg{width:6vmin;height:5vmin}
+#walletbtn b{color:#7cd992}
+#walletbtn.bump{animation:wbump .5s cubic-bezier(.3,1.6,.5,1)}
+@keyframes wbump{0%{transform:scale(1)}40%{transform:scale(1.18)}100%{transform:scale(1)}}
+#wallet{position:fixed;inset:2.6vmin;border-radius:4.6vmin;background:#14161c;border:2px solid #3a3e4a;display:none;z-index:35;box-shadow:0 4vmin 9vmin rgba(0,0,0,.6);overflow:hidden}
+#wallet.on{display:flex;animation:flip .45s cubic-bezier(.3,1.3,.5,1) both}
+#wallet .wl{width:34%;padding:3vmin;display:flex;flex-direction:column;gap:1.4vmin;background:#1b1e26;border-right:1px solid #2c2f37}
+#wallet .wl .k{font-size:3.2vmin;color:var(--muted);letter-spacing:.08em}
+#wallet .wl .cash{font-size:11vmin;line-height:.9;color:#7cd992}
+#wallet .wl .sub{font-size:3.4vmin;color:#b9b6ad}
+#wallet .wl .purse svg{width:100%;height:26vmin;display:block}
+#wallet .wr{flex:1;display:flex;flex-direction:column;min-width:0}
+#wallet .tabs{display:flex;gap:1.2vmin;padding:2.4vmin 3vmin 1.4vmin;align-items:center}
+#wallet .tabs button{font-size:4.2vmin;padding:1vmin 3vmin;border-radius:99px;background:#22252d;color:#b9b6ad}
+#wallet .tabs button.on{background:var(--gold);color:#2a1d00}
+#wallet .tabs .x{margin-left:auto;width:9vmin;height:9vmin;border-radius:50%;background:#22252d;display:flex;align-items:center;justify-content:center}
+#wallet .tabs .x svg{width:4.4vmin;height:4.4vmin}
+#wallet .body{flex:1;overflow-y:auto;padding:0 3vmin 3vmin;touch-action:pan-y}
+#wallet .garage svg{width:100%;height:auto;max-height:44vmin;display:block}
+#wallet .garage .n{font-size:5.4vmin}
+#wallet .garage .kitl{font-size:3.2vmin;color:#b9b6ad;margin-top:1vmin}
+#wallet .items{display:grid;grid-template-columns:1fr 1fr;gap:1.6vmin}
+#wallet .it{background:#1f222a;border:2px solid #2c2f37;border-radius:2.6vmin;padding:2vmin 2.4vmin;text-align:left;display:flex;flex-direction:column;gap:.6vmin}
+#wallet .it .n{font-size:4.2vmin}
+#wallet .it .l{font-size:2.9vmin;color:#9a978f}
+#wallet .it .pr{font-size:4vmin;color:#7cd992}
+#wallet .it.pick{border-color:var(--gold)}
+#wallet .it.have{opacity:.6}
+#wallet .it.have .pr{color:var(--muted)}
+#wallet .it.short .pr{color:#ff8a7a}
+#wallet .buyrow{display:flex;gap:2vmin;align-items:center;padding:1.6vmin 3vmin 2.4vmin;border-top:1px solid #2c2f37}
+#wallet .buyrow .note{flex:1;font-size:3.4vmin;color:#b9b6ad}
 </style>
 </head>
 <body>
@@ -323,6 +359,21 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
   <canvas id="slab"></canvas>
 </div>
 <div id="joined"><div class="big" id="jbig">P?</div><div><div class="k hd" id="jk">You're on the crew</div><div class="t hd" id="jt">You are Player ?</div><div class="s">Look for your tag on the TV. Everyone scans the same code; the next phone gets the next number.</div><div id="pdots"></div></div></div>
+<button id="walletbtn" aria-label="Your wallet"><svg viewBox="0 0 30 24"><rect x="1" y="4" width="28" height="18" rx="3" fill="#6b4a32"/><rect x="3" y="1" width="20" height="8" rx="1" fill="#3fae5a"/><rect x="1" y="7" width="28" height="15" rx="3" fill="#8a6142"/><circle cx="23" cy="14.5" r="2.4" fill="#e9c46a"/></svg><b class="hd" id="wbal">$0</b></button>
+<div id="wallet">
+  <div class="wl">
+    <div class="k hd" id="wwho">WALLET</div>
+    <div class="cash hd" id="wcash">$0</div>
+    <div class="sub" id="wpour"></div>
+    <div class="purse" id="wpurse"></div>
+    <div class="sub" id="wbanked"></div>
+  </div>
+  <div class="wr">
+    <div class="tabs"><button data-tab="garage" class="hd on">Your ute</button><button data-tab="utes" class="hd">Utes</button><button data-tab="4x4" class="hd">4x4</button><button data-tab="camping" class="hd">Camping</button><button class="x" id="wx" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div class="body" id="wbody"></div>
+    <div class="buyrow"><div class="note" id="wnote">Every job you do pays into this wallet. It's kept for next time, under your crew name.</div><button class="holdbtn" id="wbuy" disabled><div class="fill"></div><span>HOLD TO BUY</span></button></div>
+  </div>
+</div>
 <div id="ghost"><div></div></div>
 <div id="rotate">Turn your phone sideways<br><small style="color:#9a978f">the controller works in landscape</small></div>
 <div id="gate"><b>POUR DECISIONS</b><span class="go"><span class="first">TAP TO JOIN THE CREW</span><span class="again">TAP TO CARRY ON</span></span><div id="ios"><b>Full screen on iPhone:</b> tap Share, then <b>Add to Home Screen</b>, and open Pour Decisions from your home screen.</div></div>
@@ -405,6 +456,9 @@ function onJson(j) {
   else if (j.t === 'nudge') setNudge(j.lvl);
   else if (j.t === 'toast') toast(j.msg);
   else if (j.t === 'dog') drawDog(j);
+  else if (j.t === 'wallet') onWallet(j);
+  else if (j.t === 'shop') { shop = j; if (walletOpen) drawWallet(); }
+  else if (j.t === 'bought') onBought(j);
 }
 // The dogman: each crane call sits round the stick the way you push for it
 let dogLit = '';
@@ -431,6 +485,7 @@ function showScreen() {
   $('sign').classList.toggle('on', sign);
   if (sign) startSign();
   if (!lobby) closeSwap();
+  showWalletBtn();
   drawTicket();
 }
 let toastT = null;
@@ -519,7 +574,7 @@ function placeGhost() {
 let anyAlarm = false;
 function onCues(s) {
   const want = {};
-  s.split(',').forEach(x => { if (x) { const f = x.split(':'); want[f[0]] = {verb: (f[1] || '').replace(/_/g, ' '), p: parseFloat(f[2] || '-1'), urgent: f[3] === '1', gold: f[4] === '1', alarm: f[5] === '1'}; } });
+  s.split(',').forEach(x => { if (x) { const f = x.split(':'); want[f[0]] = {verb: (f[1] || '').replace(/_/g, ' '), p: parseFloat(f[2] || '-1'), urgent: f[3] === '1', gold: parseFloat(f[4] || '0'), alarm: f[5] === '1'}; } });
   let alarm = false;
   ['A', 'B', 'X', 'Y'].forEach(b => {
     const el = $(b), w = want[b];
@@ -530,9 +585,14 @@ function onCues(s) {
     if (w && w.alarm && !wasAlarm) buzz(BUZZ.alarm);
     alarm = alarm || !!(w && w.alarm);
     el.classList.toggle('hold', !!(w && w.p >= 0));
-    const g = !!(w && w.gold);
-    if (g && !el.classList.contains('gold')) { stars(el, 14); buzz(BUZZ.gold); }
+    // (gold is a spectrum: full sparkle for someone new to the job, fading
+    // to a plain gold face, then just the button, as they get good)
+    const gl = w ? (w.gold || 0) : 0, g = gl > 0.05;
+    if (g && !el.classList.contains('gold')) { if (gl > 0.3) stars(el, Math.round(14 * gl)); if (gl > 0.2) buzz(BUZZ.gold); }
     el.classList.toggle('gold', g);
+    el.classList.toggle('faint', g && gl < 0.45);
+    el.style.setProperty('--gl', gl.toFixed(2));
+    el.dataset.gl = gl.toFixed(2);
     el.style.setProperty('--p', w && w.p >= 0 ? Math.min(1, w.p) : 0);
     el.querySelector('.wet').style.height = (w && w.p >= 0 ? Math.min(1, w.p) * 100 : 0) + '%';
     if (w) el.querySelector('.verb b').textContent = w.verb || b;
@@ -557,6 +617,7 @@ function stars(el, n) {
 }
 setInterval(() => {
   document.querySelectorAll('.btn.gold').forEach(el => {
+    if (Math.random() > parseFloat(el.dataset.gl || '1') * 1.3 - 0.3) return;
     const r = el.getBoundingClientRect(), a = Math.random() * Math.PI * 2;
     parts.push({x: r.left + r.width / 2 + Math.cos(a) * r.width * .55, y: r.top + r.height / 2 + Math.sin(a) * r.width * .55, vx: Math.cos(a) * 50, vy: -70 - Math.random() * 50, life: 0, max: .5, size: 5, rot: 0});
   });
@@ -624,7 +685,7 @@ function sendStick(force) {
   }
 }
 zone.addEventListener('pointerdown', (e) => {
-  if (swapOpen) return;
+  if (swapOpen || walletOpen) return;
   e.preventDefault(); sid = e.pointerId; zone.setPointerCapture(sid);
   const r = zone.getBoundingClientRect(), R = radius();
   // Centre the stick under the thumb, kept inside the zone
@@ -834,6 +895,102 @@ function unzoom() {
 }
 if (window.visualViewport) { visualViewport.addEventListener('resize', unzoom); visualViewport.addEventListener('scroll', unzoom); }
 setInterval(unzoom, 1000);
+// ---------------------------------------------------------------- the wallet and the ute shop
+let wal = {cash: 0, pour: 0, banked: 0, utes: [], ute: '', kit: [], name: ''}, shop = {utes: [], kit: []};
+let walletOpen = false, wTab = 'garage', wPick = '';
+const money = (n) => (n < 0 ? '-$' : '$') + Math.abs(n).toLocaleString('en-AU');
+function onWallet(j) {
+  const more = j.cash > wal.cash;
+  wal = j;
+  $('wbal').textContent = money(j.cash);
+  if (more) { const b = $('walletbtn'); b.classList.remove('bump'); void b.offsetWidth; b.classList.add('bump'); }
+  if (walletOpen) drawWallet();
+}
+function openWallet() { walletOpen = true; wPick = ''; endStick(); closeSwap(); $('wallet').classList.add('on'); send('wallet 1'); drawWallet(); buzz(BUZZ.press); }
+function closeWallet() { walletOpen = false; $('wallet').classList.remove('on'); send('wallet 0'); }
+$('walletbtn').addEventListener('pointerdown', (e) => { e.preventDefault(); walletOpen ? closeWallet() : openWallet(); });
+$('wx').addEventListener('pointerdown', (e) => { e.preventDefault(); closeWallet(); });
+document.querySelectorAll('#wallet .tabs button[data-tab]').forEach(b => b.addEventListener('pointerdown', (e) => { e.preventDefault(); wTab = b.dataset.tab; wPick = ''; drawWallet(); buzz(BUZZ.press); }));
+// A side-on ute, with the kit that's fitted
+function uteSvg(id, kit) {
+  const u = shop.utes.find(x => x.id === id) || {col: 'cfcfcf'}, has = (k) => kit.includes(k);
+  const lift = has('lift') ? 7 : 0, r = has('mudtyres') ? 21 : 17, gy = 124, d = -lift - (r - 17);
+  const col = '#' + u.col, dark = '#2a2d33';
+  let s = '<svg viewBox="0 0 300 130">';
+  s += '<path d="M0 ' + (gy + 1) + ' h300" stroke="#3a3d47" stroke-width="2"/>';
+  const wheel = (x) => '<circle cx="' + x + '" cy="' + (gy - r) + '" r="' + r + '" fill="#16171a"/>' + (has('mudtyres') ? '<circle cx="' + x + '" cy="' + (gy - r) + '" r="' + r + '" fill="none" stroke="#3b3d42" stroke-width="5" stroke-dasharray="3 3"/>' : '') + '<circle cx="' + x + '" cy="' + (gy - r) + '" r="' + (r * 0.5) + '" fill="#8b9097"/>';
+  s += '<g transform="translate(0 ' + d + ')">';
+  if (has('canopy')) s += '<rect x="190" y="38" width="88" height="30" rx="3" fill="#c9ced3" stroke="#8b9097"/><rect x="198" y="44" width="72" height="14" rx="2" fill="#3c4a57"/>';
+  else {
+    if (has('drawers')) s += '<rect x="196" y="58" width="78" height="9" fill="#555b62"/>';
+    const lift2 = has('drawers') ? 9 : 0;
+    if (has('fridge')) s += '<rect x="198" y="' + (52 - lift2) + '" width="24" height="16" rx="2" fill="#5d7f9e"/>';
+    if (has('jerrycans')) s += '<rect x="226" y="' + (54 - lift2) + '" width="10" height="14" rx="1" fill="#c8372d"/><rect x="238" y="' + (54 - lift2) + '" width="10" height="14" rx="1" fill="#3c7a3a"/>';
+    if (has('swag')) s += '<rect x="250" y="' + (58 - lift2) + '" width="26" height="10" rx="5" fill="#5f6b3a"/>';
+  }
+  s += '<path d="M22 96 L24 75 Q26 68 40 67 L106 64 L128 40 L188 40 L192 66 L280 66 L282 96 Z" fill="' + col + '" stroke="#1b1c20" stroke-width="2"/>';
+  s += '<path d="M113 64 L131 45 L156 45 L156 64 Z M160 64 L160 45 L183 45 L186 64 Z" fill="#2f3a44"/>';
+  s += '<path d="M22 86 h260" stroke="rgba(0,0,0,.18)" stroke-width="3"/>';
+  if (has('bullbar')) s += '<path d="M10 98 V64 H26 M10 72 H26 M10 82 H26 M18 64 V98" fill="none" stroke="#2a2d33" stroke-width="4" stroke-linejoin="round"/>';
+  if (has('winch')) s += '<rect x="11" y="86" width="13" height="8" rx="2" fill="#111"/>';
+  if (has('spotlights')) s += '<circle cx="14" cy="58" r="6" fill="#ffe680" stroke="#222" stroke-width="2"/>';
+  if (has('snorkel')) s += '<path d="M102 70 L108 38 L118 30" fill="none" stroke="#111" stroke-width="5" stroke-linecap="round"/>';
+  if (has('roofrack')) s += '<rect x="124" y="33" width="68" height="4" fill="' + dark + '"/><path d="M130 37 v3 M186 37 v3" stroke="' + dark + '" stroke-width="3"/>';
+  if (has('rooftent')) s += '<rect x="120" y="18" width="76" height="15" rx="3" fill="#5f6b3a" stroke="#3e4626"/>';
+  if (has('awning')) s += '<rect x="124" y="37" width="66" height="4" rx="2" fill="#2f3a2a"/>';
+  if (has('lightbar')) s += '<rect x="130" y="' + (has('roofrack') ? 29 : 35) + '" width="50" height="4" rx="2" fill="#fff7c2" stroke="#222"/>';
+  s += '</g>' + wheel(72) + wheel(232) + '</svg>';
+  return s;
+}
+function drawWallet() {
+  $('wwho').textContent = (wal.name || 'YOUR').toUpperCase() + "'S WALLET";
+  $('wcash').textContent = money(wal.cash);
+  $('wpour').textContent = wal.pour ? 'This pour: +' + money(wal.pour) : 'Every job you do pays in here.';
+  $('wbanked').textContent = 'Earned all up: ' + money(wal.banked);
+  $('wpurse').innerHTML = wal.purse || '';
+  document.querySelectorAll('#wallet .tabs button[data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === wTab));
+  const body = $('wbody');
+  let note = '', can = false;
+  if (wTab === 'garage') {
+    if (!wal.ute) body.innerHTML = '<div class="garage"><div class="n hd">No ute yet</div><div class="kitl">Save up and pick one from the Utes tab. A Hilux is ' + money((shop.utes[0] || {price: 0}).price) + '.</div></div>';
+    else {
+      const u = shop.utes.find(x => x.id === wal.ute) || {name: wal.ute};
+      const names = wal.kit.map(k => (shop.kit.find(x => x.id === k) || {name: k}).name);
+      body.innerHTML = '<div class="garage">' + uteSvg(wal.ute, wal.kit) + '<div class="n hd">' + esc(u.name) + '</div><div class="kitl">' + (names.length ? esc(names.join(' · ')) : 'Stock standard. Kit it out from the 4x4 and Camping tabs.') + '</div></div>';
+    }
+    note = 'Your ute is yours to drive when the crew knocks off.';
+  } else {
+    const list = wTab === 'utes' ? shop.utes : shop.kit.filter(k => k.shop === wTab);
+    body.innerHTML = '<div class="items">' + list.map(it => {
+      const owned = wTab === 'utes' ? wal.utes.includes(it.id) : wal.kit.includes(it.id);
+      const short = !owned && wal.cash < it.price;
+      const cls = 'it' + (it.id === wPick ? ' pick' : '') + (owned ? ' have' : '') + (short ? ' short' : '');
+      const pr = owned ? (wTab === 'utes' ? (wal.ute === it.id ? 'Driving it' : 'Yours: tap to drive') : 'Fitted') : money(it.price) + (short ? ' · ' + money(it.price - wal.cash) + ' short' : '');
+      return '<button class="' + cls + '" data-id="' + it.id + '"><span class="n hd">' + esc(it.name) + '</span><span class="l">' + esc(it.line || 'Ute') + '</span><span class="pr hd">' + pr + '</span></button>';
+    }).join('') + '</div>';
+    const it = list.find(x => x.id === wPick);
+    if (!it) note = wTab === 'utes' ? 'Pick a ute. You drive the one you picked last.' : (wal.ute ? 'Pick some kit for your ute.' : 'Buy a ute first, then kit it out.');
+    else {
+      const owned = wTab === 'utes' ? wal.utes.includes(it.id) : wal.kit.includes(it.id);
+      const need = it.needs && !wal.kit.includes(it.needs) ? (shop.kit.find(x => x.id === it.needs) || {}).name : '';
+      if (owned && wTab === 'utes') { note = 'Hold to drive the ' + it.name + '.'; can = wal.ute !== it.id; }
+      else if (owned) note = 'Already on the ute.';
+      else if (wTab !== 'utes' && !wal.ute) note = 'Buy a ute first.';
+      else if (need) note = 'Needs the ' + need.toLowerCase() + ' first.';
+      else if (wal.cash < it.price) note = money(it.price - wal.cash) + ' to go. Keep pouring.';
+      else { note = it.name + ' for ' + money(it.price) + '. Leaves ' + money(wal.cash - it.price) + '.'; can = true; }
+    }
+  }
+  $('wnote').textContent = note;
+  $('wbuy').disabled = !can;
+  $('wbuy').style.display = wTab === 'garage' ? 'none' : '';
+  const drive = wTab === 'utes' && wal.utes.includes(wPick);
+  $('wbuy').querySelector('span').textContent = drive ? 'HOLD TO DRIVE' : 'HOLD TO BUY';
+}
+$('wbody').addEventListener('pointerdown', (e) => { const b = e.target.closest('button.it'); if (!b) return; wPick = b.dataset.id; drawWallet(); buzz(BUZZ.press); });
+holdButton($('wbuy'), 700, () => { if (wPick) send('buy ' + wPick); });
+function onBought(j) { if (j.why) toast(j.why); else { buzz(BUZZ.done); stars($('wcash'), 20); wPick = ''; wTab = 'garage'; } setTimeout(drawWallet, 120); }
+function showWalletBtn() { $('walletbtn').classList.toggle('on', screen === 'play' || screen === 'pause'); if (walletOpen && screen !== 'play' && screen !== 'pause') closeWallet(); if (screen === 'sign' && walletOpen) closeWallet(); }
 connect();
 </script>
 </body>
