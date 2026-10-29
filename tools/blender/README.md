@@ -66,6 +66,16 @@ Or open Blender 5.2, Scripting tab, open the script and Run.
   with Head, Tail, Leg and Wing joints that `scripts/wildlife.gd` moves
   (walking and pecking, flocks flying, pelicans drifting; possums only on a
   dawn pour).
+- `cash.py`: Site Cash, the crew's money: a made-up note (tinted per
+  denomination, the amount printed on it by the game), a wad, a leather
+  wallet closed and open -> `assets/props/cash.glb`, painted by
+  `scripts/cash_art.gd` (which also draws the note and wallet as SVG for the
+  phones).
+- `ute_kit.py`: 4x4 and camping gear for the Hilux, Ranger and Shark (bull
+  bar, winch, spotlights, snorkel, light bar, mud tyres, roof rack, rooftop
+  tent, awning, canopy, drawers, fridge, jerry cans, swag), each fitted to
+  each ute as `kit_<item>_<ute>` -> `assets/cars/ute_kit.glb`, painted by
+  `scripts/ute_kit.gd`.
 
 Materials are named by what they are (`skin`, `vest`, `hat`, `tape` ...). The
 game replaces each with its own toon material and outline by that name
