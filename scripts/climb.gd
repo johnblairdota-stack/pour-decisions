@@ -72,6 +72,7 @@ var runway: Node3D
 var platform: Node3D
 var sock_pivot: Node3D
 var cups: Node3D
+var crane: Node3D           # the tower crane's mast (its sections) and everything on top
 var crane_slew: Node3D
 var trolley: Node3D
 var cable: MeshInstance3D
@@ -438,7 +439,7 @@ func _build_guides() -> void:
 	add_child(tag_npc)
 
 func _build_crane() -> void:
-	var crane := Node3D.new()
+	crane = Node3D.new()
 	crane.position = MAST
 	add_child(crane)
 	var n := int(ceil(CRANE_H / LS))
