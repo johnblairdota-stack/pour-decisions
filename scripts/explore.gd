@@ -1038,7 +1038,7 @@ func _place_car(c: Dictionary, dt: float) -> void:
 	var body := n.get_node("Body") as Node3D
 	var speed := (c["v"] as Vector2).length()
 	c["bob"] = float(c["bob"]) + dt * (6.0 + speed * 0.9)
-	body.position.y = 0.02 + sin(float(c["bob"]) * 3.1) * 0.006 * clampf(speed / 20.0, 0.0, 1.0)
+	body.position.y = float(n.get_meta("ride", 0.0)) + 0.02 + sin(float(c["bob"]) * 3.1) * 0.006 * clampf(speed / 20.0, 0.0, 1.0)
 	body.rotation = Vector3(c["pitch"], 0, c["roll"])
 	for w in ["FL", "FR", "RL", "RR"]:
 		var steer := n.get_node(w) as Node3D

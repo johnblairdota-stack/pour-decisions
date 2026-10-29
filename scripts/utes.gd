@@ -101,14 +101,42 @@ static func drivable(name: String, paint: Color) -> Node3D:
 		spin.add_child(wm)
 	return root
 
+## A lift kit raises the body this much (m)
+const LIFT := 0.05
+
 ## Fits the bought 4x4 kit (scripts/ute_kit.gd, assets/cars/ute_kit.glb) to a
-## drivable ute: each item's part goes under the Body, so it rides the springs.
+## drivable ute: each part goes under the Body so it rides the springs; mud
+## tyres swap onto every wheel and lift it all by UteKit.MUD_UP. How high the
+## body sits is left on the node as "ride" for explore.gd.
 static func apply_kit(node: Node3D, ute: String, kit: Array) -> void:
 	if kit.is_empty() or not ResourceLoader.exists("res://scripts/ute_kit.gd"):
 		return
 	var K: Script = load("res://scripts/ute_kit.gd")
 	var body := node.get_node("Body") as Node3D
+	var ride := 0.0
 	for item in kit:
-		var part = K.part(String(item), ute)
+		var it := String(item)
+		if it == "lift":
+			ride += LIFT
+			continue
+		if it == "mudtyres":
+			ride += K.MUD_UP
+			for w in ["FL", "FR", "RL", "RR"]:
+				var steer := node.get_node(w) as Node3D
+				var spin := steer.get_node("Spin") as Node3D
+				var tyre = K.part("mudtyres", ute)
+				if tyre == null:
+					break
+				steer.position.y += K.MUD_UP
+				for c in spin.get_children():
+					c.queue_free()
+				if steer.position.x < 0.0:
+					tyre.rotation.y = PI
+				spin.add_child(tyre)
+			continue
+		var part = K.part(it, ute)
 		if part is Node3D:
+			if it == "swag" and "drawers" in kit:
+				part.position.y = K.DRAWER_H
 			body.add_child(part)
+	node.set_meta("ride", ride)
