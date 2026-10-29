@@ -938,6 +938,8 @@ func kill_pump(p) -> void:
 			game.pop("%s · %.2f s" % [row[2], react], at + Vector3(0, 0.8, 0), Color("7cd992") if react < 1.0 else Color("ffc72c"))
 			break
 	game.sfx.hit("thunk")
+	if react < float(SPIKE_PAY[0][0]):
+		p.bark("%.1f s KILL" % react)
 	p.bounce()
 
 ## Back on after a spike: a stroke in reverse eases it, then forward again.

@@ -15,8 +15,7 @@ const CUE := preload("res://shaders/cue.gdshader")
 const PILL := preload("res://shaders/pill.gdshader")
 const UI := preload("res://scripts/ui.gd")
 const BALLOON := preload("res://shaders/balloon.gdshader")
-const BARK_SIZE := 30
-const BARK_WRAP := 330.0    # px of text before a spoken line wraps
+const HandSigns := preload("res://scripts/hand_signs.gd")
 const Settings := preload("res://scripts/settings.gd")
 const GOLD := Color("ffd23f")
 
@@ -336,27 +335,36 @@ func _hat_icon() -> void:
 		head.add_child(s)
 	s.texture = Icons.outlined(role, 96)
 	s.modulate = Color.WHITE
-## Said out loud: a small speech balloon that floats up off their head and
-## pops after a moment.
+## Said out loud, as a hand sign (hand_signs.gd): a round sign over their
+## head with a picture and a word, its colour by how much it matters, and
+## a bleep for each kind. Never a voice: the couch does the talking. One
+## sign per head; a new one replaces the last.
 func bark(text: String, seconds := 1.8) -> void:
 	var world := get_parent()
 	if world == null:
 		return
+	var sg: Dictionary = HandSigns.read(text)
+	var kind: String = sg["kind"]
+	var st: Dictionary = HandSigns.KINDS[kind]
 	var b: Label3D = bubble.duplicate()
-	b.text = text
-	b.font_size = BARK_SIZE
-	# The balloon fits the line: one line when it's short, wrapped onto two
-	# or three when it's long, never wider than BARK_WRAP
-	var font: Font = b.font if b.font else ThemeDB.fallback_font
-	var one := font.get_string_size(text, HORIZONTAL_ALIGNMENT_CENTER, -1, BARK_SIZE)
-	var px := one
-	if one.x > BARK_WRAP:
-		b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		b.width = BARK_WRAP
-		px = font.get_multiline_string_size(text, HORIZONTAL_ALIGNMENT_CENTER, BARK_WRAP, BARK_SIZE)
+	var word: String = sg["word"]
+	b.text = word
+	b.font = UI.font("head")
+	b.font_size = int(st["size"])
+	b.modulate = st["ink"]
 	b.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	var box := px * b.pixel_size + Vector2(0.36, 0.22)
-	var tail := 0.22
+	var px := b.font.get_string_size(word, HORIZONTAL_ALIGNMENT_CENTER, -1, b.font_size) if word != "" else Vector2(0, b.font_size)
+	# The picture on the left, the word after it, in a pill round both
+	var ic_px := float(b.font_size) * 1.5
+	var has_icon: bool = sg["icon"] != ""
+	var gap := 0.12 if word != "" and has_icon else 0.0
+	var ic := ic_px * b.pixel_size if has_icon else 0.0
+	var pad := Vector2(0.14, 0.12)
+	var box := Vector2(ic + gap + px.x * b.pixel_size, maxf(ic, px.y * b.pixel_size)) + pad * 2.0
+	var tail := 0.16
+	# (the label's origin is the middle of its text: push the text right so
+	# the whole sign, picture and word, is centred on it)
+	b.offset = Vector2((ic + gap) * 0.5 / b.pixel_size, 0)
 	var bg: MeshInstance3D = b.get_node("BubbleBg")
 	var qm := QuadMesh.new()
 	qm.size = Vector2(box.x, box.y + tail)
@@ -365,15 +373,35 @@ func bark(text: String, seconds := 1.8) -> void:
 	var mat: ShaderMaterial = (bg.material_override as ShaderMaterial).duplicate()
 	mat.set_shader_parameter("size", box)
 	mat.set_shader_parameter("tail", tail)
+	mat.set_shader_parameter("radius", box.y * 0.5)
+	mat.set_shader_parameter("fill", st["fill"])
+	mat.set_shader_parameter("edge", sg.get("edge", st["edge"]))
+	mat.set_shader_parameter("edge_w", 0.05)
 	bg.material_override = mat
+	if has_icon:
+		var spr := Sprite3D.new()
+		spr.texture = HandSigns.icon(sg["icon"], kind)
+		spr.pixel_size = ic / 96.0
+		spr.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		spr.no_depth_test = true
+		spr.render_priority = 21
+		spr.layers = 2
+		spr.shaded = false
+		spr.position = Vector3(-box.x * 0.5 + pad.x + ic * 0.5, 0, 0.01)
+		b.add_child(spr)
 	b.visible = true
 	world.add_child(b)
 	b.global_position = global_position + Vector3(0, 2.6, 0)
-	_balloons.append({"node": b, "mat": mat, "h": box.y + tail, "t": 0.0, "life": seconds + 0.6 + 0.04 * maxf(0.0, text.length() - 18.0), "base": b.global_position, "phase": randf() * TAU})
-	# (older balloons drift up out of the way)
-	while _balloons.size() > 3:
-		var old: Dictionary = _balloons.pop_front()
-		(old["node"] as Node).queue_free()
+	var life: float = maxf(float(st["life"]), seconds if kind in ["alarm", "slip", "call"] else 0.0)
+	# One sign per head: the last one goes
+	for old in _balloons:
+		if is_instance_valid(old["node"]):
+			(old["node"] as Node).queue_free()
+	_balloons.clear()
+	_balloons.append({"node": b, "mat": mat, "h": box.y + tail, "t": 0.0, "life": life + 0.3, "base": b.global_position, "phase": randf() * TAU, "kind": kind})
+	var sfx = world.get("sfx")
+	if sfx != null:
+		sfx.hit("sign_" + kind)
 
 func _update_balloons(delta: float, cam_pos: Vector3) -> void:
 	# Each balloon sits above the newer ones under it, however many lines
@@ -395,6 +423,9 @@ func _update_balloons(delta: float, cam_pos: Vector3) -> void:
 		# Floats up with a little bob, the way a balloon does, following its owner
 		var base: Vector3 = global_position + Vector3(0, 2.4 + 0.25 * bk, 0)
 		var sway := Vector3(0.12 * sin(t * 2.2 + float(e["phase"])), 0, 0)
+		if e.get("kind", "") == "alarm":
+			# (an alarm shakes)
+			sway = Vector3(0.06 * sin(t * 47.0), 0.03 * sin(t * 39.0), 0)
 		var rise := maxf(minf(0.55 * t, 0.5), float(e.get("stack", 0.0)))
 		e["rise"] = lerpf(float(e.get("rise", rise)), rise, minf(1.0, delta * 10.0))
 		b.global_position = base + Vector3(0, float(e["rise"]) + float(e.get("h", 0.6)) * 0.5, 0) * bk + sway * bk

@@ -4663,6 +4663,19 @@ func _unhandled_input(event: InputEvent) -> void:
 		cam_pitch = clampf(cam_pitch + mm.relative.y * 0.004, 0.15, 1.25)
 
 var _shot_only: Array = []
+var _signs_at := -1.0
+
+## Dev (`--only=handsigns`): everyone on the crew shows a different hand
+## sign at once, for the screenshot. True once they've grown in.
+func _signs_demo() -> bool:
+	if _signs_at < 0.0:
+		_signs_at = phase_t
+		var lines := ["On it!", "Kiri! Truck's waiting!", "Hopper's empty!", "Concrete's on!", "Ta!", "Hang on, phone!", "Stop!", "0.4 s KILL"]
+		var i := 0
+		for p in players:
+			p.bark(lines[i % lines.size()], 4.0)
+			i += 1
+	return phase_t - _signs_at > 0.5
 var _shot_key_now := ""   # (the HUD hides for a shot of the building)
 # Dev shots of the whole building from round about (yaw, pitch, focus height,
 # distance); game +z is north, +x is west
@@ -5207,6 +5220,8 @@ func _maybe_shot() -> void:
 		key = "trans2"
 	elif "trans3" in _shot_only and _split > 0.75 and _split < 0.98 and not _shots_taken.has("trans3"):
 		key = "trans3"
+	elif "handsigns" in _shot_only and phase == "pour" and _filled_ratio() > 0.12 and not _shots_taken.has("handsigns") and _signs_demo():
+		key = "handsigns"
 	elif "split" in _shot_only and phase == "pour" and _split >= 1.0 and _filled_ratio() > 0.3 and not _shots_taken.has("split"):
 		key = "split"
 	elif "docket" in _shot_only and phase == "pour" and line != null and line.needs_check() != null and line.needs_check()["checked"] and line.needs_check()["state"] == "bay" and line.right_call(line.needs_check()) != "use" and not _shots_taken.has("docket"):

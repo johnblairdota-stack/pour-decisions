@@ -178,7 +178,7 @@ func _ready() -> void:
 	_load_samples()
 
 ## kind: "bang", "clank", "thunk", "buzz", "ding", "clang", "tink", "hiss",
-## "knock", "ring", "thud", "beep", "whip", "rain", "birds",
+## "knock", "ring", "thud", "beep", "whip", "rain", "birds", "sign_<kind>" (hand_signs.gd),
 ## or "whistle:<code>" with a code from WHISTLES
 func hit(kind: String) -> void:
 	# Never stack: a new whistle replaces the one still sounding, and the same
@@ -192,6 +192,16 @@ func hit(kind: String) -> void:
 			if e[0] == kind and e[1] < 0.18:
 				return
 	_events.append([kind, 0.0])
+
+## One soft-edged beep of `f` Hz, `len` s long, starting `at` s into a hit
+## (a square wave when `hard`, for alarms).
+static func _pip(a: float, at: float, f: float, len: float, hard := false) -> float:
+	var u := a - at
+	if u < 0.0 or u > len:
+		return 0.0
+	var env := minf(1.0, u * 400.0) * minf(1.0, (len - u) * 200.0)
+	var w := sin(TAU * f * u)
+	return (signf(w) * 0.6 if hard else w) * env
 
 func toggle_mute() -> void:
 	muted = not muted
@@ -305,6 +315,25 @@ func _process(delta: float) -> void:
 					s += sin(TAU * (520.0 - 900.0 * a) * a) * exp(-a * 30.0) * 0.12
 				"chime":
 					s += (sin(TAU * 1568.0 * a) * 0.14 + sin(TAU * 2093.0 * a) * 0.08) * exp(-a * 6.0)
+				"sign_chat":
+					# Hand-sign bleeps: a pip for a chat line...
+					s += _pip(a, 0.0, 1760.0, 0.06) * 0.07
+				"sign_call":
+					# ...two rising pips when someone's being called...
+					s += (_pip(a, 0.0, 1320.0, 0.07) + _pip(a, 0.11, 1760.0, 0.07)) * 0.08
+				"sign_alarm":
+					# ...three quick hard ones for an alarm...
+					s += (_pip(a, 0.0, 2200.0, 0.05, true) + _pip(a, 0.08, 2200.0, 0.05, true) + _pip(a, 0.16, 2200.0, 0.05, true)) * 0.06
+				"sign_gold":
+					# ...a little rising run for a big moment...
+					s += (_pip(a, 0.0, 1318.5, 0.07) + _pip(a, 0.07, 1661.2, 0.07) + _pip(a, 0.14, 1975.5, 0.12)) * 0.08
+				"sign_thanks":
+					# ...a soft two-tone "ta"...
+					s += (_pip(a, 0.0, 1568.0, 0.06) + _pip(a, 0.09, 1174.7, 0.09)) * 0.07
+				"sign_slip":
+					# ...and a crackle of static for a bot that's switched off
+					if a < 0.22:
+						s += (randf() * 2.0 - 1.0) * (0.5 + 0.5 * sin(TAU * 31.0 * a)) * 0.035
 				"birds":
 					# A few quick rising chirps, the way the lorikeets
 					# turn up once the site goes quiet
