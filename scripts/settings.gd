@@ -14,13 +14,15 @@
 ##   band        the Site Band: the pour plays a tune out of the site's own noises
 ##   medals      the best medal (0 bronze, 1 silver, 2 gold; -1 not poured) for
 ##               each of Riverlight's floors, for the site page
+##   tut_done    this save's played the water tower (the site page stops picking it)
+##   tower_started  this save's started a pour on the building (the water tower card goes)
 extends RefCounted
 
 const PATH := "user://settings.cfg"
 const INCIDENT_NAMES := ["None", "Normal", "Busy", "Chaos"]
 const DOG_HELP_NAMES := ["First Day", "On Site", "Ticketed"]
 
-static var data := {"incidents": 1, "ui_scale": 1.25, "world_text": 1.25, "docket_help": false, "fullscreen": false, "gold_assist": true, "dog_help": 0, "real_names": true, "split": true, "band": true, "ver": 2, "medals": []}
+static var data := {"incidents": 1, "ui_scale": 1.25, "world_text": 1.25, "docket_help": false, "fullscreen": false, "gold_assist": true, "dog_help": 0, "real_names": true, "split": true, "band": true, "ver": 2, "medals": [], "tut_done": false, "tower_started": false}
 static var _loaded := false
 
 ## Camera test (not saved: it's for trying out the multiplayer cameras on

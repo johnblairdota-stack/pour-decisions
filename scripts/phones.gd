@@ -258,6 +258,8 @@ func _on_message(c: Dictionary, msg: String) -> void:
 			if game.pause_menu.visible:
 				game.pause_menu.phone_y = parts[2].to_float() if parts.size() >= 3 else 0.0
 				return
+			if p != null and p.cover_firm:
+				return   # (he's got this one till it's done)
 			if p != null and p.covering:
 				_uncover(c, p)
 			if p != null:
@@ -281,6 +283,8 @@ func _on_message(c: Dictionary, msg: String) -> void:
 					held[parts[1]] = true
 				else:
 					held.erase(parts[1])
+			if p != null and p.cover_firm:
+				return
 			if p != null and p.covering:
 				_uncover(c, p)
 			if p != null:
@@ -306,6 +310,8 @@ func _on_message(c: Dictionary, msg: String) -> void:
 ## they're holding on the phone right now carries straight on.
 func _uncover(c: Dictionary, p) -> void:
 	p.uncover()
+	if game.lead_hand:
+		game.lead_hand.stop(p, true)
 	for b in c["held"]:
 		_set_button(p, b, true)
 
@@ -418,7 +424,8 @@ func _send_state(c: Dictionary) -> void:
 			calls.append([k, int(round(rad_to_deg(atan2(s.y, s.x)) / 5.0)) * 5])
 		dog = {"t": "dog", "on": true, "c": calls, "lit": cl._call}
 	_json(c, "dog", dog)
-	_json(c, "nudge", {"t": "nudge", "lvl": int(game.nudge_level(p)) if game.has_method("nudge_level") else 0})
+	_json(c, "nudge", {"t": "nudge", "lvl": int(game.nudge_level(p)) if game.has_method("nudge_level") else 0,
+		"lh": game.lead_hand.lh_name() if game.lead_hand else "Macca", "firm": bool(p.cover_firm)})
 
 ## Who's on every job: {t, r: [{id, name, col, line, p (0: a bot), pc, who, lock}]}.
 func roster() -> Dictionary:

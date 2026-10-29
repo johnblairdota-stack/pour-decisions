@@ -21,6 +21,7 @@ const INK := UI.INK
 const MUTED := UI.MUTED
 const RED := UI.RED
 
+var lead_name := "Macca"   # who the leading hand is today (main sets it)
 var _root: Control
 var _top: Control          # the report and the briefing, above the street band
 # task
@@ -466,7 +467,7 @@ func set_crew(rows: Array, show := true) -> void:
 				2:
 					wait_txt = "%s · THE CREW'S CALLING" % who
 				3:
-					wait_txt = "LEADING HAND'S COVERING %s · PRESS ANYTHING" % who
+					wait_txt = "%s'S COVERING %s · PRESS ANYTHING" % [lead_name.to_upper(), who]
 	_crew_wait.text = wait_txt
 	_crew_wait.visible = wait_txt != ""
 	_crew_wait.add_theme_color_override("font_color", UI.GOLD if wait_lvl < 3 else UI.BONE)
@@ -837,6 +838,9 @@ func _hat_card(r: Dictionary, star: bool) -> PanelContainer:
 	why.custom_minimum_size = Vector2(122, 34)
 	why.max_lines_visible = 2
 	v.add_child(why)
+	if int(r.get("covered", 0)) > 0 and not bool(r["bot"]):
+		# The leading hand did some of it for them, and everyone sees it
+		v.add_child(UI.label("%s covered %d s" % [String(r.get("lh", "Macca")), int(r["covered"])], 13, UI.ALARM, 0))
 	if star:
 		var rib := UI.pill(UI.GOLD, Vector4(8, 1, 8, 2))
 		rib.add_child(UI.head("★ CREW STAR", 14, Color("2a1d00")))

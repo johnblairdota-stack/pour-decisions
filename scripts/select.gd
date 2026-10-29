@@ -24,9 +24,14 @@ const KITS := [
 	{"id": "line", "name": "Line pump", "sub": "Trailer pump, pipe run across the deck", "ok": false, "tag": "LATER CHAPTER"},
 	{"id": "mast", "name": "Mast boom", "sub": "Placing boom on a floor-climbing mast", "ok": false, "tag": "LATER CHAPTER"},
 ]
-## The site page's three cards, left to right (indices into KITS)
-const CARDS := [0, 2, 1]
-const CARD_TAG := ["PICKED FOR YOU", "NEW TO THIS?", "OTHER KIT"]
+## The site page's cards, left to right (indices into KITS). A fresh save
+## puts the water tower first and picks it; once the crew's poured on the
+## tower the water tower card goes (_arrange_cards).
+const CARDS_FRESH := [2, 0, 1]
+const CARDS_TUT_DONE := [0, 2, 1]
+const CARDS_ON_SITE := [0, 1]
+const CARD_TAGS := {"fresh": ["NEW? START HERE", "THE TOWER", "OTHER KIT"], "tut_done": ["PICKED FOR YOU", "THE WATER TOWER AGAIN", "OTHER KIT"], "site": ["PICKED FOR YOU", "OTHER KIT"]}
+var CARDS: Array = CARDS_TUT_DONE
 const FLOORS := 11
 const CLIMB_BEFORE := [4, 7, 10]   # levels that start with a climb day
 const RACK_ORDER := ["boom", "line", "pump", "hose", "poker", "screed"]
@@ -50,6 +55,7 @@ var _site_t := SITE_T
 var _t := 0.0
 var _floor_pick := 0          # 0-based
 var _card_i := 0              # which of CARDS
+var _card_state := ""         # "fresh", "tut_done" or "site"
 
 var _crew_page: Control
 var _site_page: Control
@@ -498,22 +504,22 @@ func _build_site_page(root: Control) -> void:
 	var cards := HBoxContainer.new()
 	cards.add_theme_constant_override("separation", 12)
 	rv.add_child(cards)
-	for ci in CARDS.size():
-		var k: Dictionary = KITS[CARDS[ci]]
+	for ki in [0, 2, 1]:
+		var k: Dictionary = KITS[ki]
 		var c := UI.panel(UI.TRACK, 16, Color("2c2f39"), 1, Vector4(16, 14, 16, 16))
 		c.custom_minimum_size = Vector2(220, 150)
 		cards.add_child(c)
 		var v := VBoxContainer.new()
 		v.add_theme_constant_override("separation", 4)
 		c.add_child(v)
-		var tg := UI.head(CARD_TAG[ci], 14, UI.DIM)
+		var tg := UI.head("", 14, UI.DIM)
 		v.add_child(tg)
 		v.add_child(UI.head(k["name"], 30, UI.BONE))
 		var sub := UI.label(Settings.branded(k["sub"]), 14, Color("b9b6ad"), 0)
 		sub.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		sub.custom_minimum_size = Vector2(186, 0)
 		v.add_child(sub)
-		_kit_cards.append({"card": c, "tag": tg})
+		_kit_cards.append({"card": c, "tag": tg, "kit": ki})
 	var later := UI.label("Later chapters: line pump · mast boom", 14, UI.DIM, 0)
 	rv.add_child(later)
 	_site_note = UI.label("", 17, UI.YELLOW, 0)
@@ -555,9 +561,32 @@ func _pick_defaults() -> void:
 	while done < m.size() and int(m[done]) >= 0:
 		done += 1
 	_floor_pick = clampi(done, 0, FLOORS - 1)
+	_arrange_cards(done)
 	_card_i = 0
 	index = CARDS[_card_i]
 	_refresh_site()
+
+## Has this save poured on the tower (or the truck boom) before? Then the
+## water tower's done its job and its card goes. Until then a crew that's
+## never played is pointed at it first.
+func _arrange_cards(done: int) -> void:
+	var on_site: bool = done > 0 or bool(Settings.value("tower_started"))
+	_card_state = "site" if on_site else ("tut_done" if bool(Settings.value("tut_done")) else "fresh")
+	CARDS = {"fresh": CARDS_FRESH, "tut_done": CARDS_TUT_DONE, "site": CARDS_ON_SITE}[_card_state]
+	var tags: Array = CARD_TAGS[_card_state]
+	var row: Node = null
+	for e in _kit_cards:
+		var c: Control = e["card"]
+		row = c.get_parent()
+		var at := CARDS.find(int(e["kit"]))
+		c.visible = at >= 0
+		if at >= 0:
+			(e["tag"] as Label).text = tags[at]
+	if row != null:
+		for at in CARDS.size():
+			for e in _kit_cards:
+				if int(e["kit"]) == CARDS[at]:
+					row.move_child(e["card"], at)
 
 func _refresh_site() -> void:
 	var m := _medals()
@@ -624,9 +653,8 @@ func _refresh_site() -> void:
 		h.add_child(d)
 		h.add_child(UI.label(ch[0], 16, UI.BONE, 0))
 		_lvl_chips.add_child(p)
-	for ci in _kit_cards.size():
-		var e2: Dictionary = _kit_cards[ci]
-		var on := ci == _card_i
+	for e2 in _kit_cards:
+		var on := int(e2["kit"]) == index
 		var sb2 := UI.style(e2["card"])
 		sb2.bg_color = Color("2a2410") if on else UI.CARD
 		sb2.border_color = UI.GOLD if on else Color("2c2f39")
