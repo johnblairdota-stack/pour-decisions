@@ -13,7 +13,7 @@ const Settings := preload("res://scripts/settings.gd")
 const SCALES := [1.0, 1.25, 1.5]
 const MAIN := [["Back to work", "resume"], ["Knock off", "explore"], ["Swap jobs", "swap"], ["Add a player", "join"],
 	["Settings", "settings"], ["Start again", "restart"], ["Exit", "quit"]]
-const SETTINGS := ["back", "incidents", "gold_assist", "dog_help", "docket_help", "ui_scale", "world_text", "split", "fullscreen", "sound", "band", "shake",
+const SETTINGS := ["back", "incidents", "gold_mode", "dog_help", "docket_help", "ui_scale", "world_text", "split", "fullscreen", "sound", "band", "shake",
 	"real_names", "cam_test"]
 const PAGE_TITLE := {"main": "SMOKO", "settings": "SETTINGS", "swap": "SWAP JOBS"}
 
@@ -232,8 +232,8 @@ func _refresh() -> void:
 			tags.remove_child(c)
 			c.queue_free()
 		match a:
-			"gold_assist":
-				l.text = "Gold assist: %s" % ("on" if Settings.value("gold_assist") else "off")
+			"gold_mode":
+				l.text = "Gold assist: %s" % Settings.GOLD_NAMES[int(Settings.value("gold_mode"))]
 			"dog_help":
 				l.text = "Dogman help: %s" % Settings.DOG_HELP_NAMES[int(Settings.value("dog_help"))]
 			"split":
@@ -388,7 +388,7 @@ func _note_for(action: String) -> String:
 		"settings":
 			return "Incidents, gold assist, text size, sound and the rest."
 		"restart":
-			return "Back to the crew page. Points so far are lost."
+			return "Back to the crew page. The crew's take for this pour is lost; wallets keep what's banked."
 		"explore":
 			return "Off the clock: no HUD, just you. Wander the streets and the riverwalk, catch the CityCat or take a ute for a drive. Hold B (or Q, or Esc) to come back to the job, right where you left it."
 		"quit":
@@ -416,8 +416,8 @@ func _note_for(action: String) -> String:
 			return "The camera follows " + ", ".join(names) + " as if people were playing them, plus you. Not saved."
 		"real_names":
 			return "Real: the real company, building and equipment names (used with permission). Lookalike: made-up names, for showing the game round."
-		"gold_assist":
-			return "On: a button lights up gold the moment it's the right time, or you're in the right spot, to press it. Off: read the job yourself."
+		"gold_mode":
+			return "Fades as you learn: a button lights up gold, with sparkle, the moment it's the right time to press it. As each person gets a job right the sparkle fades till only the button's left; slip up and it comes back. Full sparkle: always bright, for everyone. Off: read the job yourself."
 		"dog_help":
 			return "Climb days. First Day: the load barely swings, the crane driver's quick, and a see-through ghost shows where it stops if you call stop now. On Site: a real swing and a real driver, ghost still on. Ticketed: no ghost, a real dogman."
 		"fullscreen":
@@ -470,8 +470,8 @@ func _do(action: String) -> void:
 			Settings.cycle("world_text", SCALES)
 			if game.has_method("apply_world_text"):
 				game.apply_world_text()
-		"gold_assist":
-			Settings.put("gold_assist", not bool(Settings.value("gold_assist")))
+		"gold_mode":
+			Settings.put("gold_mode", (int(Settings.value("gold_mode")) + 1) % Settings.GOLD_NAMES.size())
 		"dog_help":
 			Settings.put("dog_help", (int(Settings.value("dog_help")) + 1) % Settings.DOG_HELP_NAMES.size())
 		"split":
