@@ -11,8 +11,8 @@ const QR := preload("res://scripts/qr.gd")
 const Settings := preload("res://scripts/settings.gd")
 
 const SCALES := [1.0, 1.25, 1.5]
-const MAIN := [["Back to work", "resume"], ["Swap jobs", "swap"], ["Add a player", "join"], ["Settings", "settings"],
-	["Start again", "restart"], ["Knock off", "quit"]]
+const MAIN := [["Back to work", "resume"], ["Knock off", "explore"], ["Swap jobs", "swap"], ["Add a player", "join"],
+	["Settings", "settings"], ["Start again", "restart"], ["Exit", "quit"]]
 const SETTINGS := ["back", "incidents", "gold_mode", "dog_help", "docket_help", "ui_scale", "world_text", "split", "fullscreen", "sound", "band", "shake",
 	"real_names", "cam_test"]
 const PAGE_TITLE := {"main": "SMOKO", "settings": "SETTINGS", "swap": "SWAP JOBS"}
@@ -115,6 +115,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 func toggle(who := -1) -> void:
+	if game.explore != null and game.explore.active:
+		# (the menu button while you're knocked off: back to the job)
+		game.explore.leave()
+		return
 	if visible:
 		close()
 	else:
@@ -385,8 +389,10 @@ func _note_for(action: String) -> String:
 			return "Incidents, gold assist, text size, sound and the rest."
 		"restart":
 			return "Back to the crew page. The crew's take for this pour is lost; wallets keep what's banked."
+		"explore":
+			return "Off the clock: no HUD, just you. Wander the streets and the riverwalk, catch the CityCat or take a ute for a drive. Hold B (or Q, or Esc) to come back to the job, right where you left it."
 		"quit":
-			return "Knock off for the day: closes the game."
+			return "Closes the game."
 		"incidents":
 			return ["Nothing goes wrong on the line. Just pour.",
 				"One clamp or blockage per pour, like a normal day.",
@@ -487,6 +493,13 @@ func _do(action: String) -> void:
 		"restart":
 			close()
 			get_tree().reload_current_scene()
+			return
+		"explore":
+			if game.explore != null and game.explore.can_enter():
+				visible = false
+				game.explore.enter(game.crew.human(_who))
+			else:
+				close()
 			return
 		"quit":
 			get_tree().quit()
