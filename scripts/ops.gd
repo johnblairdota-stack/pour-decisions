@@ -267,6 +267,12 @@ func role() -> String:
 func busy() -> bool:
 	return STEPS.has(stage)
 
+## How full the bin step is, 0..1: the button's concrete fill.
+func bin_progress() -> float:
+	if not wants_bin():
+		return -1.0
+	return clampf(1.0 - left / (SLURRY if stage == "slurry_out" else PUSH + WATER), 0.0, 1.0)
+
 ## The hose has to go over the bin now.
 func wants_bin() -> bool:
 	return stage in ["slurry_out", "push"]
