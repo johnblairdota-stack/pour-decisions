@@ -164,8 +164,10 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 #ghost.on{display:block;animation:tap 1.1s ease-in-out infinite}
 #ghost div{position:absolute;left:30%;top:20%;width:40%;height:62%;border-radius:45% 45% 40% 40%;background:rgba(255,255,255,.55);border:.5vmin solid rgba(255,255,255,.9);box-shadow:0 0 4vmin rgba(255,255,255,.5)}
 @keyframes tap{0%,100%{transform:translate(4vmin,6vmin) scale(1);opacity:.2}45%{transform:translate(0,0) scale(.92);opacity:1}60%{transform:translate(0,0) scale(.86);opacity:1}}
-#helping{position:absolute;left:34vw;width:33vw;bottom:4vmin;z-index:14;background:#2a2410;border:2px solid var(--gold);color:var(--bone);border-radius:3vmin;padding:1.6vmin 2.4vmin;font-size:3.1vmin;display:none}
-#helping.on{display:block}
+#helping{position:absolute;left:34vw;width:33vw;bottom:4vmin;z-index:14;background:#ffe95a;border:0.6vmin solid #c8170f;color:#1d1a14;border-radius:3vmin;padding:1.6vmin 2.4vmin;font-size:3.1vmin;display:none}
+#helping.on{display:block;animation:spray .16s infinite}
+#helping b{display:block;color:#a10d0d;font-size:4.2vmin;font-weight:800;line-height:1.1;margin-bottom:.6vmin}
+@keyframes spray{0%{transform:translate(0,0) rotate(-1deg)}50%{transform:translate(.4vmin,-.3vmin) rotate(1deg)}100%{transform:translate(-.3vmin,.2vmin) rotate(-.5deg)}}
 /* --- swap panel */
 #swap{position:absolute;left:20vw;width:60vw;top:2.6vmin;bottom:2.6vmin;border-radius:4.6vmin;background:#1b1e26;border:2px solid #3a3e4a;padding:3vmin;display:none;flex-direction:column;gap:2vmin;box-shadow:0 4vmin 9vmin rgba(0,0,0,.6);z-index:15;animation:flip .45s cubic-bezier(.3,1.3,.5,1) both}
 #swap.on{display:flex}
@@ -310,7 +312,7 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
     <div id="steps"></div>
     <div id="tfoot"></div>
   </div>
-  <div id="helping">The leading hand's helping with this step. Press anything to take it back.</div>
+  <div id="helping"><b></b><span></span></div>
   <div id="pad">
     <div class="btn" id="Y"><div class="ring"></div><div class="face"><div class="wet"></div><span>Y</span></div><div class="verb"><i></i><b></b></div></div>
     <div class="btn" id="B"><div class="ring"></div><div class="face"><div class="wet"></div><span>B</span></div><div class="verb"><i></i><b></b></div></div>
@@ -453,7 +455,7 @@ function onJson(j) {
   else if (j.t === 'card') { card = j; drawTicket(); drawLobby(); }
   else if (j.t === 'now') { now = j; drawSteps(); }
   else if (j.t === 'gauge') drawGauge(j);
-  else if (j.t === 'nudge') setNudge(j.lvl);
+  else if (j.t === 'nudge') { setNudge(j.lvl); setSpray(j); }
   else if (j.t === 'toast') toast(j.msg);
   else if (j.t === 'dog') drawDog(j);
   else if (j.t === 'wallet') onWallet(j);
@@ -560,6 +562,19 @@ function setNudge(l) {
   $('edge').classList.toggle('on', l >= 1 && screen === 'play');
   $('helping').classList.toggle('on', l >= 3);
   placeGhost();
+}
+// The leading hand covering: his spray on the phone too, bleeped
+const SPRAY = ['OI! WAKE UP, YA #@%&!', 'WHAT THE $#!@ ARE YA DOIN\'?!', 'MOVE YA %&#@ FEET!', 'MY NAN POURS FASTER, YA #@%&!', 'FAIR #%@& DINKUM!'];
+let sprayOn = false;
+function setSpray(j) {
+  const on = j.lvl >= 3;
+  if (on && !sprayOn) {
+    const h = $('helping');
+    h.querySelector('b').textContent = (j.lh || 'MACCA').toUpperCase() + ': ' + SPRAY[Math.floor(Math.random() * SPRAY.length)];
+    h.querySelector('span').textContent = j.firm ? 'He\'s doing this one. Watch where you go: that\'s the job.' : 'He\'s doing this step. Press anything to take it back.';
+    buzz([60, 40, 60, 40, 120]);
+  }
+  sprayOn = on;
 }
 function placeGhost() {
   const g = $('ghost');

@@ -178,7 +178,7 @@ func _ready() -> void:
 	_load_samples()
 
 ## kind: "bang", "clank", "thunk", "buzz", "ding", "clang", "tink", "hiss",
-## "knock", "ring", "thud", "beep", "whip", "rain", "birds",
+## "knock", "ring", "thud", "beep", "whip", "rain", "birds", "bleep", "bleep_s",
 ## or "whistle:<code>" with a code from WHISTLES
 func hit(kind: String) -> void:
 	# Never stack: a new whistle replaces the one still sounding, and the same
@@ -314,6 +314,11 @@ func _process(delta: float) -> void:
 							s += sin(TAU * (3000.0 + 9000.0 * u) * u) * sin(u / 0.09 * PI) * 0.06
 				"ding":
 					s += sin(TAU * 988.0 * a) * exp(-a * 3.5) * 0.2 + sin(TAU * 1318.0 * a) * exp(-a * 4.0) * 0.14
+				"bleep", "bleep_s":
+					# The TV censor's 1 kHz bleep over the leading hand's language
+					var bl := 0.42 if kind == "bleep" else 0.2
+					if a < bl:
+						s += sin(TAU * 1000.0 * a) * minf(1.0, minf(a, bl - a) * 120.0) * 0.2
 		# Soft limiter so stacked sounds never clip into a wall of noise
 		s = tanh(s * 1.1) * 0.85
 		buf[f] = Vector2(s, s)
