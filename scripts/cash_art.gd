@@ -1,8 +1,9 @@
 ## The crew's money. The pay that rises off the work is real Australian
-## notes: $5, $10, $20, $50 and $100, drawn in the look of the polymer notes
-## (tools/notes/make_notes.py -> assets/props/notes/note_<value>.png: each
-## note's colour, its window bird and wattle, the numerals; drawings, kept
-## inside the Reserve Bank's rules for images of banknotes). An amount is paid
+## notes: $5, $10, $20, $50 and $100, the Reserve Bank's own pictures of the
+## fronts (tools/notes/clean_notes.py -> assets/props/notes/note_<value>.png),
+## kept inside the Bank's rules for images of banknotes: under three-quarters
+## size at 72 dpi, the signature block with the Bank's name painted out, the
+## Bank's SPECIMEN stamps left on. An amount is paid
 ## in as few notes as make it up, fanned out. Also (tools/blender/cash.py,
 ## assets/props/cash.glb): a wad of notes, a leather wallet, and the wallet as
 ## SVG for the phones' wallet screen.
