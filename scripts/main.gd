@@ -2549,6 +2549,10 @@ func _slab_report(quality: float, verdict: String, medal: int, note: String, los
 		var cov := int(round(float(covered_t.get(role, 0.0))))
 		crew_rows.append({"role": role, "p": p.index, "bot": p.bot, "name": p.char_name, "pts": pts, "why": why if why != "" else "Kept out of trouble",
 			"covered": cov, "lh": lead_hand.lh_name()})
+		if role == "line" and line.wash.clean:
+			crew_rows[-1]["good"] = "Hopper hosed clean"
+		if role == "hose" and ops.ball_caught:
+			crew_rows[-1]["good"] = "Caught the sponge ball"
 		if role == "poker" and int(poker.calls["early"]) > 0:
 			crew_rows[-1]["early"] = int(poker.calls["early"])
 		if not p.bot:
@@ -3726,6 +3730,9 @@ func _handle_player(p, delta: float) -> void:
 	var near := _station_near(p)
 	if p.role == "pump":
 		_output_remote(p, delta, near)
+	# The washout: the truck hand hoses the hopper down
+	if p.role == "line" and line.wash.handle(p, delta):
+		return
 	if poker.handle_player(p, delta):
 		return
 	if screed.handle_player(p, delta, near):

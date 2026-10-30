@@ -176,10 +176,16 @@ func _tip(p) -> String:
 				return "Press A: concrete's on!"
 			"water_in":
 				return "Hold A at the PUMP PANEL: water in."
+			"ball_in":
+				return "Hold A at the PUMP PANEL: sponge ball in."
 			"push":
 				return "Hose over the BIN, hold A."
+			"catch":
+				return "Watch the hose end: A the moment the ball pops out."
 			"valve":
 				return "Hold A at the RELEASE VALVE."
+	if p.role == "line" and g.line.wash.wanted():
+		return "Washout: hose the HOPPER down, hold A."
 	if ops.busy() and p.role in ["boom", "hose"]:
 		return "Wait: the line's being primed." if not ops.primed else "Wait: washout under way."
 	match p.role:

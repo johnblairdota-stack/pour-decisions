@@ -330,8 +330,12 @@ Every pour starts by priming the line and ends by washing it out, the way a pump
 **Washout**, once the slab's full, using SCP's water washout ([SCP](https://scpaus.com.au/water-washout-clean-out-system/)): water pumped in behind the concrete pushes it out of the line, the last of it goes in a bin, then the water's blown back to the pump and into the settling tanks to be used again.
 
 1. **Water in.** Pump operator, hold A at the panel: the hopper's cleaned out and filled with water.
-2. **The last of it into the bin.** The boom puts the hose back over the BIN and pumps: the stream comes out grey (the last of the concrete), then blue (the water). Miss the bin and it lands on the finished slab.
-3. **Blow it back.** Pump operator, hold A at the RELEASE VALVE by the pump: the water runs down the blue hose into the SETTLING TANK beside it. The tank stands on a big blue ring on the ground (seen through trucks and people), with its name over it, and an arrow bobs over it while the water's to go back. Its water rises as it fills.
+2. **Sponge ball.** Pump operator, hold A at the panel again: the sponge ball goes in between the last of the concrete and the water, and wipes the line clean on its way up.
+3. **The last of it into the bin.** The boom puts the hose back over the BIN and pumps: the stream comes out grey (the last of the concrete), then blue (the water). Miss the bin and it lands on the finished slab.
+4. **Catch the ball.** The sponge ball pops out of the end hose: the hose hand presses A the moment it does and catches it (pays the hose hand and the pump operator). Miss it and it flies off onto the slab. A bot on the hose always catches it.
+5. **Blow it back.** Pump operator, hold A at the RELEASE VALVE by the pump: the water runs down the blue hose into the SETTLING TANK beside it. The tank stands on a big blue ring on the ground (seen through trucks and people), with its name over it, and an arrow bobs over it while the water's to go back. Its water rises as it fills.
+
+**Wash down.** The trucks are gone by the washout, so the truck hand grabs the hose gun and hoses the hopper down: grey slurry streaks run down its sides, and holding A facing the hopper knocks them off one by one, with the hiss of the jet. There's no fail state; get them all and the truck hand's report card says "Hopper hosed clean" in gold. (A person on the truck hand does it; bots leave it to the yard.)
 
 Nobody gets stuck on any of it. A step nobody's doing gets a loud call after 7 seconds (and crewmates cover a quiet person after 15), the radio calls are made by a bot hose hand on their own, and after 30 seconds the crew does the step themselves, for a points cost.
 
