@@ -190,9 +190,6 @@ func _tip(p) -> String:
 		"boom":
 			if p.busy != "boom":
 				return "Press A at the BOOM REMOTE."
-			var adv: Dictionary = g.speed_advice
-			if adv["want"] != "" and adv["level"] >= 1:
-				return "Press X: pump to %s." % adv["want"].to_upper()
 			if g.pipe_calls():
 				return "Steer the hose to the pipe guy."
 			if not line.pumping:
@@ -215,8 +212,17 @@ func _tip(p) -> String:
 				return "Hold A at the PUMP PANEL to restart."
 			if line.live and line.idle_t > line.SET_TIME * 0.5 and not line.line_down():
 				return "Press A at the PUMP PANEL: stroke it."
+			var adv: Dictionary = g.speed_advice
+			if adv["want"] != "" and adv["level"] >= 1:
+				return "Press X: pump to %s." % adv["want"].to_upper()
+			if line.chute_signalled() and line._pouring_truck():
+				var fill: float = line.hopper / line.HOPPER_CAP
+				if fill < line.HOP_BAND.x or fill > line.HOP_BAND.y:
+					return "Hold Y at the PANEL: stick up for more chute, down for less."
 			return "Watch the gauge. Red needle: press A."
 		"line":
+			if p.busy == "radio":
+				return "Flick the stick: tell the pump what's coming."
 			for tr in line.trucks:
 				if tr["state"] in ["called", "approach", "back"] and tr.get("spotter") != null:
 					return "Hold A to back it. Let go at STOP."
@@ -226,6 +232,8 @@ func _tip(p) -> String:
 					return "Too old: press B to send it back."
 				if chk["state"] == "docket":
 					return "Check the docket against the ORDER."
+				if chk.get("choice", false):
+					return "A: slump test it. Y: skip it (risk shown)."
 				if not chk["checked"]:
 					return "Slump test at the TRUCK BAY."
 				return "80 to 120: A. Stiff: X. Wet: B."

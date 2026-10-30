@@ -355,9 +355,7 @@ func _boom(p, delta: float) -> void:
 	# Keep the hopper from running dry: drop to low between trucks
 	var info: Dictionary = line.hud_info()
 	var feeding: bool = info["bay"] == "discharging"
-	# High or low on X, when the remote's X says it's worth switching
-	# (bronze bots only switch when it matters)
-	p.ai_alt = g.speed_advice["want"] != "" and (g.score.bot_tier > 0 or g.speed_advice["level"] >= 1) and _tap()
+	# (high or low output is the pump operator's now)
 	var ok: bool = line.hopper > 0.25 or feeding and line.hopper > 0.08
 	var why := "" if ok else "hopper"
 	if pour.raining or g.climb.wind_gust >= g.BOOM_WIND or line.line_down() or line.blocked:

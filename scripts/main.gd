@@ -3192,14 +3192,16 @@ func _update_pour(delta: float) -> void:
 		want = false
 	if _filled_ratio() >= 1.0 and ops.stage == "pour":
 		ops.start_washout()
-	# High or low output is the boom operator's call (X on the remote). With
-	# nobody on the remote the pump runs itself between them.
-	if op == null:
+	# High or low output is the pump operator's call (X on their belt remote).
+	# A bot on the pump (or someone being covered) runs it between them, and
+	# eases off when a stiff load starts to creep.
+	var pump_op = crew.crew.get("pump") if crew else null
+	if pump_op == null or not is_instance_valid(pump_op) or pump_op.bot or pump_op.covering:
 		var feeding := false
 		for t in line.trucks:
 			if t["state"] == "pour":
 				feeding = true
-		line.speed_high = feeding or line.hopper > line.HOPPER_CAP * (0.35 if line.speed_high else 0.55)
+		line.speed_high = (feeding or line.hopper > line.HOPPER_CAP * (0.35 if line.speed_high else 0.55)) and line.creep() < 0.35
 	speed_advice = _speed_advice()
 	var q := 0.0
 	if ops.primed and not ops.busy():
@@ -3453,6 +3455,37 @@ func _boom_operator():
 ## wet edge is getting old.
 var speed_advice := {"want": "", "level": 0, "why": ""}
 
+## X on the pump operator's belt remote: high or low output, from anywhere
+## but the truck bay (X is the bay's own there) and the ladder. The button only
+## shows when it's worth switching, and flashes red when it's urgent. A creep
+## on the gauge is yours to read once you know the job: the hint fades with
+## the gold.
+func _output_remote(p, delta: float, near: String) -> void:
+	if phase != "pour" or p.bot or p.covering or near == "bay" or p.zone not in ["ground", "deck"] or p.busy not in ["", "chute"]:
+		return
+	if not ops.primed or ops.busy():
+		return
+	var adv: Dictionary = speed_advice
+	var creep_hint: bool = adv["why"] == "pressure creeping"
+	var show_it: bool = adv["want"] != "" and (not creep_hint or gold_level(p) > 0.35)
+	if show_it:
+		var lv: int = adv["level"]
+		p.cue("alt", ("go " + adv["want"]) if lv == 0 else ("go %s: %s" % [adv["want"].to_upper(), adv["why"]]), -1.0, lv >= 1, Vector2(-1, -1), lv >= 2)
+		p.gold(creep_hint)
+	if adv["want"] != "" and adv["level"] >= 1:
+		_advice_t += delta
+	else:
+		_advice_t = 0.0
+	if p.alt_pressed():
+		var paid_before := int(line.stats.get("creep_caught", 0))
+		line.set_output(p, not line.speed_high)
+		# One payout per piece of advice that had been showing: no farming
+		# it by tapping X back and forth (a caught creep pays on its own)
+		if int(line.stats.get("creep_caught", 0)) == paid_before and adv["want"] == ("high" if line.speed_high else "low") and adv["level"] >= 1 and _advice_t >= 0.5 and pour_clock - _output_paid_at > 10.0:
+			_output_paid_at = pour_clock
+			score.award(p, 10, "Good call on the output")
+		hud.toast("Pump on %s" % ("HIGH" if line.speed_high else "LOW"), 1.2)
+
 func _speed_advice() -> Dictionary:
 	var none := {"want": "", "level": 0, "why": ""}
 	if phase != "pour" or line.line_down() or line.blocked:
@@ -3466,6 +3499,9 @@ func _speed_advice() -> Dictionary:
 	if line.speed_high:
 		if not line.pumping:
 			return none   # (only while it's actually pumping)
+		var cr: float = line.creep()
+		if cr > line.CREEP_SEEN:
+			return {"want": "low", "level": 2 if cr > 0.6 else 1, "why": "pressure creeping"}
 		if hop < 0.12 and not feeding:
 			return {"want": "low", "level": 2, "why": "hopper emptying"}
 		if hop < 0.3 and not feeding:
@@ -3640,25 +3676,6 @@ func _handle_player(p, delta: float) -> void:
 			# around it, but where you aim is what counts)
 			if not p.bot and not blocked_now and line.hopper > 0.1:
 				p.gold(pour.good_pour_spot(_pour_local(hose_end.global_position)))
-		# X: high or low output. The button only shows when it's worth
-		# switching, and flashes red when it's urgent (the hopper emptying).
-		var adv: Dictionary = speed_advice
-		if adv["want"] != "":
-			var lv: int = adv["level"]
-			p.cue("alt", ("go " + adv["want"]) if lv == 0 else ("go %s: %s" % [adv["want"].to_upper(), adv["why"]]), -1.0, lv >= 1, Vector2(-1, -1), lv >= 2)
-		if adv["want"] != "" and adv["level"] >= 1:
-			_advice_t += delta
-		else:
-			_advice_t = 0.0
-		if p.alt_pressed():
-			line.speed_high = not line.speed_high
-			# One payout per piece of advice that had been showing: no farming
-			# it by tapping X back and forth
-			if adv["want"] == ("high" if line.speed_high else "low") and adv["level"] >= 1 and _advice_t >= 0.5 and pour_clock - _output_paid_at > 10.0:
-				_output_paid_at = pour_clock
-				score.award(p, 10, "Good call on the output")
-			if not p.bot:
-				hud.toast("Pump on %s" % ("HIGH" if line.speed_high else "LOW"), 1.2)
 		if climb.wind_gust >= BOOM_WIND:
 			p.say("too windy")
 		elif line.line_down():
@@ -3673,6 +3690,8 @@ func _handle_player(p, delta: float) -> void:
 		return
 
 	var near := _station_near(p)
+	if p.role == "pump":
+		_output_remote(p, delta, near)
 	if poker.handle_player(p, delta):
 		return
 	if screed.handle_player(p, delta, near):
@@ -3915,7 +3934,7 @@ func _jobs() -> Array:
 	var hop: float = line.hopper / line.HOPPER_CAP
 	if t != null:
 		var tl := 2 if t["age"] > 80.0 or (t == line.bay_truck and hop < 0.2) else 1
-		add.call("bay", (t["node"] as Node3D).position + Vector3(-2.0, 4.2, 0), tl, "line", "TOO OLD: SEND IT BACK" if t.get("too_old", false) else "CHECK THE DOCKET" if t["state"] == "docket" else ("SLUMP TEST" if not t["checked"] else "MAKE THE CALL"))
+		add.call("bay", (t["node"] as Node3D).position + Vector3(-2.0, 4.2, 0), tl, "line", "TOO OLD: SEND IT BACK" if t.get("too_old", false) else "CHECK THE DOCKET" if t["state"] == "docket" else (("TEST OR SKIP" if t.get("choice", false) else "SLUMP TEST") if not t["checked"] else "MAKE THE CALL"))
 	elif line.can_wave_in() and (line.bay_truck == null or line.staged == null and hop < 0.6):
 		add.call("bay", st_pos.call("bay") + up, 1 if hop < 0.3 else 0, "line", "WAVE TRUCK IN")
 	# (a pressure spike gets no sign: the gauge close-up and the red A over
