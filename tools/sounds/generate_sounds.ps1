@@ -1,13 +1,15 @@
 # Makes the sounds in sound_list.json with ElevenLabs' sound effects API, on
 # Windows with nothing to install (the same job as generate_sounds.py).
 #
-#   powershell -ExecutionPolicy Bypass -File tools\sounds\generate_sounds.ps1 [-Out C:\path\sound_staging] [-Again]
+#   powershell -ExecutionPolicy Bypass -File tools\sounds\generate_sounds.ps1 [-Out C:\path\sound_staging] [-Again] [-Only name,name]
 #
 # The key comes from the ELEVENLABS_API_KEY user environment variable only and
 # is never printed. Each sound lands in <Out>\<folder>\<name>.mp3; ones already
 # made are skipped unless -Again.
-param([string]$Out = "", [switch]$Again)
+param([string]$Out = "", [switch]$Again, [string[]]$Only = @())
 
+# (-File hands "a,b" over as one string)
+$Only = @($Only | ForEach-Object { $_ -split ',' } | Where-Object { $_ })
 $key = $env:ELEVENLABS_API_KEY
 if (-not $key) { $key = [Environment]::GetEnvironmentVariable('ELEVENLABS_API_KEY', 'User') }
 if (-not $key) { Write-Error "Set ELEVENLABS_API_KEY first."; exit 1 }
@@ -17,6 +19,7 @@ $list = (Get-Content (Join-Path $PSScriptRoot "sound_list.json") -Raw -Encoding 
 
 $made = 0; $skipped = 0; $failed = @()
 foreach ($s in $list) {
+    if ($Only.Count -gt 0 -and -not ($Only -contains $s.name)) { continue }
     $dir = Join-Path $Out $s.folder
     $path = Join-Path $dir ($s.name + ".mp3")
     if ((Test-Path $path) -and -not $Again) { $skipped++; continue }

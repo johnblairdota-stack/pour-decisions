@@ -39,7 +39,7 @@
   {
    "folder": "loop",
    "name": "truck_beeper",
-   "text": "Heavy truck reversing alarm, a steady loud beep beep beep from a few metres away, diesel engine under it. No voices.",
+   "text": "Classic truck reversing beeper: a clean pure-tone beep, beep, beep at a steady even rhythm, about one beep per second, outdoors on a building site, quiet diesel idle under it. No voices.",
    "seconds": 6,
    "loop": true
   },
@@ -81,7 +81,7 @@
   {
    "folder": "loop",
    "name": "boom_hydraulics",
-   "text": "Concrete placing boom moving: smooth hydraulic whine and creak of a large steel arm. No voices.",
+   "text": "Hydraulic arm of a concrete pump truck moving slowly: smooth steady low hydraulic hum and gentle fluid whine at a constant level. No sudden peaks, no bangs, no clanks. No voices.",
    "seconds": 6,
    "loop": true
   },
@@ -95,7 +95,7 @@
   {
    "folder": "loop",
    "name": "hoist",
-   "text": "Construction personnel hoist climbing its mast: electric motor whine and rack and pinion rattle. No voices.",
+   "text": "Construction site elevator car riding up the outside of a building: smooth steady low electric motor hum with a soft gear rumble, constant and even, outdoors. No clicks, no bangs. No voices.",
    "seconds": 6,
    "loop": true
   },
@@ -256,7 +256,7 @@
   {
    "folder": "loop",
    "name": "screed",
-   "text": "A metal screed board dragged across wet concrete, a rough wet rasp, steady strokes. No voices.",
+   "text": "Wet concrete being levelled by hand with a long aluminium straight edge: slow heavy wet sliding swish and slop of thick concrete, outdoors on a building site. No motor, no machinery, no buzzing tools. No voices.",
    "seconds": 4,
    "loop": true
   },
