@@ -43,6 +43,7 @@ var hand_l: Node3D
 var tag: Label3D
 var prompt: Label3D       # short status only (heights, counts); actions use cues
 var _walk := 0.0
+var stepped := false        # a foot came down this frame (main plays the footstep)
 ## How worn out this crew member is, 0 (fresh) to 1 (cooked). Prototype for
 ## the smoko mechanic: they slouch, the head hangs and lolls, eyes go heavy,
 ## arms dangle, sweat drips and they walk slower.
@@ -798,6 +799,7 @@ func walk(delta: float, walkable: Callable, cam_yaw: float) -> void:
 		dir = to.normalized() if to.length() > 0.15 else Vector3.ZERO
 	run_to = Vector3.INF
 	var sp := speed * (0.7 if held_kind == "pipe" else 1.0) * (1.3 if hurry or run else 1.0) * (1.0 - 0.35 * weary) * pace
+	stepped = false
 	if dir.length() > 0.05:
 		var step := dir * sp * delta
 		var p := position
@@ -808,7 +810,9 @@ func walk(delta: float, walkable: Callable, cam_yaw: float) -> void:
 		position = p
 		model.rotation.y = lerp_angle(model.rotation.y, atan2(dir.x, dir.z), minf(1.0, delta * 12.0))
 		_moving = true
+		var was := floori(_walk / PI)
 		_walk += delta * (15.0 if hurry else 11.0)
+		stepped = floori(_walk / PI) != was
 	else:
 		_moving = false
 		_walk = lerpf(_walk, roundf(_walk / PI) * PI, minf(1.0, delta * 8.0))

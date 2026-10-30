@@ -162,7 +162,7 @@ func _work(who, st: Dictionary, holding: bool, delta: float, compact_t: float) -
 				st["done_t"] = 0.0
 				st["bled"] = false
 				st["raw0"] = maxi(1, pour.raw_count(local, R))
-				game.sfx.hit("plop")
+				game.sfx.hit("poker_glug")
 				return true
 			return false
 		"in":
