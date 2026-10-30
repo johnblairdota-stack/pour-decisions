@@ -3,15 +3,15 @@
 ## START-UP (priming), before any concrete goes in the slab:
 ##   1. START THE PUMP     pump operator, hold A at the PUMP PANEL
 ##   2. DRAGON'S BREATHING the pump pushes the air out of the line ahead of it:
-##                         hot air comes out the hose end. The pipe guy, on the
+##                         hot air comes out the hose end. The hose hand, on the
 ##                         hose, radios it down (A)
 ##   3. SLURRY IN          pump operator tips the bag of slurry (cement, sand and
 ##                         water) into the hopper (hold A at the panel). It
 ##                         coats the inside of the line so the concrete slides
 ##   4. SLURRY OUT         the slurry reaches the hose. It mustn't go in the
-##                         slab: the boom (and the pipe guy) put the hose over
+##                         slab: the boom (and the hose hand) put the hose over
 ##                         the BIN and pump it all in (hold A over the bin)
-##   5. CONCRETE'S ON      the first concrete comes through: the pipe guy radios
+##   5. CONCRETE'S ON      the first concrete comes through: the hose hand radios
 ##                         "concrete's on" (A) and the pour begins
 ##
 ## WASHOUT, once the slab's full (SCP's water washout: water pumped in behind
@@ -43,7 +43,7 @@ const BIN_R := 0.85          # m: the hose counts as over the bin inside this
 const TRAVEL_T := 2.4        # s for the air (and then the slurry) to reach the hose
 const NAG_T := 7.0           # s before a step's call goes out loud
 const AUTO_T := 30.0         # s before the crew does a step themselves
-const RADIO_AUTO_T := 4.0    # s a bot pipe guy (or nobody) takes to radio
+const RADIO_AUTO_T := 4.0    # s a bot hose hand (or nobody) takes to radio
 const SIGNAL_AIR := 2.4      # s into "air" when the hot air puffs out of the hose
 const SIGNAL_CONC := 0.6     # s into "concrete" when the first grey concrete spurts out
 const ON_THE_DOT := 1.2      # s after the sign to call it for the bonus
@@ -314,11 +314,11 @@ func panel(p, delta: float) -> bool:
 		hold = maxf(0.0, hold - delta)
 	return true
 
-## When the thing the pipe guy's waiting to call actually happens.
+## When the thing the hose hand's waiting to call actually happens.
 func signal_t() -> float:
 	return SIGNAL_AIR if stage == "air" else SIGNAL_CONC
 
-## The pipe guy on the radio: it's a timing call. Watch the end of the hose
+## The hose hand on the radio: it's a timing call. Watch the end of the hose
 ## and call it the moment it happens (the hot air puffing out; the first grey
 ## concrete coming through): on the dot is a bonus. True only on the frame the
 ## call's made (so the rest of the job, like taking the hose, still works).
@@ -427,7 +427,7 @@ func update(delta: float) -> void:
 	if stage == "slurry_go" and step_t >= TRAVEL_T:
 		_next()
 		return
-	# A bot pipe guy radios it in a moment; a person who misses it doesn't
+	# A bot hose hand radios it in a moment; a person who misses it doesn't
 	# hold anyone up: after a few seconds the crew carries on without the call
 	if role() == "hose":
 		var h = game.crew.crew.get("hose")
