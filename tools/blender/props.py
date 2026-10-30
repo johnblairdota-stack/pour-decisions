@@ -24,7 +24,8 @@ PALETTE = {
 	"fuel": "e5383b", "rubber": "1d1f23", "pipe": "dce1e6", "clamp": "c7d0da", "bin": "2f6fd1",
 	"bin_dark": "24559f", "rack": "e0a800", "tray": "2f8f6b", "wet": "8f949b", "timber": "b98a55",
 	"barrow": "3d7a4a", "tyre": "1d1f23", "rope": "d9c27a", "chain": "8a929c", "red": "e5383b",
-	"bucket": "2b2b2b", "wet_crust": "9b968a",
+	"bucket": "2b2b2b", "wet_crust": "9b968a", "foam": "e0412f", "foam_dark": "b8301f", "hose": "2f5d3a",
+	"nozzle": "ffc72c", "brass": "c9a24a",
 }
 
 
@@ -279,6 +280,78 @@ def rigging():
 	put("Shackle", [bow, pin])
 
 
+def rod(r, h, mat, segs=8, bevel=0.0):
+	"""A cylinder centred on the origin (kit's sits on y = 0), still upright."""
+	return cylinder(r, h, mat, segs, bevel=bevel).move(0, -h / 2, 0)
+
+
+def finishing_and_washout():
+	# The bull float, in two parts so the game can tilt the blade on its
+	# knuckle as the pole's pushed and pulled. The head: magnesium blade with
+	# its edges turned up, a ribbed back and the tilting bracket; origin at
+	# the bracket's pivot, blade underneath, long edge along x.
+	fblade = box(1.2, 0.012, 0.2, "alu", bevel=0.004, at=(0, -0.064, 0))
+	fblade.warp(lambda v: (v.x, v.y + 0.02 * (abs(v.z) / 0.1) ** 3, v.z))
+	ribs = [box(1.1, 0.014, 0.012, "alu", bevel=0.003, at=(0, -0.052, z)) for z in (-0.05, 0.05)]
+	ends = [box(0.012, 0.018, 0.18, "alu", bevel=0.003, at=(x, -0.05, 0)) for x in (-0.58, 0.58)]
+	base = box(0.16, 0.014, 0.08, "dark_steel", bevel=0.004, at=(0, -0.05, 0))
+	cheeks = [box(0.012, 0.05, 0.05, "dark_steel", bevel=0.004, at=(x, -0.025, 0)) for x in (-0.03, 0.03)]
+	knuckle = rod(0.022, 0.09, "dark_steel", 10).rot("z", math.pi / 2)
+	socket = rod(0.026, 0.12, "dark_steel", 10).rot("x", math.pi / 2).move(0, 0, -0.07)
+	put("BullFloatHead", [fblade, *ribs, *ends, base, *cheeks, knuckle, socket])
+	# The pole: three snap-together alloy sections, 4.8 m, from the bracket
+	# end (origin) back along -z to a rubber grip
+	pole = [rod(0.019, 4.8, "alu", 10).rot("x", math.pi / 2).move(0, 0, -2.4)]
+	for z in (-1.6, -3.2):
+		pole.append(rod(0.024, 0.08, "dark_steel", 10).rot("x", math.pi / 2).move(0, 0, z))
+		pole.append(cylinder(0.006, 0.05, "steel", 6).move(0, 0.02, z + 0.02))
+	pole.append(rod(0.026, 0.3, "grip", 10).rot("x", math.pi / 2).move(0, 0, -4.65))
+	pole.append(sphere(0.027, "grip", 10, 6, at=(0, 0, -4.8)))
+	put("BullFloatPole", pole)
+	# Washout sponge ball: soft red foam, about 150 mm, lumpy and open-celled
+	rng = random.Random(11)
+	bumps = [(rng.uniform(-1, 1), rng.uniform(-1, 1), rng.uniform(-1, 1), rng.uniform(0.004, 0.009)) for _ in range(40)]
+	ball = sphere(0.075, "foam", 24, 14)
+	def lumpy(v):
+		n = math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z) or 1.0
+		d = sum(b[3] * max(0.0, (v.x * b[0] + v.y * b[1] + v.z * b[2]) / n / math.sqrt(b[0] ** 2 + b[1] ** 2 + b[2] ** 2) - 0.8) * 5
+			for b in bumps)
+		k = (n + d - 0.006) / n
+		return (v.x * k, v.y * k, v.z * k)
+	ball.warp(lumpy)
+	pores = []
+	for _ in range(26):
+		a = rng.uniform(0, 2 * math.pi)
+		y = rng.uniform(-0.9, 0.9)
+		r = math.sqrt(1 - y * y) * 0.071
+		pores.append(sphere(rng.uniform(0.006, 0.011), "foam_dark", 6, 4, at=(math.cos(a) * r, y * 0.071, math.sin(a) * r)))
+	put("SpongeBall", [ball, *pores], at=(0, 0.075, 0))
+	# Wash-down gun: a trigger nozzle on the end of the truck's hose. Origin
+	# in the hand at the grip; it sprays forward along -z from the tip at
+	# (0, 0.07, -0.3); the hose leaves from the bottom of the grip.
+	grip = box(0.035, 0.13, 0.045, "nozzle", bevel=0.012, at=(0, -0.02, 0))
+	grip.rot("x", 0.25)
+	body = rod(0.026, 0.16, "nozzle", 12, bevel=0.006).rot("x", math.pi / 2).move(0, 0.07, -0.06)
+	trigger = box(0.018, 0.1, 0.02, "grip", bevel=0.006, at=(0, 0.0, -0.05))
+	trigger.rot("x", 0.35)
+	guard = tube([(0, 0.04, -0.12), (0, -0.04, -0.1), (0, -0.07, -0.02)], 0.006, "grip", 6)
+	barrel = rod(0.014, 0.12, "brass", 10).rot("x", math.pi / 2).move(0, 0.07, -0.2)
+	tip = lathe([(0.0, 0.0), (0.022, 0.0), (0.03, 0.03), (0.024, 0.04), (0.0, 0.04)], 14, "nozzle")
+	tip.rot("x", -math.pi / 2).move(0, 0.07, -0.26)
+	cuff = cylinder(0.02, 0.05, "brass", 10).move(0, -0.1, 0.02)
+	put("HoseGun", [grip, body, trigger, guard, barrel, tip, cuff])
+	# The end of the second tag line where it's tied to the climb section:
+	# a rope eye with its whipping, round a little shackle. Origin at the
+	# shackle pin; the rope hangs down -y (rope_fx draws the rest).
+	eye = torus(0.04, 0.011, "rope", 14, 6).rot("x", math.pi / 2).scale(1, 1.5, 1).move(0, -0.08, 0)
+	whip = rod(0.016, 0.06, "grip", 8).move(0, -0.17, 0)
+	tail = rod(0.012, 0.25, "rope", 6).move(0, -0.32, 0)
+	bow = tube(arc_points((0, -0.02, 0), 0.03, -math.pi / 2 - 0.3, math.pi / 2 + 0.3, 10, plane="xy"), 0.007,
+		"red", 6)
+	pin = rod(0.008, 0.09, "steel", 8).rot("z", math.pi / 2).move(0.0, 0.0, 0)
+	put("TagLineEye", [eye, whip, tail, bow, pin])
+
+
 def main():
 	reset()
 	screed_board()
@@ -291,6 +364,7 @@ def main():
 	hand_tools()
 	barrow()
 	rigging()
+	finishing_and_washout()
 	import bpy
 	for o in bpy.context.scene.objects:
 		if o.type == "MESH":

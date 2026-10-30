@@ -12,7 +12,8 @@ Or open Blender 5.2, Scripting tab, open the script and Run.
   (y up, +z = the way a character faces) so numbers match `scripts/factory.gd`.
 - `crew.py`: the crew (body, hard hat, the eight named looks, each job's kit).
 - `props.py`: tools in hand and on deck (screed, poker, clamp, pipe, slump kit,
-  hand tools, rigging) -> `assets/props/props.glb`.
+  hand tools, rigging, the two-part bull float, washout sponge ball, wash-down
+  gun, tag line eye) -> `assets/props/props.glb`.
 - `plant.py`: the agitator truck (cab, chassis, drum with livery spiral, chute)
   and the line pump with its hopper -> `assets/plant/plant.glb`.
 - `towers.py`: the boom tower's lattice sections, collar, turret and arms, the
@@ -76,6 +77,21 @@ Or open Blender 5.2, Scripting tab, open the script and Run.
   tent, awning, canopy, drawers, fridge, jerry cans, swag), each fitted to
   each ute as `kit_<item>_<ute>` -> `assets/cars/ute_kit.glb`, painted by
   `scripts/ute_kit.gd`.
+- `smoko.py`: the coffee van at the Angora Rd gate (hatch propped open on its
+  kerb side, counter, espresso machine, roof sign, A-frame menu board), a
+  pulp four-cup tray, a takeaway cup, a meat pie and a sausage roll ->
+  `assets/props/smoko.glb`, painted by `scripts/smoko_art.gd` (the food
+  without outlines).
+
+Effects that go with these models (Godot only, no Blender):
+
+- `scripts/poker_fx.gd`: the poker's air bubbles (swell, wobble, pop with a
+  ring and spatter), the churned froth round it, the glossy cream once the
+  spot's compacted and the bleed-water puddle if it's held too long.
+- `scripts/spray_fx.gd`: the wash-down jet from the `HoseGun` prop, drops
+  that arc and splash, and `hose()` for the hose itself.
+- `scripts/rope_fx.gd`: a sagging laid rope between two points (the climb
+  section's second tag line, tied on with the `TagLineEye` prop).
 
 Materials are named by what they are (`skin`, `vest`, `hat`, `tape` ...). The
 game replaces each with its own toon material and outline by that name
