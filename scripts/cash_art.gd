@@ -1,7 +1,11 @@
-## Site Cash: what the crew's money looks like (tools/blender/cash.py,
-## assets/props/cash.glb). A made-up note, coloured by its denomination, with
-## the amount printed in its middle panel; a wad of them; a leather wallet;
-## and the same note and wallet as SVG for the phones' wallet screen.
+## The crew's money. The pay that rises off the work is real Australian
+## notes: $5, $10, $20, $50 and $100, drawn in the look of the polymer notes
+## (tools/notes/make_notes.py -> assets/props/notes/note_<value>.png: each
+## note's colour, its window bird and wattle, the numerals; drawings, kept
+## inside the Reserve Bank's rules for images of banknotes). An amount is paid
+## in as few notes as make it up, fanned out. Also (tools/blender/cash.py,
+## assets/props/cash.glb): a wad of notes, a leather wallet, and the wallet as
+## SVG for the phones' wallet screen.
 extends RefCounted
 
 const F := preload("res://scripts/factory.gd")
@@ -9,7 +13,11 @@ const UI := preload("res://scripts/ui.gd")
 const LIB := "res://assets/props/cash.glb"
 
 ## The notes, smallest first, and their colours
-const DENOM := {5: Color("e070b0"), 10: Color("3f86d6"), 20: Color("e0503a"), 50: Color("e8b830"), 100: Color("3f9a6a")}
+const DENOM := {5: Color("a45fb8"), 10: Color("3b86cc"), 20: Color("e0582c"), 50: Color("e3ae1c"), 100: Color("3e9e4c")}
+## The real notes' lengths (mm; they're all 65 mm high): bigger notes are longer
+const NOTE_MM := {5: 130.0, 10: 137.0, 20: 144.0, 50: 151.0, 100: 158.0}
+## (more notes than this in one go and the fan shows the biggest, with the sum)
+const FAN_MAX := 5
 const INK := Color("203046")
 const PANEL := Color("f4efe0")
 const COLORS := {
@@ -24,6 +32,7 @@ const SIZE := Vector2(0.30, 0.15)
 static var _lib: Node
 static var _meshes := {}
 static var _mats := {}
+static var _note_mats := {}
 
 ## Which note an amount's paid in: the biggest that isn't more than it
 static func denom_for(amount: int) -> int:
@@ -36,27 +45,65 @@ static func denom_for(amount: int) -> int:
 static func color_for(amount: int) -> Color:
 	return DENOM[denom_for(amount)]
 
-## A note with "$<amount>" printed on both sides, coloured for the amount.
-## Stands up facing +z, its middle at the origin.
+## The notes that pay an amount: as few as make it up, biggest first
+## (whatever's under $5 is left off).
+static func notes_for(amount: int) -> Array:
+	var out: Array = []
+	var left := absi(amount)
+	for d: int in [100, 50, 20, 10, 5]:
+		while left >= d:
+			out.append(d)
+			left -= d
+	return out
+
+## One note, standing up facing +z, its middle at the origin, 0.15 m high
+## (as long as the real note is, for that height).
+static func note(value: int) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	mi.name = "Note%d" % value
+	var q := QuadMesh.new()
+	q.size = Vector2(SIZE.y * float(NOTE_MM.get(value, 130.0)) / 65.0, SIZE.y)
+	mi.mesh = q
+	if not _note_mats.has(value):
+		var m := StandardMaterial3D.new()
+		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		m.albedo_texture = load("res://assets/props/notes/note_%d.png" % value)
+		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
+		m.alpha_scissor_threshold = 0.5
+		m.cull_mode = BaseMaterial3D.CULL_DISABLED
+		m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+		_note_mats[value] = m
+	mi.material_override = _note_mats[value]
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	return mi
+
+## The pay for `amount`: the notes that make it up, fanned out like a hand
+## of cards, the biggest at the back, facing +z. Two or more notes get the
+## sum over the top.
 static func bill(amount: int) -> Node3D:
 	var root := Node3D.new()
 	root.name = "Bill"
-	var mi := MeshInstance3D.new()
-	mi.mesh = _mesh("cash_bill", denom_for(amount))
-	root.add_child(mi)
-	for side in [1.0, -1.0]:
+	var notes := notes_for(amount)
+	if notes.is_empty():
+		notes = [5]
+	var shown := notes.slice(0, FAN_MAX)
+	var n := shown.size()
+	for i in n:
+		var mi := note(int(shown[i]))
+		var k := float(i) - float(n - 1) * 0.5
+		mi.rotation.z = -0.16 * k
+		mi.position = Vector3(0.045 * k, -0.012 * absf(k), 0.004 * i)
+		root.add_child(mi)
+	if notes.size() > 1:
 		var l := Label3D.new()
-		l.text = "$%d" % amount
+		l.text = "$%d" % amount if amount < 1000 else "$%d,%03d" % [amount / 1000, amount % 1000]
 		l.font = UI.font("head")
 		l.font_size = 96
-		l.pixel_size = 0.0009 if amount < 1000 else 0.0007
+		l.pixel_size = 0.0008
 		l.modulate = INK
-		l.outline_size = 0
-		l.double_sided = false
-		l.position = Vector3(0.005, 0.0, 0.0027 * side)
-		if side < 0.0:
-			l.rotation.y = PI
-			l.position.x = -0.005
+		l.outline_size = 22
+		l.outline_modulate = Color(1, 1, 1, 0.92)
+		l.position = Vector3(0, SIZE.y * 0.5 + 0.045 + 0.01 * n, 0.03)
 		root.add_child(l)
 	return root
 
