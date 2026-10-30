@@ -87,6 +87,8 @@ const SLUMP_TOL := 20.0
 const WATER_HELD := 10.0                 # L/m³ the plant held back
 const SLUMP_PER_L := 4.5                 # mm of slump each L/m³ of water adds
 const SlumpScript := preload("res://scripts/slump.gd")
+const WashDown := preload("res://scripts/wash_down.gd")
+var wash: Node3D
 # The truck hand's other jobs on each load: spotting the truck back onto the
 # hopper (hold A to wave it on, let go on the mark), checking the docket of
 # a load that isn't due a test against the order (now and then it's the
@@ -626,6 +628,10 @@ func _build_pump() -> void:
 	radio_label.outline_size = 12
 	radio_label.visible = false
 	add_child(radio_label)
+	# The truck hand's wash-down of the hopper, at washout
+	wash = WashDown.new()
+	add_child(wash)
+	wash.setup(self)
 	if kit == "tower":
 		for sl in ["A", "B"]:
 			var pose: Array = _slot_pose(sl)
@@ -824,6 +830,8 @@ func start_pour(need: float, cfg: Dictionary) -> void:
 	_creep_caught = false
 	_radio_t = null
 	last_radio = ""
+	if wash:
+		wash.reset()
 	streak = 0
 	for t in trucks:
 		(t["node"] as Node).queue_free()
@@ -2244,6 +2252,8 @@ func update(delta: float, in_pour: bool) -> void:
 
 	if not reversing:
 		_reverser = null
+	if wash:
+		wash.update(delta)
 	# The chute signals' close-up only shows while someone's holding Y
 	if _chute_shown_at >= 0.0 and game.phase_t - _chute_shown_at > 0.15:
 		_chute_shown_at = -1.0
