@@ -37,7 +37,7 @@ var _arrows := {}             # key -> Arrow
 
 const NAMES := {"poker": "VIBRATE", "raw": "VIBRATE HERE", "boom": "PUMP", "screed": "SCREED",
 	"bay": "TRUCK", "panel": "PUMP PANEL", "joint": "CLAMP", "block": "BLOCKAGE", "spares": "CLAMP KIT",
-	"rack": "PIPE", "hook": "TAKE IT", "defect": "BAR CHAIR", "dogman": "DOGMAN", "tag": "TAG LINE",
+	"rack": "PIPE", "hook": "TAKE IT", "defect": "BAR CHAIR", "dogman": "DOGMAN", "tag": "TAG LINE", "tag2": "TAG LINE",
 	"rigger": "RIGGER", "rig0": "OUTRIGGER", "rig1": "OUTRIGGER", "rig2": "OUTRIGGER", "rig3": "OUTRIGGER"}
 const ORANGE := Color("ff8a1f")
 const RED := Color("ff3b30")

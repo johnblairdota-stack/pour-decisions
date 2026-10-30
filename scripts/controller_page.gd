@@ -108,6 +108,15 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 @keyframes nowpulse{0%,100%{box-shadow:0 0 0 0 rgba(255,210,63,0)}50%{box-shadow:0 0 0 1vmin rgba(255,210,63,.3)}}
 #tfoot{padding:1.4vmin 2.8vmin 2vmin;background:#e6e0d0;font-size:2.8vmin;color:#4d4a42}
 #tfoot b{color:#1b1a17}
+/* climb days: the smoko order on the ticket */
+#smoko{display:none;padding:1.2vmin 2.4vmin;border-bottom:1px dashed #c9c4b5;background:#fff3dc}
+#smoko.on{display:block}
+#smoko .h{font-size:3vmin;margin-bottom:1vmin}
+#smoko .row{display:flex;gap:1.2vmin}
+#smoko button{flex:1;font-size:2.7vmin;line-height:1.1;padding:1.2vmin .6vmin;border-radius:2vmin;border:2px solid #c9c4b5;background:#fff;color:#1b1a17;font-weight:700}
+#smoko button.on{border-color:var(--gold);background:#ffe9a6}
+#smoko.lock button{opacity:.55}
+#smoko.lock button.on{opacity:1}
 /* pump: the live gauge on the ticket */
 #gauge{display:none;position:relative;width:34vmin;height:25vmin;margin:1.4vmin auto 0}
 #gauge svg{width:100%;height:20vmin;display:block}
@@ -308,6 +317,7 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
       <span class="sw hd" id="tsw"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4L3 8l4 4"/><path d="M3 8h14"/><path d="M17 20l4-4-4-4"/><path d="M21 16H7"/></svg>SWAP</span>
     </button>
     <div id="goal"></div>
+    <div id="smoko"><div class="h"></div><div class="row"></div></div>
     <div id="gauge"><svg viewBox="0 0 100 56"><path d="M8 50 A42 42 0 0 1 92 50" fill="none" stroke="#1a1d24" stroke-width="9"/><path id="g1" fill="none" stroke-width="9"/><path id="g2" fill="none" stroke-width="9"/><path id="g3" fill="none" stroke-width="9"/><line id="needle" x1="50" y1="50" x2="50" y2="12" stroke="#1b1a17" stroke-width="3.4" stroke-linecap="round"/><circle cx="50" cy="50" r="5" fill="#1b1a17"/></svg><div class="read hd" id="gread">STEADY</div></div>
     <div id="steps"></div>
     <div id="tfoot"></div>
@@ -458,9 +468,19 @@ function onJson(j) {
   else if (j.t === 'nudge') { setNudge(j.lvl); setSpray(j); }
   else if (j.t === 'toast') toast(j.msg);
   else if (j.t === 'dog') drawDog(j);
+  else if (j.t === 'smoko') drawSmoko(j);
   else if (j.t === 'wallet') onWallet(j);
   else if (j.t === 'shop') { shop = j; if (walletOpen) drawWallet(); }
   else if (j.t === 'bought') onBought(j);
+}
+// Climb-day smoko: tap your order till the screeder's bought the lot
+function drawSmoko(j) {
+  const el = $('smoko');
+  el.classList.toggle('on', !!j.on);
+  if (!j.on) return;
+  el.classList.toggle('lock', !!j.lock);
+  el.querySelector('.h').innerHTML = '<b>SMOKO</b> ' + (!j.lock ? 'tap your order' : (j.st === 'got it' ? 'got it, enjoy' : 'on its way up'));
+  el.querySelector('.row').innerHTML = j.menu.map(m => '<button data-id="' + m[0] + '" class="' + (m[0] === j.pick ? 'on' : '') + '">' + m[1] + '<br>$' + m[2] + '</button>').join('');
 }
 // The dogman: each crane call sits round the stick the way you push for it
 let dogLit = '';
@@ -783,6 +803,7 @@ function setCount(c) {
 // ---------------------------------------------------------------- swap jobs on site
 let swapOpen = false, swapPick = '';
 $('thead').addEventListener('pointerdown', (e) => { e.preventDefault(); if (screen === 'play') openSwap(); });
+$('smoko').addEventListener('pointerdown', (e) => { const b = e.target.closest('button'); if (!b || $('smoko').classList.contains('lock')) return; e.preventDefault(); send('order ' + b.dataset.id); buzz(BUZZ.press); });
 $('swapx').addEventListener('pointerdown', (e) => { e.preventDefault(); closeSwap(); });
 function openSwap() { swapOpen = true; swapPick = ''; endStick(); $('swap').classList.add('on'); $('zone').classList.add('off'); drawSwap(); buzz(BUZZ.press); }
 function closeSwap() { swapOpen = false; $('swap').classList.remove('on'); $('zone').classList.remove('off'); }

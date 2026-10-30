@@ -91,6 +91,7 @@ const DECK_STATIONS := {
 	"screed": {"pos": Vector3(-21.2, 0, -18.8), "label": "SCREED", "color": Color("f4f7fa")},
 	"ladder": {"pos": Vector3(13.6, 0, 1.6), "label": "LADDER", "color": Color("7cd992")},
 	"tag": {"pos": Vector3(8.85, 0, -1.8), "label": "TAG LINE", "color": Color("d9c27a")},
+	"tag2": {"pos": Vector3(8.85, 0, -4.4), "label": "TAG LINE 2", "color": Color("c9d97a")},
 	"dogman": {"pos": Vector3(8.85, 0, 2.85), "label": "DOGMAN", "color": Color("4fa3ff")},
 	"rigger": {"pos": Vector3(13.4, 0, -1.6), "label": "RIGGER", "color": Color("ff7a1a")},
 	"poker": {"pos": Vector3(1.5, 0, 1.0), "label": "POKER", "color": Color("c49bff")},
@@ -114,6 +115,7 @@ const GROUND_STATIONS := {
 	"pins": {"pos": Vector3(12.2, 0, 6.4), "label": "PIN BAGS", "color": Color("ff7a1a")},
 	"sling": {"pos": Vector3(1.0, 0, 8.6), "label": "LAYDOWN", "color": Color("ff7a1a")},
 	"valve": {"pos": Vector3(16.4, 0, 10.0), "label": "RELEASE VALVE", "color": Color("ff7a1a")},
+	"van": {"pos": Vector3(31.0, 0, 12.1), "label": "COFFEE VAN", "color": Color("f4f7fa")},
 }
 const PLAYER_COLORS := UI.P_COLORS
 const ACTION_NAMES := ["Space", "Enter", "A", "A"]
@@ -1011,7 +1013,7 @@ var _tut_nodes: Array = []
 const TUT_DECK := {
 	"boom": Vector3(4.57, 0, 4.84), "screed": Vector3(-4.0, 0, -3.4), "dogman": Vector3(4.57, 0, 4.84),
 	"poker": Vector3(1.5, 0, 4.0), "hoist": Vector3(-5.9, 0, 4.6), "pinsets": Vector3(-2.6, 0, 4.6),
-	"bin": Vector3(3.33, 0, -5.76), "tag": Vector3(8.85, 0, 4.0),
+	"bin": Vector3(3.33, 0, -5.76), "tag": Vector3(8.85, 0, 4.0), "tag2": Vector3(8.85, 0, 1.6),
 }
 ## ...and the hoist stands off the tank on the street.
 const TUT_HOIST_Z := 8.4
@@ -1246,10 +1248,10 @@ func _build_site() -> void:
 	climb.finished.connect(_on_climb_done)
 
 ## Which job works at each station: its spot and name are in that job's colour.
-const STATION_ROLE := {"boom": "boom", "dogman": "boom", "screed": "screed", "poker": "poker", "tag": "poker",
+const STATION_ROLE := {"boom": "boom", "dogman": "boom", "screed": "screed", "poker": "poker", "tag": "poker", "tag2": "hose",
 	"rigger": "pump", "ladder": "pump", "ladder_g": "pump", "pinsets": "line", "bay": "line", "panel": "pump",
 	"spares": "pump", "haul": "line", "rack": "pump", "rig0": "pump", "rig1": "pump", "rig2": "pump",
-	"rig3": "pump", "pins": "line", "sling": "line", "bin": "boom", "hose": "hose", "valve": "pump"}
+	"rig3": "pump", "pins": "line", "sling": "line", "bin": "boom", "hose": "hose", "valve": "pump", "van": "screed"}
 
 func _make_station(key: String, def: Dictionary, parent: Node3D, zone: String) -> void:
 	if STATION_ROLE.has(key):
@@ -2829,7 +2831,7 @@ func _process(delta: float) -> void:
 		# shows with the `--weary` dev flag
 		var tired: float = 0.75 if _weary_all else 0.0
 		p.weary = move_toward(p.weary, tired, delta * 0.6)
-		p.speed = 6.0 * screed.speed_k(p) * poker.speed_k(p) * (HOSE_WALK_K if p.busy == "hose" else 1.0)
+		p.speed = 6.0 * screed.speed_k(p) * poker.speed_k(p) * climb.smoko.speed_k() * (HOSE_WALK_K if p.busy == "hose" else 1.0)
 		if phase != "sign":
 			p.walk(delta, Callable(self, "_walkable").bind(p), cam_yaw)
 		if tutorial and p.zone == "deck" and p.busy == "" and not _walkable(p.position, "deck"):
@@ -3019,6 +3021,10 @@ func _process(delta: float) -> void:
 	# trucks)
 	if autotest and phase_t > 8.0 * 60.0:
 		push_error("[autotest] stuck in phase %s at level %d (%.0fs)" % [phase, k + 1, phase_t])
+		for q in players:
+			print("[autotest]   %s: zone %s busy '%s' held '%s' at %s" % [q.role, q.zone, q.busy, q.held_kind, q.position])
+		if climb.active:
+			print("[autotest]   climb stage %s pin_i %d pin_sub %s bundle %s pinsets %d" % [climb.stage, climb.pin_i, climb.pin_sub, climb.bundle_state, climb.pinsets])
 		get_tree().quit(1)
 	if autotest and _frames > 60 * 60 * 60:
 		push_error("[autotest] timed out in phase %s at level %d" % [phase, k + 1])
@@ -3407,7 +3413,7 @@ func _station_visible(key: String) -> bool:
 	if handover != null:
 		return false
 	match key:
-		"tag":
+		"tag", "tag2":
 			return climb.active and climb.stage in ["fly", "guide"]
 		"boom":
 			return not climb.active   # (the same spot's the dogman's on a climb day)
@@ -3435,6 +3441,8 @@ func _station_visible(key: String) -> bool:
 			return phase == "pour" and ops.wants_bin()
 		"valve":
 			return phase == "pour" and ops.stage == "valve"
+		"van":
+			return climb.active and climb.smoko.stage == "run"
 	return true
 
 func _station_near(p) -> String:
@@ -3930,6 +3938,10 @@ func _jobs() -> Array:
 			add.call("dogman", st_pos.call("dogman") + up, 1 if climb.stage == "guide" else 0, "boom")
 		if climb.tag_ready() and climb.tag_hand == null:
 			add.call("tag", st_pos.call("tag") + up, 0, "poker")
+		if climb.tag_ready(1) and climb.tag_hand2 == null:
+			add.call("tag2", st_pos.call("tag2") + up, 0, "hose")
+		if climb.smoko.stage == "run" and climb.smoko.runner != null and not climb.smoko.runner.bot:
+			add.call("van", st_pos.call("van") + up, 0, "screed")
 		if climb.stage in ["jack", "roll", "pin"] and not has.has("rigger"):
 			add.call("rigger", st_pos.call("rigger") + up, 1, "pump")
 		if climb.needs_sling() and climb.sling_prog <= 0.0:
@@ -5520,6 +5532,14 @@ func _maybe_shot() -> void:
 		key = "docket"
 	elif "tutorial" in _shot_only and tutorial and phase == "pour" and _filled_ratio() > 0.45 and not _shots_taken.has("tutorial"):
 		key = "tutorial"
+	elif "tag2" in _shot_only and climb.active and climb.stage == "guide" and climb._steady_t > 1.0 and not _shots_taken.has("tag2"):
+		key = "tag2"
+	elif "smokovan" in _shot_only and climb.active and climb.smoko._buy > 0.8 and not _shots_taken.has("smokovan"):
+		key = "smokovan"
+	elif "smokohand" in _shot_only and climb.active and climb.smoko.stage == "back" and sc.zone == "deck" and climb.smoko.owed.size() < 5 and not _shots_taken.has("smokohand"):
+		key = "smokohand"
+	elif "climbwash" in _shot_only and climb.active and line.wash.climb_dirty and climb.stage == "fly" and not _shots_taken.has("climbwash"):
+		key = "climbwash"
 	elif "sling" in _shot_only and climb.needs_sling() and climb.sling_prog > 0.5 and not _shots_taken.has("sling"):
 		key = "sling"
 	elif "layout" in _shot_only and phase == "pour" and line != null and line.bay_truck != null and line.staged != null and _filled_ratio() > 0.2 and not _shots_taken.has("layout"):

@@ -120,8 +120,15 @@ func _tip(p) -> String:
 					if p.held_kind == "pins":
 						return "Take the bag to the HAUL ROPE: A."
 					return "Grab a PIN BAG at the tower foot: A."
+				if game.line.wash.wanted():
+					return "Hose the hopper down: hold A at the hopper."
 				return "Done. Watch it fly."
 			"screed":
+				match climb.smoko.stage:
+					"run":
+						return "Smoko run: down to the COFFEE VAN at the gate, hold A."
+					"back":
+						return "Up the hoist with the tray. Hand each order over: A."
 				return "Nothing to do. Have a breather."
 			"boom":
 				if climb.stage in ["jack", "fly"]:
@@ -133,6 +140,11 @@ func _tip(p) -> String:
 					if climb.tag_hand == p:
 						return "Keep holding A on the tag line."
 					return "Wait at TAG LINE, then hold A."
+			"hose":
+				if climb.stage in ["fly", "guide"]:
+					if climb.tag_hand2 == p:
+						return "Keep holding A on the second tag line."
+					return "Wait at TAG LINE 2, then hold A."
 			"pump":
 				if p.busy != "rigger":
 					return "Go to RIGGER and press A."
