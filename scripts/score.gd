@@ -15,7 +15,7 @@ const CashArt := preload("res://scripts/cash_art.gd")
 ## square metre, so on the full-size slab it pays less a cell; the calls and
 ## the quick reactions, where a person makes the difference, pay more.
 const RATE := {
-	"Screeding": 0.35, "Poker": 0.9, "Concrete placed": 0.9, "On the end hose": 1.2,
+	"Screeding": 0.25, "Poker": 0.9, "Concrete placed": 0.9, "On the end hose": 1.2,
 	"Spikes killed": 3.0, "Clamp swapped before it burst": 2.0, "Line repairs": 2.0,
 	"Blockage found by tap test": 2.0, "Safety pins in": 1.5, "Pump restarted": 1.0,
 	"Good loads in": 2.0, "Bad loads turned away": 3.0, "Slump tests": 1.5,
@@ -24,7 +24,7 @@ const RATE := {
 }
 
 ## The crew's ladder, in dollars banked over the chapter. A bronze crew
-## takes about $30,000 a slab, so top-out is around Site Super; Legend
+## takes about $25,000 a slab, so top-out is around Site Super; Legend
 ## takes a crew that pours better than the bots.
 const RANKS := [
 	[0, "Labourer"],
@@ -32,8 +32,8 @@ const RANKS := [
 	[70000, "Concreter"],
 	[130000, "Leading Hand"],
 	[200000, "Foreman"],
-	[290000, "Site Super"],
-	[400000, "Concrete Legend"],
+	[260000, "Site Super"],
+	[370000, "Concrete Legend"],
 ]
 const GOLD := Color("ffd23f")
 const POP := Color("ffffff")   # points rising off people: white (gold means the assist)
@@ -123,11 +123,30 @@ func rank_frac() -> float:
 func next_rank() -> String:
 	return RANKS[rank_i + 1][1] if rank_i < RANKS.size() - 1 else ""
 
+## Pay comes in real notes: under $150 a job pays the one note nearest its
+## rate ($5, $10, $20, $50 or $100, judged on a log scale, so $35 is a $50
+## and $25 a $20); more than that rounds to $50s and comes as a fan of notes.
+const NOTE_VALUES := [5, 10, 20, 50, 100]
+
+static func to_notes(dollars: int) -> int:
+	var a := absi(dollars)
+	if a == 0:
+		return 0
+	var r := 0
+	if a < 150:
+		r = 5
+		for v: int in NOTE_VALUES:
+			if absf(log(float(a) / float(v))) < absf(log(float(a) / float(r))):
+				r = v
+	else:
+		r = int(roundf(float(a) / 50.0)) * 50
+	return r * signi(dollars)
+
 ## Points for `who` (a crew chibi, or null for the whole crew), shown as a
 ## "+N" rising off them. `why` groups it on the slab report.
 func award(who, pts: int, why: String, at := Vector3.INF) -> void:
 	var base := why.split(" (")[0]
-	pts = int(roundf(float(pts) * float(RATE.get(base, 1.0)) * Wallet.CASH))
+	pts = to_notes(int(roundf(float(pts) * float(RATE.get(base, 1.0)) * Wallet.CASH)))
 	if pts == 0:
 		return
 	total = maxi(0, total + pts)
@@ -220,8 +239,8 @@ func _pop(who, pts: int, at: Vector3) -> void:
 	_dress(e)
 	_pops.append(e)
 
-## Pay is a Site Cash note (cash_art.gd) with the amount printed on it;
-## money docked is the amount in red.
+## Pay is the real notes that make it up, fanned out (cash_art.gd); money
+## docked is the amount in red.
 func _dress(e: Dictionary) -> void:
 	var v: int = e["amount"]
 	var l: Label3D = e["label"]
