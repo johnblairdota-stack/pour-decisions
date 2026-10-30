@@ -432,7 +432,15 @@ func _hose(p, delta: float) -> void:
 	var pour = g.pour
 	if _cover_defect(p):
 		return
-	if g.climb.active or g.phase != "pour":
+	if g.climb.active:
+		# The second tag line: same as the poker hand's, off the other corner
+		if p.busy == "tag2":
+			p.ai_action = true
+			return
+		if go(p, "deck", _deck("tag2"), 0.45):
+			p.ai_action = g.climb.tag_ready(1) and g.climb.tag_hand2 == null
+		return
+	if g.phase != "pour":
 		if p.busy == "" and g.phase != "pour":
 			go(p, "deck", _deck("poker") + Vector3(-2.0, 0, -2.0), 0.6)
 		return
@@ -868,6 +876,8 @@ func _screed_inner(p, delta: float) -> void:
 	if g.phase == "inspect" and not g.defect_fixed:
 		if go(p, "deck", Vector3(g.defect.position.x, wy, g.defect.position.z), 0.6):
 			p.ai_action = true
+		return
+	if g.climb.active and g.climb.smoko.bot_step(p, self):
 		return
 	if g.phase != "pour" or g.climb.active:
 		_spot_tries.clear()

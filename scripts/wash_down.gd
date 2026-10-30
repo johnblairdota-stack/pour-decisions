@@ -2,6 +2,9 @@
 ## they hose the hopper clean, stripe by stripe. Grey slurry streaks down the
 ## hopper; hold A facing it and the hose gun knocks the nearest streak off.
 ## No fail state: a clean hopper is a note on the truck hand's report card.
+## On climb days there's no washout, but the truck hand gets a gap once the
+## section's slung and the pins are up: the hopper's grimy from the pumping
+## line being blown through, so they hose it down then.
 ## (A person on the truck hand does it; bots leave it for the yard.)
 extends Node3D
 
@@ -21,6 +24,7 @@ var spray: Node3D
 var _holder = null
 var _hiss_t := 0.0
 var clean := false                 # every streak off this pour
+var climb_dirty := false           # streaks to hose off in a climb day's gap
 
 func setup(owner_line) -> void:
 	line = owner_line
@@ -51,8 +55,21 @@ func reset() -> void:
 		_stripes[k].visible = false
 	_put_away()
 
+## A climb day: the hopper's grimy again, for the truck hand's gap.
+func begin_climb() -> void:
+	reset()
+	climb_dirty = true
+
 func wanted() -> bool:
-	return game.phase == "pour" and game.ops.stage in game.ops.WASH_ORDER and not clean
+	if game.phase == "pour" and game.ops.stage in game.ops.WASH_ORDER and not clean:
+		return true
+	return climb_dirty and in_climb_gap()
+
+## The truck hand's climb-day jobs are done: the section's slung and the pins
+## are up (or on their way), so there's nothing for them till it lands.
+func in_climb_gap() -> bool:
+	var c = game.climb
+	return c != null and c.active and not c.needs_sling() and not c.needs_pins()
 
 ## The truck hand during the washout. True while they're on the hose.
 func handle(p, delta: float) -> bool:
@@ -102,6 +119,7 @@ func handle(p, delta: float) -> bool:
 		game.sfx.hit("hiss")
 	if _left() <= 0.0:
 		clean = true
+		climb_dirty = false
 		game.pop("Hopper's clean", hop + Vector3(0, 2.6, 0), Color("7cd992"))
 		_put_away()
 	return true
@@ -136,7 +154,7 @@ func _put_away() -> void:
 
 func update(_delta: float) -> void:
 	# The streaks show once the washout's on, till they're hosed off
-	var on: bool = game.phase == "pour" and game.ops.stage in game.ops.WASH_ORDER
+	var on: bool = (game.phase == "pour" and game.ops.stage in game.ops.WASH_ORDER) or (climb_dirty and game.climb != null and game.climb.active)
 	for k in STRIPES:
 		_stripes[k].visible = on and _dirt[k] > 0.0
 	if not wanted() and _holder != null:

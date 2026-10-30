@@ -258,6 +258,11 @@ func _on_message(c: Dictionary, msg: String) -> void:
 					game.sfx.hit("ding")
 				(c["ws"] as WebSocketPeer).send_text("J " + JSON.stringify({"t": "bought", "id": parts[1], "why": why}))
 			return
+		"order":
+			# A smoko order on climb days (scripts/smoko_run.gd)
+			if c["player"] != null and parts.size() >= 2 and game.climb != null:
+				game.climb.smoko.pick(c["player"], parts[1])
+			return
 		"wallet":
 			# (the wallet's open: the chibi stands still meanwhile)
 			if c["player"] != null:
@@ -453,6 +458,8 @@ func _send_state(c: Dictionary) -> void:
 			calls.append([k, int(round(rad_to_deg(atan2(s.y, s.x)) / 5.0)) * 5])
 		dog = {"t": "dog", "on": true, "c": calls, "lit": cl._call}
 	_json(c, "dog", dog)
+	if cl != null and cl.smoko != null:
+		_json(c, "smoko", cl.smoko.phone_state(p))
 	_json(c, "nudge", {"t": "nudge", "lvl": int(game.nudge_level(p)) if game.has_method("nudge_level") else 0,
 		"lh": game.lead_hand.lh_name() if game.lead_hand else "Macca", "firm": bool(p.cover_firm)})
 	_json(c, "wallet", wallet(p))
