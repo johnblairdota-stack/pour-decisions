@@ -10,6 +10,7 @@
 extends Node3D
 
 const F := preload("res://scripts/factory.gd")
+const PokerFx := preload("res://scripts/poker_fx.gd")
 
 var R := 1.5               # radius of action, m (game scale; wider on a bigger slab, set in build)
 const COMPACT_T := 0.6     # s for a person to compact a spot
@@ -28,6 +29,16 @@ var users := {}            # instance id -> state
 var hint: Node3D           # where to plunge next, for a person holding the poker
 var _hint_mat: StandardMaterial3D
 var _plop_t := 0.0
+# She's right: with a person on the poker, they tap A on a strip that's glossy
+# end to end and it goes green for the screeder. Called with raw spots left,
+# the board drags over them (and it's on the poker's card). Nobody calls a
+# finished strip for a while: the leading hand does.
+const CALL_PLACED := 0.6     # share of a strip placed before it can be called
+const AUTO_CALL_T := 15.0    # s a finished strip waits before the leading hand calls it
+const CALL_PAY := 10
+var calls := {"clean": 0, "early": 0, "auto": 0}
+var _strip_wait := {}
+var _strip_check_t := 0.0
 
 func build(owner_game) -> void:
 	game = owner_game
@@ -83,32 +94,12 @@ func _state(who) -> Dictionary:
 	var id: int = who.get_instance_id()
 	if not users.has(id):
 		var st := {"state": "", "t": 0.0, "done_t": 0.0, "spot": Vector3.ZERO, "bled": false, "raw0": 1}
-		var bub := CPUParticles3D.new()
-		bub.amount = 14
-		bub.lifetime = 0.45
-		bub.emitting = false
-		bub.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
-		bub.emission_box_extents = Vector3(R * 0.55, 0.01, R * 0.55)
-		bub.direction = Vector3(0, 1, 0)
-		bub.spread = 12.0
-		bub.initial_velocity_min = 0.25
-		bub.initial_velocity_max = 0.6
-		bub.gravity = Vector3(0, -0.4, 0)
-		bub.scale_amount_min = 0.4
-		bub.scale_amount_max = 1.1
-		var sm := SphereMesh.new()
-		sm.radius = 0.045
-		sm.height = 0.09
-		sm.radial_segments = 6
-		sm.rings = 3
-		var bm := StandardMaterial3D.new()
-		bm.albedo_color = Color(0.93, 0.95, 1.0, 0.8)
-		bm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		bm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		sm.material = bm
-		bub.mesh = sm
-		pour.add_child(bub)
-		st["bub"] = bub
+		# The bubbles, the cream and the bleed water round the poker
+		# (scripts/poker_fx.gd): the bubbles stopping is the sign it's done
+		var fx: Node3D = PokerFx.new()
+		fx.radius = R
+		pour.add_child(fx)
+		st["fx"] = fx
 		users[id] = st
 	return users[id]
 
@@ -140,7 +131,7 @@ func put_down(p) -> void:
 	if st.has("hose"):
 		(st["hose"] as Node).queue_free()
 		st.erase("hose")
-	(st["bub"] as CPUParticles3D).emitting = false
+	(st["fx"] as Node3D).set("rate", 0.0)
 	st["state"] = ""
 	p.model.position = Vector3.ZERO
 
@@ -150,7 +141,7 @@ func _crew(who) -> bool:
 ## One frame of plunging. Returns true while the poker is in the concrete or
 ## being withdrawn.
 func _work(who, st: Dictionary, holding: bool, delta: float, compact_t: float) -> bool:
-	var bub: CPUParticles3D = st["bub"]
+	var fx: Node3D = st["fx"]
 	match st["state"]:
 		"":
 			if holding:
@@ -162,6 +153,9 @@ func _work(who, st: Dictionary, holding: bool, delta: float, compact_t: float) -
 				st["done_t"] = 0.0
 				st["bled"] = false
 				st["raw0"] = maxi(1, pour.raw_count(local, R))
+				fx.call("clear")
+				fx.set("sheen", 0.0)
+				fx.set("bleed", 0.0)
 				game.sfx.hit("plop")
 				return true
 			return false
@@ -170,9 +164,13 @@ func _work(who, st: Dictionary, holding: bool, delta: float, compact_t: float) -
 			var local: Vector3 = st["spot"]
 			var left: int = pour.vibrate(local, R * 1.15, delta, compact_t)
 			var prog: float = 1.0 - float(left) / float(st["raw0"])
-			bub.position = Vector3(local.x, pour.height_at(local) + 0.03, local.z)
-			bub.emitting = left > 0
-			bub.initial_velocity_max = lerpf(0.7, 0.3, prog)
+			# Bubbles come hard as it goes in, slow, and stop: then lift.
+			# The cream comes up as it compacts; hold on and the bleed water
+			# pools on top
+			fx.position = Vector3(local.x, pour.height_at(local), local.z)
+			fx.set("rate", 0.0 if left == 0 else lerpf(1.0, 0.15, clampf(prog, 0.0, 1.0)))
+			fx.set("sheen", clampf(prog, 0.0, 1.0))
+			fx.set("bleed", clampf((st["done_t"] - OVER_T * 0.5) / (OVER_T * 0.5), 0.0, 1.0))
 			if left == 0:
 				if st["done_t"] == 0.0:
 					game.sfx.hit("chime")
@@ -192,7 +190,7 @@ func _work(who, st: Dictionary, holding: bool, delta: float, compact_t: float) -
 					game.score.award(who, 2, "Poker")
 				st["state"] = "out"
 				st["t"] = 0.0
-				bub.emitting = false
+				fx.set("rate", 0.0)
 			return true
 		"out":
 			st["t"] += delta
@@ -236,7 +234,23 @@ func handle_player(p, delta: float) -> bool:
 	var was: String = st["state"]
 	if st["state"] in ["", "in"]:
 		st["spot"] = local + Vector3(sin(p.model.rotation.y), 0, cos(p.model.rotation.y)) * 0.45
-	var busy_now := _work(p, st, p.action_held(), delta, COMPACT_T)
+	# She's right: nothing raw under the poker, on a strip that's not called yet
+	var call_s := -1
+	if st["state"] == "" and pour.gate_strips and pour.raw_count(st["spot"], R) == 0:
+		var s0: int = pour.strip_of_x(local.x)
+		if pour.released[s0] == 0:
+			var ss: Vector3i = pour.strip_state(s0)
+			if ss.z > 0 and float(ss.x) / ss.z >= CALL_PLACED:
+				call_s = s0
+				if p.action_pressed():
+					call_strip(p, s0, ss)
+					st["no_plunge"] = true
+				else:
+					p.cue("action", "she's right: call the strip", -1.0, ss.y == 0)
+					p.gold(not p.bot and ss.y == 0)
+	if st.get("no_plunge", false) and not p.action_held():
+		st.erase("no_plunge")
+	var busy_now := _work(p, st, p.action_held() and not st.get("no_plunge", false), delta, COMPACT_T)
 	if was == "" and st["state"] == "in":
 		st["origin"] = local
 	p.busy = "plunge" if busy_now else ""
@@ -249,10 +263,16 @@ func handle_player(p, delta: float) -> bool:
 				st["done_t"] = 0.0
 			var prog := 1.0 - float(left) / float(st["raw0"])
 			var done: bool = left == 0
-			# Done here, or it won't reach any further: the button goes red and
-			# shakes, saying stop, let go
-			var stop := done or at_end
-			p.cue("action", ("done here: let go" if done else "let go") if stop else "hold · creep along", clampf(prog, 0.0, 1.0), stop, Vector2(-1, -1), stop and not p.bot)
+			# The bubbles are the timer: when they stop, lift. New to the job,
+			# the button fills gold as they slow and says when; that fades
+			# with the gold, and then it's the bubbles. (It won't reach any
+			# further on the leash: that still goes red.)
+			var tell: bool = p.bot or game.gold_level(p) > 0.35
+			if at_end and not done:
+				p.cue("action", "let go", clampf(prog, 0.0, 1.0), true, Vector2(-1, -1), not p.bot)
+			else:
+				p.cue("action", "bubbles stopped: lift" if done and tell else "hold · creep along", clampf(prog, 0.0, 1.0) if tell else -1.0, false)
+				p.gold(not p.bot and tell)
 			# Leaning on it with both hands; the whole chibi buzzes with it
 			var buzz := (1.0 - prog * 0.6) * 0.025
 			p.model.position = Vector3(sin(game.phase_t * 83.0), 0, cos(game.phase_t * 71.0)) * buzz
@@ -272,7 +292,7 @@ func handle_player(p, delta: float) -> bool:
 			if prop:
 				prop.position = Vector3.ZERO
 			var raw: int = pour.raw_count(st["spot"], R)
-			if raw > 0:
+			if raw > 0 and call_s < 0:
 				p.cue("action", "plunge", -1.0, true)
 				# Gold: a good spot, the circle well into the purple
 				if not p.bot:
@@ -302,6 +322,54 @@ func handle_player(p, delta: float) -> bool:
 				unit.position = unit_local
 	_draw_hose(p, st)
 	return true
+
+## The poker calls strip `s` for the screeder. Clean pays the poker and the
+## screeder; with raw spots left it's an early call.
+func call_strip(p, s: int, ss: Vector3i) -> void:
+	pour.release_strip(s)
+	_strip_wait.erase(s)
+	var at: Vector3 = p.global_position + Vector3(0, 2.4, 0)
+	game.sfx.hit("chime")
+	p.bounce()
+	if ss.y == 0:
+		calls["clean"] += 1
+		game.pop("SHE'S RIGHT", at, Color("7cd992"))
+		game.score.award(p, CALL_PAY, "She's right")
+		var scr = game.crew.crew.get("screed") if game.crew else null
+		if scr != null and scr != p:
+			game.score.award(scr, CALL_PAY, "She's right")
+			game.haptic(scr, "30,40,30")
+	else:
+		calls["early"] += 1
+		game.pop("Raw spots left!", at, Color("ffc23d"))
+		game.score.award(p, -5, "Called a strip with raw spots")
+
+## Who's on the poker decides whether strips need calling, and a finished strip
+## nobody's called gets called by the leading hand after a while.
+func _strips(delta: float) -> void:
+	var op = game.crew.crew.get("poker") if game.crew else null
+	var gate: bool = game.phase == "pour" and not game.tutorial and op != null and is_instance_valid(op) and not op.bot and not op.covering and game._filled_ratio() < 1.0
+	pour.set_gate(gate)
+	if not gate:
+		_strip_wait.clear()
+		return
+	_strip_check_t -= delta
+	if _strip_check_t > 0.0:
+		return
+	_strip_check_t = 0.5
+	for s in pour.strips():
+		if pour.released[s] == 1:
+			continue
+		var ss: Vector3i = pour.strip_state(s)
+		if ss.z > 0 and ss.y == 0 and float(ss.x) / ss.z >= 0.9:
+			_strip_wait[s] = float(_strip_wait.get(s, 0.0)) + 0.5
+			if _strip_wait[s] >= AUTO_CALL_T:
+				pour.release_strip(s)
+				_strip_wait.erase(s)
+				calls["auto"] += 1
+				game.hud.toast("Leading hand: she's right on that strip", 1.6)
+		else:
+			_strip_wait.erase(s)
 
 func _unit_world() -> Vector3:
 	return game.rig.position + unit_local
@@ -343,7 +411,7 @@ func npc_work(n: Node3D, local: Vector3, delta: float) -> bool:
 
 func npc_idle(n: Node3D) -> void:
 	var st := _state(n)
-	(st["bub"] as CPUParticles3D).emitting = false
+	(st["fx"] as Node3D).set("rate", 0.0)
 	st["state"] = ""
 
 ## Pour-local spot a poker-width on from `from` that's still raw, or INF.
@@ -366,13 +434,23 @@ func next_spot(from: Vector3) -> Vector3:
 	return out if out.x != INF else g
 
 func update(delta: float) -> void:
+	_strips(delta)
 	# The surface trembles round every poker that's in, and the drone follows
 	# the nearest one a person is working
 	var shiver: Array = []
 	var loud := 0.0
 	var pitch := 0.0
+	var ll = pour.smat.get_shader_parameter("low_light") if pour.smat else null
+	var dim: float = float(ll) if ll != null else 0.0
 	for id in users:
 		var st: Dictionary = users[id]
+		var fx: Node3D = st["fx"]
+		fx.set("low_light", dim)
+		if st["state"] != "in":
+			# Lifted out: the cream and any puddle settle back into the slab
+			fx.set("rate", 0.0)
+			fx.set("sheen", move_toward(float(fx.get("sheen")), 0.0, delta * 0.8))
+			fx.set("bleed", move_toward(float(fx.get("bleed")), 0.0, delta * 0.4))
 		if st["state"] == "in" and shiver.size() < 4:
 			var sp: Vector3 = st["spot"]
 			var prog := 1.0 - float(pour.raw_count(sp, R)) / float(maxi(1, st["raw0"]))
@@ -413,7 +491,11 @@ func clear() -> void:
 		if p.tool == "poker":
 			put_down(p)
 	for id in users:
-		(users[id]["bub"] as CPUParticles3D).emitting = false
+		var fx: Node3D = users[id]["fx"]
+		fx.set("rate", 0.0)
+		fx.set("sheen", 0.0)
+		fx.set("bleed", 0.0)
+		fx.call("clear")
 		users[id]["state"] = ""
 	pour.set_shiver([])
 	game.sfx.rumble = 0.0

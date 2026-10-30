@@ -191,7 +191,7 @@ func _tip(p) -> String:
 			if p.busy != "boom":
 				return "Press A at the BOOM REMOTE."
 			if g.pipe_calls():
-				return "Steer the hose to the pipe guy."
+				return "Steer the hose to the hose hand."
 			if not line.pumping:
 				return "Hold A to pump. Steer with the stick."
 			return "Keep it on the wet edge."
@@ -200,7 +200,11 @@ func _tip(p) -> String:
 				return "Pick up the POKER: A."
 			return "Hold A in purple till the bubbles stop."
 		"screed":
-			return "Hold A, walk back over the gold."
+			if g.screed.floating:
+				return "Hold A: float the matt strips. X: back to the board."
+			if g.pour.float_ready_n > 20:
+				return "Strips gone matt: X for the bull float."
+			return "Hold A, walk back over the green."
 		"pump":
 			if line.spike_on:
 				return "SPIKE! Press A now."

@@ -84,6 +84,26 @@ var _flip := false
 var _coverage := 0.0
 var _reach_cov := 0.0
 var _t := 0.0
+# She's right: with a person on the poker the screeder only finishes the
+# strips the poker's called (A on a strip that's glossy end to end). A strip
+# is strip_c columns wide. With a bot poker every strip's open, as before.
+const STRIPS_MAX := 32
+var strip_c := 6
+var gate_strips := false
+var released := PackedByteArray()
+# The bull float: screeded concrete comes up shiny with bleed water and goes
+# matt; that's when the screeder floats it. Too early drags water up, too late
+# and it won't close. (Times scale with the open time, like everything else.)
+var scr_t := PackedFloat32Array()     # _t when it was screeded, -1 not yet
+var flt := PackedByteArray()          # 1 once it's been floated
+var fin_img: Image
+var fin_tex: ImageTexture
+var _fin := PackedByteArray()
+var float_ready_n := 0                # cells matt and waiting for the float
+func matt_t() -> float:
+	return open_time * 0.6
+func float_win() -> float:
+	return open_time
 
 func build(width: float, depth: float, columns: Array) -> void:
 	bw = width
@@ -94,6 +114,9 @@ func build(width: float, depth: float, columns: Array) -> void:
 	NZ = maxi(4, roundi(bd / dx))
 	mask_n = NX * NZ
 	_bay_c1 = NX
+	strip_c = maxi(6, ceili(float(NX) / STRIPS_MAX))
+	released.resize(strips())
+	released.fill(0)
 	vol_k = maxf(1.0, bw * bd / 192.0)
 	splash_r = SPLASH * pow(vol_k, 0.75)
 	h.resize(NX * NZ)
@@ -104,6 +127,11 @@ func build(width: float, depth: float, columns: Array) -> void:
 	reach.resize(NX * NZ)
 	bleed.resize(NX * NZ)
 	scr.resize(NX * NZ)
+	scr_t.resize(NX * NZ)
+	scr_t.fill(-1.0)
+	flt.resize(NX * NZ)
+	flt.fill(0)
+	_fin.resize(NX * NZ * 4)
 	reach.fill(1)
 	mask.resize(NX * NZ)
 	mask.fill(1)
@@ -131,6 +159,8 @@ func build(width: float, depth: float, columns: Array) -> void:
 	tex = ImageTexture.create_from_image(img)
 	state_img = Image.create(NX, NZ, false, Image.FORMAT_RGBA8)
 	state_tex = ImageTexture.create_from_image(state_img)
+	fin_img = Image.create(NX, NZ, false, Image.FORMAT_RGBA8)
+	fin_tex = ImageTexture.create_from_image(fin_img)
 	var pm := PlaneMesh.new()
 	pm.size = Vector2(bw, NZ * dx)
 	pm.subdivide_width = NX * 2 - 1
@@ -141,8 +171,10 @@ func build(width: float, depth: float, columns: Array) -> void:
 	smat.shader = SURFACE
 	smat.set_shader_parameter("height_tex", tex)
 	smat.set_shader_parameter("state_tex", state_tex)
+	smat.set_shader_parameter("fin_tex", fin_tex)
 	smat.set_shader_parameter("cell_m", Vector2(dx, dx))
 	smat.set_shader_parameter("slab_size", Vector2(bw, NZ * dx))
+	_push_strips()
 	surface.material_override = smat
 	surface.custom_aabb = AABB(Vector3(-bw * 0.5, -0.2, -bd * 0.5), Vector3(bw, 2.5, bd))
 	add_child(surface)
@@ -371,6 +403,10 @@ func reset() -> void:
 	bleed.fill(0)
 	scr.fill(0.0)
 	vib.fill(0.0)
+	released.fill(0)
+	_push_strips()
+	scr_t.fill(-1.0)
+	flt.fill(0)
 	poured = 0.0
 	spilled = 0.0
 	out_of_seq = 0.0
@@ -470,6 +506,8 @@ func deposit(local: Vector3, volume: float, fresh := true) -> void:
 				vib[c] = vib[c] * old / (old + add)
 		if fresh and add > 0.03:
 			scr[c] = 0.0
+			scr_t[c] = -1.0
+			flt[c] = 0
 		h[c] = old + add
 
 ## One flow step: slump anything steeper than the repose slope, seep the rest.
@@ -608,6 +646,27 @@ func _upload() -> void:
 		cur_bay += 1
 	state_img.set_data(NX, NZ, false, Image.FORMAT_RGBA8, _state)
 	state_tex.update(state_img)
+	# The finish: how shiny the screeded concrete still is, floated, and
+	# matt and waiting for the float
+	var mt := matt_t()
+	var ready_n := 0
+	for i in h.size():
+		var k := i * 4
+		var sh := 0.0
+		var ready := 0
+		if scr_t[i] >= 0.0:
+			var el := _t - scr_t[i]
+			sh = 1.0 - clampf(el / mt, 0.0, 1.0)
+			if flt[i] == 0 and el >= mt * 0.7 and el <= mt + float_win():
+				ready = 255
+				ready_n += 1
+		_fin[k] = int(sh * 255.0)
+		_fin[k + 1] = 255 * flt[i]
+		_fin[k + 2] = ready
+		_fin[k + 3] = 255
+	float_ready_n = ready_n
+	fin_img.set_data(NX, NZ, false, Image.FORMAT_RGBA8, _fin)
+	fin_tex.update(fin_img)
 
 ## The wet edge: workable concrete with unpoured deck right beside it. New
 ## concrete has to land against it before it goes off, or it's a cold joint.
@@ -1219,6 +1278,7 @@ func screed_strip(a: Vector3, b: Vector3, dt: float, carry: float) -> Dictionary
 	var area := dx * dx
 	var done := 0
 	var raw := 0
+	var held := 0
 	var mid := (a + b) * 0.5
 	var half := a.distance_to(b) * 0.5 + 0.3
 	var ab := b - a
@@ -1254,10 +1314,55 @@ func screed_strip(a: Vector3, b: Vector3, dt: float, carry: float) -> Dictionary
 			if not vib_ok(i):
 				raw += 1
 				continue
+			if not screed_ready(i):
+				held += 1   # (vibrated, but the poker hasn't called the strip)
+				continue
 			scr[i] = minf(1.0, scr[i] + dt * 14.0)
 			if scr[i] >= 1.0:
 				done += 1
-	return {"carry": carry, "done": done, "raw": raw}
+				if scr_t[i] < 0.0:
+					scr_t[i] = _t
+	return {"carry": carry, "done": done, "raw": raw, "held": held}
+
+## The bull float's blade over the line a..b (pour-local) this frame.
+## Returns Vector3i(floated right, dragged water up, too late to close).
+func float_line(a: Vector3, b: Vector3) -> Vector3i:
+	var good := 0
+	var early := 0
+	var late := 0
+	var mid := (a + b) * 0.5
+	var ab := b - a
+	var abl := maxf(0.001, ab.length_squared())
+	var mt := matt_t()
+	for i in _cells_in(mid, a.distance_to(b) * 0.5 + 0.3):
+		if scr_t[i] < 0.0 or flt[i] == 1:
+			continue
+		var c := cell_center(i)
+		var u := clampf((c - a).dot(ab) / abl, 0.0, 1.0)
+		if c.distance_to(a + ab * u) > 0.35:
+			continue
+		var el := _t - scr_t[i]
+		if el < mt * 0.7:
+			# Still shiny: the float pulls the bleed water up into the top
+			flt[i] = 1
+			bleed[i] = 1
+			early += 1
+		elif el > mt + float_win():
+			late += 1
+		else:
+			flt[i] = 1
+			good += 1
+	return Vector3i(good, early, late)
+
+## Share of the screeded slab that's been floated.
+func float_share() -> float:
+	var n := 0
+	var ok := 0
+	for i in h.size():
+		if scr_t[i] >= 0.0:
+			n += 1
+			ok += flt[i]
+	return float(ok) / maxf(1.0, n)
 
 ## Vibrated enough to screed: this cell, or most of the cells round it.
 func vib_ok(i: int) -> bool:
@@ -1281,6 +1386,55 @@ func vib_ok(i: int) -> bool:
 				ok += 1
 	return n > 0 and float(ok) / n >= 0.7
 
+func strips() -> int:
+	return ceili(float(NX) / strip_c)
+
+func strip_of_x(local_x: float) -> int:
+	return clampi(int((local_x + bw * 0.5) / dx), 0, NX - 1) / strip_c
+
+## Ready for the screed: vibrated, and its strip called (when it has to be).
+func screed_ready(i: int) -> bool:
+	return vib_ok(i) and (not gate_strips or released[(i % NX) / strip_c] == 1)
+
+## Strip `s`: Vector3(placed cells, raw ones among them, slab cells).
+func strip_state(s: int) -> Vector3i:
+	var placed := 0
+	var raw := 0
+	var n := 0
+	for ix in range(s * strip_c, mini(NX, (s + 1) * strip_c)):
+		for iz in NZ:
+			var i := iz * NX + ix
+			if mask[i] == 0:
+				continue
+			n += 1
+			if h[i] > SLAB * 0.6 and set_h[i] < 0.0:
+				placed += 1
+				if not vib_ok(i):
+					raw += 1
+	return Vector3i(placed, raw, n)
+
+func release_strip(s: int) -> void:
+	if s >= 0 and s < released.size() and released[s] == 0:
+		released[s] = 1
+		_push_strips()
+
+func set_gate(on: bool) -> void:
+	if on != gate_strips:
+		gate_strips = on
+		_push_strips()
+
+## The screeder's green, only on called strips (all of them with a bot poker).
+func _push_strips() -> void:
+	if smat == null:
+		return
+	var rel := PackedFloat32Array()
+	rel.resize(STRIPS_MAX)
+	for k in STRIPS_MAX:
+		rel[k] = 1.0 if not gate_strips or (k < released.size() and released[k] == 1) else 0.0
+	smat.set_shader_parameter("strip_rel", rel)
+	smat.set_shader_parameter("strip_cols", float(strip_c))
+	smat.set_shader_parameter("grid_nx", float(NX))
+
 ## Pour-local spot of fresh, vibrated, full-depth concrete nobody has screeded,
 ## oldest first (the bit closest to going off). INF if there's none.
 func needs_screed(from: Vector3, avoid: Vector3, avoid_r: float, skip: Array = []) -> Vector3:
@@ -1289,7 +1443,7 @@ func needs_screed(from: Vector3, avoid: Vector3, avoid_r: float, skip: Array = [
 	for iz in range(NZ):
 		for ix in range(NX):
 			var i := iz * NX + ix
-			if h[i] > SLAB * 0.8 and scr[i] < 0.5 and set_h[i] < 0.0 and vib_ok(i):
+			if h[i] > SLAB * 0.8 and scr[i] < 0.5 and set_h[i] < 0.0 and screed_ready(i):
 				var c := cell_center(i)
 				if Vector2(c.x - avoid.x, c.z - avoid.z).length() < avoid_r:
 					continue
@@ -1315,7 +1469,7 @@ func strip_work(x0: float, x1: float) -> int:
 			var c := cell_center(i)
 			if c.x < x0 or c.x > x1:
 				continue
-			if h[i] > SLAB * 0.8 and scr[i] < 0.5 and set_h[i] < 0.0 and vib_ok(i):
+			if h[i] > SLAB * 0.8 and scr[i] < 0.5 and set_h[i] < 0.0 and screed_ready(i):
 				n += 1
 	return n
 
@@ -1329,7 +1483,7 @@ func strip_band(x0: float, x1: float) -> Vector2:
 			var c := cell_center(i)
 			if c.x < x0 or c.x > x1:
 				continue
-			if h[i] > SLAB * 0.8 and scr[i] < 0.5 and set_h[i] < 0.0 and vib_ok(i):
+			if h[i] > SLAB * 0.8 and scr[i] < 0.5 and set_h[i] < 0.0 and screed_ready(i):
 				out.x = minf(out.x, c.z)
 				out.y = maxf(out.y, c.z)
 	return out
@@ -1390,6 +1544,11 @@ var _views := Vector2.ZERO
 func set_edge_view(v: float) -> void:
 	if smat:
 		smat.set_shader_parameter("edge_view", v)
+
+## The gold glint on matt concrete waiting for the float (0 for none).
+func set_float_view(v: float) -> void:
+	if smat:
+		smat.set_shader_parameter("float_view", v)
 
 func set_views(poker: bool, screed: bool, dt: float) -> void:
 	var want := Vector2(1.0 if poker else 0.0, 1.0 if screed else 0.0)

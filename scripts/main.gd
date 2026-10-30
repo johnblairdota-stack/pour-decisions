@@ -2404,6 +2404,7 @@ func _start_pour() -> void:
 		Settings.put("tower_started", true)
 	covered_t = {}
 	pour.reset()
+	poker.calls = {"clean": 0, "early": 0, "auto": 0}
 	# (a big slab's face is longer, so each strip takes longer to come back
 	# to: the concrete stays workable for longer to match, in game time)
 	pour.open_time = cfg["open"] * sqrt(pour.vol_k)
@@ -2548,6 +2549,8 @@ func _slab_report(quality: float, verdict: String, medal: int, note: String, los
 		var cov := int(round(float(covered_t.get(role, 0.0))))
 		crew_rows.append({"role": role, "p": p.index, "bot": p.bot, "name": p.char_name, "pts": pts, "why": why if why != "" else "Kept out of trouble",
 			"covered": cov, "lh": lead_hand.lh_name()})
+		if role == "poker" and int(poker.calls["early"]) > 0:
+			crew_rows[-1]["early"] = int(poker.calls["early"])
 		if not p.bot:
 			crew_rows[-1]["wallet"] = int(score.wallet_pour.get(p.char_id, 0))
 		# (never the star if the leading hand had to do their job for them)
@@ -2879,7 +2882,8 @@ func _process(delta: float) -> void:
 			see_s = true
 	pour.set_views(see_p and phase == "pour", see_s and phase == "pour", delta)
 	var bop = _boom_operator()
-	pour.set_edge_view(1.0 if bop != null and humans().has(bop) else 0.45)
+	# (the gold line on the wet edge, for a person new to the boom)
+	pour.set_edge_view(clampf(gold_level(bop), 0.0, 1.0) if bop != null and humans().has(bop) and gold_level(bop) > 0.06 else 0.0)
 	score.update(delta)
 	var cam_right := camera.global_transform.basis.x
 	var street_view: bool = band_box != null and band_box.visible
@@ -3057,7 +3061,7 @@ func _join_players() -> void:
 	var open_slots: bool = crew.humans().size() < crew.MAX_PEOPLE and not autotest
 	hud.set_join(_join_text() if phase != "topout" and phase != "select" and phase != "roles" else "", phones.url() if phones.running and open_slots and phase != "topout" else "")
 
-## P1's number keys swap jobs on the fly (1 boom, 2 line, 3 pump, 4 poker, 5 screed, 6 pipe guy).
+## P1's number keys swap jobs on the fly (1 boom, 2 line, 3 pump, 4 poker, 5 screed, 6 hose hand).
 func _swap_keys() -> void:
 	if autotest:
 		return
@@ -3173,10 +3177,10 @@ func _update_pour(delta: float) -> void:
 	var wind_park: bool = climb.wind_gust >= BOOM_WIND
 
 	var op = _boom_operator()
-	# The pipe guy calls the concrete on and off (holding A on the end hose):
+	# The hose hand calls the concrete on and off (holding A on the end hose):
 	# the boom operator just keeps the boom over them. The boom's own A only
 	# pumps with nobody on the hose, for the slurry and the washout into the
-	# bin, or once a pipe guy's gone quiet (so nobody stands waiting)
+	# bin, or once a hose hand's gone quiet (so nobody stands waiting)
 	var person_hose: bool = hose_holder != null and not hose_holder.bot and not hose_holder.covering
 	# (walking the hose to the next spot isn't being quiet)
 	if person_hose and not hose_call and hose_holder.move_input().length() < 0.2:
@@ -3203,6 +3207,7 @@ func _update_pour(delta: float) -> void:
 				feeding = true
 		line.speed_high = (feeding or line.hopper > line.HOPPER_CAP * (0.35 if line.speed_high else 0.55)) and line.creep() < 0.35
 	speed_advice = _speed_advice()
+	_in_sync(op, delta)
 	var q := 0.0
 	if ops.primed and not ops.busy():
 		q = line.run(delta, want)
@@ -3455,6 +3460,35 @@ func _boom_operator():
 ## wet edge is getting old.
 var speed_advice := {"want": "", "level": 0, "why": ""}
 
+## In sync: the hose hand's pumping, and a person on the boom keeps the tip
+## within a metre of them. Every few seconds of it pays them both, more the
+## longer the run goes.
+const SYNC_R := 1.0
+const SYNC_PAY_T := 4.0
+var _sync_t := 0.0
+var _sync_run := 0
+
+func _in_sync(op, delta: float) -> void:
+	if op == null or op.bot or op.covering or hose_holder == null or phase != "pour":
+		_sync_t = 0.0
+		_sync_run = 0
+		return
+	if not line.pumping:
+		return   # (a pause in the concrete doesn't break the run)
+	var hp: Vector3 = hose_holder.global_position
+	if Vector2(tip_pos.x - hp.x, tip_pos.z - hp.z).length() <= SYNC_R:
+		_sync_t += delta
+		if _sync_t >= SYNC_PAY_T:
+			_sync_t = 0.0
+			_sync_run += 1
+			var pay := 4 + 2 * mini(_sync_run, 5)
+			score.award(op, pay, "In sync on the hose")
+			score.award(hose_holder, pay, "In sync on the hose")
+			pop("IN SYNC" + (" x%d" % _sync_run if _sync_run > 1 else ""), hp + Vector3(0, 2.4, 0), Color("2fd3e8"))
+	else:
+		_sync_t = 0.0
+		_sync_run = 0
+
 ## X on the pump operator's belt remote: high or low output, from anywhere
 ## but the truck bay (X is the bay's own there) and the ladder. The button only
 ## shows when it's worth switching, and flashes red when it's urgent. A creep
@@ -3600,7 +3634,7 @@ func _handle_player(p, delta: float) -> void:
 	if p.busy == "hose":
 		_hose_work(p, delta)
 		return
-	# The pipe guy's radio works from anywhere
+	# The hose hand's radio works from anywhere
 	if p.role == "hose" and ops.role() == "hose" and ops.radio(p):
 		return
 
@@ -3666,7 +3700,7 @@ func _handle_player(p, delta: float) -> void:
 		elif not ops.primed or ops.busy():
 			p.say("start-up…" if not ops.primed else "washout…")
 		elif pipe_calls():
-			pass   # (the pipe guy calls the concrete: you keep the boom over them)
+			pass   # (the hose hand calls the concrete: you keep the boom over them)
 		elif trouble:
 			p.cue("action", "STOP pumping!", -1.0, true, Vector2(-1, -1), true)
 		else:
@@ -3822,7 +3856,7 @@ func _update_hoist(delta: float) -> void:
 
 ## The boom operator walks the deck with the radio remote, keeping up with
 ## the boom head a few metres off to one side of it (left or right as the
-## camera sees it), never in line with the pipe, so the pipe guy and the
+## camera sees it), never in line with the pipe, so the hose hand and the
 ## concrete landing stay in view. They stay on the side they're on until the
 ## deck runs out, then cross to the other.
 const BOOM_SIDE := 3.0          # m to the side of the boom head
@@ -3902,7 +3936,7 @@ func _jobs() -> Array:
 	var oj: Array = ops.job()
 	if not oj.is_empty():
 		add.call(oj[0], oj[1], oj[2], oj[3], oj[4])
-	# The end hose, waiting for the pipe guy
+	# The end hose, waiting for the hose hand
 	if hose_holder == null and not crew.crew["hose"].bot:
 		add.call("hose", hose_anchor() + Vector3(0, 1.6, 0), 1 if ops.primed else 0, "hose", "END HOSE")
 	# The boom remote
@@ -3972,7 +4006,7 @@ var _foot_toast_t := 0.0
 
 func _footprints(p) -> void:
 	_foot_toast_t = maxf(0.0, _foot_toast_t - get_process_delta_time())
-	# (the pipe guy goes where the hose takes them: the boom drags them about)
+	# (the hose hand goes where the hose takes them: the boom drags them about)
 	# (nor the screeder with the board down: it takes their prints out behind them)
 	var screeding: bool = p.tool == "screed" and p.action_held()
 	if p.bot or phase != "pour" or p.zone != "deck" or p.busy in ["boom", "rigger", "dogman", "hose"] or screeding:
@@ -4232,15 +4266,15 @@ func _update_whip(delta: float) -> void:
 		h.model.rotation.z = move_toward(h.model.rotation.z, 0.0, delta * 4.0)
 
 var ops                         # the start-up and the washout (ops.gd)
-var hose_holder = null          # the pipe guy on the end hose, if anyone
-var hose_call := false          # the pipe guy's calling for concrete (holding A)
-var _hose_segs: Array = []      # the end hose drawn to the pipe guy's hands
+var hose_holder = null          # the hose hand on the end hose, if anyone
+var hose_call := false          # the hose hand's calling for concrete (holding A)
+var _hose_segs: Array = []      # the end hose drawn to the hose hand's hands
 var _big_hold_on := false       # the HUD's big hold A is up this frame
 const BOOT_SINK := 0.06         # m the crew's boots sink into the wet concrete
 const HOSE_REACH := 2.0         # m the end hose reaches from under the boom tip
 const HOSE_QUIET := 6.0         # s without a call before a bot boom carries on regardless
 var _hose_quiet_t := 0.0
-# The pipe guy shouts "Pump it!" / "Stop!" only for a real start or stop: a
+# The hose hand shouts "Pump it!" / "Stop!" only for a real start or stop: a
 # quick dab to top up a gap stays quiet, and they don't shout twice in a row
 const HOSE_BARK_GAP := 4.0      # s between shouts
 const HOSE_BARK_RUN := 1.5      # s on (or off) before a change is worth a shout
@@ -4248,7 +4282,7 @@ var _hose_bark_t := 0.0         # time since the last shout
 var _hose_state_t := 0.0        # time the call's been in its current state
 const HOSE_WALK_K := 0.55       # walking with the hose: slow and steady
 
-## Where the concrete comes out: the pipe guy's hands on the end hose, or the
+## Where the concrete comes out: the hose hand's hands on the end hose, or the
 ## hose hanging off the boom tip when nobody's on it.
 func discharge() -> Vector3:
 	if hose_holder != null and is_instance_valid(hose_holder) and hose_holder.busy == "hose":
@@ -4257,7 +4291,7 @@ func discharge() -> Vector3:
 		return _hose_grip(hose_holder)[1] + f * 0.3 + Vector3(0, -0.12, 0)
 	return hose_end.global_position
 
-## Where the pipe guy's hands are on the hose: [back hand, front hand].
+## Where the hose hand's hands are on the hose: [back hand, front hand].
 func _hose_grip(h) -> Array:
 	var back: Vector3 = h.hand_r.global_position
 	var front: Vector3 = h.hand_l.global_position
@@ -4288,14 +4322,14 @@ func drop_hose() -> void:
 	for s in _hose_segs:
 		(s as Node3D).visible = false
 
-## True when the pipe guy on the end hose is the one turning the pump on and off.
+## True when the hose hand on the end hose is the one turning the pump on and off.
 func pipe_calls() -> bool:
 	if hose_holder == null or not ops.primed or ops.busy():
 		return false
 	var person: bool = not hose_holder.bot and not hose_holder.covering
 	return not (person and _hose_quiet_t >= HOSE_QUIET)
 
-## The pipe guy on the end hose: walk it where it's wanted (slowly, on a
+## The hose hand on the end hose: walk it where it's wanted (slowly, on a
 ## leash from the boom tip), hold A to call the pump on, B to let go.
 func _hose_work(p, delta: float) -> void:
 	if phase != "pour" or p.leave_pressed():
@@ -4342,7 +4376,7 @@ func _hose_work(p, delta: float) -> void:
 	else:
 		_hose_state_t += delta
 
-## The end hose drawn as a sagging run from the boom tip to the pipe guy's hands.
+## The end hose drawn as a sagging run from the boom tip to the hose hand's hands.
 func _draw_hose() -> void:
 	if hose_holder == null:
 		return
@@ -4713,7 +4747,7 @@ func _update_boom() -> void:
 var _stream_mats := {}
 
 func _update_stream() -> void:
-	# (the first spurt of concrete through, for the pipe guy to call)
+	# (the first spurt of concrete through, for the hose hand to call)
 	var on: bool = phase == "pour" and (pumping or (ops.stage == "concrete" and ops.showing_sign()))
 	stream.visible = on
 	if not on:
@@ -4755,16 +4789,13 @@ func _tickets() -> Array:
 		out.append({"icon": "C", "text": "C%d weeping · %d m up" % [line.fail_i + 1, int(line.clamps[line.fail_i]["pos"].y)], "frac": 1.0 - line.wear, "color": UI.ROLE["pump"], "role": "pump", "urgent": line.wear > 0.5})
 	if line.blocked and not line.block_found:
 		out.append({"icon": "?", "text": "Blocked: tap the riser", "frac": 0.2, "color": Color("ff5a5f"), "urgent": true})
-	# The wet edge
-	# The boom's progress: the bay being poured filling up, coloured by how
-	# fresh the wet edge at the front is (green fresh, amber ageing, red going off)
+	# The boom's progress: the bay being poured filling up. (How fresh the
+	# wet edge is, is on the concrete itself now: glossy, then dull and crazed.)
 	if _filled_ratio() < 1.0:
 		var left: float = clampf(pour.edge_left / pour.open_time, 0.0, 1.0) if pour.poured > 2.0 else 1.0
 		var b: int = pour.cur_bay
 		var cov: float = clampf(pour.bay_cov[b], 0.0, 1.0)
-		var state := "edge fresh" if left >= 0.55 else ("edge ageing" if left >= 0.3 else "EDGE GOING OFF")
-		var bar := UI.GREEN if left >= 0.55 else (UI.YELLOW if left >= 0.3 else UI.RED)
-		out.append({"icon": "E", "text": "Bay %d of %d · %d%% · %s" % [b + 1, pour.BAYS, int(cov * 100.0), state], "frac": cov, "bar": bar, "color": UI.ROLE["boom"], "role": "boom", "urgent": left < 0.3})
+		out.append({"icon": "E", "text": "Bay %d of %d · %d%%" % [b + 1, pour.BAYS, int(cov * 100.0)], "frac": cov, "bar": UI.GREEN, "color": UI.ROLE["boom"], "role": "boom", "urgent": left < 0.15})
 	if pour.at_risk > 0.01:
 		out.append({"icon": "V", "text": "Going off unvibrated", "frac": 1.0 - minf(1.0, pour.at_risk * 8.0), "color": UI.ROLE["poker"], "role": "poker", "urgent": true})
 	# Pump and trucks
