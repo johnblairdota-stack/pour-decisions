@@ -2,6 +2,40 @@
 ## stroke thump, a worn clamp's rattle, the dogman's whistle and one-shot hits.
 extends AudioStreamPlayer
 
+const Settings := preload("res://scripts/settings.gd")
+
+# ------------------------------------------------------------------ the mix
+# Three volumes, set in Smoko (settings vol_site, vol_band, vol_alerts):
+# the site (machines, tools, the place), the Site Band, and alerts (a burst,
+# an alarm sign, the emergency whistle). An alert also dips the rest for a
+# moment, so it's heard over the band.
+const ALERTS := ["bang", "buzz", "sign_alarm", "whistle:emergency"]
+const DUCK := 0.55          # how far the site and band dip under an alert
+const DUCK_T := 1.6         # s it takes them to come back
+var _duck := 0.0
+var _g_site := 1.0
+var _g_band := 1.0
+var _g_alert := 1.0
+
+# Recorded sounds: drop res://sounds/sfx/<kind>.ogg (or .wav, .mp3) into the
+# project and hit(kind) plays it instead of the made-up one. Ambience loops
+# go in res://sounds/amb/<name>.ogg and main fades them with set_ambience();
+# machine loops in res://sounds/loop/<name>.ogg with set_loop(); footsteps in
+# res://sounds/step/<surface>_<1..4>.ogg with step(). (tools/sounds/ makes them.)
+const KINDS := ["bang", "clank", "thunk", "buzz", "ding", "clang", "tink", "hiss", "knock", "ring", "thud",
+	"beep", "whip", "scrape", "plop", "chime", "birds", "sign_chat", "sign_call", "sign_alarm", "sign_gold",
+	"sign_thanks", "sign_slip", "air_brake", "chute_rattle", "shovel_scrape", "poker_glug"]
+var _hit_samples := {}      # kind -> AudioStreamPlayer
+var _loops := {}            # "amb/<name>" or "loop/<name>" -> {"pl": AudioStreamPlayer or null, "want", "lv", "fade", "db"}
+## How loud each machine loop sits against the rest, dB (they're all levelled
+## to the same loudness by tools/sounds/tidy_sounds.sh).
+const LOOP_DB := {"truck_idle": -5.0, "truck_beeper": -4.0, "pump_engine": -2.0, "boom_hydraulics": -3.0,
+	"crane_slew": -4.0, "hoist": -8.0, "concrete_pour": 0.0, "poker": -3.0, "screed": 0.0}
+const STEP_DB := -9.0
+var _steps := {}            # surface -> [AudioStream, ...]
+var _step_pl: Array = []    # a few players taken in turn, so steps can overlap
+var _step_i := 0
+
 const RATE := 22050.0
 
 # Dogman whistle code as used on Australian sites: [blast seconds, gap seconds].
@@ -24,6 +58,7 @@ var muted := false
 var rumble := 0.0           # 0..1, a poker running in the concrete
 var rumble_pitch := 0.0     # 0..1, rises as the concrete compacts and stops fighting it
 var _rum := 0.0
+var _poker_rec := false     # a recorded poker loop's playing instead of the made-up drone
 var _rph := 0.0
 var _scr := 0.0
 var _playback: AudioStreamGeneratorPlayback
@@ -72,6 +107,18 @@ func band_level(lane: String) -> float:
 ## Where the beat is, 0 on the beat to 1 just before the next.
 func beat_phase() -> float:
 	return fmod(_bt, BEAT) / BEAT
+
+func _load_hits() -> void:
+	for kind in KINDS:
+		for ext in ["ogg", "wav", "mp3"]:
+			var path := "res://sounds/sfx/%s.%s" % [kind, ext]
+			if ResourceLoader.exists(path):
+				var pl := AudioStreamPlayer.new()
+				pl.stream = load(path)
+				pl.max_polyphony = 4
+				add_child(pl)
+				_hit_samples[kind] = pl
+				break
 
 func _load_samples() -> void:
 	for lane in LANES:
@@ -163,7 +210,7 @@ func _play_queued(delta: float) -> void:
 		q[0] -= delta
 		if q[0] <= 0.0:
 			var pl: AudioStreamPlayer = _samples[q[1]]
-			pl.volume_db = linear_to_db(maxf(0.001, _lv[LANES.find(q[1])] * _master)) + volume_db + 8.0
+			pl.volume_db = -80.0 if muted else linear_to_db(maxf(0.001, _lv[LANES.find(q[1])] * _master * _g_band * (1.0 - DUCK * _duck))) + volume_db + 8.0
 			pl.play()
 	_queued = _queued.filter(func(q): return q[0] > 0.0)
 
@@ -176,9 +223,11 @@ func _ready() -> void:
 	play()
 	_playback = get_stream_playback() as AudioStreamGeneratorPlayback
 	_load_samples()
+	_load_hits()
+	_poker_rec = has_loop("poker")
 
 ## kind: "bang", "clank", "thunk", "buzz", "ding", "clang", "tink", "hiss",
-## "knock", "ring", "thud", "beep", "whip", "rain", "birds", "bleep", "bleep_s",
+## "knock", "ring", "thud", "beep", "whip", "rain", "birds", "bleep", "bleep_s", "sign_<kind>" (hand_signs.gd),
 ## or "whistle:<code>" with a code from WHISTLES
 func hit(kind: String) -> void:
 	# Never stack: a new whistle replaces the one still sounding, and the same
@@ -191,7 +240,108 @@ func hit(kind: String) -> void:
 		for e in _events:
 			if e[0] == kind and e[1] < 0.18:
 				return
+	if kind in ALERTS:
+		_duck = 1.0
+	if _hit_samples.has(kind):
+		var pl: AudioStreamPlayer = _hit_samples[kind]
+		pl.volume_db = -80.0 if muted else volume_db + 6.0 + linear_to_db(maxf(0.001, _g_alert if kind in ALERTS else _g_site))
+		pl.play()
+		_events.append(["~" + kind, 0.0])   # (only so the same hit doesn't double up)
+		return
 	_events.append([kind, 0.0])
+
+## How loud an ambience loop (res://sounds/amb/<name>.ogg) should be, 0..1.
+## Nothing happens if the file isn't there.
+func set_ambience(name: String, level: float) -> void:
+	_set_loop("amb", name, level, 0.4, 4.0)
+
+## How hard a machine's running (res://sounds/loop/<name>.ogg), 0..1; it
+## fades there in about a third of a second. `pitch` revs it up or down.
+func set_loop(name: String, level: float, pitch := 1.0) -> void:
+	_set_loop("loop", name, level, 3.0, 2.0 + float(LOOP_DB.get(name, 0.0)))
+	var pl = _loops["loop/" + name]["pl"]
+	if pl != null:
+		(pl as AudioStreamPlayer).pitch_scale = lerpf((pl as AudioStreamPlayer).pitch_scale, pitch, 0.1)
+
+## There's a recording for this machine loop (so the made-up one can stay quiet).
+func has_loop(name: String) -> bool:
+	if not _loops.has("loop/" + name):
+		set_loop(name, 0.0)
+	return _loops["loop/" + name]["pl"] != null
+
+func _set_loop(folder: String, name: String, level: float, fade: float, db: float) -> void:
+	var id := folder + "/" + name
+	if not _loops.has(id):
+		var pl: AudioStreamPlayer = null
+		for ext in ["ogg", "wav", "mp3"]:
+			var path := "res://sounds/%s/%s.%s" % [folder, name, ext]
+			if ResourceLoader.exists(path):
+				var st: AudioStream = load(path)
+				if st is AudioStreamOggVorbis:
+					(st as AudioStreamOggVorbis).loop = true
+				elif st is AudioStreamMP3:
+					(st as AudioStreamMP3).loop = true
+				elif st is AudioStreamWAV:
+					(st as AudioStreamWAV).loop_mode = AudioStreamWAV.LOOP_FORWARD
+					(st as AudioStreamWAV).loop_end = int((st as AudioStreamWAV).get_length() * (st as AudioStreamWAV).mix_rate)
+				pl = AudioStreamPlayer.new()
+				pl.stream = st
+				pl.volume_db = -80.0
+				add_child(pl)
+				pl.play()
+				# (each loop starts somewhere different, so two never line up)
+				pl.seek(randf() * st.get_length())
+				break
+		_loops[id] = {"pl": pl, "want": 0.0, "lv": 0.0, "fade": fade, "db": db}
+	_loops[id]["want"] = clampf(level, 0.0, 1.0)
+
+## One footstep on `surface` ("ply", "mesh", "grate", "gravel", "wet"),
+## `loud` 0..1. Silent if there are no recordings for it.
+func step(surface: String, loud := 1.0) -> void:
+	if not _steps.has(surface):
+		var got: Array = []
+		for i in range(1, 5):
+			for ext in ["ogg", "wav", "mp3"]:
+				var path := "res://sounds/step/%s_%d.%s" % [surface, i, ext]
+				if ResourceLoader.exists(path):
+					got.append(load(path))
+					break
+		_steps[surface] = got
+	var got: Array = _steps[surface]
+	if got.is_empty() or muted or loud <= 0.0:
+		return
+	if _step_pl.is_empty():
+		for i in 4:
+			var p := AudioStreamPlayer.new()
+			add_child(p)
+			_step_pl.append(p)
+	var pl: AudioStreamPlayer = _step_pl[_step_i]
+	_step_i = (_step_i + 1) % _step_pl.size()
+	pl.stream = got.pick_random()
+	pl.pitch_scale = randf_range(0.9, 1.1)
+	pl.volume_db = volume_db + STEP_DB + linear_to_db(maxf(0.001, loud * _g_site * (1.0 - DUCK * _duck)))
+	pl.play()
+
+func _update_mix(delta: float) -> void:
+	_g_site = float(Settings.value("vol_site"))
+	_g_band = float(Settings.value("vol_band"))
+	_g_alert = float(Settings.value("vol_alerts"))
+	var dip := 1.0 - DUCK * _duck
+	for id in _loops:
+		var a: Dictionary = _loops[id]
+		a["lv"] = move_toward(float(a["lv"]), float(a["want"]), delta * float(a["fade"]))
+		if a["pl"] != null:
+			(a["pl"] as AudioStreamPlayer).volume_db = -80.0 if muted else volume_db + float(a["db"]) + linear_to_db(maxf(0.0001, float(a["lv"]) * _g_site * dip))
+
+## One soft-edged beep of `f` Hz, `len` s long, starting `at` s into a hit
+## (a square wave when `hard`, for alarms).
+static func _pip(a: float, at: float, f: float, len: float, hard := false) -> float:
+	var u := a - at
+	if u < 0.0 or u > len:
+		return 0.0
+	var env := minf(1.0, u * 400.0) * minf(1.0, (len - u) * 200.0)
+	var w := sin(TAU * f * u)
+	return (signf(w) * 0.6 if hard else w) * env
 
 func toggle_mute() -> void:
 	muted = not muted
@@ -210,6 +360,7 @@ func _whistle_on(code: String, a: float) -> bool:
 func _process(delta: float) -> void:
 	if _playback == null:
 		return
+	_update_mix(delta)
 	_play_queued(delta)
 	var n := _playback.get_frames_available()
 	if n <= 0:
@@ -234,8 +385,10 @@ func _process(delta: float) -> void:
 			_master += (want_m - _master) * 0.01
 			for i in 6:
 				_lv[i] += (tgt[i] - _lv[i]) * 0.012
+		var sb := 0.0
+		var sa := 0.0
 		if _master > 0.002:
-			s += _band_sample(_bt)
+			sb = _band_sample(_bt)
 		if pumping:
 			# (on the beat clock, so the band's kick lands on the stroke)
 			_stroke = fmod(_bt, BEAT)
@@ -255,7 +408,7 @@ func _process(delta: float) -> void:
 			var click := exp(-fmod(_t * (6.0 + rattle * 9.0) * 2.0, 1.0) * 30.0)
 			s += sin(TAU * 420.0 * _t) * click * r2 * 0.14
 		# The poker: a petrol drive unit droning, the head chattering in the mix
-		_rum += (rumble - _rum) * 0.0008
+		_rum += ((0.0 if _poker_rec else rumble) - _rum) * 0.0008
 		if _rum > 0.005:
 			_rph += dt * (95.0 + 75.0 * rumble_pitch)
 			var saw := fmod(_rph, 1.0) * 2.0 - 1.0
@@ -266,8 +419,13 @@ func _process(delta: float) -> void:
 			var kind: String = e[0]
 			if kind.begins_with("whistle:"):
 				if _whistle_on(kind.substr(8), a):
-					s += sin(TAU * (2850.0 + 60.0 * sin(TAU * 32.0 * a)) * a) * 0.07
+					var w := sin(TAU * (2850.0 + 60.0 * sin(TAU * 32.0 * a)) * a) * 0.07
+					if kind in ALERTS:
+						sa += w
+					else:
+						s += w
 				continue
+			var s0 := s
 			match kind:
 				"bang":
 					s += ((randf() * 2.0 - 1.0) * 0.6 + sin(TAU * 38.0 * a) * 0.3 + sin(TAU * 110.0 * a) * 0.3) * exp(-a * 4.5)
@@ -305,6 +463,25 @@ func _process(delta: float) -> void:
 					s += sin(TAU * (520.0 - 900.0 * a) * a) * exp(-a * 30.0) * 0.12
 				"chime":
 					s += (sin(TAU * 1568.0 * a) * 0.14 + sin(TAU * 2093.0 * a) * 0.08) * exp(-a * 6.0)
+				"sign_chat":
+					# Hand-sign bleeps: a pip for a chat line...
+					s += _pip(a, 0.0, 1760.0, 0.06) * 0.07
+				"sign_call":
+					# ...two rising pips when someone's being called...
+					s += (_pip(a, 0.0, 1320.0, 0.07) + _pip(a, 0.11, 1760.0, 0.07)) * 0.08
+				"sign_alarm":
+					# ...three quick hard ones for an alarm...
+					s += (_pip(a, 0.0, 2200.0, 0.05, true) + _pip(a, 0.08, 2200.0, 0.05, true) + _pip(a, 0.16, 2200.0, 0.05, true)) * 0.06
+				"sign_gold":
+					# ...a little rising run for a big moment...
+					s += (_pip(a, 0.0, 1318.5, 0.07) + _pip(a, 0.07, 1661.2, 0.07) + _pip(a, 0.14, 1975.5, 0.12)) * 0.08
+				"sign_thanks":
+					# ...a soft two-tone "ta"...
+					s += (_pip(a, 0.0, 1568.0, 0.06) + _pip(a, 0.09, 1174.7, 0.09)) * 0.07
+				"sign_slip":
+					# ...and a crackle of static for a bot that's switched off
+					if a < 0.22:
+						s += (randf() * 2.0 - 1.0) * (0.5 + 0.5 * sin(TAU * 31.0 * a)) * 0.035
 				"birds":
 					# A few quick rising chirps, the way the lorikeets
 					# turn up once the site goes quiet
@@ -319,6 +496,12 @@ func _process(delta: float) -> void:
 					var bl := 0.42 if kind == "bleep" else 0.2
 					if a < bl:
 						s += sin(TAU * 1000.0 * a) * minf(1.0, minf(a, bl - a) * 120.0) * 0.2
+			if kind in ALERTS:
+				sa += s - s0
+				s = s0
+		var dip := 1.0 - DUCK * _duck
+		_duck = maxf(0.0, _duck - dt / DUCK_T)
+		s = (s * _g_site + sb * _g_band) * dip + sa * _g_alert
 		# Soft limiter so stacked sounds never clip into a wall of noise
 		s = tanh(s * 1.1) * 0.85
 		buf[f] = Vector2(s, s)

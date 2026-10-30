@@ -2834,6 +2834,8 @@ func _process(delta: float) -> void:
 		p.speed = 6.0 * screed.speed_k(p) * poker.speed_k(p) * climb.smoko.speed_k() * (HOSE_WALK_K if p.busy == "hose" else 1.0)
 		if phase != "sign":
 			p.walk(delta, Callable(self, "_walkable").bind(p), cam_yaw)
+			if p.stepped:
+				sfx.step(_underfoot(p), 0.3 if p.bot else 1.0)
 		if tutorial and p.zone == "deck" and p.busy == "" and not _walkable(p.position, "deck"):
 			# Never left standing off the edge of the round deck
 			var flat := Vector2(p.position.x, p.position.z)
@@ -3292,6 +3294,7 @@ func _update_pour(delta: float) -> void:
 		if (_fin_t > stall or pour_clock - _full_at > most) and left_sum > 0.0:
 			var n: int = pour.finish_by_hand()
 			if n > 0:
+				sfx.hit("shovel_scrape")
 				hud.toast("The concreters finish the last bits by hand", 2.2)
 				score.award(null, -mini(60, n), "Finished by hand")
 				if autotest:
@@ -3321,8 +3324,69 @@ const BAND_HOLD := 2.5
 var _band_hold := {}
 var _band_tip := Vector3.ZERO
 
+## What a footstep lands on: the street's gravel, the scaffold's grating
+## round the deck, formwork ply before the reo's down, the reo mesh, or wet
+## concrete once it's poured there.
+func _underfoot(p) -> String:
+	if p.zone != "deck":
+		return "gravel" if p.zone == "ground" else "grate"
+	var local := _pour_local(p.position)
+	if absf(local.x) > BW * 0.5 or absf(local.z) > BD * 0.5:
+		return "grate"
+	if phase in ["columns", "deck"]:
+		return "ply"
+	return "wet" if pour.height_at(local) > 0.02 else "mesh"
+
+var _hoist_y := 0.0
+
+## The machines (sounds/loop/, when it's there): each one runs while it's
+## working, so you hear the site the way the crew does.
+func _update_machines(delta: float) -> void:
+	var on := phase == "pour"
+	var idle := 0.0
+	var backing := false
+	if line != null:
+		for t in line.trucks:
+			var st: String = t["state"]
+			if st == "back":
+				backing = true
+			if st in ["called", "approach", "back", "bay", "check", "water", "ready", "pour", "docket", "leave_wait"]:
+				idle = 1.0
+			elif st in ["queue", "arrive", "leave"]:
+				idle = maxf(idle, 0.45)
+	sfx.set_loop("truck_idle", idle)
+	sfx.set_loop("truck_beeper", 1.0 if backing else 0.0)
+	var primed: bool = ops != null and ops.primed
+	sfx.set_loop("pump_engine", (1.0 if line != null and line.pumping else 0.4 if primed else 0.0) if on else 0.0,
+		1.05 if line != null and line.pumping else 0.92)
+	sfx.set_loop("concrete_pour", 0.8 if on and pumping else 0.0)
+	var tip_v := (tip_pos - _band_tip).length() / maxf(delta, 0.001)
+	var boom_k := clampf((tip_v - 0.25) / 2.5, 0.0, 1.0)
+	sfx.set_loop("boom_hydraulics", 0.35 + 0.65 * boom_k if tip_v > 0.25 else 0.0, 0.9 + 0.25 * boom_k)
+	var crane_k := 0.0
+	if climb.active:
+		crane_k = clampf(climb.trolley_v.length() / 1.2 + absf(climb.hoist_v) / 0.8, 0.0, 1.0)
+	sfx.set_loop("crane_slew", crane_k, 0.9 + 0.2 * crane_k)
+	var hv := 0.0
+	if hoist_cage != null and phase != "topout":
+		hv = absf(hoist_cage.position.y - _hoist_y) / maxf(delta, 0.001)
+		_hoist_y = hoist_cage.position.y
+	sfx.set_loop("hoist", 1.0 if hv > 0.5 else 0.0)
+	sfx.set_loop("poker", sfx.rumble if on else 0.0, 0.95 + 0.15 * sfx.rumble_pitch)
+	if not screed._working:
+		sfx.set_loop("screed", 0.0)
+
 func _update_site_band(delta: float) -> void:
 	sfx.band_on = bool(Settings.value("band"))
+	# The place itself (sounds/amb/, when it's there): a Brisbane morning on
+	# the street that thins out and gets windier as the deck climbs, the dawn
+	# chorus on a dawn pour, rain when it's raining
+	var up := clampf(work_y / 30.0, 0.0, 1.0)
+	sfx.set_ambience("morning", (1.0 - 0.6 * up) * (0.0 if is_dawn() and phase == "pour" else 1.0))
+	sfx.set_ambience("dawn", 1.0 if is_dawn() else 0.0)
+	sfx.set_ambience("wind", 0.25 + 0.75 * up)
+	sfx.set_ambience("rain", 1.0 if rain.emitting else 0.0)
+	_update_machines(delta)
 	sfx.band_live = phase == "pour" and ops != null and ops.primed
 	# (the stroke's thump and a worn clamp's rattle)
 	sfx.pumping = line != null and line.pumping and phase == "pour"
@@ -4961,6 +5025,19 @@ func _unhandled_input(event: InputEvent) -> void:
 		cam_pitch = clampf(cam_pitch + mm.relative.y * 0.004, 0.15, 1.25)
 
 var _shot_only: Array = []
+var _signs_at := -1.0
+
+## Dev (`--only=handsigns`): everyone on the crew shows a different hand
+## sign at once, for the screenshot. True once they've grown in.
+func _signs_demo() -> bool:
+	if _signs_at < 0.0:
+		_signs_at = phase_t
+		var lines := ["On it!", "Kiri! Truck's waiting!", "Hopper's empty!", "Concrete's on!", "Ta!", "Hang on, phone!", "Stop!", "0.4 s KILL"]
+		var i := 0
+		for p in players:
+			p.bark(lines[i % lines.size()], 4.0)
+			i += 1
+	return phase_t - _signs_at > 0.5
 var _shot_key_now := ""   # (the HUD hides for a shot of the building)
 # Dev shots of the whole building from round about (yaw, pitch, focus height,
 # distance); game +z is north, +x is west
@@ -5494,7 +5571,7 @@ func _update_camera(delta: float) -> void:
 # ------------------------------------------------------------------ autotest
 
 const PAUSE_SHOTS := {"smoko0": ["main", 0], "smoko1": ["main", 1], "smoko2": ["main", 2], "smoko5": ["main", 5],
-	"smokoset": ["settings", 1], "smokoset2": ["settings", 13], "smokoswap": ["swap", 0]}
+	"smokoset": ["settings", 1], "smokoset2": ["settings", 12], "smokosound": ["sound", 2], "smokoswap": ["swap", 0]}
 
 func _next_pause_shot() -> String:
 	for key in PAUSE_SHOTS:
@@ -5526,6 +5603,8 @@ func _maybe_shot() -> void:
 		key = "trans2"
 	elif "trans3" in _shot_only and _split > 0.75 and _split < 0.98 and not _shots_taken.has("trans3"):
 		key = "trans3"
+	elif "handsigns" in _shot_only and phase == "pour" and _filled_ratio() > 0.12 and not _shots_taken.has("handsigns") and _signs_demo():
+		key = "handsigns"
 	elif "split" in _shot_only and phase == "pour" and _split >= 1.0 and _filled_ratio() > 0.3 and not _shots_taken.has("split"):
 		key = "split"
 	elif "docket" in _shot_only and phase == "pour" and line != null and line.needs_check() != null and line.needs_check()["checked"] and line.needs_check()["state"] == "bay" and line.right_call(line.needs_check()) != "use" and not _shots_taken.has("docket"):

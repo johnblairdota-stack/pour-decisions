@@ -13,9 +13,13 @@ const Settings := preload("res://scripts/settings.gd")
 const SCALES := [1.0, 1.25, 1.5]
 const MAIN := [["Back to work", "resume"], ["Knock off", "explore"], ["Swap jobs", "swap"], ["Add a player", "join"],
 	["Settings", "settings"], ["Start again", "restart"], ["Exit", "quit"]]
-const SETTINGS := ["back", "incidents", "gold_mode", "dog_help", "docket_help", "ui_scale", "world_text", "split", "fullscreen", "sound", "band", "shake",
+const SETTINGS := ["back", "incidents", "gold_mode", "dog_help", "docket_help", "ui_scale", "world_text", "split", "fullscreen", "sound_page", "shake",
 	"real_names", "cam_test"]
-const PAGE_TITLE := {"main": "SMOKO", "settings": "SETTINGS", "swap": "SWAP JOBS"}
+## The Sound page, off Settings.
+const SOUND := ["back", "sound", "vol_site", "vol_band", "vol_alerts", "band"]
+const VOLUMES := [0.0, 0.25, 0.5, 0.75, 1.0]
+const VOL_NAMES := {"vol_site": "Site volume", "vol_band": "Band volume", "vol_alerts": "Alarm volume"}
+const PAGE_TITLE := {"main": "SMOKO", "settings": "SETTINGS", "swap": "SWAP JOBS", "sound": "SOUND"}
 
 var game
 var _items: Array = []         # {button, action, label}
@@ -157,6 +161,9 @@ func _build_page(page: String) -> void:
 		"settings":
 			for a in SETTINGS:
 				rows.append(["", a])
+		"sound":
+			for a in SOUND:
+				rows.append(["", a])
 		"swap":
 			rows.append(["Back", "back"])
 			for role in game.crew.ROLES:
@@ -165,7 +172,7 @@ func _build_page(page: String) -> void:
 		_items.append(_make_row(it[0], it[1]))
 	_title.text = PAGE_TITLE.get(page, "SMOKO")
 	# (Back's always the top row of a page off the main one; start just under it)
-	_index = 1 if page == "settings" else 0
+	_index = 1 if page in ["settings", "sound"] else 0
 	if page == "swap":
 		# (start on the first job a bot's doing)
 		for i in _items.size():
@@ -249,6 +256,10 @@ func _refresh() -> void:
 				l.text = "Sound: %s" % ("off" if game.sfx.muted else "on")
 			"band":
 				l.text = "Site Band: %s" % ("on" if Settings.value("band") else "off")
+			"sound_page":
+				l.text = "Sound & volume ›"
+			"vol_site", "vol_band", "vol_alerts":
+				l.text = "%s: %d%%" % [VOL_NAMES[a], int(round(float(Settings.value(a)) * 100.0))]
 			"shake":
 				l.text = "Screen shake: %s" % ("on" if game.shake_on else "off")
 			"incidents":
@@ -425,6 +436,14 @@ func _note_for(action: String) -> String:
 			return "Fill the whole screen. F11 flips it any time."
 		"sound":
 			return "Site noise, the pump, the radio calls."
+		"sound_page":
+			return "The volumes of the site, the Site Band and the alarms, and sound on or off."
+		"vol_site":
+			return "Machines, tools, footsteps and the place itself."
+		"vol_band":
+			return "The Site Band's tune."
+		"vol_alerts":
+			return "Bursts, alarms and the emergency whistle. They dip everything else for a moment so you hear them."
 		"band":
 			return "On: while the concrete's going in, every job that's working plays its part of a tune made from the site's own noises. A job that stops drops out of the band."
 		"shake":
@@ -456,7 +475,10 @@ func _do(action: String) -> void:
 			_build_page("settings")
 			return
 		"back":
-			_build_page("main")
+			_build_page("settings" if _page == "sound" else "main")
+			return
+		"sound_page":
+			_build_page("sound")
 			return
 		"join":
 			pass
@@ -489,6 +511,8 @@ func _do(action: String) -> void:
 			game.sfx.toggle_mute()
 		"band":
 			Settings.put("band", not bool(Settings.value("band")))
+		"vol_site", "vol_band", "vol_alerts":
+			Settings.cycle(action, VOLUMES)
 		"shake":
 			game.shake_on = not game.shake_on
 		"restart":
@@ -572,7 +596,7 @@ func _process(delta: float) -> void:
 		if _page == "main":
 			close()
 		else:
-			_build_page("main")
+			_build_page("settings" if _page == "sound" else "main")
 	# The gold default breathes, like every gold button
 	if not _items.is_empty():
 		var b: Control = _items[0]["button"]

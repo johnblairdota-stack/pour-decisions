@@ -257,9 +257,11 @@ func handle_player(p, delta: float, near := "") -> bool:
 		_crumbs.global_rotation = Vector3(0, _locked_yaw, 0)
 		_crumbs.emitting = moving and _over_concrete
 		_scrape_t -= delta
+		game.sfx.set_loop("screed", 1.0 if moving and _over_concrete else 0.0)
 		if moving and _over_concrete and _scrape_t <= 0.0:
 			_scrape_t = 0.28
-			game.sfx.hit("scrape")
+			if not game.sfx.has_loop("screed"):
+				game.sfx.hit("scrape")
 			game.haptic(p, "18")
 		_gold_t = maxf(0.0, _gold_t - delta)
 		p.cue("action", "keep pulling" if _gold_t > 0.0 else "screed", 1.0, false)

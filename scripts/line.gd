@@ -1006,6 +1006,8 @@ func kill_pump(p) -> void:
 			game.pop("%s · %.2f s" % [row[2], react], at + Vector3(0, 0.8, 0), Color("7cd992") if react < 1.0 else Color("ffc72c"))
 			break
 	game.sfx.hit("thunk")
+	if react < float(SPIKE_PAY[0][0]):
+		p.bark("%.1f s KILL" % react)
 	p.bounce()
 
 ## Back on after a spike: a stroke in reverse eases it, then forward again.
@@ -1370,10 +1372,17 @@ func _slot_x(slot: int) -> float:
 	return QUEUE_X - slot * 10.0
 
 func _set_truck(t: Dictionary, s: String) -> void:
+	var was: String = t.get("state", "")
 	t["state"] = s
 	t["t"] = 0.0
-	if s == "back":
+	if s == "back" and not game.sfx.has_loop("truck_beeper"):
 		game.sfx.hit("beep")
+	# The air brakes go on when it's backed in and off when it pulls out,
+	# and the chute's swung down for a pour and stowed after
+	if (was == "back" and s != "back") or s == "leave":
+		game.sfx.hit("air_brake")
+	if s in ["pour", "leave_wait"] and was != "ready":
+		game.sfx.hit("chute_rattle")
 	if s == "pour" and live:
 		_changeover(t)
 
@@ -1582,7 +1591,7 @@ func _update_trucks(delta: float) -> void:
 						blocked = true
 				if blocked:
 					t["t"] -= delta
-					if fmod(_knock_phase, 0.5) < delta:
+					if fmod(_knock_phase, 0.5) < delta and not game.sfx.has_loop("truck_beeper"):
 						game.sfx.hit("beep")
 				# A spotter waves it on: it only reverses while they hold A, and
 				# stops where they let go. Nobody spotting (or they walk off):
@@ -1597,7 +1606,7 @@ func _update_trucks(delta: float) -> void:
 					game.pop("Driver's backing in on their own", node.position + Vector3(0, 4.0, 0), Color("ffc72c"))
 					t.erase("spotter")
 					spot = null
-				if fmod(t["t"], 0.6) < delta:
+				if fmod(t["t"], 0.6) < delta and not game.sfx.has_loop("truck_beeper"):
 					game.sfx.hit("beep")
 				if spot != null or t.has("su"):
 					var su: float = t.get("su", 0.0)

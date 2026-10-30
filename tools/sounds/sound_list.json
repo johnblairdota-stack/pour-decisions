@@ -1,0 +1,313 @@
+{
+ "about": "Sounds for Pour Decisions' first sound batch (board items 1, 5, 6, 9, 10, 12). generate_sounds.py makes each one with ElevenLabs sound effects. folder: amb = ambience loops (sounds/amb), loop = machine loops (sounds/loop), sfx = one-shot hits (sounds/sfx, replacing the made-up hit of the same name), step = footsteps (sounds/step).",
+ "sounds": [
+  {
+   "folder": "amb",
+   "name": "morning",
+   "text": "Early morning in a leafy Brisbane riverside suburb: rainbow lorikeets screeching in trees, magpies warbling, a butcherbird, distant light traffic, a soft breeze. No voices, no music.",
+   "seconds": 20,
+   "loop": true
+  },
+  {
+   "folder": "amb",
+   "name": "dawn",
+   "text": "Pre-dawn bird chorus in subtropical Brisbane: magpies carolling, butcherbird song, a kookaburra far off, very quiet distant traffic. No voices.",
+   "seconds": 20,
+   "loop": true
+  },
+  {
+   "folder": "amb",
+   "name": "wind",
+   "text": "Steady wind high up on an open construction deck, buffeting past steel scaffolding, mesh edge screens flapping a little. No voices.",
+   "seconds": 20,
+   "loop": true
+  },
+  {
+   "folder": "amb",
+   "name": "rain",
+   "text": "Steady light rain falling on plywood formwork, steel reinforcing bar and puddles on a construction site. No thunder, no voices.",
+   "seconds": 20,
+   "loop": true
+  },
+  {
+   "folder": "loop",
+   "name": "truck_idle",
+   "text": "Concrete agitator truck idling, big diesel engine ticking over while the mixing drum turns slowly and churns wet concrete. Close up, no voices.",
+   "seconds": 10,
+   "loop": true
+  },
+  {
+   "folder": "loop",
+   "name": "truck_beeper",
+   "text": "Classic truck reversing beeper: a clean pure-tone beep, beep, beep at a steady even rhythm, about one beep per second, outdoors on a building site, quiet diesel idle under it. No voices.",
+   "seconds": 6,
+   "loop": true
+  },
+  {
+   "folder": "sfx",
+   "name": "air_brake",
+   "text": "Heavy truck air brake release, a short sharp hiss.",
+   "seconds": 1.5,
+   "loop": false
+  },
+  {
+   "folder": "sfx",
+   "name": "chute_rattle",
+   "text": "Steel concrete truck chute swung down and clanking into place, metal rattle.",
+   "seconds": 1.5,
+   "loop": false
+  },
+  {
+   "folder": "loop",
+   "name": "pump_engine",
+   "text": "Trailer concrete pump diesel engine running hard under load, steady deep rumble with hydraulic whine, close up. No voices.",
+   "seconds": 10,
+   "loop": true
+  },
+  {
+   "folder": "sfx",
+   "name": "bang",
+   "text": "A steel pipe clamp bursting under high pressure on a concrete pump line: a loud metallic bang then a spray hiss.",
+   "seconds": 2,
+   "loop": false
+  },
+  {
+   "folder": "sfx",
+   "name": "thunk",
+   "text": "Heavy industrial emergency stop button slapped, a solid plastic and metal thunk.",
+   "seconds": 0.8,
+   "loop": false
+  },
+  {
+   "folder": "loop",
+   "name": "boom_hydraulics",
+   "text": "Hydraulic arm of a concrete pump truck moving slowly: smooth steady low hydraulic hum and gentle fluid whine at a constant level. No sudden peaks, no bangs, no clanks. No voices.",
+   "seconds": 6,
+   "loop": true
+  },
+  {
+   "folder": "loop",
+   "name": "crane_slew",
+   "text": "Tower crane slewing: electric motor hum and gear whir high overhead. No voices.",
+   "seconds": 6,
+   "loop": true
+  },
+  {
+   "folder": "loop",
+   "name": "hoist",
+   "text": "Construction site elevator car riding up the outside of a building: smooth steady low electric motor hum with a soft gear rumble, constant and even, outdoors. No clicks, no bangs. No voices.",
+   "seconds": 6,
+   "loop": true
+  },
+  {
+   "folder": "step",
+   "name": "ply_1",
+   "text": "A single work boot footstep on a plywood formwork deck, hollow wooden knock. One step only.",
+   "seconds": 0.6,
+   "loop": false
+  },
+  {
+   "folder": "step",
+   "name": "mesh_1",
+   "text": "A single work boot footstep on steel reinforcing mesh and bar chairs, small metallic clink. One step only.",
+   "seconds": 0.6,
+   "loop": false
+  },
+  {
+   "folder": "step",
+   "name": "grate_1",
+   "text": "A single work boot footstep on a steel scaffold grating walkway, ringing metal. One step only.",
+   "seconds": 0.6,
+   "loop": false
+  },
+  {
+   "folder": "step",
+   "name": "gravel_1",
+   "text": "A single work boot footstep on gravel and dust on a building site road. One step only.",
+   "seconds": 0.6,
+   "loop": false
+  },
+  {
+   "folder": "step",
+   "name": "wet_1",
+   "text": "A single rubber boot step into wet fresh concrete, a thick squelch. One step only.",
+   "seconds": 0.7,
+   "loop": false
+  },
+  {
+   "folder": "step",
+   "name": "ply_2",
+   "text": "A single work boot footstep on a plywood formwork deck, hollow wooden knock. One step only.",
+   "seconds": 0.6,
+   "loop": false
+  },
+  {
+   "folder": "step",
+   "name": "mesh_2",
+   "text": "A single work boot footstep on steel reinforcing mesh and bar chairs, small metallic clink. One step only.",
+   "seconds": 0.6,
+   "loop": false
+  },
+  {
+   "folder": "step",
+   "name": "grate_2",
+   "text": "A single work boot footstep on a steel scaffold grating walkway, ringing metal. One step only.",
+   "seconds": 0.6,
+   "loop": false
+  },
+  {
+   "folder": "step",
+   "name": "gravel_2",
+   "text": "A single work boot footstep on gravel and dust on a building site road. One step only.",
+   "seconds": 0.6,
+   "loop": false
+  },
+  {
+   "folder": "step",
+   "name": "wet_2",
+   "text": "A single rubber boot step into wet fresh concrete, a thick squelch. One step only.",
+   "seconds": 0.7,
+   "loop": false
+  },
+  {
+   "folder": "step",
+   "name": "ply_3",
+   "text": "A single work boot footstep on a plywood formwork deck, hollow wooden knock. One step only.",
+   "seconds": 0.6,
+   "loop": false
+  },
+  {
+   "folder": "step",
+   "name": "mesh_3",
+   "text": "A single work boot footstep on steel reinforcing mesh and bar chairs, small metallic clink. One step only.",
+   "seconds": 0.6,
+   "loop": false
+  },
+  {
+   "folder": "step",
+   "name": "grate_3",
+   "text": "A single work boot footstep on a steel scaffold grating walkway, ringing metal. One step only.",
+   "seconds": 0.6,
+   "loop": false
+  },
+  {
+   "folder": "step",
+   "name": "gravel_3",
+   "text": "A single work boot footstep on gravel and dust on a building site road. One step only.",
+   "seconds": 0.6,
+   "loop": false
+  },
+  {
+   "folder": "step",
+   "name": "wet_3",
+   "text": "A single rubber boot step into wet fresh concrete, a thick squelch. One step only.",
+   "seconds": 0.7,
+   "loop": false
+  },
+  {
+   "folder": "step",
+   "name": "ply_4",
+   "text": "A single work boot footstep on a plywood formwork deck, hollow wooden knock. One step only.",
+   "seconds": 0.6,
+   "loop": false
+  },
+  {
+   "folder": "step",
+   "name": "mesh_4",
+   "text": "A single work boot footstep on steel reinforcing mesh and bar chairs, small metallic clink. One step only.",
+   "seconds": 0.6,
+   "loop": false
+  },
+  {
+   "folder": "step",
+   "name": "grate_4",
+   "text": "A single work boot footstep on a steel scaffold grating walkway, ringing metal. One step only.",
+   "seconds": 0.6,
+   "loop": false
+  },
+  {
+   "folder": "step",
+   "name": "gravel_4",
+   "text": "A single work boot footstep on gravel and dust on a building site road. One step only.",
+   "seconds": 0.6,
+   "loop": false
+  },
+  {
+   "folder": "step",
+   "name": "wet_4",
+   "text": "A single rubber boot step into wet fresh concrete, a thick squelch. One step only.",
+   "seconds": 0.7,
+   "loop": false
+  },
+  {
+   "folder": "loop",
+   "name": "concrete_pour",
+   "text": "Wet concrete pouring out of a pump hose onto a slab: thick heavy slapping and gloop, steady. No voices.",
+   "seconds": 6,
+   "loop": true
+  },
+  {
+   "folder": "loop",
+   "name": "poker",
+   "text": "Concrete vibrator poker running in wet concrete: petrol drive unit droning with a buzzing head, bubbling. No voices.",
+   "seconds": 6,
+   "loop": true
+  },
+  {
+   "folder": "loop",
+   "name": "screed",
+   "text": "Wet concrete being levelled by hand with a long aluminium straight edge: slow heavy wet sliding swish and slop of thick concrete, outdoors on a building site. No motor, no machinery, no buzzing tools. No voices.",
+   "seconds": 4,
+   "loop": true
+  },
+  {
+   "folder": "sfx",
+   "name": "shovel_scrape",
+   "text": "A steel shovel scraping and scooping wet concrete, one scoop.",
+   "seconds": 1.2,
+   "loop": false
+  },
+  {
+   "folder": "sfx",
+   "name": "poker_glug",
+   "text": "A concrete vibrator plunged into wet concrete, a deep glug and bubbles.",
+   "seconds": 1.2,
+   "loop": false
+  },
+  {
+   "folder": "sfx",
+   "name": "ding",
+   "text": "A clean bright bell ding for a job done well, short and pleasant, game sound.",
+   "seconds": 1.2,
+   "loop": false
+  },
+  {
+   "folder": "sfx",
+   "name": "chime",
+   "text": "A soft two-note rising chime, game reward sound, warm.",
+   "seconds": 1.2,
+   "loop": false
+  },
+  {
+   "folder": "sfx",
+   "name": "clank",
+   "text": "A heavy steel pipe clamp snapped shut, short metallic clank.",
+   "seconds": 0.8,
+   "loop": false
+  },
+  {
+   "folder": "sfx",
+   "name": "clang",
+   "text": "A steel pipe dropped onto concrete, a ringing clang.",
+   "seconds": 1.2,
+   "loop": false
+  },
+  {
+   "folder": "sfx",
+   "name": "tink",
+   "text": "A tiny metal tink, a steel pin tapped with a hammer, short.",
+   "seconds": 0.5,
+   "loop": false
+  }
+ ]
+}

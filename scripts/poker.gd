@@ -156,7 +156,7 @@ func _work(who, st: Dictionary, holding: bool, delta: float, compact_t: float) -
 				fx.call("clear")
 				fx.set("sheen", 0.0)
 				fx.set("bleed", 0.0)
-				game.sfx.hit("plop")
+				game.sfx.hit("poker_glug")
 				return true
 			return false
 		"in":
