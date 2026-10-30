@@ -621,7 +621,13 @@ func _show(t) -> void:
 		_tape.position = Vector3(TEST_X, 0.03 + CONE_H + 0.009 - depth * 0.5, 0.0)
 		_reading.text = "%d mm" % int(round(depth * 1000.0))
 		_reading.position = Vector3(TEST_X + 0.02, 0.03 + CONE_H + 0.1, 0.05)
-		if step == "done":
+		if step == "done" and not says_call(t):
+			# A truck hand who knows the job reads the tape against the spec
+			# themselves: the number and the band, no verdict
+			_reading.text = "%d mm   spec %d-%d" % [int(t.get("measured", 0.0)), int(line.SPEC_SLUMP - line.SLUMP_TOL), int(line.SPEC_SLUMP + line.SLUMP_TOL)]
+			_reading.modulate = Color.WHITE
+			_reading.scale = Vector3.ONE * 1.3
+		elif step == "done":
 			# The reading says what to do: gold and bold in spec, blue with
 			# water pouring when it's stiff, red when it goes back
 			var pulse := 1.0 + 0.08 * sin(_t * 6.0)
@@ -641,6 +647,16 @@ func _show(t) -> void:
 					_reading.text = "%d mm  %s" % [int(t.get("measured", 0.0)), why]
 					_reading.modulate = Color("ff5a5f")
 					_reading.scale = Vector3.ONE * 1.2 * pulse
+
+## Whether the reading says the call for this truck hand: yes while they're
+## new to the job (their gold assist is still bright), no once they've got it,
+## and always when there's no person on the test.
+const SAYS_CALL_GOLD := 0.35
+func says_call(t: Dictionary) -> bool:
+	var who = t.get("tester")
+	if who == null or not is_instance_valid(who) or who.bot or game == null:
+		return true
+	return float(game.gold_level(who)) > SAYS_CALL_GOLD
 
 ## The four steps, in order: [step key, name, what you're doing and why].
 const GUIDE := [
@@ -686,6 +702,8 @@ func guide_text(t: Dictionary) -> String:
 			var m := int(t.get("measured", t["slump"]))
 			var lo := int(line.SPEC_SLUMP - line.SLUMP_TOL)
 			var hi := int(line.SPEC_SLUMP + line.SLUMP_TOL)
+			if not says_call(t):
+				return "%d mm (spec %d to %d). Your call: use, water or send back." % [m, lo, hi]
 			var why := "In spec: use it."
 			match line.right_call(t):
 				"water": why = "Too stiff: add the %d L/m³ held back, test again." % int(line.WATER_HELD)

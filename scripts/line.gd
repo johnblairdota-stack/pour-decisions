@@ -100,6 +100,11 @@ const SPOT_BUMP := 1.06                  # this far and it backs into the hopper
 const DOCKET_T := 12.0                   # s the driver waits on a docket before starting anyway
 const SPOT_WAIT := 5.0                   # s a spotted truck sits waiting before the driver backs in alone
 const MIX_WRONG := 0.1                   # chance a load that isn't tested is the wrong mix
+# Skipping a test (tower): the first load's always tested; after that the
+# truck hand can wave a load on untested. Each skip in a row makes a bad one
+# more likely, and a test puts it back to the start.
+const SKIP_RISK := 0.1                   # chance the first skipped load is bad
+const SKIP_RISK_MAX := 0.5
 const ORDER := {"mpa": 40, "stone": 20, "site": "Riverlight"}
 # Once the sample's taken the driver keeps the chute running on trust, slowly,
 # while the test's done: the pour keeps moving. Only so much goes in before
@@ -107,6 +112,39 @@ const ORDER := {"mpa": 40, "stone": 20, "site": "Riverlight"}
 const TRUST_Q := 0.6                     # m³/s into the hopper while the test runs
 const TRUST_M3 := 2.0                    # m³ at most before the driver holds the chute
 var _backed_in := 0
+var skips := 0                # loads waved on untested since the last test
+var _skip_told := false       # the first choice of the night says what skipping costs
+# Radio ahead: after the call the truck hand tells the pump and the boom what's
+# coming (stick: up GOOD ONE, left BIT STIFF, right WET ONE, down NOT TESTED).
+# A radio that's right pays both the truck hand and the pump operator.
+const RADIO := {"up": "GOOD ONE", "left": "BIT STIFF", "right": "WET ONE", "down": "NOT TESTED"}
+const RADIO_T := 5.0                     # s to radio before the moment's gone
+const RADIO_PAY := 8
+var _radio_t = null           # the load being radioed (the truck)
+var _radio_left := 0.0
+var _radio_ready := false     # the stick's come back to the middle since the call
+var radio_label: Label3D
+var last_radio := ""          # what was radioed about the load going in now
+# Reading the creep: a stiff (or old) load in the line on high output pushes
+# the pressure up for a few seconds before it packs solid. Dropping to LOW
+# while it creeps lets it through: CAUGHT EARLY, worth more than a fast kill.
+const CREEP_SEEN := 0.15                 # creep the gauge shows before a catch counts
+const CREEP_PAY := 50
+var _creep_caught := false
+# Keep the hopper: on a person's pump the driver runs the chute to the pump
+# operator's signals (hold Y at the panel, stick up faster, down slower), to
+# keep the hopper between the two lines. Fast at the brim slops over. A bot
+# pump operator (or nobody) leaves the driver to run it himself.
+const CHUTE := [0.0, 0.5, 1.0, 1.55]     # x PUMP_Q: stop, slow, steady, fast
+const CHUTE_NAME := ["STOP", "SLOW", "STEADY", "FAST"]
+const HOP_BAND := Vector2(0.4, 0.85)     # the two lines, as a share of the hopper
+const BAND_PAY_T := 8.0                  # s between the lines for each trickle of pay
+var chute := 2
+var _flick_ok := true
+var _band_t := 0.0
+var _spill_t := 0.0
+var _spill_paid := false
+var _chute_shown_at := -1.0
 var slump: Node
 const AGE_RATE := 0.75                   # docket minutes per game second
 const SAFE_BAR := 6.0                    # below this the line can be opened
@@ -582,6 +620,12 @@ func _build_pump() -> void:
 	spot_label.outline_size = 14
 	spot_label.visible = false
 	add_child(spot_label)
+	# The truck hand's radio wheel, over their head while they pick
+	radio_label = F.label3d("", 40, Color.WHITE)
+	radio_label.layers = 2
+	radio_label.outline_size = 12
+	radio_label.visible = false
+	add_child(radio_label)
 	if kit == "tower":
 		for sl in ["A", "B"]:
 			var pose: Array = _slot_pose(sl)
@@ -772,7 +816,14 @@ func start_pour(need: float, cfg: Dictionary) -> void:
 	blocked = false
 	block_found = false
 	_clear_job()
-	stats = {"bursts": 0, "whips": 0, "blocks": 0, "bad_loads": 0, "rejected": 0, "unpinned": 0, "jobs": 0, "spikes": 0, "spike_best": -1.0, "spike_missed": 0, "best_streak": 0, "wrong_mix_caught": 0}
+	stats = {"bursts": 0, "whips": 0, "blocks": 0, "bad_loads": 0, "rejected": 0, "unpinned": 0, "jobs": 0, "spikes": 0, "spike_best": -1.0, "spike_missed": 0, "best_streak": 0, "wrong_mix_caught": 0, "skipped": 0, "skipped_bad": 0, "creep_caught": 0, "radio_right": 0, "hopper_spill": 0.0}
+	skips = 0
+	chute = 2
+	_band_t = 0.0
+	_spill_t = 0.0
+	_creep_caught = false
+	_radio_t = null
+	last_radio = ""
 	streak = 0
 	for t in trucks:
 		(t["node"] as Node).queue_free()
@@ -1019,7 +1070,11 @@ func run(delta: float, want: bool) -> float:
 				if bad_volume > 0.0:
 					var take := minf(bad_volume, rate * delta)
 					bad_volume -= take
-					_bad_pumped += take
+					if bad_kind in ["old", "stiff"] and not speed_high:
+						# (gently on low: what had started to pack eases through)
+						_bad_pumped = maxf(0.0, _bad_pumped - take * 0.8)
+					else:
+						_bad_pumped += take
 					if bad_kind == "wet":
 						wet_q = minf(take, q)
 					if _bad_pumped > 1.4 and bad_kind in ["old", "stiff"] and not blocked:
@@ -1027,6 +1082,7 @@ func run(delta: float, want: bool) -> float:
 						_bad_pumped = 0.0
 					if bad_volume <= 0.0:
 						_bad_pumped = 0.0   # (that load's through)
+						_creep_caught = false
 				if air > 0.45 and air_travel < 0.0:
 					air_travel = 0.0
 					game.hud.toast("Hopper ran dry: air in the line!", 1.8)
@@ -1604,9 +1660,11 @@ func _update_trucks(delta: float) -> void:
 				else:
 					# What the driver's docket says (the slump's yours to find)
 					lab.text = docket_text(t)
+					if t.get("choice", false) and slump.step_of(t) == "sample":
+						lab.text += "\nSKIP RISK %d%%" % int(round(skip_risk() * 100.0))
 					lab.modulate = Color.WHITE
 			"pour":
-				var flow := minf(DISCHARGE * delta, minf(t["load"], HOPPER_CAP - hopper))
+				var flow := _chute_flow(t, delta)
 				t["load"] -= flow
 				hopper += flow
 				if t.get("bad", "") != "":
@@ -1734,7 +1792,9 @@ func _wants_test(t: Dictionary) -> bool:
 		t["why"] = "first load"
 		return true
 	if kit == "tower":
-		return true   # (every load, as routine: no reason to give)
+		# (every load, as routine, unless the truck hand chooses to skip it)
+		t["choice"] = true
+		return true
 	match _verdict(t):
 		"stiff", "wet":
 			# (the driver can see it's off, not which way: that's the test)
@@ -1768,6 +1828,220 @@ func _driver_test(t: Dictionary) -> void:
 			_set_truck(t, "water")
 		_:
 			reject(t)
+
+## How likely the next load waved on untested is a bad one.
+func skip_risk() -> float:
+	return clampf(SKIP_RISK * (skips + 1), SKIP_RISK, SKIP_RISK_MAX)
+
+## The truck hand skips the test: the load goes straight in on trust. Whether
+## it's any good is rolled now, at the risk the truck hand was shown.
+func skip_test(p, t: Dictionary) -> void:
+	var bad := randf() < skip_risk()
+	skips += 1
+	stats["skipped"] += 1
+	t.erase("choice")
+	t["checked"] = true
+	t["eyeballed"] = true
+	t["skipped"] = true
+	if bad:
+		stats["skipped_bad"] += 1
+		var r := randf()
+		if r < 0.5:
+			t["slump"] = randf_range(52.0, 72.0)
+		elif r < 0.8:
+			t["slump"] = randf_range(135.0, 175.0)
+		else:
+			t["slump"] = randf_range(SPEC_SLUMP - 12.0, SPEC_SLUMP + 12.0)
+			t["mix_wrong"] = ["mpa", "stone"][randi() % 2]
+	elif t.get("mix_wrong", "") == "":
+		t["slump"] = randf_range(SPEC_SLUMP - 15.0, SPEC_SLUMP + 15.0)
+	game.pop("Waved on: not tested", (t["node"] as Node3D).position + Vector3(0, 3.5, 0), Color("ffc23d"))
+	accept(t)
+
+## How far a stiff load has packed into the line on high (0 to 1, where it
+## blocks). Nothing while the line's already blocked.
+func creep() -> float:
+	if bad_volume <= 0.0 or not bad_kind in ["old", "stiff"] or blocked:
+		return 0.0
+	return clampf(_bad_pumped / 1.4, 0.0, 1.0)
+
+## High or low output: the pump operator's call, on the belt remote (X).
+## Dropping to low while a stiff load creeps is CAUGHT EARLY.
+func set_output(p, high: bool) -> void:
+	if high == speed_high:
+		return
+	speed_high = high
+	if not high and creep() > CREEP_SEEN and not _creep_caught and p != null:
+		_creep_caught = true
+		stats["creep_caught"] += 1
+		var at: Vector3 = PUMP_POS + Vector3(0, 3.2, 0)
+		game.score.award(p, CREEP_PAY, "Caught the creep early", at)
+		game.pop("CAUGHT EARLY", at + Vector3(0, 0.8, 0), Color("7cd992"))
+		game.sfx.hit("thunk")
+
+## True when the driver runs the chute to the pump operator's signals: a
+## person on the pump. A bot (or someone covered) leaves it to the driver.
+func chute_signalled() -> bool:
+	var op = game.crew.crew.get("pump") if game.crew else null
+	return op != null and is_instance_valid(op) and not op.bot and not op.covering and not game.tutorial
+
+## m³ out of the chute this frame. The driver tops the hopper up himself,
+## unless a person's on the pump: then he runs it at their signal, easing off
+## at the brim, except on FAST, where it slops over.
+func _chute_flow(t: Dictionary, delta: float) -> float:
+	var room := maxf(0.0, HOPPER_CAP - hopper)
+	if not chute_signalled():
+		return minf(DISCHARGE * delta, minf(t["load"], room))
+	var flow := minf(PUMP_Q * CHUTE[chute] * delta, t["load"])
+	var fill := hopper / HOPPER_CAP
+	var op = game.crew.crew.get("pump")
+	if fill >= HOP_BAND.x and fill <= HOP_BAND.y and pumping:
+		_band_t += delta
+		if _band_t >= BAND_PAY_T:
+			_band_t = 0.0
+			game.score.award(op, 2, "Kept the hopper between the lines")
+	if flow > room:
+		if chute == CHUTE.size() - 1:
+			# Over the brim: it spills down the side of the pump
+			var lost := flow - room
+			stats["hopper_spill"] += lost
+			t["load"] -= lost
+			_spill_t += delta
+			if not _spill_paid:
+				_spill_paid = true
+				game.pop("Hopper's spilling over!", PUMP_POS + Vector3(0, 3.0, 0), Color("ff4d4d"))
+				game.score.award(op, -8, "Hopper spilled over")
+				game.sfx.hit("plop")
+			if _spill_t > 2.0:
+				# The driver eases it back himself
+				chute = 2
+				game.hud.toast("Driver's eased the chute back", 1.4)
+		flow = room
+	else:
+		_spill_t = 0.0
+		if fill < HOP_BAND.y - 0.1:
+			_spill_paid = false
+	return flow
+
+func _pouring_truck() -> bool:
+	for t in trucks:
+		if t["state"] == "pour":
+			return true
+	return false
+
+## Holding Y at the panel: signalling the driver. The stick flicks the chute
+## up (faster) or down (slower), one step a flick.
+func _chute_signal(p, delta: float) -> bool:
+	if p.bot or p.covering or not chute_signalled() or not _pouring_truck():
+		if p.busy == "chute":
+			_end_chute(p)
+		return false
+	var fill := hopper / HOPPER_CAP
+	if p.slow_held():
+		p.busy = "chute"   # (stands still: the stick's the signal now)
+		var v: Vector2 = p.move_input()
+		if _flick_ok and v.y < -0.6:
+			chute = mini(CHUTE.size() - 1, chute + 1)
+			_flick_ok = false
+			game.sfx.hit("tink")
+		elif _flick_ok and v.y > 0.6:
+			chute = maxi(0, chute - 1)
+			_flick_ok = false
+			game.sfx.hit("tink")
+		elif absf(v.y) < 0.3:
+			_flick_ok = true
+		var right := fill >= HOP_BAND.x and fill <= HOP_BAND.y
+		p.cue("slow", "chute %s · stick up faster, down slower" % CHUTE_NAME[chute].to_lower(), -1.0, not right)
+		p.gold(not p.bot and right)
+		game.hud.show_meter(true, "HOPPER · CHUTE %s" % CHUTE_NAME[chute], "", HOP_BAND.x, HOP_BAND.y - HOP_BAND.x, fill, "Y")
+		_chute_shown_at = game.phase_t
+		# Arm up and rolling for faster, flat hand patting down for slower
+		var up := chute >= 2
+		p.pose_arms(Vector3(-2.6 if up else -1.2, 0, -0.2), Vector3(-0.3, 0, 0.2 + (0.15 * sin(game.phase_t * 9.0) if up else 0.0)))
+		p.say("%d%%" % int(fill * 100.0))
+		return true
+	if p.busy == "chute":
+		_end_chute(p)
+	var off := fill < HOP_BAND.x or fill > HOP_BAND.y
+	p.cue("slow", "signal the chute", -1.0, off)
+	return false
+
+func _end_chute(p) -> void:
+	p.busy = ""
+	_chute_shown_at = -1.0
+	game.hud.show_meter(false)
+
+## The call's made: the truck hand radios the pump and the boom what's coming.
+## A bot (or the docket) radios on its own, straight away.
+func _start_radio(t: Dictionary) -> void:
+	var who = t.get("tester")
+	if who != null and is_instance_valid(who) and not who.bot and not who.covering and not game.tutorial:
+		_radio_t = t
+		_radio_left = RADIO_T
+		_radio_ready = false
+		who.busy = "radio"
+		return
+	var honest := "NOT TESTED" if t.get("skipped", false) or not t.get("checked", false) else _true_radio(t)
+	_send_radio(null, t, honest)
+
+## What a tested load really is, as a radio call.
+func _true_radio(t: Dictionary) -> String:
+	match _verdict(t):
+		"ok": return RADIO["up"]
+		"stiff", "old": return RADIO["left"]
+	return RADIO["right"]
+
+func _radio(p, _delta: float) -> void:
+	var t: Dictionary = _radio_t if _radio_t != null else {}
+	if t.is_empty():
+		p.busy = ""
+		return
+	radio_label.visible = true
+	radio_label.position = p.global_position + Vector3(0, 3.1, 0)
+	radio_label.text = "▲ GOOD ONE\n◀ BIT STIFF      WET ONE ▶\n▼ NOT TESTED"
+	# (the wheel's over their head; the stick picks, B lets it go)
+	p.cue("leave", "flick the stick to radio · B: no radio", _radio_left / RADIO_T)
+	p.pose_arms(Vector3(-2.4, 0, -0.5), Vector3(-0.3, 0, 0.2))
+	var v: Vector2 = p.move_input()
+	var pick := ""
+	if v.length() < 0.3:
+		_radio_ready = true
+	elif _radio_ready and v.length() > 0.6:
+		if absf(v.x) > absf(v.y):
+			pick = RADIO["right"] if v.x > 0.0 else RADIO["left"]
+		else:
+			pick = RADIO["down"] if v.y > 0.0 else RADIO["up"]
+	if pick != "":
+		_send_radio(p, t, pick)
+	if pick != "" or p.leave_pressed():
+		p.busy = ""
+		_radio_t = null
+		radio_label.visible = false
+
+## The radio goes out: a pill over the pump operator and the boom operator,
+## and a buzz on the pump operator's phone. Right pays both.
+func _send_radio(p, t: Dictionary, said: String) -> void:
+	last_radio = said
+	var col := Color("7cd992") if said == RADIO["up"] else (Color("ffc23d") if said in [RADIO["left"], RADIO["down"]] else Color("6cc6ff"))
+	var crew = game.crew.crew if game.crew else {}
+	var shown := false
+	for role in ["pump", "boom"]:
+		var q = crew.get(role)
+		if q != null and is_instance_valid(q) and q != p:
+			game.pop("RADIO: " + said, q.global_position + Vector3(0, 2.6, 0), col)
+			shown = true
+	if not shown:
+		game.pop("RADIO: " + said, PUMP_POS + Vector3(0, 3.6, 0), col)
+	var op = crew.get("pump")
+	game.haptic(op, "40,60,40")
+	if p == null:
+		return
+	var right := (said == RADIO["down"]) if t.get("skipped", false) else (said == _true_radio(t))
+	if right:
+		stats["radio_right"] += 1
+		game.score.award(p, RADIO_PAY, "Radioed it right")
+		if op != null and op != p:
+			game.score.award(op, RADIO_PAY, "Radioed it right")
 
 func needs_check() -> Variant:
 	for t in [bay_truck, staged]:
@@ -1876,6 +2150,7 @@ func accept(t: Dictionary) -> void:
 		stats["bad_loads"] += 1
 		game.hud.toast("Bad load going in the pump...", 1.6)
 	t["accepted"] = true
+	_start_radio(t)
 	var other_pouring := false
 	for o in trucks:
 		if o != t and o["state"] == "pour":
@@ -1937,6 +2212,7 @@ func update(delta: float, in_pour: bool) -> void:
 		target = 240.0
 	elif pumping:
 		target = (55.0 + riser_top * 1.1) * (1.0 if speed_high else 0.72)
+		target += 85.0 * creep()
 		if fail_i >= 0:
 			target += 55.0 * wear
 		if quiet and spike_warn and _pending_cause == "":
@@ -1958,12 +2234,31 @@ func update(delta: float, in_pour: bool) -> void:
 		elif tripped:
 			gauge_label.text = "PUMP OFF  %d bar" % int(pressure)
 			gauge_label.modulate = Color("ffc23d")
+		elif creep() > CREEP_SEEN:
+			# A stiff load packing in: the needle climbs, and keeps climbing
+			gauge_label.text = "%d bar ▲" % int(pressure)
+			gauge_label.modulate = Color("ffc23d")
 		else:
 			gauge_label.text = "%d bar" % int(pressure)
 			gauge_label.modulate = Color("ff5a5f") if pressure > 180.0 else Color.WHITE
 
 	if not reversing:
 		_reverser = null
+	# The chute signals' close-up only shows while someone's holding Y
+	if _chute_shown_at >= 0.0 and game.phase_t - _chute_shown_at > 0.15:
+		_chute_shown_at = -1.0
+		game.hud.show_meter(false)
+		for q in game.players:
+			if q.busy == "chute":
+				q.busy = ""
+	if _radio_t != null:
+		_radio_left -= delta
+		var who = _radio_t.get("tester")
+		if _radio_left <= 0.0 or who == null or not is_instance_valid(who) or who.busy != "radio" or not in_pour:
+			if who != null and is_instance_valid(who) and who.busy == "radio":
+				who.busy = ""
+			_radio_t = null
+			radio_label.visible = false
 
 	# The slump cone only stands out while a load is being tested
 	if (needs_check() == null or not in_pour) and not _fetching():
@@ -2119,10 +2414,15 @@ func handle_player(p, delta: float, near: String) -> bool:
 	# A pressure spike: the pump operator kills it on the belt remote (A),
 	# wherever they are, street, deck or halfway up the riser. Every tenth
 	# of a second counts.
-	if p.role == "pump" and spike_on and p.busy in ["", "rigger"]:
+	if p.role == "pump" and spike_on and p.busy in ["", "rigger", "chute"]:
+		if p.busy == "chute":
+			_end_chute(p)
 		p.cue("action", "KILL THE PUMP", -1.0, true, Vector2(-1, -1), true)
 		if p.action_pressed():
 			kill_pump(p)
+		return true
+	if p.busy == "radio":
+		_radio(p, delta)
 		return true
 	if p.zone == "ladder":
 		_ladder(p, delta)
@@ -2776,6 +3076,25 @@ func _bay(p, delta: float) -> void:
 		elif p.leave_pressed() and p.held == null:
 			decide(p, t, "reject")
 		return
+	if t.get("choice", false) and not t["checked"]:
+		if p.bot or p.covering or slump.step_of(t) != "sample" or t.has("trust_m3"):
+			t.erase("choice")   # (a bot, or a test already under way: test it)
+		else:
+			# Test it, or skip the test and take the risk (shown, and it climbs
+			# with every load skipped in a row)
+			var pct := int(round(skip_risk() * 100.0))
+			p.cue("action", "slump test it", -1.0, true)
+			p.cue("slow", "skip test · %d%% risk" % pct, -1.0, false, Vector2(-1, -1), pct >= int(SKIP_RISK_MAX * 100.0))
+			if not _skip_told:
+				_skip_told = true
+				game.hud.toast("Test it (A) or skip the test (Y). Every load you skip makes a bad one more likely.", 3.0)
+			if p.slow_pressed():
+				skip_test(p, t)
+				p.bounce()
+				return
+			if not p.action_pressed():
+				return
+			t.erase("choice")
 	if not t["checked"]:
 		# The slump test, by hand, in its own close-up (slump.gd)
 		t["state"] = "check"
@@ -2792,6 +3111,7 @@ func _bay(p, delta: float) -> void:
 		if done:
 			t["checked"] = true
 			t["state"] = "bay"
+			skips = 0
 			game.score.award(p, 10, "Slump tests")
 			# A bot just uses a good load; a person makes the call
 			if p.bot and right_call(t) == "use":
@@ -2808,7 +3128,7 @@ func _bay(p, delta: float) -> void:
 	p.cue("action", "use it", -1.0, right == "use")
 	p.gold(right == "use")
 	p.cue("alt", "add water", -1.0, right == "water")
-	if right == "water":
+	if right == "water" and slump.says_call(t):
 		p.tint(Color("3fa9ff"))
 	if p.cues.size() < 3:
 		p.cues.append(["B", "send it back", -1.0, right == "reject", Vector2(-1, -1), right == "reject", false])
@@ -2893,6 +3213,8 @@ func _panel(p, delta: float) -> void:
 		if _restart_t >= RESTART_HOLD:
 			restart(p)
 		return
+	if _chute_signal(p, delta):
+		return
 	var want_stroke: bool = live and idle_t > SET_TIME * 0.4 and not line_down()
 	if want_stroke:
 		# Nothing to drop the pressure for: A strokes the pump instead
@@ -2904,11 +3226,6 @@ func _panel(p, delta: float) -> void:
 			p.bounce()
 		p.say("%d bar" % int(pressure))
 		return
-	if p.alt_pressed():
-		if idle_t > SET_TIME * 0.4:
-			game.score.award(p, 5, "Strokes to keep the line moving")
-		stroke()
-		p.bounce()
 	p.say("%d bar" % int(pressure))
 
 ## A couple of strokes to keep the concrete in the line moving during a wait.
