@@ -70,6 +70,9 @@ var _go_title: Label
 var _go_sub: Label
 var _back_hint: Control
 var _qr_rect: TextureRect
+var _qr_panel: Control       # the QR's card, top right
+var _title: Control          # the title, top left
+var _rack: Control           # the hat rack: fitted between those and the bar along the bottom
 var _qr_url := ""
 var _url_label: Label
 var _help_label: Label
@@ -155,7 +158,10 @@ func _build_crew_page(root: Control) -> void:
 	# The hat rack
 	var rack := UI.panel(Color("bf8f58"), 22, Color("8f6436"), 8, Vector4(26, 16, 26, 18))
 	_crew_page.add_child(rack)
-	UI.place(rack, Vector2(0.5, 0.5), Vector2(0, 26))
+	UI.place(rack, Vector2(0, 0), Vector2.ZERO)
+	_rack = rack
+	_qr_panel = qr
+	_title = tv
 	var rv := VBoxContainer.new()
 	rv.add_theme_constant_override("separation", 4)
 	rack.add_child(rv)
@@ -360,7 +366,28 @@ func set_ready(i: int, on: bool) -> void:
 		if on and p != null and game.has_method("haptic"):
 			game.haptic(p, UI.BUZZ["done"])
 
+## The hat rack goes under the title and the QR card and above the bar
+## along the bottom, shrunk to fit when the screen text is big (it used to
+## sit in the middle and cover the bottom of the QR at 1.25).
+const RACK_GAP := 14.0
+const RACK_BAR := 118.0      # px kept clear along the bottom for the bar
+
+func _fit_rack() -> void:
+	if _rack == null:
+		return
+	var vs: Vector2 = _crew_page.size
+	var top: float = _title.get_rect().end.y + RACK_GAP
+	if _qr_panel.visible:
+		top = maxf(top, _qr_panel.get_rect().end.y + RACK_GAP)
+	var bottom: float = vs.y - RACK_BAR
+	var sz: Vector2 = _rack.get_combined_minimum_size()
+	var k := minf(1.0, minf((bottom - top) / sz.y, (vs.x - 48.0) / sz.x))
+	_rack.size = sz
+	_rack.scale = Vector2(k, k)
+	_rack.position = Vector2((vs.x - sz.x * k) * 0.5, top + maxf(0.0, (bottom - top - sz.y * k) * 0.5))
+
 func _process_crew(delta: float) -> void:
+	_fit_rack()
 	var crew = game.crew
 	var people: Array = crew.humans()
 	var go_now := false
