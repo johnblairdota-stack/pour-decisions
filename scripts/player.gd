@@ -75,6 +75,9 @@ var pace := 1.0           # a bot's stick, scaled by how sharp the bots are work
 ## A person who's gone quiet while their job waits gets covered by a crewmate
 ## (the job's bot brain drives them) until they touch their controls again
 var covering := false
+var cover_firm := false   # covered because they were lost, not idle: it's his till the step's done
+var cover_gap := 0.0      # seconds their covered job's been unflagged
+var lost_t := 0.0         # seconds their job's waited while they were busy somewhere else
 var idle_in := 0.0        # seconds since this person last touched their controls
 var ring: MeshInstance3D  # a coloured disc under a person's feet
 var bubble: Label3D       # a short spoken line ("Clamp coming up!")
@@ -500,6 +503,8 @@ func raw_active() -> bool:
 ## They're back: hand the controls straight back.
 func uncover() -> void:
 	covering = false
+	cover_firm = false
+	cover_gap = 0.0
 	idle_in = 0.0
 	pace = 1.0
 	hurry = false
@@ -610,6 +615,8 @@ func say(text: String) -> void:
 	prompt.text = text
 
 func begin_cues() -> void:
+	# (last frame's: the cover check runs after this clears them)
+	had_cues = not cues.is_empty()
 	cues.clear()
 	big_cue = ""
 	prompt.text = ""
@@ -617,6 +624,7 @@ func begin_cues() -> void:
 ## A cue (by its verb) the HUD draws as the big hold A instead (main sets it
 ## each frame): its small button by the head stays hidden.
 var big_cue := ""
+var had_cues := false
 
 func show_cues(cam_right: Vector3, t: float, cam_pos := Vector3.ZERO, cam_k := 1.0) -> void:
 	# Keep glyphs a steady size on screen however far away the camera is

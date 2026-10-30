@@ -109,14 +109,14 @@ static func verb_tag(text: String, dot: Color, size := 20, col := BONE) -> Panel
 	return p
 ## Job colours: the same as the hard hats, so a colour always means a job
 const ROLE := {"boom": Color("ffc72c"), "line": Color("7cd992"), "pump": Color("ff7a1a"), "poker": Color("c49bff"), "screed": Color("f4f7fa"), "hose": Color("2fd3e8")}
-const ROLE_NAME := {"boom": "Boom operator", "line": "Truck hand", "pump": "Pump operator", "poker": "Poker hand", "screed": "Screeder", "hose": "Pipe guy"}
+const ROLE_NAME := {"boom": "Boom operator", "line": "Truck hand", "pump": "Pump operator", "poker": "Poker hand", "screed": "Screeder", "hose": "Hose hand"}
 const ROLE_SHORT := {
 	"boom": "Steers the placing boom and pours, bay by bay.",
 	"line": "Trucks and slump tests. Slings and pins on climb days.",
 	"pump": "Kills the pump on a spike, and climbs up to fix the riser.",
 	"poker": "Vibrates the concrete as it lands.",
 	"screed": "Strikes the slab flat behind the pokers.",
-	"hose": "On the end hose: puts the concrete exactly where it's wanted.",
+	"hose": "Runs the pour: you decide where it lands and when it flows. The boom follows you.",
 }
 ## The question each job asks of whoever picks it, on the crew page and the
 ## phone lobby: not what it feels like, what it'll ask of you.
@@ -135,35 +135,44 @@ const ROLE_CLIMB := {"boom": "Climb days: dogman", "line": "Climb days: slinger 
 ## stick), what to do, words in the game's own button prompts that mean
 ## you're on this step].
 const JOB_CARD := {
-	"boom": {"goal": "Steer the boom and fill each bay.", "watch": "where the pipe guy is heading. Fast swings whip the hose.",
+	"boom": {"goal": "Steer the boom and fill each bay.", "watch": "where the hose hand is heading. Fast swings whip the hose.",
 		"steps": [["stick", "Swing the hose over the bay (push harder to go faster)", ["boom remote", "steer", "swing"]],
-			["stick", "Keep the boom over the pipe guy: they call the pump", ["pump", "bin"]],
-			["X", "High or low output", ["high", "low", "output"]],
+			["stick", "Keep the boom over the hose hand: they call the pump", ["pump", "bin"]],
 			["B", "Put the remote down", ["put down", "step off"]]]},
 	"line": {"goal": "Get good concrete off every truck.", "watch": "the docket. Wrong mix or too old: send it back.",
 		"steps": [["A", "Hold to wave the truck back. Let go at STOP", ["wave", "stop", "let go", "truck in"]],
-			["A", "Slump test: 4 presses, it stops itself", ["sample", "fill", "rod", "lift", "measur", "tape", "scoop"]],
+			["A", "Slump test: 4 presses, it stops itself", ["sample", "fill", "rod", "lift", "measur", "tape", "scoop", "slump test it"]],
+			["Y", "Skip the test. Every skip makes a bad load likelier", ["skip"]],
 			["A", "Use the load", ["use it", "pour it"]],
 			["B", "Send it back", ["send it back", "send back"]],
-			["X", "Add the water held back, test again", ["water"]]]},
+			["X", "Add the water held back, test again", ["water"]],
+			["stick", "Radio the pump what's coming", ["radio"]],
+			["A", "Washout: hose the hopper down", ["hose the hopper"]]]},
 	"pump": {"goal": "Keep the line alive.", "watch": "the gauge. Under half a second is +40.",
 		"steps": [["A", "KILL THE PUMP the moment the gauge spikes", ["kill", "stop pumping", "let go: stop"]],
 			["A", "Climb up, open the clamp, swap the part", ["climb", "clamp", "pipe", "open", "fit", "tap", "pin", "chair", "knock", "lower", "carry", "take"]],
 			["A", "Hold at the panel to restart", ["restart"]],
+			["X", "High or low output. Drop to low when a stiff load creeps", ["go high", "go low", "high", "low"]],
+			["Y", "Hold at the panel to signal the chute: keep the hopper between the lines", ["chute"]],
+			["A", "Washout: hold at the panel to load the sponge ball", ["sponge ball", "load the"]],
 			["A", "Hold to open the washout valve", ["valve", "release", "washout"]]]},
-	"hose": {"goal": "Put the concrete exactly where it's wanted.", "watch": "heaps. Move on before it piles up.",
+	"hose": {"goal": "Run the pour: where it lands and when it flows.", "watch": "heaps. Move on before it piles up.",
 		"steps": [["A", "Grab the end hose under the boom", ["end hose", "take"]],
 			["stick", "Walk it to the empty spot", ["walk"]],
 			["A", "Hold to call the pump on, let go for off", ["pump on", "pump", "radio", "dragon", "concrete's on"]],
+			["A", "Washout: catch the sponge ball as it pops out", ["catch"]],
 			["B", "Let go of the hose", ["put down", "let go of"]]]},
-	"poker": {"goal": "Shake the air out so it sets solid.", "watch": "fresh drops. Too long in one spot is wasted.",
+	"poker": {"goal": "Shake the air out so it sets solid.", "watch": "the bubbles. When they stop, lift. Too long and water pools.",
 		"steps": [["A", "Pick up the poker", ["take poker", "pick up"]],
-			["A", "Hold in the purple until it goes glossy", ["plunge", "poke", "hold"]],
+			["A", "Hold in the purple until the bubbles stop", ["plunge", "poke", "hold", "lift"]],
+			["A", "She's right: tap a glossy strip for the screeder", ["she's right", "call the strip"]],
 			["Y", "Call the boom over here", ["call", "boom over"]],
 			["B", "Put it down", ["put down"]]]},
-	"screed": {"goal": "Strike the slab flat behind the pokers.", "watch": "the gold strip. Don't screed raw, unpoked mix.",
+	"screed": {"goal": "Strike the slab flat behind the pokers.", "watch": "the green strips the poker calls. Float them once they go matt.",
 		"steps": [["A", "Pick up the board", ["take screed", "pick up"]],
-			["A", "Hold and walk back over the gold", ["screed", "stroke"]]]},
+			["A", "Hold and walk back over the green", ["screed", "stroke"]],
+			["X", "Bull float: swap to it once a strip goes matt", ["bull float", "back to the board"]],
+			["A", "Hold to float under the blade", ["float"]]]},
 }
 
 ## What each button does in each job, for the pause menu's "Your job" card and

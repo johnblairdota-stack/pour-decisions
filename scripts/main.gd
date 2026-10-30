@@ -15,8 +15,10 @@ extends Node3D
 const UI := preload("res://scripts/ui.gd")
 const PauseScript := preload("res://scripts/pause.gd")
 const CoachScript := preload("res://scripts/coach.gd")
+const LeadingHand := preload("res://scripts/leading_hand.gd")
 const Icons := preload("res://scripts/icons.gd")
 const Settings := preload("res://scripts/settings.gd")
+const Story := preload("res://scripts/story.gd")
 const Wallet := preload("res://scripts/wallet.gd")
 const CueBadge := preload("res://scripts/cue_badge.gd")
 const SlumpGuide := preload("res://scripts/slump_guide.gd")
@@ -179,6 +181,8 @@ var stations := {}
 var players: Array = []
 var npcs: Array[Node3D] = []      # concreters with pokers
 var engineer: Node3D
+var lead_hand               # the leading hand, when he steps in to cover someone (leading_hand.gd)
+var covered_t := {}         # role -> seconds the leading hand covered it this slab
 var defect: Node3D
 var defect_fixed := false
 var _defect_prog := 0.0
@@ -299,6 +303,9 @@ func _ready() -> void:
 	coach = CoachScript.new()
 	add_child(coach)
 	coach.setup(self)
+	lead_hand = LeadingHand.new()
+	add_child(lead_hand)
+	lead_hand.setup(self)
 	if not autotest:
 		PauseScript.apply_ui_scale(get_tree())
 	for a in OS.get_cmdline_user_args():
@@ -497,10 +504,55 @@ func _apply_daylight(u: float) -> void:
 	# (from the low dawn sun round to the usual morning one over the last quarter)
 	sun.quaternion = q.slerp(_day_q, clampf((u - 0.75) / 0.25, 0.0, 1.0))
 
+var _light_now: Array = []   # the story light as last shown ([] after a dawn pour)
+
+## Every day but the dawn pour: the light for that day in the tower's story,
+## eased in from the last one, and on the storm day the sky closing in as the
+## shower comes and lifting after it.
+func _update_story_light(delta: float) -> void:
+	var want: Array = Story.LIGHTS["morning"] if tutorial else Story.light(k)
+	if cfg.get("rain", false) and not tutorial:
+		var t0: float = cfg["rain_at"]
+		var t1: float = t0 + float(cfg["rain_len"])
+		var clock := pour_clock if phase == "pour" else (t1 + 99.0 if phase in ["screed", "cure", "topout"] else 0.0)
+		var f := smoothstep(t0 - 25.0, t0, clock) * (1.0 - smoothstep(t1, t1 + 25.0, clock))
+		want = Story.mix(want, Story.LIGHTS["storm"], f)
+	if _light_now.is_empty():
+		_light_now = Story.LIGHTS["morning"]
+	_light_now = Story.mix(_light_now, want, minf(1.0, delta * 0.6))
+	var l := _light_now
+	sky_mat.set_shader_parameter("sky_top", l[0])
+	sky_mat.set_shader_parameter("sky_horizon", l[1])
+	sky_mat.set_shader_parameter("cover", l[8])
+	env.fog_light_color = l[1]
+	env.fog_density = l[7]
+	env.ambient_light_energy = l[4]
+	sun.light_color = l[2]
+	sun.light_energy = l[3]
+	var elev := deg_to_rad(l[5])
+	var dir: Vector2 = (l[6] as Vector2).normalized()
+	var to_sun := Vector3(dir.x, 0.0, dir.y) * cos(elev) + Vector3.UP * sin(elev)
+	sun.quaternion = Basis.looking_at(-to_sun, Vector3.UP).get_rotation_quaternion()
+	# (the street lights come on as the sun goes down on top-out day)
+	Street.set_lit(1.0 - smoothstep(4.0, 12.0, l[5]))
+	Wildlife.dawn = 0.0
+	if pour != null and pour.smat != null:
+		pour.smat.set_shader_parameter("low_light", 0.0)
+	_day_shown = -1.0
+
 func _update_daylight(delta: float) -> void:
+	if not is_dawn() and _day_u >= 1.0:
+		if _floods_on:
+			_floods_on = false
+			for f in _floods:
+				(f["node"] as Node3D).visible = false
+		_update_story_light(delta)
+		return
+	_light_now = []
+	env.fog_density = 0.00015
+	sky_mat.set_shader_parameter("cover", 0.42)
 	if not is_dawn():
-		if _day_u < 1.0:
-			_day_u = move_toward(_day_u, 1.0, delta * 0.5)
+		_day_u = move_toward(_day_u, 1.0, delta * 0.5)
 	else:
 		match phase:
 			"pour":
@@ -2164,6 +2216,17 @@ func _level_cfg(level: int) -> Dictionary:
 	c["gusty"] = level >= 4 and randf() < 0.2
 	c["gust_at"] = randf_range(12.0, 30.0)
 	c["dawn"] = level == DAWN_LEVEL or (_dawn_flag and level == maxi(0, _start_level - 1))
+	# The day in the tower's story sets the weather to match its light
+	if not tutorial:
+		var dawn: bool = c["dawn"]
+		for key in Story.day(level)[3]:
+			c[key] = Story.day(level)[3][key]
+		c["dawn"] = dawn or c.get("dawn", false)
+		c["open"] = 44.0 - (int(c["temp"]) - 21) * 1.0
+		c["late"] = 26.0 if c["traffic"] > 1.0 else 0.0
+	# Level 1 is the quiet one: good loads, no clamps letting go, and the
+	# pump operator's one spike comes with plenty of warning
+	c["quiet"] = level == 0
 	if c["dawn"]:
 		# (the trucks run before the traffic, and it's cool before sunrise)
 		c["traffic"] = 1.0
@@ -2180,6 +2243,7 @@ func _level_cfg(level: int) -> Dictionary:
 		c["defect"] = false
 		c["gusty"] = false
 		c["dawn"] = false
+		c["quiet"] = false
 	return c
 
 ## The toolbox talk before a pour: the day's conditions as chips, the pour
@@ -2188,9 +2252,13 @@ func _toolbox(wait: bool) -> Dictionary:
 	var chips: Array = []
 	var notes: Array = []
 	var t: int = cfg["temp"]
+	if not tutorial:
+		notes.append(Story.line(k))
+	if bool(cfg.get("quiet", false)):
+		chips.append(["A QUIET ONE", ""])
+		notes.append("Good loads all day. Pump operator: one spike, and you'll see the needle climb first.")
 	if is_dawn():
 		chips.append(["DAWN POUR · 5:10 AM", "warn"])
-		notes.append("Big pour, so it starts in the dark under the floodlights. The sun comes up over Bulimba as the slab fills: by full light it should be in.")
 	if t >= 31:
 		chips.append(["HOT · %d°C" % t, "hot"])
 		notes.append("Concrete goes off fast: about %ds to keep an edge wet. Started at first light." % int(cfg["open"]))
@@ -2215,7 +2283,7 @@ func _toolbox(wait: bool) -> Dictionary:
 		if st.is_empty():
 			continue
 		moves.append({"role": role, "btn": st[0][0], "text": st[0][1], "p": p.index, "bot": p.bot})
-	return {"title": ("WATER TOWER" if tutorial else "LEVEL %d" % (k + 1)) + " · TOOLBOX TALK",
+	return {"title": "WATER TOWER · TOOLBOX TALK" if tutorial else "LEVEL %d · %s" % [k + 1, Story.title(k).to_upper()],
 		"plan": "%d bays, far end first, back toward the boom. Keep the edge wet." % pour.BAYS,
 		"chips": chips, "notes": notes, "moves": moves, "wait": wait}
 
@@ -2255,6 +2323,7 @@ func _start_floor() -> void:
 	work_target = k * FH
 	cfg = _level_cfg(k)
 	if not tutorial:
+		hud.toast("LEVEL %d · %s" % [k + 1, Story.title(k).to_upper()], 3.5)
 		if west == null:
 			west = WestWing.new()
 			add_child(west)
@@ -2307,6 +2376,8 @@ func incident_level() -> int:
 func _plan_incidents() -> Array:
 	var lvl := incident_level()
 	var out: Array = []
+	if bool(cfg.get("quiet", false)):
+		return out
 	if tutorial:
 		# The tutorial's first pour goes smoothly; the second has one weeping
 		# clamp, to show the line hand's job
@@ -2329,7 +2400,11 @@ func _plan_incidents() -> Array:
 	return out
 
 func _start_pour() -> void:
+	if not tutorial and not autotest and not bool(Settings.value("tower_started")):
+		Settings.put("tower_started", true)
+	covered_t = {}
 	pour.reset()
+	poker.calls = {"clean": 0, "early": 0, "auto": 0}
 	# (a big slab's face is longer, so each strip takes longer to come back
 	# to: the concrete stays workable for longer to match, in game time)
 	pour.open_time = cfg["open"] * sqrt(pour.vol_k)
@@ -2452,6 +2527,9 @@ func _grade() -> void:
 	var note := "poured in %s  ·  silver: %d%% in %s  ·  gold: %d%% in %s" % [_mmss(pour_clock), int(score.SILVER_Q), _mmss(tg.x), int(score.GOLD_Q), _mmss(tg.y)]
 	if score.bot_tier != was_tier:
 		note += "\nThe bots are working at %s pace now" % score.MEDALS[score.bot_tier].to_lower()
+	if tutorial:
+		# (the coach keeps it short during the pour; the facts are here)
+		note += "\nDid you know? " + ("The shaft below was cast in 3 m lifts with jump forms, and the cone up top flares out to carry the tank." if k == TUT_FIRST else "Before any concrete goes in, slurry coats the inside of the line so the concrete slides, and the washout pushes the last of it out with water.")
 	hud.show_slab(_slab_report(quality, verdict, medal, note, rows), -1.0 if not crew.humans().is_empty() and not autotest or "report" in _shot_only or "lastreport" in _shot_only else 6.0)
 	_save_medal(medal)
 	Wallet.save()
@@ -2468,10 +2546,19 @@ func _slab_report(quality: float, verdict: String, medal: int, note: String, los
 		var p = crew.crew[role]
 		var pts := int(score.by_role.get(role, 0))
 		var why: String = score.top_reason(role)
-		crew_rows.append({"role": role, "p": p.index, "bot": p.bot, "name": p.char_name, "pts": pts, "why": why if why != "" else "Kept out of trouble"})
+		var cov := int(round(float(covered_t.get(role, 0.0))))
+		crew_rows.append({"role": role, "p": p.index, "bot": p.bot, "name": p.char_name, "pts": pts, "why": why if why != "" else "Kept out of trouble",
+			"covered": cov, "lh": lead_hand.lh_name()})
+		if role == "line" and line.wash.clean:
+			crew_rows[-1]["good"] = "Hopper hosed clean"
+		if role == "hose" and ops.ball_caught:
+			crew_rows[-1]["good"] = "Caught the sponge ball"
+		if role == "poker" and int(poker.calls["early"]) > 0:
+			crew_rows[-1]["early"] = int(poker.calls["early"])
 		if not p.bot:
 			crew_rows[-1]["wallet"] = int(score.wallet_pour.get(p.char_id, 0))
-		if (not p.bot or _cam_roles.has(role)) and pts > star_pts:
+		# (never the star if the leading hand had to do their job for them)
+		if (not p.bot or _cam_roles.has(role)) and pts > star_pts and cov < 10:
 			star_pts = pts
 			star = role
 	var nxt := ""
@@ -2487,6 +2574,8 @@ func _slab_report(quality: float, verdict: String, medal: int, note: String, los
 
 ## Keeps the best medal for each of the building's floors, for the site page.
 func _save_medal(medal: int) -> void:
+	if tutorial and not autotest and not bool(Settings.value("tut_done")):
+		Settings.put("tut_done", true)
 	if tutorial or autotest:
 		return
 	var m = Settings.value("medals")
@@ -2799,7 +2888,8 @@ func _process(delta: float) -> void:
 			see_s = true
 	pour.set_views(see_p and phase == "pour", see_s and phase == "pour", delta)
 	var bop = _boom_operator()
-	pour.set_edge_view(1.0 if bop != null and humans().has(bop) else 0.45)
+	# (the gold line on the wet edge, for a person new to the boom)
+	pour.set_edge_view(clampf(gold_level(bop), 0.0, 1.0) if bop != null and humans().has(bop) and gold_level(bop) > 0.06 else 0.0)
 	score.update(delta)
 	var cam_right := camera.global_transform.basis.x
 	var street_view: bool = band_box != null and band_box.visible
@@ -2922,6 +3012,7 @@ func _process(delta: float) -> void:
 	_update_hud()
 	_update_daylight(delta)
 	coach.update(delta)
+	lead_hand.update(delta)
 	_update_camera(delta)
 	_update_see_through(delta)
 	shake = maxf(0.0, shake - delta * 1.6)
@@ -2976,7 +3067,7 @@ func _join_players() -> void:
 	var open_slots: bool = crew.humans().size() < crew.MAX_PEOPLE and not autotest
 	hud.set_join(_join_text() if phase != "topout" and phase != "select" and phase != "roles" else "", phones.url() if phones.running and open_slots and phase != "topout" else "")
 
-## P1's number keys swap jobs on the fly (1 boom, 2 line, 3 pump, 4 poker, 5 screed, 6 pipe guy).
+## P1's number keys swap jobs on the fly (1 boom, 2 line, 3 pump, 4 poker, 5 screed, 6 hose hand).
 func _swap_keys() -> void:
 	if autotest:
 		return
@@ -3092,10 +3183,10 @@ func _update_pour(delta: float) -> void:
 	var wind_park: bool = climb.wind_gust >= BOOM_WIND
 
 	var op = _boom_operator()
-	# The pipe guy calls the concrete on and off (holding A on the end hose):
+	# The hose hand calls the concrete on and off (holding A on the end hose):
 	# the boom operator just keeps the boom over them. The boom's own A only
 	# pumps with nobody on the hose, for the slurry and the washout into the
-	# bin, or once a pipe guy's gone quiet (so nobody stands waiting)
+	# bin, or once a hose hand's gone quiet (so nobody stands waiting)
 	var person_hose: bool = hose_holder != null and not hose_holder.bot and not hose_holder.covering
 	# (walking the hose to the next spot isn't being quiet)
 	if person_hose and not hose_call and hose_holder.move_input().length() < 0.2:
@@ -3111,15 +3202,18 @@ func _update_pour(delta: float) -> void:
 		want = false
 	if _filled_ratio() >= 1.0 and ops.stage == "pour":
 		ops.start_washout()
-	# High or low output is the boom operator's call (X on the remote). With
-	# nobody on the remote the pump runs itself between them.
-	if op == null:
+	# High or low output is the pump operator's call (X on their belt remote).
+	# A bot on the pump (or someone being covered) runs it between them, and
+	# eases off when a stiff load starts to creep.
+	var pump_op = crew.crew.get("pump") if crew else null
+	if pump_op == null or not is_instance_valid(pump_op) or pump_op.bot or pump_op.covering:
 		var feeding := false
 		for t in line.trucks:
 			if t["state"] == "pour":
 				feeding = true
-		line.speed_high = feeding or line.hopper > line.HOPPER_CAP * (0.35 if line.speed_high else 0.55)
+		line.speed_high = (feeding or line.hopper > line.HOPPER_CAP * (0.35 if line.speed_high else 0.55)) and line.creep() < 0.35
 	speed_advice = _speed_advice()
+	_in_sync(op, delta)
 	var q := 0.0
 	if ops.primed and not ops.busy():
 		q = line.run(delta, want)
@@ -3434,6 +3528,66 @@ func _boom_operator():
 ## wet edge is getting old.
 var speed_advice := {"want": "", "level": 0, "why": ""}
 
+## In sync: the hose hand's pumping, and a person on the boom keeps the tip
+## within a metre of them. Every few seconds of it pays them both, more the
+## longer the run goes.
+const SYNC_R := 1.0
+const SYNC_PAY_T := 4.0
+var _sync_t := 0.0
+var _sync_run := 0
+
+func _in_sync(op, delta: float) -> void:
+	if op == null or op.bot or op.covering or hose_holder == null or phase != "pour":
+		_sync_t = 0.0
+		_sync_run = 0
+		return
+	if not line.pumping:
+		return   # (a pause in the concrete doesn't break the run)
+	var hp: Vector3 = hose_holder.global_position
+	if Vector2(tip_pos.x - hp.x, tip_pos.z - hp.z).length() <= SYNC_R:
+		_sync_t += delta
+		if _sync_t >= SYNC_PAY_T:
+			_sync_t = 0.0
+			_sync_run += 1
+			var pay := 4 + 2 * mini(_sync_run, 5)
+			score.award(op, pay, "In sync on the hose")
+			score.award(hose_holder, pay, "In sync on the hose")
+			pop("IN SYNC" + (" x%d" % _sync_run if _sync_run > 1 else ""), hp + Vector3(0, 2.4, 0), Color("2fd3e8"))
+	else:
+		_sync_t = 0.0
+		_sync_run = 0
+
+## X on the pump operator's belt remote: high or low output, from anywhere
+## but the truck bay (X is the bay's own there) and the ladder. The button only
+## shows when it's worth switching, and flashes red when it's urgent. A creep
+## on the gauge is yours to read once you know the job: the hint fades with
+## the gold.
+func _output_remote(p, delta: float, near: String) -> void:
+	if phase != "pour" or p.bot or p.covering or near == "bay" or p.zone not in ["ground", "deck"] or p.busy not in ["", "chute"]:
+		return
+	if not ops.primed or ops.busy():
+		return
+	var adv: Dictionary = speed_advice
+	var creep_hint: bool = adv["why"] == "pressure creeping"
+	var show_it: bool = adv["want"] != "" and (not creep_hint or gold_level(p) > 0.35)
+	if show_it:
+		var lv: int = adv["level"]
+		p.cue("alt", ("go " + adv["want"]) if lv == 0 else ("go %s: %s" % [adv["want"].to_upper(), adv["why"]]), -1.0, lv >= 1, Vector2(-1, -1), lv >= 2)
+		p.gold(creep_hint)
+	if adv["want"] != "" and adv["level"] >= 1:
+		_advice_t += delta
+	else:
+		_advice_t = 0.0
+	if p.alt_pressed():
+		var paid_before := int(line.stats.get("creep_caught", 0))
+		line.set_output(p, not line.speed_high)
+		# One payout per piece of advice that had been showing: no farming
+		# it by tapping X back and forth (a caught creep pays on its own)
+		if int(line.stats.get("creep_caught", 0)) == paid_before and adv["want"] == ("high" if line.speed_high else "low") and adv["level"] >= 1 and _advice_t >= 0.5 and pour_clock - _output_paid_at > 10.0:
+			_output_paid_at = pour_clock
+			score.award(p, 10, "Good call on the output")
+		hud.toast("Pump on %s" % ("HIGH" if line.speed_high else "LOW"), 1.2)
+
 func _speed_advice() -> Dictionary:
 	var none := {"want": "", "level": 0, "why": ""}
 	if phase != "pour" or line.line_down() or line.blocked:
@@ -3447,6 +3601,9 @@ func _speed_advice() -> Dictionary:
 	if line.speed_high:
 		if not line.pumping:
 			return none   # (only while it's actually pumping)
+		var cr: float = line.creep()
+		if cr > line.CREEP_SEEN:
+			return {"want": "low", "level": 2 if cr > 0.6 else 1, "why": "pressure creeping"}
 		if hop < 0.12 and not feeding:
 			return {"want": "low", "level": 2, "why": "hopper emptying"}
 		if hop < 0.3 and not feeding:
@@ -3545,7 +3702,7 @@ func _handle_player(p, delta: float) -> void:
 	if p.busy == "hose":
 		_hose_work(p, delta)
 		return
-	# The pipe guy's radio works from anywhere
+	# The hose hand's radio works from anywhere
 	if p.role == "hose" and ops.role() == "hose" and ops.radio(p):
 		return
 
@@ -3611,7 +3768,7 @@ func _handle_player(p, delta: float) -> void:
 		elif not ops.primed or ops.busy():
 			p.say("start-up…" if not ops.primed else "washout…")
 		elif pipe_calls():
-			pass   # (the pipe guy calls the concrete: you keep the boom over them)
+			pass   # (the hose hand calls the concrete: you keep the boom over them)
 		elif trouble:
 			p.cue("action", "STOP pumping!", -1.0, true, Vector2(-1, -1), true)
 		else:
@@ -3621,25 +3778,6 @@ func _handle_player(p, delta: float) -> void:
 			# around it, but where you aim is what counts)
 			if not p.bot and not blocked_now and line.hopper > 0.1:
 				p.gold(pour.good_pour_spot(_pour_local(hose_end.global_position)))
-		# X: high or low output. The button only shows when it's worth
-		# switching, and flashes red when it's urgent (the hopper emptying).
-		var adv: Dictionary = speed_advice
-		if adv["want"] != "":
-			var lv: int = adv["level"]
-			p.cue("alt", ("go " + adv["want"]) if lv == 0 else ("go %s: %s" % [adv["want"].to_upper(), adv["why"]]), -1.0, lv >= 1, Vector2(-1, -1), lv >= 2)
-		if adv["want"] != "" and adv["level"] >= 1:
-			_advice_t += delta
-		else:
-			_advice_t = 0.0
-		if p.alt_pressed():
-			line.speed_high = not line.speed_high
-			# One payout per piece of advice that had been showing: no farming
-			# it by tapping X back and forth
-			if adv["want"] == ("high" if line.speed_high else "low") and adv["level"] >= 1 and _advice_t >= 0.5 and pour_clock - _output_paid_at > 10.0:
-				_output_paid_at = pour_clock
-				score.award(p, 10, "Good call on the output")
-			if not p.bot:
-				hud.toast("Pump on %s" % ("HIGH" if line.speed_high else "LOW"), 1.2)
 		if climb.wind_gust >= BOOM_WIND:
 			p.say("too windy")
 		elif line.line_down():
@@ -3654,6 +3792,11 @@ func _handle_player(p, delta: float) -> void:
 		return
 
 	var near := _station_near(p)
+	if p.role == "pump":
+		_output_remote(p, delta, near)
+	# The washout: the truck hand hoses the hopper down
+	if p.role == "line" and line.wash.handle(p, delta):
+		return
 	if poker.handle_player(p, delta):
 		return
 	if screed.handle_player(p, delta, near):
@@ -3784,7 +3927,7 @@ func _update_hoist(delta: float) -> void:
 
 ## The boom operator walks the deck with the radio remote, keeping up with
 ## the boom head a few metres off to one side of it (left or right as the
-## camera sees it), never in line with the pipe, so the pipe guy and the
+## camera sees it), never in line with the pipe, so the hose hand and the
 ## concrete landing stay in view. They stay on the side they're on until the
 ## deck runs out, then cross to the other.
 const BOOM_SIDE := 3.0          # m to the side of the boom head
@@ -3864,7 +4007,7 @@ func _jobs() -> Array:
 	var oj: Array = ops.job()
 	if not oj.is_empty():
 		add.call(oj[0], oj[1], oj[2], oj[3], oj[4])
-	# The end hose, waiting for the pipe guy
+	# The end hose, waiting for the hose hand
 	if hose_holder == null and not crew.crew["hose"].bot:
 		add.call("hose", hose_anchor() + Vector3(0, 1.6, 0), 1 if ops.primed else 0, "hose", "END HOSE")
 	# The boom remote
@@ -3896,7 +4039,7 @@ func _jobs() -> Array:
 	var hop: float = line.hopper / line.HOPPER_CAP
 	if t != null:
 		var tl := 2 if t["age"] > 80.0 or (t == line.bay_truck and hop < 0.2) else 1
-		add.call("bay", (t["node"] as Node3D).position + Vector3(-2.0, 4.2, 0), tl, "line", "TOO OLD: SEND IT BACK" if t.get("too_old", false) else "CHECK THE DOCKET" if t["state"] == "docket" else ("SLUMP TEST" if not t["checked"] else "MAKE THE CALL"))
+		add.call("bay", (t["node"] as Node3D).position + Vector3(-2.0, 4.2, 0), tl, "line", "TOO OLD: SEND IT BACK" if t.get("too_old", false) else "CHECK THE DOCKET" if t["state"] == "docket" else (("TEST OR SKIP" if t.get("choice", false) else "SLUMP TEST") if not t["checked"] else "MAKE THE CALL"))
 	elif line.can_wave_in() and (line.bay_truck == null or line.staged == null and hop < 0.6):
 		add.call("bay", st_pos.call("bay") + up, 1 if hop < 0.3 else 0, "line", "WAVE TRUCK IN")
 	# (a pressure spike gets no sign: the gauge close-up and the red A over
@@ -3934,7 +4077,7 @@ var _foot_toast_t := 0.0
 
 func _footprints(p) -> void:
 	_foot_toast_t = maxf(0.0, _foot_toast_t - get_process_delta_time())
-	# (the pipe guy goes where the hose takes them: the boom drags them about)
+	# (the hose hand goes where the hose takes them: the boom drags them about)
 	# (nor the screeder with the board down: it takes their prints out behind them)
 	var screeding: bool = p.tool == "screed" and p.action_held()
 	if p.bot or phase != "pour" or p.zone != "deck" or p.busy in ["boom", "rigger", "dogman", "hose"] or screeding:
@@ -3972,7 +4115,7 @@ const CALL_OUTS := {"boom": "Bay's waiting on the boom!", "line": "Truck's waiti
 ## Is the game waiting on this person right now (their job's flagged, and
 ## they've a button to press)?
 func waiting_on(p) -> bool:
-	return not p.bot and int(urgent.get(p.role, 0)) >= 1 and phase in ["inspect", "pour", "climb"] and (not p.cues.is_empty() or where_to(p) != "")
+	return not p.bot and int(urgent.get(p.role, 0)) >= 1 and phase in ["inspect", "pour", "climb"] and (not p.cues.is_empty() or p.had_cues or where_to(p) != "")
 
 ## For the phone: where this person's job needs them, when they're not there
 ## yet and have nothing to press ("Walk to the TRUCK BAY"), else "".
@@ -4031,33 +4174,91 @@ func nudge_level(p) -> int:
 func _cover(p, delta: float) -> void:
 	if p.bot:
 		return
-	if p.raw_active():
+	if p.covering:
+		covered_t[p.role] = float(covered_t.get(p.role, 0.0)) + delta
+	_lost_check(p, delta)
+	if p.raw_active() and not p.cover_firm:
 		p.idle_in = 0.0
 		p.set_meta("called", false)
 		if p.covering:
 			p.uncover()
+			lead_hand.stop(p, true)
 			hud.toast("P%d's back on the %s" % [p.index, UI.ROLE_NAME[p.role].to_lower()], 1.4)
 		return
-	p.idle_in += delta
-	var waiting: bool = waiting_on(p) or (p.covering and int(urgent.get(p.role, 0)) >= 1)
+	if not p.raw_active():
+		p.idle_in += delta
+	# (their job's flagged, whether or not they're near enough to see its
+	# button: someone stood at the wrong end of the site still holds it up)
+	var waiting: bool = waiting_on(p) or (int(urgent.get(p.role, 0)) >= 1 and phase in ["inspect", "pour", "climb"])
+	if p.covering and p.role == "pump" and phase == "pour" and (line.repair_pending() or line.tripped):
+		waiting = true   # (he sees a repair through, start to finish)
+	if p.covering and climb.active and p.busy in ["rigger", "dogman"]:
+		waiting = true   # (and a climb's rigging or dogging, till it's done)
+	if p.covering:
+		# (and a step that's flagged again a moment later is the same job)
+		p.cover_gap = 0.0 if waiting else p.cover_gap + delta
+		waiting = waiting or p.cover_gap < 3.0
 	if p.covering and not waiting:
 		# That step's done: the job's theirs again
 		p.uncover()
 		p.set_meta("called", false)
-		hud.toast("The leading hand's done that one. P%d's still on the %s." % [p.index, UI.ROLE_NAME[p.role].to_lower()], 2.0)
+		lead_hand.stop(p, false)
+		hud.toast("%s's done that one. P%d's still on the %s." % [lead_hand.lh_name(), p.index, UI.ROLE_NAME[p.role].to_lower()], 2.0)
 		return
 	if not waiting:
 		p.set_meta("called", false)
 		p.idle_in = minf(p.idle_in, 2.0)
 		return
+	if p.covering:
+		return
 	if p.idle_in > NUDGE_CALL and not bool(p.get_meta("called", false)) and not autotest_human(p):
 		p.set_meta("called", true)
 		slipped(p, 0.04)
 		_call_out(p)
-	if not p.covering and p.idle_in > COVER_AFTER and not autotest_human(p):
-		p.covering = true
-		slipped(p, 0.08)
-		hud.toast("P%d's job is waiting: the leading hand's doing this step. Press anything to take it back." % p.index, 3.0)
+	if p.idle_in > COVER_AFTER and not autotest_human(p):
+		_start_cover(p, false)
+	elif p.lost_t > COVER_LOST and not autotest_human(p):
+		# Busy, but not at the job: lost. He covers this one whatever
+		# they're pressing, and their chibi goes where it's needed
+		_start_cover(p, true)
+
+func _start_cover(p, firm: bool) -> void:
+	_covers += 1
+	if autotest:
+		print("[autotest]   %s covers P%d (%s)%s" % [lead_hand.lh_name(), p.index, p.role, " (lost)" if firm else ""])
+	p.covering = true
+	slipped(p, 0.08)
+	p.cover_firm = firm
+	p.lost_t = 0.0
+	lead_hand.start(p)
+	var lh: String = lead_hand.lh_name()
+	hud.lead_name = lh
+	if firm:
+		hud.toast("%s's covering P%d: watch where your chibi goes, that's the job." % [lh, p.index], 3.0)
+	else:
+		hud.toast("%s's covering P%d. Press anything to take it back." % [lh, p.index], 3.0)
+
+## Seconds a job's been waiting on someone who's pressing things but isn't
+## at it (wandering, or at the wrong station). The poker's patches and a
+## spike (which follows them about) don't count: those are on them wherever
+## they are.
+const COVER_LOST := 40.0
+var _covers := 0
+var _jobs_now: Array = []   # this frame's jobs (_update_signs)
+const LOST_FAR := 6.0       # m from the job that counts as not at it
+func _lost_check(p, delta: float) -> void:
+	if p.covering or phase not in ["pour", "climb"]:
+		p.lost_t = 0.0
+		return
+	var far := false
+	for j in _jobs_now:
+		if j["role"] != p.role or int(j["level"]) < 1 or String(j["key"]).begins_with("raw") or j["key"] == "panel" and line.spike_on:
+			continue
+		var at: Vector3 = j["pos"]
+		far = Vector2(at.x - p.global_position.x, at.z - p.global_position.z).length() > LOST_FAR
+		if not far:
+			break
+	p.lost_t = p.lost_t + delta if far else 0.0
 
 ## A crewmate shouts across to someone the job's waiting on, by name.
 func _call_out(p) -> void:
@@ -4136,15 +4337,15 @@ func _update_whip(delta: float) -> void:
 		h.model.rotation.z = move_toward(h.model.rotation.z, 0.0, delta * 4.0)
 
 var ops                         # the start-up and the washout (ops.gd)
-var hose_holder = null          # the pipe guy on the end hose, if anyone
-var hose_call := false          # the pipe guy's calling for concrete (holding A)
-var _hose_segs: Array = []      # the end hose drawn to the pipe guy's hands
+var hose_holder = null          # the hose hand on the end hose, if anyone
+var hose_call := false          # the hose hand's calling for concrete (holding A)
+var _hose_segs: Array = []      # the end hose drawn to the hose hand's hands
 var _big_hold_on := false       # the HUD's big hold A is up this frame
 const BOOT_SINK := 0.06         # m the crew's boots sink into the wet concrete
 const HOSE_REACH := 2.0         # m the end hose reaches from under the boom tip
 const HOSE_QUIET := 6.0         # s without a call before a bot boom carries on regardless
 var _hose_quiet_t := 0.0
-# The pipe guy shouts "Pump it!" / "Stop!" only for a real start or stop: a
+# The hose hand shouts "Pump it!" / "Stop!" only for a real start or stop: a
 # quick dab to top up a gap stays quiet, and they don't shout twice in a row
 const HOSE_BARK_GAP := 4.0      # s between shouts
 const HOSE_BARK_RUN := 1.5      # s on (or off) before a change is worth a shout
@@ -4152,7 +4353,7 @@ var _hose_bark_t := 0.0         # time since the last shout
 var _hose_state_t := 0.0        # time the call's been in its current state
 const HOSE_WALK_K := 0.55       # walking with the hose: slow and steady
 
-## Where the concrete comes out: the pipe guy's hands on the end hose, or the
+## Where the concrete comes out: the hose hand's hands on the end hose, or the
 ## hose hanging off the boom tip when nobody's on it.
 func discharge() -> Vector3:
 	if hose_holder != null and is_instance_valid(hose_holder) and hose_holder.busy == "hose":
@@ -4161,7 +4362,7 @@ func discharge() -> Vector3:
 		return _hose_grip(hose_holder)[1] + f * 0.3 + Vector3(0, -0.12, 0)
 	return hose_end.global_position
 
-## Where the pipe guy's hands are on the hose: [back hand, front hand].
+## Where the hose hand's hands are on the hose: [back hand, front hand].
 func _hose_grip(h) -> Array:
 	var back: Vector3 = h.hand_r.global_position
 	var front: Vector3 = h.hand_l.global_position
@@ -4192,14 +4393,14 @@ func drop_hose() -> void:
 	for s in _hose_segs:
 		(s as Node3D).visible = false
 
-## True when the pipe guy on the end hose is the one turning the pump on and off.
+## True when the hose hand on the end hose is the one turning the pump on and off.
 func pipe_calls() -> bool:
 	if hose_holder == null or not ops.primed or ops.busy():
 		return false
 	var person: bool = not hose_holder.bot and not hose_holder.covering
 	return not (person and _hose_quiet_t >= HOSE_QUIET)
 
-## The pipe guy on the end hose: walk it where it's wanted (slowly, on a
+## The hose hand on the end hose: walk it where it's wanted (slowly, on a
 ## leash from the boom tip), hold A to call the pump on, B to let go.
 func _hose_work(p, delta: float) -> void:
 	if phase != "pour" or p.leave_pressed():
@@ -4246,7 +4447,7 @@ func _hose_work(p, delta: float) -> void:
 	else:
 		_hose_state_t += delta
 
-## The end hose drawn as a sagging run from the boom tip to the pipe guy's hands.
+## The end hose drawn as a sagging run from the boom tip to the hose hand's hands.
 func _draw_hose() -> void:
 	if hose_holder == null:
 		return
@@ -4420,6 +4621,7 @@ var _sign_focus := Vector3.ZERO
 
 func _update_signs(delta: float) -> void:
 	var jobs := _jobs()
+	_jobs_now = jobs
 	urgent = {}
 	go_to = {}
 	_sign_count = jobs.size()
@@ -4616,7 +4818,7 @@ func _update_boom() -> void:
 var _stream_mats := {}
 
 func _update_stream() -> void:
-	# (the first spurt of concrete through, for the pipe guy to call)
+	# (the first spurt of concrete through, for the hose hand to call)
 	var on: bool = phase == "pour" and (pumping or (ops.stage == "concrete" and ops.showing_sign()))
 	stream.visible = on
 	if not on:
@@ -4658,16 +4860,13 @@ func _tickets() -> Array:
 		out.append({"icon": "C", "text": "C%d weeping · %d m up" % [line.fail_i + 1, int(line.clamps[line.fail_i]["pos"].y)], "frac": 1.0 - line.wear, "color": UI.ROLE["pump"], "role": "pump", "urgent": line.wear > 0.5})
 	if line.blocked and not line.block_found:
 		out.append({"icon": "?", "text": "Blocked: tap the riser", "frac": 0.2, "color": Color("ff5a5f"), "urgent": true})
-	# The wet edge
-	# The boom's progress: the bay being poured filling up, coloured by how
-	# fresh the wet edge at the front is (green fresh, amber ageing, red going off)
+	# The boom's progress: the bay being poured filling up. (How fresh the
+	# wet edge is, is on the concrete itself now: glossy, then dull and crazed.)
 	if _filled_ratio() < 1.0:
 		var left: float = clampf(pour.edge_left / pour.open_time, 0.0, 1.0) if pour.poured > 2.0 else 1.0
 		var b: int = pour.cur_bay
 		var cov: float = clampf(pour.bay_cov[b], 0.0, 1.0)
-		var state := "edge fresh" if left >= 0.55 else ("edge ageing" if left >= 0.3 else "EDGE GOING OFF")
-		var bar := UI.GREEN if left >= 0.55 else (UI.YELLOW if left >= 0.3 else UI.RED)
-		out.append({"icon": "E", "text": "Bay %d of %d · %d%% · %s" % [b + 1, pour.BAYS, int(cov * 100.0), state], "frac": cov, "bar": bar, "color": UI.ROLE["boom"], "role": "boom", "urgent": left < 0.3})
+		out.append({"icon": "E", "text": "Bay %d of %d · %d%%" % [b + 1, pour.BAYS, int(cov * 100.0)], "frac": cov, "bar": UI.GREEN, "color": UI.ROLE["boom"], "role": "boom", "urgent": left < 0.15})
 	if pour.at_risk > 0.01:
 		out.append({"icon": "V", "text": "Going off unvibrated", "frac": 1.0 - minf(1.0, pour.at_risk * 8.0), "color": UI.ROLE["poker"], "role": "poker", "urgent": true})
 	# Pump and trucks
@@ -5406,6 +5605,10 @@ func _maybe_shot() -> void:
 		key = "layout"
 	elif "startup" in _shot_only and ops != null and ops.stage == "slurry_out" and ops.left < ops.SLURRY * 0.6 and not _shots_taken.has("startup"):
 		key = "startup"
+	elif "spray" in _shot_only and lead_hand.who != null and lead_hand.shouting() and not _shots_taken.has("spray"):
+		key = "spray"
+	elif "spray2" in _shot_only and _shots_taken.has("spray") and lead_hand.who != null and lead_hand.shouting() and lead_hand.on_t > 9.0 and not _shots_taken.has("spray2"):
+		key = "spray2"
 	elif "washout" in _shot_only and ops != null and ops.stage == "push" and ops.left < ops.WATER * 0.8 and not _shots_taken.has("washout"):
 		key = "washout"
 	elif "tank" in _shot_only and ops != null and ops.stage == "valve" and ops.hold > 0.4 and not _shots_taken.has("tank"):

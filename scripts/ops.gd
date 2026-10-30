@@ -3,15 +3,15 @@
 ## START-UP (priming), before any concrete goes in the slab:
 ##   1. START THE PUMP     pump operator, hold A at the PUMP PANEL
 ##   2. DRAGON'S BREATHING the pump pushes the air out of the line ahead of it:
-##                         hot air comes out the hose end. The pipe guy, on the
+##                         hot air comes out the hose end. The hose hand, on the
 ##                         hose, radios it down (A)
 ##   3. SLURRY IN          pump operator tips the bag of slurry (cement, sand and
 ##                         water) into the hopper (hold A at the panel). It
 ##                         coats the inside of the line so the concrete slides
 ##   4. SLURRY OUT         the slurry reaches the hose. It mustn't go in the
-##                         slab: the boom (and the pipe guy) put the hose over
+##                         slab: the boom (and the hose hand) put the hose over
 ##                         the BIN and pump it all in (hold A over the bin)
-##   5. CONCRETE'S ON      the first concrete comes through: the pipe guy radios
+##   5. CONCRETE'S ON      the first concrete comes through: the hose hand radios
 ##                         "concrete's on" (A) and the pour begins
 ##
 ## WASHOUT, once the slab's full (SCP's water washout: water pumped in behind
@@ -20,10 +20,16 @@
 ## https://scpaus.com.au/water-washout-clean-out-system/):
 ##   1. WATER IN           pump operator cleans the hopper and fills it with
 ##                         water (hold A at the panel)
-##   2. INTO THE BIN       the water pushes the last of the concrete out: the
+##   2. SPONGE BALL        pump operator loads the sponge ball (hold A at the
+##                         panel): it rides between the concrete and the water
+##                         and wipes the line clean on its way up
+##   3. INTO THE BIN       the water pushes the last of the concrete out: the
 ##                         boom puts the hose over the BIN and pumps it out,
 ##                         concrete then water, into the bin
-##   3. BLOW IT BACK       pump operator opens the RELEASE VALVE at the pump (hold
+##   4. CATCH THE BALL     the ball pops out of the end hose: the hose hand
+##                         catches it (A the moment it pops) or it flies off
+##                         onto the slab
+##   5. BLOW IT BACK       pump operator opens the RELEASE VALVE at the pump (hold
 ##                         A): the water runs back into the settling tank
 ##
 ## Every step has one person and one place, a hand sign and a ticket. Nobody
@@ -43,7 +49,7 @@ const BIN_R := 0.85          # m: the hose counts as over the bin inside this
 const TRAVEL_T := 2.4        # s for the air (and then the slurry) to reach the hose
 const NAG_T := 7.0           # s before a step's call goes out loud
 const AUTO_T := 30.0         # s before the crew does a step themselves
-const RADIO_AUTO_T := 4.0    # s a bot pipe guy (or nobody) takes to radio
+const RADIO_AUTO_T := 4.0    # s a bot hose hand (or nobody) takes to radio
 const SIGNAL_AIR := 2.4      # s into "air" when the hot air puffs out of the hose
 const SIGNAL_CONC := 0.6     # s into "concrete" when the first grey concrete spurts out
 const ON_THE_DOT := 1.2      # s after the sign to call it for the bonus
@@ -57,11 +63,16 @@ const STEPS := {
 	"slurry_out": ["Slurry into the bin, not the slab", "boom", "bin", "BIN"],
 	"concrete": ["Concrete's on?", "hose", "hose", "RADIO: CONCRETE'S ON"],
 	"water_in": ["Clean the hopper, water in", "pump", "panel", "WATER IN"],
+	"ball_in": ["Sponge ball into the line", "pump", "panel", "SPONGE BALL"],
 	"push": ["The last of it into the bin", "boom", "bin", "BIN"],
+	"catch": ["Catch the sponge ball", "hose", "hose", "CATCH THE BALL"],
 	"valve": ["Blow the water back", "pump", "valve", "OPEN THE VALVE"],
 }
 const PRIME_ORDER := ["start", "air", "slurry_in", "slurry_go", "slurry_out", "concrete"]
-const WASH_ORDER := ["water_in", "push", "valve"]
+const WASH_ORDER := ["water_in", "ball_in", "push", "catch", "valve"]
+const BALL_T := 1.6          # s after the bin step before the ball pops out of the hose
+const CATCH_WIN := 1.0       # s to catch it once it's out
+const CATCH_PAY := 12
 
 var game
 var stage := ""             # a STEPS key, "pour" while pouring, "done" after the washout
@@ -85,6 +96,12 @@ var _tank_ring_mat: StandardMaterial3D
 var _tank_arrow: Label3D
 var _tank_t := 0.0
 var _spill_t := 0.0
+var ball: Node3D             # the sponge ball, when it's out of the line
+var ball_caught := false     # caught clean this pour
+var _ball_from := Vector3.ZERO
+var _ball_to := Vector3.ZERO
+var _ball_t := -1.0          # >= 0 while it's flying
+var _ball_who = null         # caught by (it flies to their hands)
 
 func setup(owner_game) -> void:
 	game = owner_game
@@ -217,6 +234,10 @@ func place() -> void:
 func start_pour() -> void:
 	primed = false
 	washed = false
+	ball_caught = false
+	_ball_t = -1.0
+	if ball:
+		ball.visible = false
 	in_bin = 0.0
 	_bin_fill.scale.y = 0.01
 	_go("start")
@@ -302,7 +323,7 @@ func stream_color() -> Variant:
 func panel(p, delta: float) -> bool:
 	if role() != "pump" or STEPS[stage][2] != "panel":
 		return false
-	var verb: String = {"start": "start the pump", "slurry_in": "tip the slurry in", "water_in": "clean out, water in"}[stage]
+	var verb: String = {"start": "start the pump", "slurry_in": "tip the slurry in", "water_in": "clean out, water in", "ball_in": "load the sponge ball"}[stage]
 	p.cue("action", verb, hold, true)
 	p.gold(not p.bot)
 	if p.action_held():
@@ -314,11 +335,11 @@ func panel(p, delta: float) -> bool:
 		hold = maxf(0.0, hold - delta)
 	return true
 
-## When the thing the pipe guy's waiting to call actually happens.
+## When the thing the hose hand's waiting to call actually happens.
 func signal_t() -> float:
-	return SIGNAL_AIR if stage == "air" else SIGNAL_CONC
+	return SIGNAL_AIR if stage == "air" else (BALL_T if stage == "catch" else SIGNAL_CONC)
 
-## The pipe guy on the radio: it's a timing call. Watch the end of the hose
+## The hose hand on the radio: it's a timing call. Watch the end of the hose
 ## and call it the moment it happens (the hot air puffing out; the first grey
 ## concrete coming through): on the dot is a bonus. True only on the frame the
 ## call's made (so the rest of the job, like taking the hose, still works).
@@ -327,6 +348,8 @@ var _not_yet_at := -99.0
 func radio(p) -> bool:
 	if role() != "hose":
 		return false
+	if stage == "catch":
+		return _catch(p)
 	var verb := "radio: dragon's breathing!" if stage == "air" else "radio: concrete's on!"
 	var since := step_t - signal_t()
 	if since < 0.0:
@@ -349,12 +372,62 @@ func radio(p) -> bool:
 		return true
 	return false
 
+## The sponge ball: it pops out of the end hose BALL_T into the step, and the
+## hose hand has CATCH_WIN to grab it. True on the frame they do.
+func _catch(p) -> bool:
+	var since := step_t - BALL_T
+	if since < 0.0:
+		p.say("ball's coming…")
+		p.cue("action", "catch the ball", clampf(step_t / BALL_T, 0.0, 1.0), false)
+		return false
+	p.cue("action", "CATCH IT!", -1.0, true)
+	p.gold(not p.bot)
+	if p.action_pressed():
+		ball_caught = true
+		_ball_fly(game.discharge(), p.global_position + Vector3(0, 1.1, 0), p)
+		p.bark("Got it!", 1.2)
+		game.score.award(p, CATCH_PAY, "Caught the sponge ball")
+		var op = game.crew.crew.get("pump") if game.crew else null
+		if op != null and op != p:
+			game.score.award(op, CATCH_PAY, "Caught the sponge ball")
+		game.sfx.hit("chime")
+		p.bounce()
+		_next()
+		return true
+	return false
+
+## The ball out of the hose, flying to whoever caught it or off onto the slab.
+func _ball_fly(from: Vector3, to: Vector3, who) -> void:
+	if ball == null:
+		ball = F.prop("SpongeBall")
+		ball.scale = Vector3.ONE * 2.0   # (it reads from the couch)
+		game.add_child(ball)
+	ball.visible = true
+	_ball_from = from
+	_ball_to = to
+	_ball_t = 0.0
+	_ball_who = who
+
+func _ball_update(delta: float) -> void:
+	if ball == null or _ball_t < 0.0:
+		return
+	_ball_t += delta
+	var u := clampf(_ball_t / 0.55, 0.0, 1.0)
+	ball.global_position = _ball_from.lerp(_ball_to, u) + Vector3(0, 1.2 * sin(u * PI), 0)
+	ball.rotation.x += delta * 14.0
+	if u >= 1.0:
+		_ball_t = -1.0
+		if _ball_who != null:
+			ball.visible = false   # (in their hands, and into the bucket)
+
 ## The end hose is showing the sign right now (for the stream and the puff).
 func showing_sign() -> bool:
 	if stage == "air":
 		return step_t >= SIGNAL_AIR
 	if stage == "concrete":
 		return step_t >= SIGNAL_CONC and step_t < SIGNAL_CONC + 1.8
+	if stage == "catch":
+		return step_t >= BALL_T and step_t < BALL_T + CATCH_WIN
 	return false
 
 ## The pump operator at the release valve.
@@ -421,13 +494,34 @@ func update(delta: float) -> void:
 	# (the water in it rises as the washout comes back)
 	var lvl := 1.0 if washed else (hold if call else 0.0)
 	_tank_water.position.y = 0.75 + 0.35 * lvl
+	_ball_update(delta)
 	if not busy():
 		return
 	step_t += delta
+	# The sponge ball: a bot (or nobody) on the hose catches it; a person who
+	# misses it watches it fly off onto the slab
+	if stage == "catch":
+		var hh = game.crew.crew.get("hose") if game.crew else null
+		var bot_hose: bool = hh == null or hh.bot or hh.covering
+		if bot_hose and step_t > BALL_T + 0.3:
+			ball_caught = hh != null
+			_ball_fly(game.discharge(), (hh.global_position if hh != null else game.discharge()) + Vector3(0, 1.1, 0), hh)
+			if hh != null:
+				hh.bark("Got it!", 1.2)
+			_next()
+		elif not bot_hose and step_t > BALL_T + CATCH_WIN:
+			var at: Vector3 = game.discharge()
+			var fwd := Vector3(at.x - game.tip_pos.x, 0, at.z - game.tip_pos.z)
+			fwd = fwd.normalized() if fwd.length() > 0.1 else Vector3(1, 0, 0)
+			_ball_fly(at, Vector3(at.x, game.work_y + game.pour.SLAB + 0.1, at.z) + fwd * 3.5, null)
+			game.pop("Sponge ball's on the slab!", at + Vector3(0, 1.2, 0), Color("ffc23d"))
+			game.score.award(hh, -6, "Missed the sponge ball")
+			_next()
+		return
 	if stage == "slurry_go" and step_t >= TRAVEL_T:
 		_next()
 		return
-	# A bot pipe guy radios it in a moment; a person who misses it doesn't
+	# A bot hose hand radios it in a moment; a person who misses it doesn't
 	# hold anyone up: after a few seconds the crew carries on without the call
 	if role() == "hose":
 		var h = game.crew.crew.get("hose")

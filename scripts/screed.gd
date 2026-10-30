@@ -37,6 +37,15 @@ var _idle_t := 0.0
 var _spin_t := -1.0         # >= 0 while doing staff tricks
 var _over_concrete := true
 var _input_seen := false
+# The bull float (X swaps to it, a person on the screed): screeded concrete
+# comes up shiny with bleed water and goes matt, and that's when it's floated
+const FLOAT_REACH := 4.4    # m out from the hands to the blade
+const FLOAT_W := 1.2        # blade length, m
+var floating := false
+var float_node: Node3D
+var _float_pole: Node3D
+var _float_told := 0.0
+var _float_slide := 0.0
 
 func build(owner_game) -> void:
 	game = owner_game
@@ -76,6 +85,10 @@ func build(owner_game) -> void:
 	sm.material = F.color_mat(Color("6f7276"))
 	_crumbs.mesh = sm
 	add_child(_crumbs)
+	float_node = F.prop("BullFloatHead")
+	float_node.visible = false
+	add_child(float_node)
+	_float_pole = float_node.find_child("BullFloatPole", true, false) as Node3D
 
 ## The board always goes with the screeder: upright at their side like a
 ## staff when they're not using it, and down in front when they screed.
@@ -92,6 +105,7 @@ func pick_up(p) -> void:
 		holder.tool = ""
 	p.tool = "screed"
 	holder = p
+	_put_float_away()
 	if board.get_parent():
 		board.get_parent().remove_child(board)
 	p.model.add_child(board)
@@ -159,11 +173,20 @@ func handle_player(p, delta: float, near := "") -> bool:
 		if _working:
 			_working = false
 			_dump()
+		_put_float_away()
 		return false
 	var hold: bool = p.action_held()
 	# At a station that wants A for something else, A is for that
 	if not _working and near != "" and not (near in ["screed", "poker", "boom"]):
 		return false
+	# X: swap the board for the bull float, and back
+	if not p.bot and not _working and p.alt_pressed():
+		floating = not floating
+		game.sfx.hit("clank")
+		if not floating:
+			_put_float_away()
+	if floating:
+		return _float(p, delta, hold)
 	_want_down = hold
 	if hold and not _working and _down > 0.7:
 		_working = true
@@ -212,6 +235,12 @@ func handle_player(p, delta: float, near := "") -> bool:
 			p.bark("Needs a poke first!", 1.4)
 			if not p.bot:
 				game.hud.toast("Purple's not vibrated: the screed won't finish it", 1.8)
+		if int(res.get("held", 0)) > 4 and raw <= 4 and _raw_warned <= 0.0:
+			# Vibrated, but the poker hasn't said she's right on this strip
+			_raw_warned = 4.0
+			p.bark("Waiting on she's right!", 1.4)
+			if not p.bot:
+				game.hud.toast("Screed the green strips: the poker calls each one when it's done", 1.8)
 		if done > 0:
 			game.score.trickle(p, float(done) * 0.25, "Screeding")
 			_gold_t = 0.35
@@ -248,7 +277,61 @@ func handle_player(p, delta: float, near := "") -> bool:
 		# Gold: vibrated, unscreeded concrete right where the board would land
 		var land: Vector3 = p.global_position + fwd * REACH - pour.position
 		p.gold(not p.bot and pour.unscreeded_at(land))
+	if not p.bot and pour.float_ready_n > 20:
+		p.cue("alt", "bull float", -1.0, false)
+		p.gold(true)
 	return hold
+
+## Floating: the blade rides out on the slab, the pole back to the hands.
+## Hold A and it works the concrete under the blade.
+func _float(p, delta: float, hold: bool) -> bool:
+	board.visible = false
+	_crumbs.emitting = false
+	var fwd := Vector3(sin(p.model.rotation.y), 0, cos(p.model.rotation.y))
+	var right := fwd.cross(Vector3.UP)
+	# Pushed out and drawn back while it works
+	_float_slide = _float_slide + delta * 3.0 if hold else 0.0
+	var reach: float = FLOAT_REACH + (0.5 * sin(_float_slide) if hold else 0.0)
+	var head: Vector3 = p.global_position + fwd * reach
+	var local: Vector3 = head - pour.position
+	local.y = 0.0
+	var surf: float = maxf(pour.height_at(local), 0.0)
+	float_node.visible = true
+	float_node.global_position = Vector3(head.x, pour.global_position.y + surf + 0.01, head.z)
+	float_node.global_rotation = Vector3(0, atan2(fwd.x, fwd.z), 0)
+	if _float_pole:
+		# The pole climbs from the bracket to the hands
+		var rise: float = p.global_position.y + 1.0 - float_node.global_position.y
+		_float_pole.rotation.x = asin(clampf(rise / 4.8, -0.9, 0.9))
+	p.pose_arms(Vector3(-1.2, 0, -0.25), Vector3(-1.0, 0, 0.25))
+	var on_slab: bool = pour.height_at(local) > pour.SLAB * 0.6
+	_float_told = maxf(0.0, _float_told - delta)
+	if hold and on_slab:
+		var r: Vector3i = pour.float_line(local - right * FLOAT_W * 0.5, local + right * FLOAT_W * 0.5)
+		if r.x > 0:
+			game.score.trickle(p, float(r.x) * 0.35, "Bull floating")
+			_gold_t = 0.35
+		if r.y > 2 and _float_told <= 0.0:
+			_float_told = 4.0
+			game.pop("Still shiny: dragged the water up", head + Vector3(0, 1.2, 0), Color("6fa8dc"))
+			game.score.award(p, -3, "Floated too early")
+		elif r.z > 2 and _float_told <= 0.0:
+			_float_told = 4.0
+			game.hud.toast("Gone too far: it won't close up now", 1.6)
+		if fmod(_float_slide, 1.1) < delta * 3.0:
+			game.sfx.hit("scrape")
+	_gold_t = maxf(0.0, _gold_t - delta)
+	p.cue("action", "float" if not hold else "keep floating", -1.0, on_slab and pour.float_ready_n > 0)
+	p.gold(not p.bot and _gold_t > 0.0)
+	p.cue("alt", "back to the board")
+	return hold
+
+func _put_float_away() -> void:
+	floating = false
+	if float_node:
+		float_node.visible = false
+	if board:
+		board.visible = true
 
 ## Any input from the screeder stops the staff tricks.
 func _input_check(p) -> void:
@@ -277,6 +360,10 @@ func update(delta: float) -> void:
 		_crumbs.emitting = false
 		return
 	var p = holder
+	if p.bot and floating:
+		_put_float_away()
+	# Matt concrete waiting for the float glints gold for a person new to it
+	pour.set_float_view(0.0 if p.bot or game.phase != "pour" else clampf(game.gold_level(p), 0.0, 1.0) * (1.0 if game.gold_level(p) > 0.06 else 0.0))
 	if not _input_seen:
 		_input_check(p)   # (handle_player wasn't called this frame)
 	_input_seen = false
@@ -287,7 +374,7 @@ func update(delta: float) -> void:
 	_want_down = false
 	_down = move_toward(_down, 1.0 if want_down else 0.0, delta / 0.22)
 	# Idle long enough with nothing to do: staff tricks
-	if not want_down and _down <= 0.0 and p.busy == "" and p.zone in ["deck", "ground"]:
+	if not want_down and not floating and _down <= 0.0 and p.busy == "" and p.zone in ["deck", "ground"]:
 		_idle_t += delta
 		if _idle_t > 3.5 and _spin_t < 0.0:
 			_spin_t = 0.0
@@ -299,6 +386,8 @@ func update(delta: float) -> void:
 ## Upright at the side like a staff, eased down into the screeding position,
 ## or spun round like a bow staff while they wait.
 func _pose(p, delta: float) -> void:
+	if floating:
+		return   # (the float's pole is in both hands: _float poses them)
 	if _spin_t >= 0.0:
 		_spin_t += delta
 		var phase := fmod(_spin_t, 4.0)
@@ -340,3 +429,4 @@ func clear() -> void:
 	carry = 0.0
 	_working = false
 	roll.visible = false
+	_put_float_away()

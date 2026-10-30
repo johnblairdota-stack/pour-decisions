@@ -28,8 +28,8 @@ const INFO := {
 		"text": "Watch the pressure gauge. The moment it spikes, kill the pump (A): the faster you react, the more it's worth. A spike is often the line going (a clamp letting go, a plug forming): kill it, then grab the parts, climb up, fix it and restart the pump. You run the washout valve too.\n\nClimb days: rigger, pinning the new sections."},
 	"poker": {"name": "Poker hand", "hat": Color("c49bff"), "climb": "tag line",
 		"text": "Vibrate the concrete as it lands: plunge, feel it shudder, lift out when the bubbles stop, move on. Tow your drive unit along.\n\nClimb days: the tag line."},
-	"hose": {"name": "Pipe guy", "hat": Color("2fd3e8"), "climb": "",
-		"text": "On the end of the rubber hose: walk it where the concrete's wanted, right into the corners the boom can't quite reach, and call the pump on and off. On the radio for the start-up: the dragon's breathing, slurry out, concrete's on."},
+	"hose": {"name": "Hose hand", "hat": Color("2fd3e8"), "climb": "",
+		"text": "Runs the pour: you decide where it lands and when it flows, and the boom follows you. On the end of the rubber hose: walk it where the concrete's wanted, right into the corners the boom can't quite reach, and call the pump on and off. On the radio for the start-up: the dragon's breathing, slurry out, concrete's on."},
 	"screed": {"name": "Screeder", "hat": Color("f4f7fa"), "climb": "",
 		"text": "Follow the pokers with the screed board. Saw it side to side to strike the slab flat, rolling the surplus into the low spots, before it goes off.\n\nInspections: fix the defects."},
 }

@@ -218,6 +218,15 @@ const PROP_COLORS := {
 	"bin_green": Color("2f6f3f"), "bin_lid": Color("e5383b"), "bin_yellow": Color("ffc72c"), "sign": Color("f4f7fa"),
 	"sign_blue": Color("2f6fd1"), "barrier": Color("ff7a1a"), "screen": Color("4a689c"),
 	"screen_frame": Color("2c3e5c"),
+	# Washout and finishing (tools/blender/props.py)
+	"foam": Color("e0412f"), "foam_dark": Color("b8301f"), "hose": Color("2f5d3a"), "nozzle": Color("ffc72c"),
+	"brass": Color("c9a24a"),
+	# Smoko (tools/blender/smoko.py)
+	"van": Color("f2efe6"), "van_stripe": Color("5a3a26"), "van_trim": Color("2b2e33"), "awning_a": Color("f4f7fa"),
+	"awning_b": Color("c8402e"), "van_inside": Color("3a2a20"), "counter": Color("b98a55"), "menu": Color("26302b"),
+	"chalk": Color("eef0e8"), "cup": Color("f6f4ee"), "sleeve": Color("9a6a42"), "lid": Color("f6f4ee"),
+	"pulp": Color("b9ad94"), "foil": Color("c9d1d8"), "pastry": Color("c98d45"), "pastry_dark": Color("b87a32"),
+	"sauce": Color("c8241c"), "sausage": Color("b86a4e"), "paper": Color("f4f7fa"), "coffee": Color("5a3a26"),
 }
 static var _libs := {}
 ## Props are small: a crew-weight outline would swallow a shovel handle

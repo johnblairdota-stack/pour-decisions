@@ -355,9 +355,7 @@ func _boom(p, delta: float) -> void:
 	# Keep the hopper from running dry: drop to low between trucks
 	var info: Dictionary = line.hud_info()
 	var feeding: bool = info["bay"] == "discharging"
-	# High or low on X, when the remote's X says it's worth switching
-	# (bronze bots only switch when it matters)
-	p.ai_alt = g.speed_advice["want"] != "" and (g.score.bot_tier > 0 or g.speed_advice["level"] >= 1) and _tap()
+	# (high or low output is the pump operator's now)
 	var ok: bool = line.hopper > 0.25 or feeding and line.hopper > 0.08
 	var why := "" if ok else "hopper"
 	if pour.raining or g.climb.wind_gust >= g.BOOM_WIND or line.line_down() or line.blocked:
@@ -392,7 +390,7 @@ func _boom(p, delta: float) -> void:
 	else:
 		_heap_t = 0.0
 	# Never ahead of the bay being poured (swinging across from the bin, or
-	# the pipe guy still catching up)
+	# the hose hand still catching up)
 	# (a hose that's stopped moving is as far as the boom reaches: pump there)
 	var hv: float = Vector2(dl.x - _last_dl.x, dl.z - _last_dl.z).length() / maxf(delta, 0.001)
 	_last_dl = dl
@@ -405,18 +403,18 @@ func _boom(p, delta: float) -> void:
 	_boom_ok = ok
 	p.ai_action = ok
 
-# ------------------------------------------------------------------ pipe guy
+# ------------------------------------------------------------------ hose hand
 
 var _hose_goal := Vector3.INF
 var stop_t := {}     # (test) s the boom bot held off pumping, by reason
 var _last_dl := Vector3.ZERO
 var _hose_goal_t := 0.0
 
-## The pipe guy: take the end hose from under the boom, walk it to the bin for
+## The hose hand: take the end hose from under the boom, walk it to the bin for
 ## the slurry and the washout, and on the pour put it where the boom can't
 ## quite: the low spots in the leading strip, right out to the forms and into
 ## the corners.
-## Fixing a defect falls to the pipe guy (or the poker hand, if the pipe guy's
+## Fixing a defect falls to the hose hand (or the poker hand, if the hose hand's
 ## a person too) when the screeder's a person and slow. (Not the boom op: they
 ## work off the scaffold and can't step onto the pad.)
 func _cover_defect(p) -> bool:
@@ -469,7 +467,7 @@ func _hose(p, delta: float) -> void:
 	if g.ops.wants_bin():
 		return   # (the slurry and the washout: the boom pumps into the bin)
 	# Call the pump on (hold A) when it's worth it, the way the boom bot did
-	# before the call was the pipe guy's: not into an empty hopper, a weeping
+	# before the call was the hose hand's: not into an empty hopper, a weeping
 	# clamp or a blocked line, not in the rain or a gust, not while walking off
 	# a spot that's full, and never ahead of the bay being poured
 	var line = g.line
@@ -485,7 +483,7 @@ func _hose(p, delta: float) -> void:
 	var op = g._boom_operator()
 	if op != null and op.bot:
 		# (the boom bot still judges the swing, the pile-ups and, on a big
-		# slab, the heaps: it moves on from them, the pipe guy holds off)
+		# slab, the heaps: it moves on from them, the hose hand holds off)
 		ok = ok and _boom_ok
 	elif pour.vol_k > 1.0 and pour.height_at(dl) > pour.SLAB * 1.5:
 		ok = false
