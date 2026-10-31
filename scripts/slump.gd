@@ -228,6 +228,7 @@ func work(p, t: Dictionary, delta: float) -> bool:
 	match st["step"]:
 		"sample":
 			p.cue("action", "get a sample", -1.0, true)
+			p.big()
 			p.gold(not p.bot)
 			if pressed:
 				st["step"] = "fetch"
@@ -241,12 +242,14 @@ func work(p, t: Dictionary, delta: float) -> bool:
 			# go part way and it waits for you
 			if not st.get("armed", true):
 				p.cue("action", "hold: fill and rod", 0.0, true)
+				p.big()
 				if not held:
 					st["armed"] = true
 				_show(t)
 				return false
 			var u: float = st["u"]
 			p.cue("action", ("done: let go" if u >= 1.0 else "hold: fill and rod"), u, true)
+			p.big()
 			p.gold(not p.bot)
 			if held and u < 1.0:
 				var before := int(float(st["rods"]))
@@ -284,12 +287,14 @@ func work(p, t: Dictionary, delta: float) -> bool:
 			# and the test has to be done again
 			if not st.get("armed", true):
 				p.cue("action", "hold: lift it straight up", 0.0, true)
+				p.big()
 				if not held:
 					st["armed"] = true
 				_show(t)
 				return false
 			var paused: float = st.get("pause", 0.0)
 			p.cue("action", ("keep holding, steady!" if paused > 0.0 else "hold: lift it straight up"), st["lift"], true, Vector2(-1, -1), paused > 0.0)
+			p.big()
 			p.gold(not p.bot and paused <= 0.0)
 			if held:
 				st["pause"] = 0.0
@@ -321,6 +326,7 @@ func work(p, t: Dictionary, delta: float) -> bool:
 		"sheared":
 			st["u"] = float(st["u"]) + delta
 			p.cue("action", "press: scoop it back, start again", -1.0, true)
+			p.big()
 			if st["u"] > 1.2 and pressed:
 				st["step"] = "fill"
 				st["draw"] = "fill"
@@ -342,11 +348,13 @@ func work(p, t: Dictionary, delta: float) -> bool:
 					if not held:
 						st["armed"] = true
 				p.cue("action", "measure it", -1.0, true)
+				p.big()
 				p.gold(not p.bot)
 				if st.get("armed", true) and pressed:
 					st["running"] = true
 			elif not st.get("touch", false):
 				p.cue("action", "measuring…", clampf(float(st["tape"]) / maxf(0.01, target), 0.0, 1.0), true)
+				p.big()
 				var slow := clampf((target - float(st["tape"])) / 0.025, 0.3, 1.0)
 				st["tape"] = minf(target, float(st["tape"]) + TAPE_RATE * slow * delta)
 				if st["tape"] >= target - 0.0005:
