@@ -4022,6 +4022,10 @@ func _jobs() -> Array:
 	# The end hose, waiting for the hose hand
 	if hose_holder == null and not crew.crew["hose"].bot:
 		add.call("hose", hose_anchor() + Vector3(0, 1.6, 0), 1 if ops.primed else 0, "hose", "END HOSE")
+	elif hose_holder != null and not hose_holder.bot and not hose_call and ops.primed and line.hopper > 1.0 and not ops.wants_bin():
+		# A person holding the hose but not calling for concrete, with
+		# concrete waiting in the hopper: the pour's waiting on them
+		add.call("hose", hose_holder.global_position + Vector3(0, 2.2, 0), 1, "hose", "HOLD A")
 	# The boom remote
 	if _boom_operator() == null:
 		add.call("boom", st_pos.call("boom") + up, 1 if line.hopper > 1.0 else 0, "boom")
@@ -4206,6 +4210,8 @@ func _cover(p, delta: float) -> void:
 		waiting = true   # (he sees a repair through, start to finish)
 	if p.covering and climb.active and p.busy in ["rigger", "dogman"]:
 		waiting = true   # (and a climb's rigging or dogging, till it's done)
+	if p.covering and p.role == "hose" and phase == "pour" and hose_holder == p:
+		waiting = true   # (once he's on the hose he stays on it till they're back)
 	if p.covering:
 		# (and a step that's flagged again a moment later is the same job)
 		p.cover_gap = 0.0 if waiting else p.cover_gap + delta
