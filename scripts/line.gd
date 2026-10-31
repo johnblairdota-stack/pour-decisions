@@ -3141,7 +3141,8 @@ func _bay(p, delta: float) -> void:
 			# The next load's over 90 minutes: send it back from the queue
 			p.face((old["node"] as Node3D).position)
 			p.cue("leave", "too old: send it back", -1.0, true)
-			p.gold(not p.bot)
+			p.gold(true)
+			p.big()
 			if p.leave_pressed() and p.held == null:
 				turn_away(old, p)
 				p.pose_arms(Vector3(-2.8, 0, -0.3), Vector3(-2.8, 0, 0.3))
