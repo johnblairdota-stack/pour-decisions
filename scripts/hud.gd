@@ -13,6 +13,7 @@ extends CanvasLayer
 
 const UI := preload("res://scripts/ui.gd")
 const Icons := preload("res://scripts/icons.gd")
+const CueBadge := preload("res://scripts/cue_badge.gd")
 
 # (kept for older callers)
 const YELLOW := UI.YELLOW
@@ -65,7 +66,7 @@ var bolt_panel: PanelContainer
 var bolt_title: Label
 var bolt_zone: ColorRect
 var bolt_marker: ColorRect
-var bolt_glyph: PanelContainer
+var bolt_glyph: CueBadge
 const BOLT_W := 320.0
 # cards
 var card: PanelContainer
@@ -280,7 +281,9 @@ func _ready() -> void:
 	var bth := HBoxContainer.new()
 	bth.add_theme_constant_override("separation", 8)
 	bv.add_child(bth)
-	bolt_glyph = UI.glyph("A", 30)
+	# (the button that drives it, ringed like the bar: white fill, the gold spot)
+	bolt_glyph = CueBadge.new()
+	bolt_glyph.custom_minimum_size = Vector2(70, 70)
 	bth.add_child(bolt_glyph)
 	bolt_title = UI.head("", 22, UI.BONE)
 	bolt_title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -695,9 +698,7 @@ func show_meter(on: bool, title := "", _hint := "", zone_from := 0.6, zone_w := 
 	if not on:
 		return
 	bolt_title.text = title
-	(bolt_glyph.get_meta("label") as Label).text = button
-	UI.style(bolt_glyph).bg_color = UI.GLYPH.get(button, UI.GLYPH["A"])
-	UI.style(bolt_glyph).shadow_color = UI.LIP.get(button, UI.LIP["A"])
+	bolt_glyph.show_cue([button, "", clampf(marker, 0.0, 1.0), true, Vector2(zone_from, zone_from + zone_w), false, false, false])
 	# In the gold: the whole zone brightens, so the moment reads at a glance
 	var inz := marker >= zone_from and marker <= zone_from + zone_w
 	bolt_zone.color = UI.GOLD.lightened(0.35) if inz else UI.GOLD
@@ -908,7 +909,6 @@ var _dk_slump: Control
 var _dk_age: Control
 var _dk_slump_l: Label
 var _dk_age_l: Label
-var _dk_hints: HBoxContainer
 var _dk_key := ""
 const DK_SPEC := Vector2(75.0, 150.0)   # accepted slump band, mm (spec 100 mm)
 const DK_AGE := 90.0
@@ -942,9 +942,6 @@ func _build_docket() -> void:
 	water.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	water.custom_minimum_size = Vector2(344, 0)
 	v.add_child(water)
-	_dk_hints = HBoxContainer.new()
-	_dk_hints.add_theme_constant_override("separation", 14)
-	v.add_child(_dk_hints)
 	docket.visible = false
 
 func show_docket(d: Dictionary) -> void:
@@ -969,18 +966,6 @@ func show_docket(d: Dictionary) -> void:
 	_dk_age.set("help", d["help"])
 	_dk_slump.queue_redraw()
 	_dk_age.queue_redraw()
-	for c in _dk_hints.get_children():
-		_dk_hints.remove_child(c)
-		c.queue_free()
-	for h in [["A", "use it", "use"], ["X", "add water", "water"], ["B", "send it back", "reject"]]:
-		var hint := UI.hint(h[0], h[1], 16)
-		for c in hint.get_children():
-			if c is Label:
-				(c as Label).add_theme_color_override("font_color", UI.INK)
-				(c as Label).add_theme_constant_override("outline_size", 0)
-		if d["help"] and d["right"] != h[2]:
-			hint.modulate = Color(1, 1, 1, 0.35)
-		_dk_hints.add_child(hint)
 
 ## The line pressure gauge: a half dial, green to red, with the needle. On a
 ## spike the dial flashes red and the needle shakes in the red.
@@ -1053,7 +1038,7 @@ func _refit_card() -> void:
 ## countdown till it starts itself; set_toolbox moves them.
 var _tb_box: VBoxContainer
 var _tb_fill: ColorRect
-var _tb_hold: HoldGlyph
+var _tb_hold: CueBadge
 var _tb_left: Label
 
 func style_brief() -> void:
@@ -1156,8 +1141,9 @@ func show_toolbox(d: Dictionary) -> void:
 		_tb_left.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		_tb_left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		foot.add_child(_tb_left)
-		_tb_hold = HoldGlyph.new()
-		_tb_hold.custom_minimum_size = Vector2(46, 46)
+		_tb_hold = CueBadge.new()
+		_tb_hold.custom_minimum_size = Vector2(70, 70)
+		_tb_hold.show_cue(["A", "", 0.0, true, Vector2(-1, -1), false, false, false])
 		foot.add_child(_tb_hold)
 		var go := UI.head("ANYONE: HOLD A TO START", 24, ink)
 		go.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -1170,79 +1156,9 @@ func show_toolbox(d: Dictionary) -> void:
 func set_toolbox(hold: float, left: float, secs: float) -> void:
 	if _tb_hold == null or not brief.visible:
 		return
-	_tb_hold.prog = hold
+	_tb_hold.show_cue(["A", "", hold, true, Vector2(-1, -1), false, false, false])
 	_tb_fill.size.x = 712.0 * clampf(left, 0.0, 1.0)
 	_tb_left.text = "STARTS ITSELF IN %ds" % int(ceil(secs))
-
-## The big hold A over a person's head for a long hold out on site (the
-## slurry and the washout into the bin): the same A as the toolbox talk's,
-## filling with concrete as the job's done, the gold ring going round, and
-## the job's word beside it.
-var _big_hold: HBoxContainer
-var _big_glyph: HoldGlyph
-var _big_word: Label
-
-## `drain`: the washout's A starts full of water and drains as it's done.
-func show_big_hold(at: Vector2, prog: float, text: String, drain := false) -> void:
-	if _big_hold == null:
-		_big_hold = HBoxContainer.new()
-		_big_hold.add_theme_constant_override("separation", 6)
-		_big_hold.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		_root.add_child(_big_hold)
-		_big_glyph = HoldGlyph.new()
-		_big_glyph.custom_minimum_size = Vector2(78, 78)
-		_big_glyph.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		_big_hold.add_child(_big_glyph)
-		var pill := UI.panel(UI.CARD, 12, UI.EDGE, 1, Vector4(12, 5, 12, 5))
-		pill.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		_big_hold.add_child(pill)
-		_big_word = UI.head("", 22, UI.GOLD)
-		pill.add_child(_big_word)
-	_big_hold.visible = true
-	_big_glyph.prog = maxf(prog, 0.001)
-	_big_glyph.drain = drain
-	_big_word.text = text
-	_big_hold.reset_size()
-	_big_hold.position = at - Vector2(39, 39)
-
-func hide_big_hold() -> void:
-	if _big_hold != null:
-		_big_hold.visible = false
-
-## A Site Kit A that fills with concrete while it's held, ringed in gold.
-class HoldGlyph extends Control:
-	var prog := 0.0
-	var drain := false     # full of water at the start, emptying as it goes
-	var _t := 0.0
-	func _process(delta: float) -> void:
-		_t += delta
-		queue_redraw()
-	func _draw() -> void:
-		var c := size * 0.5
-		var pl := 0.5 - 0.5 * cos(_t * TAU / (UI.URGENT_T if prog > 0.0 else UI.BREATHE_T))
-		var k := 1.0 + (UI.URGENT_S - 1.0 if prog > 0.0 else UI.BREATHE_S - 1.0) * pl
-		var r := minf(size.x, size.y) * 0.34 * k
-		draw_arc(c, r + 7.0, 0, TAU, 40, UI.TRACK, 4.0, true)
-		if prog > 0.0:
-			draw_arc(c, r + 7.0, -PI * 0.5, -PI * 0.5 + TAU * clampf(prog, 0.0, 1.0), 40, UI.GOLD, 4.0, true)
-		draw_circle(c + Vector2(0, 1.5), r + 2.0, Color.WHITE, true, -1.0, true)
-		draw_circle(c + Vector2(0, 3.0), r, UI.LIP["A"], true, -1.0, true)
-		draw_circle(c, r, UI.GLYPH["A"], true, -1.0, true)
-		var level := (1.0 - clampf(prog, 0.0, 1.0)) if drain else clampf(prog, 0.0, 1.0)
-		if level > 0.0 and (prog > 0.0 or drain):
-			var top := r - 2.0 * r * level
-			var pts := PackedVector2Array()
-			for i in 33:
-				var a := TAU * i / 32.0
-				var p := Vector2(cos(a), sin(a)) * r
-				if p.y < top:
-					p.y = top
-				pts.append(c + p)
-			draw_colored_polygon(pts, Color(0.3, 0.62, 0.95, 0.8) if drain else Color(0.62, 0.61, 0.58, 0.75))
-		var f := UI.font("head")
-		var fs := int(r * 1.25)
-		var w := f.get_string_size("A", HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
-		draw_string(f, c + Vector2(-w * 0.5, fs * 0.36), "A", HORIZONTAL_ALIGNMENT_LEFT, -1, fs, UI.GLYPH_INK["A"])
 
 func show_topout(text: String) -> void:
 	banner.visible = true

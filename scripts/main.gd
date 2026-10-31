@@ -2008,7 +2008,7 @@ func _update_gauge_pop() -> void:
 	_gauge_label.text = "PUMP GAUGE" if spike or line.spike_warn else "PUMP OFF"
 	var akey := "A"
 	_gauge_badge.position = Vector2(6, sz.y - 76)
-	_gauge_badge.show_cue([akey, "KILL THE PUMP", -1.0, true, Vector2(-1, -1), true, false] if spike else ([akey, "get ready", -1.0, true, Vector2(-1, -1), false, false] if line.spike_warn else []))
+	_gauge_badge.show_cue([akey, "KILL THE PUMP", -1.0, true, Vector2(-1, -1), true, false, false] if spike else ([akey, "get ready", -1.0, true, Vector2(-1, -1), false, false, false] if line.spike_warn else []))
 
 func _add_section() -> void:
 	var s := F.lattice_section(LS, LW)
@@ -2814,7 +2814,6 @@ func _process(delta: float) -> void:
 
 	pumping = false
 	_human_a = false
-	_big_hold_on = false
 	for p in players:
 		if p.zone == "deck" and p.busy != "rigger":
 			# Standing on the wet concrete, boots just into it, not wading
@@ -2903,8 +2902,6 @@ func _process(delta: float) -> void:
 			p.show_cues(cam_right, phase_t, band_cam.global_position, BAND_CUE_K)
 		else:
 			p.show_cues(cam_right, phase_t, camera.global_position)
-	if not _big_hold_on:
-		hud.hide_big_hold()
 	_scale_world_labels()
 	if shot_dir != "":
 		_maybe_shot()
@@ -3765,14 +3762,11 @@ func _handle_player(p, delta: float) -> void:
 			var verb := "pump into the bin" if ob else "hose over the BIN"
 			p.cue("action", verb, ops.bin_progress(), true)
 			p.gold(not p.bot and ob)
-			if ob and (not p.bot or p.show_bot_cues) and not camera.is_position_behind(p.global_position):
-				# Over the bin, the long hold gets the big A: concrete fills it
-				# and the gold ring goes round as the bin fills
-				p.big_cue = verb
-				var at := camera.unproject_position(p.global_position + Vector3(0, 1.7, 0)) + Vector2(70, -46)
-				# (the washout's starts full of water and drains)
-				hud.show_big_hold(at, ops.bin_progress(), verb.to_upper(), ops.stage == "push")
-				_big_hold_on = true
+			# Over the bin, the long hold gets the big A beside them: concrete
+			# fills it as the bin does (the washout's starts full of water and
+			# drains)
+			p.big(ob)
+			p.drain(ops.stage == "push")
 		elif not ops.primed or ops.busy():
 			p.say("start-up…" if not ops.primed else "washout…")
 		elif pipe_calls():
@@ -4358,7 +4352,6 @@ var ops                         # the start-up and the washout (ops.gd)
 var hose_holder = null          # the hose hand on the end hose, if anyone
 var hose_call := false          # the hose hand's calling for concrete (holding A)
 var _hose_segs: Array = []      # the end hose drawn to the hose hand's hands
-var _big_hold_on := false       # the HUD's big hold A is up this frame
 const BOOT_SINK := 0.06         # m the crew's boots sink into the wet concrete
 const HOSE_REACH := 2.0         # m the end hose reaches from under the boom tip
 const HOSE_QUIET := 6.0         # s without a call before a bot boom carries on regardless
@@ -5549,10 +5542,15 @@ func _update_camera(delta: float) -> void:
 		# The player's own button cue, for timing what they see in here
 		var badge = inset["badge"]
 		badge.dot_color = role_col
-		var cue: Array = (p.cues[0] as Array).duplicate() if p != null and (not p.bot or _bot_badges) and not p.cues.is_empty() else []
-		if slump_view and not cue.is_empty():
-			cue[1] = ""   # (just the button: the guide strip says the step)
-		badge.show_cue(cue)
+		# (every button they have, stacked: the truck hand's A, X and B)
+		var list: Array = []
+		if p != null and (not p.bot or _bot_badges):
+			for cu in p.cues:
+				var one: Array = (cu as Array).duplicate()
+				if slump_view and list.is_empty():
+					one[1] = ""   # (just the button: the guide strip says the step)
+				list.append(one)
+		badge.show_cues(list)
 		var key := str(v["close"]) + str(p)
 		if climb.active and climb.stage == "pin" and v["close"]:
 			key += climb.pin_sub   # cut to the new angle when the job changes

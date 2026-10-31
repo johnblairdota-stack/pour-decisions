@@ -1,51 +1,70 @@
 ## The button cue again, flat, in the corner of a close-up camera: the same
-## Site Kit button the player has floating by their head (disc on its lip,
-## white rim, hold ring with the gold "let go here" arc, concrete filling it
-## while held), so someone watching the close-up can time a hammer swing off
-## it. In the gold moment it beats fast and throws gold star sparks.
+## Site Kit button the player has floating by them (disc on its lip, white
+## rim, hold ring with the gold "let go here" arc, concrete filling it while
+## held, the gold assist's rings and chasing dashes), so someone watching the
+## close-up can time a hammer swing off it. Every button they have shows,
+## stacked upwards (the truck hand's A, X and B). In the gold moment one
+## beats fast and throws gold star sparks.
 extends Control
 
 const PLAYER := preload("res://scripts/player.gd")
 const UI := preload("res://scripts/ui.gd")
 const GOLD := Color("ffd23f")
 const CONCRETE := Color("9e9b94")
+const WATER := Color(0.3, 0.62, 0.95)
+const ROW_H := 60.0        # one button above the next
 
-var cue: Array = []        # [btn, verb, progress, urgent, zone, alarm] or []
+var cues: Array = []       # of [btn, verb, progress, urgent, zone, alarm, gold, big]
 var dot_color := Color(-1, 0, 0)   # the job's dot on the verb tag (none if unset)
+var drain := false         # the button starts full of water and empties (the washout)
 var _t := 0.0
-var _flash := 0.0
+var _flash: Array = []
+var _was_in: Array = []
 var _sparks: Array = []    # {pos, vel, life, rot}
-var _was_in := false
 var _font: Font
 var _body: Font
 var max_w := 0.0           # the width it has to fit in (its close-up's); 0: any
 
 func _ready() -> void:
-	custom_minimum_size = Vector2(190, 70)
+	if custom_minimum_size == Vector2.ZERO:
+		custom_minimum_size = Vector2(190, 70)
 	size = custom_minimum_size
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_font = UI.font("head")
 
+## One button (or none, with []).
 func show_cue(c: Array) -> void:
-	cue = c
-	visible = not c.is_empty()
+	show_cues([] if c.is_empty() else [c])
+
+## Every button the person has right now, first on top.
+func show_cues(list: Array) -> void:
+	cues = list
+	visible = not list.is_empty()
+	while _flash.size() < cues.size():
+		_flash.append(0.0)
+		_was_in.append(false)
+
+## Where row i's button sits (the first on top, the last on the badge's own line).
+func _centre(i: int) -> Vector2:
+	return Vector2(34, 35 - (cues.size() - 1 - i) * ROW_H)
 
 func _process(delta: float) -> void:
 	_t += delta
-	_flash = maxf(0.0, _flash - delta * 3.0)
-	var now_in := false
-	if not cue.is_empty():
-		now_in = PLAYER.is_gold(cue) and not cue[5]
-	var c := Vector2(34, 35)
-	if now_in and not _was_in:
-		_flash = 1.0
-		for k in 14:
-			var a := randf() * TAU
-			_sparks.append({"pos": c, "vel": Vector2(cos(a), sin(a)) * randf_range(90, 190), "life": randf_range(0.4, 0.7), "rot": randf() * TAU})
-	if now_in and randf() < delta * 10.0:
-		var a2 := randf() * TAU
-		_sparks.append({"pos": c + Vector2(cos(a2), sin(a2)) * 28.0, "vel": Vector2(cos(a2), sin(a2)) * 60.0, "life": 0.45, "rot": randf() * TAU})
-	_was_in = now_in
+	for i in _flash.size():
+		_flash[i] = maxf(0.0, _flash[i] - delta * 3.0)
+		var now_in := false
+		if i < cues.size():
+			now_in = PLAYER.is_gold(cues[i]) and not cues[i][5]
+		var c := _centre(i)
+		if now_in and not _was_in[i]:
+			_flash[i] = 1.0
+			for k in 14:
+				var a := randf() * TAU
+				_sparks.append({"pos": c, "vel": Vector2(cos(a), sin(a)) * randf_range(90, 190), "life": randf_range(0.4, 0.7), "rot": randf() * TAU})
+		if now_in and randf() < delta * 10.0:
+			var a2 := randf() * TAU
+			_sparks.append({"pos": c + Vector2(cos(a2), sin(a2)) * 28.0, "vel": Vector2(cos(a2), sin(a2)) * 60.0, "life": 0.45, "rot": randf() * TAU})
+		_was_in[i] = now_in
 	for s in _sparks:
 		s["pos"] += s["vel"] * delta
 		s["vel"] *= 0.9
@@ -55,8 +74,14 @@ func _process(delta: float) -> void:
 	queue_redraw()
 
 func _draw() -> void:
-	if cue.is_empty():
-		return
+	for i in cues.size():
+		_draw_cue(cues[i], _centre(i), i)
+	# Star sparks
+	for s in _sparks:
+		_star(s["pos"], 5.0 * clampf(s["life"] * 2.5, 0.2, 1.0), s["rot"], Color(GOLD, clampf(s["life"] * 3.0, 0.0, 1.0)))
+
+func _draw_cue(cue: Array, c: Vector2, row: int) -> void:
+	var flash: float = _flash[row] if row < _flash.size() else 0.0
 	var btn: String = cue[0]
 	var verb: String = cue[1]
 	var pr: float = cue[2]
@@ -76,9 +101,8 @@ func _draw() -> void:
 	elif urgent:
 		period = UI.URGENT_T
 		amp = UI.URGENT_S - 1.0
-	var pl := 0.5 - 0.5 * cos(_t * TAU / period)
+	var pl := 0.5 - 0.5 * cos(_t * TAU / period + row)
 	var k := 1.0 + amp * pl
-	var c := Vector2(34, 35)
 	if alarm:
 		var w := _t * TAU / UI.SHAKE_T
 		c += Vector2(sin(w), sin(w * 0.8 + 1.0)) * 2.0
@@ -89,8 +113,8 @@ func _draw() -> void:
 		lip = Color("b17a00")
 	# Halo
 	var halo_col := GOLD if in_zone else face
-	halo_col.a = 0.18 + 0.25 * pl + 0.4 * _flash
-	draw_circle(c, (28.0 + 4.0 * pl + 8.0 * _flash) * k, halo_col, true, -1.0, true)
+	halo_col.a = 0.18 + 0.25 * pl + 0.4 * flash
+	draw_circle(c, (28.0 + 4.0 * pl + 8.0 * flash) * k, halo_col, true, -1.0, true)
 	# Hold ring track, then its fill: white, gold in the band, red past it
 	if pr >= 0.0 or z.x >= 0.0:
 		draw_arc(c, 25.0 * k, 0, TAU, 48, UI.TRACK, 6.0, true)
@@ -105,16 +129,27 @@ func _draw() -> void:
 		elif in_zone:
 			fill = GOLD
 		draw_arc(c, 25.0 * k, -PI * 0.5, -PI * 0.5 + clampf(pr, 0.0, 1.0) * TAU, 48, fill, 6.0, true)
+	# The gold assist: a white ring, a gold ring, and gold dashes chasing round
+	# between them, bright for someone new, gone as they get it
+	var zv: Vector2 = z
+	var banded: bool = zv.x >= 0.0 and pr >= zv.x and pr <= zv.y
+	var assist: float = clampf(PLAYER.gold_amount(cue) * 1.4 - 0.4, 0.0, 1.0) if in_zone and not banded else 0.0
+	if assist > 0.0:
+		draw_arc(c, 22.0 * k, 0, TAU, 40, Color(1, 1, 1, assist), 2.0, true)
+		draw_arc(c, 31.0 * k, 0, TAU, 48, Color(GOLD, assist), 3.0, true)
+		for d in 10:
+			var a0 := TAU * (d / 10.0) + _t * TAU * 0.12
+			draw_arc(c, 26.5 * k, a0, a0 + TAU * 0.05, 4, Color(GOLD, assist), 4.0, true)
 	# The button: white rim, lip, face
 	var r := 17.0 * k
 	var drop := 3.0 * k
 	draw_circle(c + Vector2(0, drop * 0.5), r + 2.0, Color.WHITE, true, -1.0, true)
 	draw_circle(c + Vector2(0, drop), r, lip, true, -1.0, true)
-	var fc := face.lerp(Color.WHITE, 0.4 * _flash)
+	var fc := face.lerp(Color.WHITE, 0.4 * flash)
 	draw_circle(c, r, fc, true, -1.0, true)
-	# Concrete rising in it while it's held
-	if pr > 0.0:
-		var lvl := clampf(pr, 0.0, 1.0)
+	# Concrete rising in it while it's held (or the washout's water draining)
+	if pr > 0.0 or (drain and pr >= 0.0):
+		var lvl := (1.0 - clampf(pr, 0.0, 1.0)) if drain else clampf(pr, 0.0, 1.0)
 		var pts := PackedVector2Array()
 		var top := r - 2.0 * r * lvl
 		for i in 33:
@@ -123,14 +158,11 @@ func _draw() -> void:
 			if p.y < top:
 				p.y = top
 			pts.append(c + p)
-		draw_colored_polygon(pts, Color(CONCRETE, 0.6))
+		draw_colored_polygon(pts, Color(WATER, 0.8) if drain else Color(CONCRETE, 0.6))
 	var ink: Color = Color.WHITE if alarm else (Color("2a1d00") if in_zone else UI.GLYPH_INK.get(btn, Color("0f1b2d")))
 	var fs := int(24 * k)
 	var lw := _font.get_string_size(btn, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
 	draw_string(_font, c + Vector2(-lw * 0.5, fs * 0.36), btn, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, ink)
-	# Star sparks
-	for s in _sparks:
-		_star(s["pos"], 5.0 * clampf(s["life"] * 2.5, 0.2, 1.0), s["rot"], Color(GOLD, clampf(s["life"] * 3.0, 0.0, 1.0)))
 	# The verb tag: a dark pill with the job's dot, shrunk a little and then
 	# wrapped onto a second line so it always fits inside the close-up
 	if verb != "":
@@ -150,7 +182,7 @@ func _draw() -> void:
 				w = maxf(w, _font.get_string_size(ln, HORIZONTAL_ALIGNMENT_LEFT, -1, tfs).x)
 		var lh := tfs + 3.0
 		var hgt := lh * lines.size() + 8.0
-		var top2 := 35.0 - hgt * 0.5
+		var top2 := c.y - hgt * 0.5
 		var box := Rect2(60, top2, w + 24 + dot_w, hgt)
 		var sb := StyleBoxFlat.new()
 		sb.bg_color = Color(UI.TRACK, 0.92)
@@ -161,7 +193,7 @@ func _draw() -> void:
 			sb.set_border_width_all(2)
 		draw_style_box(sb, box)
 		if dot_w > 0.0:
-			draw_circle(Vector2(box.position.x + 14, 35.0), 5.0, UI.ALARM if alarm else dot_color, true, -1.0, true)
+			draw_circle(Vector2(box.position.x + 14, c.y), 5.0, UI.ALARM if alarm else dot_color, true, -1.0, true)
 		var col: Color = Color("ff6b5f") if alarm else (GOLD if in_zone else UI.BONE)
 		for i in lines.size():
 			var at := Vector2(box.position.x + 12 + dot_w, top2 + 4 + lh * i + tfs * 0.82)

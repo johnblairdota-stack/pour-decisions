@@ -16,11 +16,13 @@ uniform vec2 zone = vec2(-1.0, -1.0);  // a gold band on the ring: "let go in he
 uniform float assist = 0.0;      // the gold assist: a double ring with dashes running round it
 uniform float gold_on = 0.0;     // 0..1: the gold moment (the face goes gold)
 uniform float squash = 0.0;      // 0..1: just pressed (the disc sinks onto its lip)
+uniform float drain = 0.0;       // 1: full of water at the start, emptying as it's held (the washout)
 
 const vec3 GOLD = vec3(1.0, 0.824, 0.247);
 const vec3 TRACK = vec3(0.102, 0.114, 0.141);
 const vec3 ALARM = vec3(1.0, 0.231, 0.184);
 const vec3 CONCRETE = vec3(0.62, 0.61, 0.58);
+const vec3 WATER = vec3(0.3, 0.62, 0.95);
 
 void vertex() {
 	VERTEX *= scale_mul;
@@ -52,12 +54,14 @@ void fragment() {
 	float rim = smoothstep(R + 0.07, R + 0.05, min(rf, rl)) * (1.0 - disc - lipm);
 	// A little top light on the face
 	vec3 col = face * (0.92 + 0.16 * (0.5 - 0.5 * pf.y / R));
-	// Concrete fills the disc from the bottom while it's held
+	// Concrete fills the disc from the bottom while it's held (or the
+	// washout's water drains out of it)
 	if (progress >= 0.0) {
-		float level = R - 2.0 * R * clamp(progress, 0.0, 1.0);
+		float lv = mix(clamp(progress, 0.0, 1.0), 1.0 - clamp(progress, 0.0, 1.0), drain);
+		float level = R - 2.0 * R * lv;
 		float wave = 0.025 * sin(pf.x * 14.0 + TIME * 6.0);
-		float fillm = smoothstep(level - 0.01, level + 0.01, pf.y + wave);
-		col = mix(col, mix(CONCRETE, col, 0.35), fillm * 0.75 * disc);
+		float fillm = smoothstep(level - 0.01, level + 0.01, pf.y + wave) * step(0.001, lv);
+		col = mix(col, mix(mix(CONCRETE, WATER, drain), col, 0.35), fillm * 0.75 * disc);
 	}
 	col = col * disc + lipc * lipm + vec3(1.0) * rim;
 	float alpha = disc + lipm + rim;

@@ -574,9 +574,36 @@ func cue(what: String, verb := "", progress := -1.0, urgent := false, zone := Ve
 	_cue_added = cues.size() < 2
 	if not _cue_added:
 		return
-	cues.append([BTN.get(what, what), verb, progress, urgent, zone, alarm, false])
+	cues.append([BTN.get(what, what), verb, progress, urgent, zone, alarm, false, false])
 
 var _cue_added := false
+
+## A third button for a station that offers three at once (the truck bay's B:
+## send it back). gold() and big() after it work on it as on cue()'s.
+func extra_cue(what: String, verb := "", urgent := false) -> void:
+	_cue_added = cues.size() < 3
+	if _cue_added:
+		cues.append([BTN.get(what, what), verb, -1.0, urgent, Vector2(-1, -1), false, false, false])
+
+## The button just cued is this person's main call: it's drawn big, beside
+## them, instead of small by the head (the same button, every state).
+func big(on := true) -> void:
+	if on and _cue_added and not cues.is_empty():
+		cues[-1][7] = true
+
+## The button just cued starts full of water and drains as it's held (the
+## washout into the bin), where a hold normally fills with concrete.
+func drain(on := true) -> void:
+	if on and _cue_added and not cues.is_empty():
+		cues[-1].resize(9)
+		cues[-1][8] = true
+
+static func is_drain(cu: Array) -> bool:
+	return cu.size() > 8 and cu[8] is bool and cu[8]
+
+## Is this cue drawn big?
+static func is_big(cu: Array) -> bool:
+	return cu.size() > 7 and cu[7] is bool and cu[7]
 
 ## The gold assist: the button just cued lights up gold when this is the
 ## moment (or the spot) to press it. It's a spectrum, not a switch: bright and
@@ -594,11 +621,6 @@ const GOLD_MIN := 0.06
 ## How bright this cue's gold assist is (0 when there's none).
 static func gold_amount(cu: Array) -> float:
 	return float(cu[6]) if cu.size() > 6 and cu[6] is float else (1.0 if cu.size() > 6 and cu[6] is bool and cu[6] else 0.0)
-
-## Colours the button just cued (the slump call's water-blue X).
-func tint(col: Color) -> void:
-	if _cue_added and not cues.is_empty():
-		cues[-1].append(col)
 
 ## Is this cue gold right now (in its hold band, or flagged by the assist)?
 static func is_gold(cu: Array) -> bool:
@@ -618,12 +640,13 @@ func begin_cues() -> void:
 	# (last frame's: the cover check runs after this clears them)
 	had_cues = not cues.is_empty()
 	cues.clear()
-	big_cue = ""
 	prompt.text = ""
 
-## A cue (by its verb) the HUD draws as the big hold A instead (main sets it
-## each frame): its small button by the head stays hidden.
-var big_cue := ""
+
+## Head-cue sizes (times the camera's distance scale): small by the head, big
+## for a main call beside the body.
+const SMALL_K := 0.55
+const BIG_K := 1.0
 var had_cues := false
 
 func show_cues(cam_right: Vector3, t: float, cam_pos := Vector3.ZERO, cam_k := 1.0) -> void:
@@ -638,10 +661,19 @@ func show_cues(cam_right: Vector3, t: float, cam_pos := Vector3.ZERO, cam_k := 1
 	if cam_pos != Vector3.ZERO:
 		k_size = clampf(global_position.distance_to(cam_pos) / 15.0 * cam_k, 0.5 if cam_k != 1.0 else 0.9, 3.2)
 	var on_keys: bool = not ai and not bot and KEYS.has(prefix) and bool(get_parent().on_keys.get(prefix, prefix == "p1_"))
+	# A main call (big) stacks down beside the body, centred on it; small
+	# ones sit just beside the head, so the name tag above stays readable
+	var n_cues := mini(cues.size(), _cue_nodes.size())
+	var any_big := false
+	var span := 0.0
+	for k in n_cues:
+		any_big = any_big or is_big(cues[k])
+		span += (BIG_K if is_big(cues[k]) else SMALL_K) * 1.05 * k_size
+	var y_at := (1.0 + span * 0.5) if any_big else (1.5 + 0.725 * SMALL_K * k_size)
 	for k in _cue_nodes.size():
 		var c: Dictionary = _cue_nodes[k]
 		var n: Node3D = c["node"]
-		n.visible = k < cues.size() and not (big_cue != "" and cues[k][1] == big_cue)
+		n.visible = k < cues.size()
 		if not n.visible:
 			_was_gold[k] = false
 			(c["trickle"] as CPUParticles3D).emitting = false
@@ -649,21 +681,22 @@ func show_cues(cam_right: Vector3, t: float, cam_pos := Vector3.ZERO, cam_k := 1
 		var cu: Array = cues[k]
 		var btn: String = cu[0]
 		var alarm: bool = cu.size() > 5 and cu[5]
-		# Small, just beside the head, so the name tag above stays readable
-		var gk := k_size * 0.55
-		n.position = Vector3(0, 1.5 + 0.2 * gk - k * 1.05 * gk, 0) + cam_right * (0.45 + 0.55 * gk)
+		var gk := k_size * (BIG_K if is_big(cu) else SMALL_K)
+		y_at -= 0.525 * gk
+		n.position = Vector3(0, y_at, 0) + cam_right * (0.45 + 0.55 * gk)
+		y_at -= 0.525 * gk
 		# Alarm: a hard shake, 0.15 s a cycle
 		if alarm:
 			var w := t * TAU / UI.SHAKE_T
 			n.position += Vector3(sin(w), sin(w * 0.8 + 1.0), 0) * 0.05 * gk
 		n.scale = Vector3.ONE * gk
 		var m: ShaderMaterial = c["mat"]
-		var tinted: bool = cu.size() > 7 and cu[7] is Color
-		var col: Color = UI.ALARM if alarm else (cu[7] if tinted else BTN_COLORS.get(btn, Color.WHITE))
-		var lip: Color = col.darkened(0.45) if alarm or tinted else UI.LIP.get(btn, col.darkened(0.45))
+		var col: Color = UI.ALARM if alarm else BTN_COLORS.get(btn, Color.WHITE)
+		var lip: Color = col.darkened(0.45) if alarm else UI.LIP.get(btn, col.darkened(0.45))
 		m.set_shader_parameter("color", col)
 		m.set_shader_parameter("lip", lip)
 		m.set_shader_parameter("progress", cu[2])
+		m.set_shader_parameter("drain", 1.0 if is_drain(cu) else 0.0)
 		m.set_shader_parameter("zone", cu[4] if cu.size() > 4 else Vector2(-1, -1))
 		var in_zone: bool = is_gold(cu) and not alarm
 		# (the assist, as against a hold's own gold band, which is always full)
@@ -750,7 +783,7 @@ func show_cues(cam_right: Vector3, t: float, cam_pos := Vector3.ZERO, cam_k := 1
 			words = ("%s  [%s]" % [words, key]) if words != "" else "[%s]" % key
 		verb.text = words
 		verb.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-		verb.modulate = Color("ff6b5f") if alarm else (UI.GOLD if in_zone else (Color("9fd6ff") if tinted else UI.BONE))
+		verb.modulate = Color("ff6b5f") if alarm else (UI.GOLD if in_zone else UI.BONE)
 		# The pill under the words, sized to them, with the job's dot
 		var pill: MeshInstance3D = c["pill"]
 		pill.visible = words != ""

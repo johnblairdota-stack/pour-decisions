@@ -3043,6 +3043,7 @@ func _bay(p, delta: float) -> void:
 			var in_band: bool = su >= SPOT_BAND.x and su <= SPOT_BAND.y
 			var past: bool = su > SPOT_BAND.y
 			p.cue("action", "LET GO: STOP IT!" if in_band else ("too far!" if past else "hold: wave it back"), su / SPOT_BUMP, true, Vector2(SPOT_BAND.x, SPOT_BAND.y) / SPOT_BUMP, past)
+			p.big()
 			if not p.bot:
 				_spot_show(tr, su, in_band, past)
 				if in_band and not bool(tr.get("spot_rang", false)):
@@ -3061,6 +3062,7 @@ func _bay(p, delta: float) -> void:
 			p.cue("action", "wave truck in", -1.0, bay_truck == null or bay_truck["load"] < load_m3 * 0.6)
 			# Gold: now's the time, so the next one's on before the hopper runs low
 			p.gold(not p.bot and (bay_truck == null or bay_truck["load"] < load_m3 * 0.6))
+			p.big()
 			if p.action_pressed():
 				wave_in(p)
 				p.pose_arms(Vector3(-2.8, 0, -0.3), Vector3(-2.8, 0, 0.3))
@@ -3079,6 +3081,7 @@ func _bay(p, delta: float) -> void:
 		# Too old on the docket: the one thing to do is send it back
 		p.cue("leave", "too old: send it back", -1.0, true)
 		p.gold(true)
+		p.big()
 		if p.leave_pressed() and p.held == null:
 			decide(p, t, "reject")
 		return
@@ -3086,10 +3089,14 @@ func _bay(p, delta: float) -> void:
 		# Not due a test: check the docket against the order (it's on the
 		# truck). A pours it, B sends a wrong mix back.
 		var ok: bool = right_call(t) == "use"
+		# (the right one goes gold, whichever it is: sending a wrong mix
+		# back is a good call, not an alarm)
 		p.cue("action", "docket's right: pour it", -1.0, ok)
 		p.gold(ok)
-		if p.cues.size() < 3:
-			p.cues.append(["B", "wrong mix: send it back", -1.0, not ok, Vector2(-1, -1), not ok, false])
+		p.big()
+		p.extra_cue("leave", "wrong mix: send it back", not ok)
+		p.gold(not ok)
+		p.big()
 		if p.action_pressed():
 			decide(p, t, "use")
 		elif p.leave_pressed() and p.held == null:
@@ -3103,7 +3110,9 @@ func _bay(p, delta: float) -> void:
 			# with every load skipped in a row)
 			var pct := int(round(skip_risk() * 100.0))
 			p.cue("action", "slump test it", -1.0, true)
+			p.big()
 			p.cue("slow", "skip test · %d%% risk" % pct, -1.0, false, Vector2(-1, -1), pct >= int(SKIP_RISK_MAX * 100.0))
+			p.big()
 			if not _skip_told:
 				_skip_told = true
 				game.hud.toast("Test it (A) or skip the test (Y). Every load you skip makes a bad one more likely.", 3.0)
@@ -3139,18 +3148,21 @@ func _bay(p, delta: float) -> void:
 	slump._show(t)
 	if t["state"] != "bay":
 		return
-	# The call: A uses the load, X adds the water held back, B sends it back.
-	# Your reading points the way: in spec, A glows gold; stiff, X runs blue
-	# with water; wet or old, B flashes red. (Read the tape wrong and it points
-	# the wrong way: it goes on the reading, not the truth.)
+	# The call: A uses the load, X adds the water held back, B sends it back,
+	# drawn big beside the truck hand. Your reading points the way: the right
+	# call goes gold, whichever button it is (fading as you learn the job).
+	# (Read the tape wrong and it points the wrong way: it goes on the
+	# reading, not the truth.)
 	var right := right_call(t)
 	p.cue("action", "use it", -1.0, right == "use")
 	p.gold(right == "use")
+	p.big()
 	p.cue("alt", "add water", -1.0, right == "water")
-	if right == "water" and slump.says_call(t):
-		p.tint(Color("3fa9ff"))
-	if p.cues.size() < 3:
-		p.cues.append(["B", "send it back", -1.0, right == "reject", Vector2(-1, -1), right == "reject", false])
+	p.gold(right == "water")
+	p.big()
+	p.extra_cue("leave", "send it back", right == "reject")
+	p.gold(right == "reject")
+	p.big()
 	if p.action_pressed():
 		decide(p, t, "use")
 	elif p.alt_pressed():
