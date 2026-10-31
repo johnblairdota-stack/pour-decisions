@@ -779,6 +779,10 @@ func _bay(p, urgent_only: bool) -> bool:
 					_:
 						p.ai_leave = _tap()
 		return true
+	if line.too_old_queued() != null:
+		if walk(p, bay, 0.6):
+			p.ai_leave = _tap()
+		return true
 	if line.can_wave_in():
 		if walk(p, bay, 0.6):
 			p.ai_action = _tap()

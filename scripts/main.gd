@@ -4050,6 +4050,8 @@ func _jobs() -> Array:
 	if t != null:
 		var tl := 2 if t["age"] > 80.0 or (t == line.bay_truck and hop < 0.2) else 1
 		add.call("bay", (t["node"] as Node3D).position + Vector3(-2.0, 4.2, 0), tl, "line", "TOO OLD: SEND IT BACK" if t.get("too_old", false) else "CHECK THE DOCKET" if t["state"] == "docket" else (("TEST OR SKIP" if t.get("choice", false) else "SLUMP TEST") if not t["checked"] else "MAKE THE CALL"))
+	elif line.too_old_queued() != null:
+		add.call("bay", st_pos.call("bay") + up, 2, "line", "TOO OLD: SEND IT BACK")
 	elif line.can_wave_in() and (line.bay_truck == null or line.staged == null and hop < 0.6):
 		add.call("bay", st_pos.call("bay") + up, 1 if hop < 0.3 else 0, "line", "WAVE TRUCK IN")
 	# (a pressure spike gets no sign: the gauge close-up and the red A over
@@ -4791,7 +4793,8 @@ func _slump_of(p):
 	if p == null or line == null or phase != "pour":
 		return null
 	var t = line.needs_check()
-	if t != null and t.get("tester") == p and line.work_focus(p).x != INF:
+	# (a load that's over 90 minutes isn't tested: no slump steps for it)
+	if t != null and t.get("tester") == p and line.work_focus(p).x != INF and not t.get("too_old", false):
 		return t
 	return null
 
@@ -4892,6 +4895,8 @@ func _tickets() -> Array:
 	if chk != null:
 		var what := "Too old: send it back" if chk.get("too_old", false) else "Check the docket against the order" if chk["state"] == "docket" else ("Slump test the truck" if not chk["checked"] else "Make the call: use, water or send back?")
 		out.append({"icon": "T", "text": what, "frac": 1.0 - float(chk["age"]) / line.MAX_AGE, "color": UI.ROLE["line"], "role": "line", "urgent": true})
+	elif line.too_old_queued() != null:
+		out.append({"icon": "T", "text": "Too old: send it back", "frac": 0.0, "color": UI.ROLE["line"], "role": "line", "urgent": true})
 	elif line.can_wave_in():
 		var nq = line._next_queued()
 		var standby: bool = line.bay_truck != null   # one's already discharging: not urgent
@@ -5633,6 +5638,10 @@ func _maybe_shot() -> void:
 		key = "spray"
 	elif "spray2" in _shot_only and _shots_taken.has("spray") and lead_hand.who != null and lead_hand.shouting() and lead_hand.on_t > 9.0 and not _shots_taken.has("spray2"):
 		key = "spray2"
+	elif "agebay" in _shot_only and phase == "pour" and line.needs_check() != null and not line.needs_check()["checked"] and line.needs_check()["state"] == "bay" and not _shots_taken.has("agebay"):
+		key = "agebay"
+	elif "oldload" in _shot_only and phase == "pour" and line.too_old_queued() != null and not _shots_taken.has("oldload"):
+		key = "oldload"
 	elif "washout" in _shot_only and ops != null and ops.stage == "push" and ops.left < ops.WATER * 0.8 and not _shots_taken.has("washout"):
 		key = "washout"
 	elif "tank" in _shot_only and ops != null and ops.stage == "valve" and ops.hold > 0.4 and not _shots_taken.has("tank"):
