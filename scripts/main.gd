@@ -4791,7 +4791,8 @@ func _slump_of(p):
 	if p == null or line == null or phase != "pour":
 		return null
 	var t = line.needs_check()
-	if t != null and t.get("tester") == p and line.work_focus(p).x != INF:
+	# (a load that's over 90 minutes isn't tested: no slump steps for it)
+	if t != null and t.get("tester") == p and line.work_focus(p).x != INF and not t.get("too_old", false):
 		return t
 	return null
 
@@ -5633,6 +5634,10 @@ func _maybe_shot() -> void:
 		key = "spray"
 	elif "spray2" in _shot_only and _shots_taken.has("spray") and lead_hand.who != null and lead_hand.shouting() and lead_hand.on_t > 9.0 and not _shots_taken.has("spray2"):
 		key = "spray2"
+	elif "agebay" in _shot_only and phase == "pour" and line.needs_check() != null and not line.needs_check()["checked"] and line.needs_check()["state"] == "bay" and not _shots_taken.has("agebay"):
+		key = "agebay"
+	elif "oldload" in _shot_only and phase == "pour" and line.needs_check() != null and line.needs_check().get("too_old", false) and not _shots_taken.has("oldload"):
+		key = "oldload"
 	elif "washout" in _shot_only and ops != null and ops.stage == "push" and ops.left < ops.WATER * 0.8 and not _shots_taken.has("washout"):
 		key = "washout"
 	elif "tank" in _shot_only and ops != null and ops.stage == "valve" and ops.hold > 0.4 and not _shots_taken.has("tank"):

@@ -78,6 +78,7 @@ const WEAR_TIME := 18.0                  # s of pumping on high before a weeping
 const SET_TIME := 40.0                   # s concrete can stand still in the line before it blocks
 const CLIMB_SPEED := 4.5                 # m/s on the ladder
 const MAX_AGE := 90.0                    # minutes from batching: the usual guideline
+const AGE_WARN := 78.0                   # minutes: the age tag turns amber, it'll go over soon
 # The slump test (AS 1012.3.1) against the order (AS 1379): a 100 mm pump mix,
 # ±20 mm for an order in the 80 to 110 mm band. The plant holds back some
 # water, written on the docket, that may be added on site (then mix and test
@@ -787,6 +788,13 @@ func _truck_mesh() -> Node3D:
 	lab.name = "Docket"
 	lab.position = Vector3(0, 4.3, 0)
 	t.add_child(lab)
+	# The load's age, big, above the docket: the first thing the truck hand
+	# reads, before any slump test
+	var age := F.label3d("", 64, Color.WHITE)
+	age.name = "Age"
+	age.position = Vector3(0, 6.3, 0)
+	age.visible = false
+	t.add_child(age)
 	return t
 
 
@@ -1541,6 +1549,10 @@ func _update_trucks(delta: float) -> void:
 		# count the setup and start-up against their 90 minutes)
 		if st in ["arrive", "queue", "called", "approach", "back", "bay", "check", "water", "ready", "docket"] and game.ops.primed:
 			t["age"] += AGE_RATE * delta
+		_age_tag(t, st)
+		if st in ["bay", "check"] and not t["checked"] and float(t["age"]) > MAX_AGE and not t.get("too_old", false):
+			_went_old(t)
+			st = t["state"]
 		var drum: Node3D = node.get_node("Drum")
 		drum.rotate_object_local(Vector3.RIGHT, delta * (3.0 if st == "pour" else 1.0))
 		var lab: Label3D = node.get_node("Docket")
@@ -1561,12 +1573,7 @@ func _update_trucks(delta: float) -> void:
 				node.rotation.y = 0.0
 				if st == "arrive" and absf(node.position.x - want_x) < 0.05:
 					_set_truck(t, "queue")
-				if st in ["queue", "called"]:
-					# (queued trucks' ages only show to the truck hand nearby)
-					var pop = game.crew.crew.get("line")
-					if pop != null and pop.zone == "ground" and pop.position.distance_to(node.position) < 9.0:
-						lab.text = "%d min" % int(t["age"])
-					lab.modulate = Color("ff4d4d") if t["age"] > MAX_AGE else Color.WHITE
+				# (queued trucks' ages show to the truck hand nearby: _age_tag)
 				if st == "called" and absf(node.position.x - want_x) < 0.1 and not _yard_busy():
 					t["from_x"] = node.position.x
 					_set_truck(t, "approach")
@@ -2086,6 +2093,42 @@ func wave_in(spotter = null) -> bool:
 		t["spot_seen"] = game.phase_t
 	_set_truck(t, "called")
 	return true
+
+## The load's age in big numbers over the truck while it's on the hopper
+## waiting on the truck hand (and in the queue, close up): white, amber when
+## it'll be over 90 minutes soon, red once it is.
+func _age_tag(t: Dictionary, st: String) -> void:
+	var tag: Label3D = (t["node"] as Node3D).get_node_or_null("Age")
+	if tag == null:
+		return
+	var a := float(t["age"])
+	var show: bool = st in ["bay", "check", "water", "docket"] and not (t["checked"] and not t.get("too_old", false))
+	if st in ["queue", "called"]:
+		var pop = game.crew.crew.get("line") if game and game.crew else null
+		show = pop != null and pop.zone == "ground" and pop.position.distance_to((t["node"] as Node3D).position) < 9.0
+	tag.visible = show
+	if not show:
+		return
+	if a > MAX_AGE:
+		tag.text = "%d MIN · TOO OLD" % int(a)
+		tag.modulate = Color("ff4d4d")
+	else:
+		tag.text = "%d MIN" % int(a)
+		tag.modulate = Color("ffc72c") if a > AGE_WARN else Color.WHITE
+
+## An untested load's gone past 90 minutes on the hopper (waiting, or part way
+## through its slump test): the test stops, and it goes back.
+func _went_old(t: Dictionary) -> void:
+	slump.restart(t)
+	t["checked"] = true
+	t["eyeballed"] = true
+	t["too_old"] = true
+	t["why"] = "docket says it's old"
+	t.erase("choice")
+	_set_truck(t, "docket")
+	t["touched"] = game.phase_t
+	game.pop("Over 90 min: send it back (B)", (t["node"] as Node3D).position + Vector3(0, 6.6, 0), Color("ff4d4d"))
+	game.sfx.hit("buzz")
 
 ## The truck's on the hopper: it's due a slump test, or the truck hand checks
 ## its docket against the order (now and then it's the wrong mix).
