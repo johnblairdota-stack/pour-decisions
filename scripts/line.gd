@@ -1523,7 +1523,7 @@ func _slot_free(slot: String) -> bool:
 func truck_blocks(pt: Vector3) -> bool:
 	for t in trucks:
 		var n: Node3D = t["node"]
-		if n.position.z > 13.5 and t["state"] in ["arrive", "queue", "road"]:
+		if n.position.z > 13.5 and t["state"] in ["arrive", "queue", "road", "turned"]:
 			continue
 		var l: Vector3 = n.global_transform.affine_inverse() * Vector3(pt.x, 0.5, pt.z)
 		if absf(l.x) < 4.1 and absf(l.z) < 1.4:
@@ -1546,8 +1546,10 @@ func _update_trucks(delta: float) -> void:
 		t["t"] += delta
 		var st: String = t["state"]
 		# (the first loads are timed for when the line's primed: they don't
-		# count the setup and start-up against their 90 minutes)
-		if st in ["arrive", "queue", "called", "approach", "back", "bay", "check", "water", "ready", "docket"] and game.ops.primed:
+		# count the setup and start-up against their 90 minutes. And the clock
+		# stops once it's waved in: a load that's old goes back from the
+		# queue, before it pulls up, never halfway through a slump test)
+		if st in ["arrive", "queue"] and game.ops.primed:
 			t["age"] += AGE_RATE * delta
 		_age_tag(t, st)
 		if st in ["bay", "check"] and not t["checked"] and float(t["age"]) > MAX_AGE and not t.get("too_old", false):
@@ -1565,6 +1567,17 @@ func _update_trucks(delta: float) -> void:
 			ext.scale = Vector3(1.12, 1, 1)
 		var sl: String = t.get("slot", "A")
 		match st:
+			"turned":
+				# Over 90 minutes in the queue and sent back: on along the
+				# road to the exit (once the truck backing in's clear of it),
+				# and away to the plant
+				if t["t"] < 0.3 and _yard_busy():
+					t["t"] = 0.0
+				node.position.x = move_toward(node.position.x, 40.0, 12.0 * delta)
+				node.position.z = ROAD_Z
+				node.rotation.y = 0.0
+				if node.position.x >= 39.95:
+					_set_truck(t, "road")
 			"arrive", "queue", "called":
 				var want_x := _slot_x(slot)
 				slot += 1
@@ -2073,12 +2086,37 @@ func needs_check() -> Variant:
 			return t
 	return null
 
-## True if there's a truck on the road and a free side of the hopper for it.
+## True if there's a truck on the road and a free side of the hopper for it
+## (and its load isn't too old: that one's sent back first, too_old_queued).
 func can_wave_in() -> bool:
 	var nq = _next_queued()
-	if nq == null:
+	if nq == null or float(nq["age"]) > MAX_AGE:
 		return false
 	return _slot_free("A") or _slot_free("B")
+
+## The next truck in the queue if its load's over 90 minutes: the truck hand
+## sends it back from there, before it pulls up.
+func too_old_queued() -> Variant:
+	var nq = _next_queued()
+	if nq != null and float(nq["age"]) > MAX_AGE:
+		return nq
+	return null
+
+## Send the old load at the front of the queue back to the plant (a person or
+## a bot at the bay, B). A replacement's ordered straight away.
+func turn_away(t: Dictionary, who = null) -> void:
+	if game.autotest:
+		print("[autotest]   turned away from the queue: age %.0f" % float(t["age"]))
+	game.pop("Too old: sent back", (t["node"] as Node3D).position + Vector3(0, 6.6, 0), Color("ffc23d"))
+	game.sfx.hit("buzz")
+	if who != null:
+		game.score.award(who, 15, "Bad loads turned away")
+	stats["rejected"] += 1
+	stats["old_turned"] = int(stats.get("old_turned", 0)) + 1
+	game.hud.toast("Over 90 minutes. Truck sent back to the plant.", 1.6)
+	ordered -= t["load"]
+	_set_truck(t, "turned")
+	_arrive_t = minf(_arrive_t, 2.0)
 
 ## Bay actions shared by a person and the bots: call the next truck in. It
 ## pulls up and reverses onto whichever side of the hopper is free.
@@ -2094,18 +2132,15 @@ func wave_in(spotter = null) -> bool:
 	_set_truck(t, "called")
 	return true
 
-## The load's age in big numbers over the truck while it's on the hopper
-## waiting on the truck hand (and in the queue, close up): white, amber when
-## it'll be over 90 minutes soon, red once it is.
+## The load's age in big numbers over the truck from the queue until it's
+## tested: white, amber when it'll be over 90 minutes soon, red once it is
+## (the clock stops when it's waved in).
 func _age_tag(t: Dictionary, st: String) -> void:
 	var tag: Label3D = (t["node"] as Node3D).get_node_or_null("Age")
 	if tag == null:
 		return
 	var a := float(t["age"])
-	var show: bool = st in ["bay", "check", "water", "docket"] and not (t["checked"] and not t.get("too_old", false))
-	if st in ["queue", "called"]:
-		var pop = game.crew.crew.get("line") if game and game.crew else null
-		show = pop != null and pop.zone == "ground" and pop.position.distance_to((t["node"] as Node3D).position) < 9.0
+	var show: bool = st in ["queue", "called", "approach", "back", "bay", "check", "water", "docket"] and not (t["checked"] and not t.get("too_old", false))
 	tag.visible = show
 	if not show:
 		return
@@ -3101,7 +3136,17 @@ func _bay(p, delta: float) -> void:
 			return
 	var t = needs_check()
 	if t == null:
-		if can_wave_in():
+		var old = too_old_queued()
+		if old != null:
+			# The next load's over 90 minutes: send it back from the queue
+			p.face((old["node"] as Node3D).position)
+			p.cue("leave", "too old: send it back", -1.0, true)
+			p.gold(not p.bot)
+			if p.leave_pressed() and p.held == null:
+				turn_away(old, p)
+				p.pose_arms(Vector3(-2.8, 0, -0.3), Vector3(-2.8, 0, 0.3))
+				p.bounce()
+		elif can_wave_in():
 			p.cue("action", "wave truck in", -1.0, bay_truck == null or bay_truck["load"] < load_m3 * 0.6)
 			# Gold: now's the time, so the next one's on before the hopper runs low
 			p.gold(not p.bot and (bay_truck == null or bay_truck["load"] < load_m3 * 0.6))
