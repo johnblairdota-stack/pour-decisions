@@ -584,14 +584,14 @@ function setNudge(l) {
   placeGhost();
 }
 // The leading hand covering: his spray on the phone too, bleeped
-const SPRAY = ['OI! WAKE UP, YA #@%&!', 'WHAT THE $#!@ ARE YA DOIN\'?!', 'MOVE YA %&#@ FEET!', 'MY NAN POURS FASTER, YA #@%&!', 'FAIR #%@& DINKUM!'];
+const SPRAY = ['OI! WAKE UP, YA #@%&!', 'WHAT THE $#!@ ARE YA DOIN’?!', 'MOVE YA %&#@ FEET!', 'MY NAN POURS FASTER, YA #@%&!', 'FAIR #%@& DINKUM!'];
 let sprayOn = false;
 function setSpray(j) {
   const on = j.lvl >= 3;
   if (on && !sprayOn) {
     const h = $('helping');
     h.querySelector('b').textContent = (j.lh || 'MACCA').toUpperCase() + ': ' + SPRAY[Math.floor(Math.random() * SPRAY.length)];
-    h.querySelector('span').textContent = j.firm ? 'He\'s doing this one. Watch where you go: that\'s the job.' : 'He\'s doing this step. Press anything to take it back.';
+    h.querySelector('span').textContent = j.firm ? 'He’s doing this one. Watch where you go: that’s the job.' : 'He’s doing this step. Press anything to take it back.';
     buzz([60, 40, 60, 40, 120]);
   }
   sprayOn = on;
