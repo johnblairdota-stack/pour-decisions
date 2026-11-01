@@ -34,13 +34,14 @@ const TRACK_W := 4.6
 ## The challenges: [kind, centre, half length, half width, yaw of the long axis, size]
 ## hill: size is its height; bog and sand: how deep the wheels sink
 const FEATURES := [
-	["hill", Vector2(-360.0, 75.0), 21.0, 24.0, 0.0, 11.0],   # an 11 m hill: 21 m up its steep face (west), 40 m down the back
+	["hill", Vector2(-360.0, 75.0), 17.0, 24.0, 0.0, 10.0],   # 10 m up a straight 17 m face (from the west), a flat top, 40 m down the back
 	["bog", Vector2(-160.0, 166.0), 19.0, 9.5, 0.0, 0.42],
 	["sand", Vector2(-196.0, 146.0), 9.0, 6.0, 0.7, 0.2],
 	["sand", Vector2(-214.0, 128.0), 8.0, 5.5, 0.6, 0.2],
 	["sand", Vector2(-232.0, 116.0), 7.0, 5.0, 0.5, 0.2],
 ]
 const HILL_BACK := 40.0      # the hill's gentler back slope (m from the top)
+const HILL_TOP := 3.0        # half the flat top's length: the face ends in a lip you can fly off
 const DAM_DEEP := 0.85       # the dam's crossing at its deepest
 const FORD_DEEP := 0.38      # the causeways under the creek's water
 ## Where the challenges count as done
@@ -126,8 +127,8 @@ static func _local(f: Dictionary, p: Vector2) -> Vector2:
 static func _inside(f: Dictionary, p: Vector2) -> float:
 	var l := _local(f, p)
 	var a: float = f["a"]
-	if f["kind"] == "hill" and l.x < 0.0:
-		a = HILL_BACK
+	if f["kind"] == "hill":
+		a = (HILL_BACK if l.x < 0.0 else a) + HILL_TOP
 	var r2 := (l.x / a) * (l.x / a) + (l.y / float(f["b"])) * (l.y / float(f["b"]))
 	return 1.0 - r2
 
@@ -142,7 +143,17 @@ func height(p: Vector2) -> float:
 			continue
 		match f["kind"]:
 			"hill":
-				h += float(f["size"]) * u * u
+				# a straight face up to a lip, the flat top, a rounded back;
+				# steep falling away either side
+				var l := _local(f, p)
+				var along := 1.0
+				if l.x > HILL_TOP:
+					along = clampf(1.0 - (l.x - HILL_TOP) / float(f["a"]), 0.0, 1.0)
+				elif l.x < -HILL_TOP:
+					var q := clampf((-l.x - HILL_TOP) / HILL_BACK, 0.0, 1.0)
+					along = (1.0 - q * q) * (1.0 - q * q)
+				var b: float = f["b"]
+				h += float(f["size"]) * along * smoothstep(b, b * 0.45, absf(l.y))
 			"bog", "sand":
 				h -= float(f["size"]) * smoothstep(0.0, 0.5, u)
 	var fd := _ford(p)
@@ -336,7 +347,7 @@ func _build_fords() -> void:
 				return []
 			return [height(p) + 0.01, Color("6d6457").lerp(Color("8a7a60"), clampf(absf(r.dot(along)) / hw, 0.0, 1.0)), 5])
 		# its sides, down into the creek
-		var yaw := atan2(across.x, across.y)
+		var yaw := atan2(along.x, along.y)
 		for sx: float in [-1.0, 1.0]:
 			var side := F.box(Vector3(0.4, 2.4, hw * 2.0), rock, Vector3.ZERO, false)
 			var at := c + across * hl * sx
@@ -350,7 +361,7 @@ func _build_fords() -> void:
 		w.mesh = pm
 		w.material_override = wm
 		w.position = Vector3(c.x, water(c), c.y)
-		w.rotation.y = atan2(across.x, across.y) - PI * 0.5
+		w.rotation.y = atan2(-across.y, across.x)
 		w.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(w)
 		for sz: float in [-1.0, 1.0]:
@@ -389,15 +400,18 @@ func _build_tracks() -> void:
 			t[0] = t[0] + (t[1] - t[0]).normalized() * 4.5
 		var pts := PackedVector2Array()
 		for i in t.size() - 1:
-			var n := maxi(1, ceili(t[i].distance_to(t[i + 1]) / 2.0))
+			var n := maxi(1, ceili(t[i].distance_to(t[i + 1]) / 1.0))
 			for k in n:
 				pts.append(t[i].lerp(t[i + 1], float(k) / n))
 		pts.append(t[t.size() - 1])
-		for strip in [[0.0, TRACK_W * 0.5, DIRT, 0.03], [-0.85, 0.26, RUT, 0.045], [0.85, 0.26, RUT, 0.045]]:
+		for strip in [[0.0, TRACK_W * 0.5, DIRT, 0.05], [-0.85, 0.26, RUT, 0.07], [0.85, 0.26, RUT, 0.07]]:
 			for i in pts.size() - 1:
 				var a := pts[i]
 				var b := pts[i + 1]
 				if _ford(a) >= 0.0 and _ford(b) >= 0.0:
+					continue
+				# (no track through the bog, the sand or the dam: it's churned up, or under water)
+				if _pit(a) or _pit(b):
 					continue
 				var dir := (b - a).normalized()
 				var side := Vector2(-dir.y, dir.x)
@@ -422,6 +436,14 @@ func _build_tracks() -> void:
 	mi.material_override = Surrounds.ground_mat()
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(mi)
+
+func _pit(p: Vector2) -> bool:
+	if not dam.is_empty() and Geometry2D.is_point_in_polygon(p, dam):
+		return true
+	for f in _feat:
+		if f["kind"] != "hill" and _inside(f, p) > -0.1:
+			return true
+	return false
 
 ## What you see at `p`: the hill's grass, the pits' tops, the causeway's bed
 ## (the dam's water hides what's under it).
@@ -561,6 +583,18 @@ func _club_sign(at: Vector2, yaw: float) -> void:
 	ish.shaded = false
 	ish.double_sided = false
 	s.add_child(ish)
+	# (and on the back, for the way out)
+	var bk := Label3D.new()
+	bk.text = "Please repair your divots"
+	bk.font_size = 30
+	bk.pixel_size = 0.0045
+	bk.outline_size = 0
+	bk.modulate = Color("f4f2ea")
+	bk.position = Vector3(0, 1.75, -0.06)
+	bk.rotation.y = PI
+	bk.shaded = false
+	bk.double_sided = false
+	s.add_child(bk)
 	# and a muddy tyre's gone up the side of a post
 	var mud := F.color_mat(Color("4e3a28"))
 	for k in 4:

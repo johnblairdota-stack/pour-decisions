@@ -1555,8 +1555,8 @@ func _damage_fx(c: Dictionary, dt: float) -> void:
 	var n: Node3D = c["node"]
 	var s: Dictionary = Utes.SPEC[c["name"]]
 	var at := n.to_global(Vector3(randf_range(-0.3, 0.3), 1.15, float(s["L"]) * 0.5 - 0.7))
-	var col := Color(0.9, 0.92, 0.92, 0.5).lerp(Color(0.12, 0.12, 0.13, 0.75), clampf((dmg - 0.6) / 0.4, 0.0, 1.0))
-	_puff(at, col, 0.25 + dmg * 0.2, 1.6 + dmg)
+	var col := Color(0.92, 0.93, 0.93, 0.28).lerp(Color(0.12, 0.12, 0.13, 0.6), clampf((dmg - 0.6) / 0.4, 0.0, 1.0))
+	_puff(at, col, 0.16 + dmg * 0.14, 1.4 + dmg)
 
 func _puff(at: Vector3, col: Color, size: float, life: float) -> void:
 	var s := MeshInstance3D.new()
@@ -1851,7 +1851,11 @@ func _follow_ground(c: Dictionary, dt: float, can_fly: bool) -> void:
 			air = false
 			c["air"] = false
 			c["y"] = gy
-			if _landed(c, -vy):
+			# (how hard it comes down against the ground: landing on a down
+			# slope going its way is soft, flat or into an up slope isn't)
+			var fwd := Vector2(sin(float(c["yaw"])), cos(float(c["yaw"])))
+			var ground_vy := (c["v"] as Vector2).dot(fwd) * tan(float(g[1]))
+			if _landed(c, ground_vy - vy):
 				return
 			vy = 0.0
 		else:
@@ -1904,13 +1908,13 @@ func _park_fx(c: Dictionary, surf: String, gas: float, vf: float, dt: float) -> 
 					_debris(at, back * 1.4 + Vector3(0, 2.0, 0), 2.0 + gas * 4.0, Color("4e3a28"), false)
 					mud = minf(0.55, mud + 0.012)
 				"sand":
-					_puff(at, Color(0.9, 0.84, 0.66, 0.6), 0.45, 0.9)
+					_puff(at, Color(0.9, 0.84, 0.66, 0.45), 0.35, 0.9)
 				"water":
 					if absf(vf) > 1.5:
 						_wade(at, absf(vf))
 				"dirt":
-					if absf(vf) > 7.0:
-						_puff(at, Color(0.72, 0.62, 0.48, 0.45), 0.4, 0.8)
+					if absf(vf) > 7.0 and randf() < 0.5:
+						_puff(at, Color(0.72, 0.62, 0.48, 0.3), 0.3, 0.8)
 	if surf == "water":
 		mud = maxf(0.0, mud - dt * 0.12)
 	if absf(mud - float(c.get("mud", 0.0))) > 0.0001:
@@ -2600,13 +2604,22 @@ func _shot(key: String) -> void:
 	if _shots.has(key) or game.shot_dir == "":
 		return
 	_shots[key] = true
+	# (taken once this frame's been drawn: the demo only draws every so often)
+	_shot_q.append(key)
+
+func _save_shots() -> void:
 	var img := get_viewport().get_texture().get_image()
 	DirAccess.make_dir_recursive_absolute(game.shot_dir)
-	img.save_png(game.shot_dir.path_join("explore_%s.png" % key))
-	print("[explore] shot ", key)
+	for key in _shot_q:
+		img.save_png(game.shot_dir.path_join("explore_%s.png" % key))
+		print("[explore] shot ", key)
+	_shot_q.clear()
 
 var _demo_step := 0
 var _demo_mark := 0.0
+var _shot_q: Array = []
+var _quit_code := -1         # the demo's done: quit once its last shots are saved
+var _drawn := false
 var _demo_dv: Dictionary = {}
 
 func _run_demo(dt: float) -> void:
@@ -2619,8 +2632,15 @@ func _run_demo(dt: float) -> void:
 	_demo_t += dt
 	if Engine.get_process_frames() % 20 == 0:
 		print("[explore] t %.1f step %d mode %s at %s" % [_demo_t, _demo_step, mode, me.position])
-	# (the autotest only draws frames it wants a shot of)
-	RenderingServer.render_loop_enabled = true
+	# (the autotest only draws frames it wants a shot of: here every tenth,
+	# and the one after a shot's asked for)
+	if _drawn and not _shot_q.is_empty():
+		_save_shots()
+	if _quit_code >= 0 and _shot_q.is_empty():
+		get_tree().quit(_quit_code)
+		return
+	_drawn = not _shot_q.is_empty() or Engine.get_process_frames() % 10 == 0
+	RenderingServer.render_loop_enabled = _drawn
 	var t := _demo_t - _demo_mark
 	_fake["move"] = Vector2.ZERO
 	_fake["gas"] = 0.0
@@ -2735,7 +2755,7 @@ func _run_demo(dt: float) -> void:
 				_shot("timetable")
 				print("[explore] board: ", _board_label.text.replace("\n", " | "))
 				if OS.get_cmdline_user_args().has("--explore=board"):
-					get_tree().quit(0)
+					_quit_code = 0
 				var at: Vector2 = _fer["at"]
 				var off := at + (_fer["dir"] as Vector2) * 2.0
 				me.position = Vector3(off.x, floor_y(off), off.y)
@@ -2798,10 +2818,10 @@ func _run_demo(dt: float) -> void:
 				_shot("back")
 				print("[explore] utes %d, at %s" % [utes.size(), me.position])
 				print("[explore] demo done")
-				get_tree().quit(0)
+				_quit_code = 0
 			if t > 30.0:
 				print("[explore] demo stuck in ", mode)
-				get_tree().quit(1)
+				_quit_code = 1
 
 ## Dev: a ute lined up `back` metres short of `at`, coming at it.
 func _demo_line_up(at: Vector2, back: float, name := "Ranger", force := Vector2.ZERO) -> void:
@@ -2920,6 +2940,14 @@ func _demo_park(t: float) -> void:
 			_demo_dv["cam"] = [Vector3(-150.0, 90.0, -40.0), Vector3(-230.0, 0.0, 150.0)]
 			if t > 0.6:
 				_shot("park_overview")
+			# (and from above each causeway)
+			for i in park._fords.size():
+				var fc: Vector2 = park._fords[i]["c"]
+				if t > 0.8 + i * 0.6:
+					_demo_dv["cam"] = [Vector3(fc.x + 10.0, 14.0, fc.y - 12.0), Vector3(fc.x, 0.0, fc.y)]
+				if t > 1.2 + i * 0.6:
+					_shot("park_ford_above%d" % i)
+			if t > 1.0 + park._fords.size() * 0.6:
 				_demo_dv.erase("cam")
 				_demo_place(e2[0] + (e2[0] - e2[1]).normalized() * 9.0, e2[0])
 				_next()
@@ -2945,22 +2973,22 @@ func _demo_park(t: float) -> void:
 				var sg := e2[e2.size() - 2] + (e2[e2.size() - 1] - e2[e2.size() - 2]).normalized() * 4.0
 				var dir := (e2[e2.size() - 1] - e2[e2.size() - 2]).normalized()
 				var spot: Vector2 = sg + Vector2(-dir.y, dir.x) * (park.TRACK_W * 0.5 + 1.8)
-				_demo_place(spot + dir * 9.0 - Vector2(-dir.y, dir.x) * 2.5, spot + dir * 20.0)
-				var away := ((car["pos"] as Vector2) - spot).normalized()
-				_cam_yaw = atan2(away.x, away.y)
-				_cam_dist = 9.0
-				_rmb = true
+				_demo_place(spot - dir * 3.0 - Vector2(-dir.y, dir.x) * 3.2, spot + dir * 20.0 - Vector2(-dir.y, dir.x) * 3.2)
+				# (looking at it the way you'd come in, the ute alongside)
+				var eye := spot - dir * 9.0 - Vector2(-dir.y, dir.x) * 1.5
+				_demo_dv["cam"] = [Vector3(eye.x, 2.4, eye.y), Vector3(spot.x, 1.5, spot.y)]
 				print("[explore] near ford %s" % near_ford)
 				_next()
 		43:
 			if t > 0.8:
 				_shot("park_sign")
-				_cam_dist = 6.5
 				# a run at the hill climb
 				_demo_place(Vector2(-275.0, 77.0), Vector2(-330.0, 76.0))
 				_demo_dv["wp"] = 1
 				_next()
 		44:
+			if t > 0.2:
+				_demo_dv.erase("cam")
 			var route := PackedVector2Array([Vector2(-275.0, 77.0), Vector2(-300.0, 77.0), Vector2(-330.0, 76.0), Vector2(-360.0, 75.0), Vector2(-420.0, 75.0)])
 			var x: float = (car["pos"] as Vector2).x
 			if x < -337.0 and not _shots.has("park_climb"):
@@ -3018,7 +3046,7 @@ func _demo_park(t: float) -> void:
 			if t > 0.8:
 				_shot("park_mouth2")
 				print("[explore] demo done")
-				get_tree().quit(0)
+				_quit_code = 0
 
 func _demo_find(kind: String) -> Dictionary:
 	var best := {}
@@ -3177,10 +3205,10 @@ func _demo_crash(t: float) -> void:
 				print("[explore] back on its wheels after %.1f s, dmg %.2f" % [t - float(_demo_dv["roll_t"]), car["dmg"]])
 				_shot("landed")
 				print("[explore] demo done")
-				get_tree().quit(0)
+				_quit_code = 0
 			if t > 25.0:
 				print("[explore] stuck: rb %s mode %s" % [car["rb"], mode])
-				get_tree().quit(1)
+				_quit_code = 1
 
 func _next() -> void:
 	print("[explore] step %d done at %.1fs (frame %d)" % [_demo_step, _demo_t, Engine.get_process_frames()])
