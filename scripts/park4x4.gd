@@ -83,8 +83,11 @@ func build(d: Dictionary) -> void:
 					if x != null:
 						var along: Vector2 = (t[i + 1] - t[i]).normalized()
 						var across: Vector2 = (line[j + 1] - line[j]).normalized()
-						_fords.append({"c": x, "along": along, "across": across, "hl": 7.0, "hw": 5.5,
-							"w": float(dr.get("w", 6.0))})
+						var w := float(dr.get("w", 6.0))
+						# (the creek runs `across`; its shallows reach `hw` either side
+						# of its middle, for `hl` up and down from the crossing)
+						_fords.append({"c": x, "along": along, "across": across, "perp": across.orthogonal(),
+							"hl": 30.0, "hw": w * 0.5 + 1.2, "w": w})
 	box = Rect2(tracks[0][0], Vector2.ZERO)
 	for t in tracks:
 		for q in t:
@@ -167,11 +170,11 @@ func height(p: Vector2) -> float:
 func _ford(p: Vector2) -> float:
 	for fd in _fords:
 		var r: Vector2 = p - (fd["c"] as Vector2)
-		var a := absf(r.dot(fd["along"]))
+		var a := absf(r.dot(fd["perp"]))
 		var c := absf(r.dot(fd["across"]))
 		if c < float(fd["hl"]) and a < float(fd["hw"]):
-			# (down a short ramp into it and up the other side)
-			return FORD_DEEP * smoothstep(float(fd["hw"]), float(fd["hw"]) - 2.5, a)
+			# (down the bank into it and up the other side)
+			return FORD_DEEP * smoothstep(float(fd["hw"]), float(fd["hw"]) - 2.0, a)
 	return -1.0
 
 static func _edge(p: Vector2, poly: PackedVector2Array) -> float:
@@ -185,7 +188,7 @@ func water(p: Vector2) -> float:
 	if not box.has_point(p):
 		return -99.0
 	if _ford(p) > 0.02:
-		return -0.04
+		return 0.035
 	if not dam.is_empty() and Geometry2D.is_point_in_polygon(p, dam):
 		return 0.0
 	return -99.0
@@ -322,54 +325,60 @@ func _build_pits() -> void:
 			return [0.06 + wobble, col.darkened(0.08 * u), 5 if mud else 4])
 		mi.name = "Bog" if mud else "SandTrap"
 
-## The causeways over the creek: a rock bed with the water running over it,
-## and a depth post either side.
+## The creek crossings: a stretch of creek water with muddy banks,
+## and a depth post either side of the track.
 func _build_fords() -> void:
-	var rock := F.color_mat(Color("7c7466"), false)
 	var wm := StandardMaterial3D.new()
-	wm.albedo_color = Color(0.36, 0.42, 0.36, 0.78)
+	wm.albedo_color = Color(0.30, 0.42, 0.44, 0.9)
 	wm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	wm.roughness = 0.15
+	wm.roughness = 0.12
 	wm.metallic_specular = 0.8
+	wm.cull_mode = BaseMaterial3D.CULL_DISABLED
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var bank := SurfaceTool.new()
+	bank.begin(Mesh.PRIMITIVE_TRIANGLES)
 	for fd in _fords:
 		var c: Vector2 = fd["c"]
-		var along: Vector2 = fd["along"]
 		var across: Vector2 = fd["across"]
+		var perp: Vector2 = fd["perp"]
 		var hl: float = fd["hl"]
 		var hw: float = fd["hw"]
-		var rect := Rect2(c, Vector2.ZERO)
-		for sx: float in [-1.0, 1.0]:
-			for sz: float in [-1.0, 1.0]:
-				rect = rect.expand(c + across * hl * sx + along * hw * sz)
-		_grid_mesh(rect.grow(0.5), 0.7, func(p: Vector2) -> Array:
-			var r := p - c
-			if absf(r.dot(across)) > hl or absf(r.dot(along)) > hw:
-				return []
-			return [height(p) + 0.01, Color("6d6457").lerp(Color("8a7a60"), clampf(absf(r.dot(along)) / hw, 0.0, 1.0)), 5])
-		# its sides, down into the creek
-		var yaw := atan2(along.x, along.y)
-		for sx: float in [-1.0, 1.0]:
-			var side := F.box(Vector3(0.4, 2.4, hw * 2.0), rock, Vector3.ZERO, false)
-			var at := c + across * hl * sx
-			side.position = Vector3(at.x, -1.3 - FORD_DEEP, at.y)
-			side.rotation.y = yaw
-			add_child(side)
-		# the water over it
-		var w := MeshInstance3D.new()
-		var pm := PlaneMesh.new()
-		pm.size = Vector2(hl * 2.0, (hw - 1.6) * 2.0)
-		w.mesh = pm
-		w.material_override = wm
-		w.position = Vector3(c.x, water(c), c.y)
-		w.rotation.y = atan2(-across.y, across.x)
-		w.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		add_child(w)
-		for sz: float in [-1.0, 1.0]:
-			_depth_post(c + along * (hw - 1.0) * sz + across * (TRACK_W * 0.5 + 0.8), "%.1f" % FORD_DEEP)
+		# the creek's water over its stretch either side of the crossing
+		var ww := hw - 0.9
+		_quad(st, c, across * hl, perp * ww, 0.035, Color.WHITE, -1)
+		# and muddy banks either side, churned where the track crosses
+		for sd: float in [-1.0, 1.0]:
+			_quad(bank, c + perp * sd * (ww + 0.7), across * hl, perp * 0.75, 0.03, Color("6e5a42"), 5)
+		for sd: float in [-1.0, 1.0]:
+			var along: Vector2 = fd["along"]
+			_depth_post(c + perp * sd * (hw + 0.4) + along.orthogonal() * (TRACK_W * 0.5 + 0.7), "%.1f" % FORD_DEEP)
+	var w := MeshInstance3D.new()
+	w.name = "Creek"
+	w.mesh = st.commit()
+	w.material_override = wm
+	w.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(w)
+	var bk := MeshInstance3D.new()
+	bk.mesh = bank.commit()
+	bk.material_override = Surrounds.ground_mat()
+	bk.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(bk)
 	# and a post at the dam crossing
 	if not dam.is_empty():
 		_depth_post(Vector2(-63.0, 271.0), "%.1f" % DAM_DEEP)
 		_depth_post(Vector2(-127.0, 258.0), "%.1f" % DAM_DEEP)
+
+## A flat rectangle at `y`: centre `c`, half sides `u` and `v`.
+static func _quad(st: SurfaceTool, c: Vector2, u: Vector2, v: Vector2, y: float, col: Color, code: int) -> void:
+	var q := [c - u - v, c + u - v, c + u + v, c - u + v]
+	for k in [0, 1, 2, 0, 2, 3]:
+		var p: Vector2 = q[k]
+		st.set_color(col)
+		if code >= 0:
+			st.set_uv(Vector2(code, 0))
+		st.set_normal(Vector3.UP)
+		st.add_vertex(Vector3(p.x, y, p.y))
 
 ## A white post banded red each 0.2 m, with the depth on a tag.
 func _depth_post(at: Vector2, tag: String) -> void:

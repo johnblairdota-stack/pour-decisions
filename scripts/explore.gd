@@ -1770,8 +1770,9 @@ func _land(c: Dictionary) -> void:
 	c["rb"] = false
 	c["yaw"] = atan2(B.z.x, B.z.z)
 	var V: Vector3 = c["V"]
-	c["v"] = Vector2(V.x, V.z)
-	c["yaw_rate"] = (c["W"] as Vector3).y
+	# (a roll scrubs off a lot: panels and glass on the bitumen, tyres bouncing)
+	c["v"] = Vector2(V.x, V.z) * 0.55
+	c["yaw_rate"] = (c["W"] as Vector3).y * 0.5
 	c["y"] = park.height(c["pos"]) if park != null else 0.0
 	c["vy"] = 0.0
 	c["air"] = false
