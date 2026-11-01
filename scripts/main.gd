@@ -362,7 +362,7 @@ func _setup_input() -> void:
 			jb.button_index = pad[act]
 			InputMap.action_add_event(act_name, jb)
 		device += 1
-	for pair in [["skyline", KEY_TAB], ["restart", KEY_R], ["dev_climb", KEY_F1], ["toggle_shake", KEY_F2], ["toggle_sound", KEY_F3]]:
+	for pair in [["skyline", KEY_TAB], ["restart", KEY_R], ["dev_climb", KEY_F1], ["toggle_shake", KEY_F2], ["toggle_sound", KEY_F3], ["toggle_hud", KEY_H]]:
 		if InputMap.has_action(pair[0]):
 			InputMap.erase_action(pair[0])
 		InputMap.add_action(pair[0])
@@ -2774,6 +2774,8 @@ func _process(delta: float) -> void:
 		return
 	if Input.is_action_just_pressed("dev_climb") and kit == "tower":
 		_dev_skip(CLIMB_LEVELS[0])
+	if Input.is_action_just_pressed("toggle_hud"):
+		hud_off = not hud_off
 	if Input.is_action_just_pressed("toggle_shake"):
 		shake_on = not shake_on
 		hud.toast("Screen shake %s" % ("on" if shake_on else "off"), 1.2)
@@ -4628,7 +4630,6 @@ const FINISH_STALL := 12.0   # s with no progress before the concreters finish i
 const FINISH_MAX := 45.0     # s after the last load, at the very most
 const FINISH_STALL_PERSON := 25.0   # (a person screeding: more time to get to the last bits)
 const FINISH_MAX_PERSON := 150.0
-var _signed_keys := {}
 var _sign_red := false
 var _sign_focus := Vector3.ZERO
 
@@ -4649,10 +4650,10 @@ func _update_signs(delta: float) -> void:
 			if not _sign_red:
 				_sign_focus = j["pos"]
 			_sign_red = true
-	signs.show_jobs(jobs if not skyline else [], delta)
-	_signed_keys = {}
-	for j in jobs:
-		_signed_keys[j["key"]] = true
+	# (the hand signs over the jobs are off, John 1 Nov: the button cues, the
+	# phone tickets and the crew bar say where the work is. The job list
+	# still steers the bots, the cover and the tickets)
+	signs.show_jobs([], delta)
 
 func _update_stations() -> void:
 	var needed: Array = climb.needed()
@@ -4707,10 +4708,7 @@ func _update_stations() -> void:
 		for h in humans():
 			if h.zone == st["zone"] and Vector2(h.global_position.x - n.global_position.x, h.global_position.z - n.global_position.z).length() < 5.0:
 				near = true
-		# (a hand sign over the station already names it)
-		# (a hand sign over the station already names it; so does the
-		# start-up's sign over the bin)
-		(st["label"] as Node3D).visible = n.visible and (on or near) and not _signed_keys.has(key) and not (key == "bin" and ops.wants_bin())
+		(st["label"] as Node3D).visible = n.visible and (on or near)
 		ring.scale = Vector3.ONE * (pulse if on else 1.0)
 		# A spot right under the camera (the deck view zooms in on the bin for
 		# the start-up, with the poker's spot beside it) fades out rather than
@@ -4911,8 +4909,11 @@ func _tickets() -> Array:
 	out.sort_custom(func(a, b): return (1 if a.get("urgent", false) else 0) > (1 if b.get("urgent", false) else 0))
 	return out.slice(0, MAX_TICKETS)
 
+## H hides the HUD (for a clean look at the site, or a photo) and brings it back.
+var hud_off := false
+
 func _update_hud() -> void:
-	hud.visible = phase != "roles" and phase != "select" and not EXT_SHOTS.has(_shot_key_now)
+	hud.visible = phase != "roles" and phase != "select" and not EXT_SHOTS.has(_shot_key_now) and not hud_off
 	hud.set_tickets(_tickets(), phase_t)
 	# (no docket card: the slump test and its reading are in the close-up)
 	hud.show_docket({})
@@ -5033,6 +5034,33 @@ var _signs_at := -1.0
 
 ## Dev (`--only=handsigns`): everyone on the crew shows a different hand
 ## sign at once, for the screenshot. True once they've grown in.
+## Dev (`--only=chute`, with `--human=pump --nocover`): the pump operator
+## walks to the panel and holds Y, flicking the chute up once, for a shot of
+## the signal tags.
+var _chute_demo_t := -1.0
+func _chute_demo() -> bool:
+	var op = crew.crew.get("pump")
+	if op == null or op.bot or not ops.primed or not line._pouring_truck():
+		return false
+	if op.covering:
+		op.uncover()
+		lead_hand.stop(op, true)
+	op.cover_firm = false
+	op.idle_in = 0.0
+	op.lost_t = 0.0
+	var at: Vector3 = GROUND_STATIONS["panel"]["pos"]
+	if Vector2(op.position.x - at.x, op.position.z - at.z).length() > 0.8 and _chute_demo_t < 0.0:
+		op.run_to = at
+		return false
+	if _chute_demo_t < 0.0:
+		_chute_demo_t = phase_t
+	var held := phase_t - _chute_demo_t
+	Input.action_press(op.prefix + "slow")
+	if held > 0.5 and held < 0.7:
+		Input.action_press(op.prefix + "up")
+	else:
+		Input.action_release(op.prefix + "up")
+	return held > 1.6 and line._chute_tag.visible
 func _signs_demo() -> bool:
 	if _signs_at < 0.0:
 		_signs_at = phase_t
@@ -5640,6 +5668,8 @@ func _maybe_shot() -> void:
 		key = "spray2"
 	elif "agebay" in _shot_only and phase == "pour" and line.needs_check() != null and not line.needs_check()["checked"] and line.needs_check()["state"] == "bay" and not _shots_taken.has("agebay"):
 		key = "agebay"
+	elif "chute" in _shot_only and phase == "pour" and _chute_demo() and not _shots_taken.has("chute"):
+		key = "chute"
 	elif "oldload" in _shot_only and phase == "pour" and line.too_old_queued() != null and not _shots_taken.has("oldload"):
 		key = "oldload"
 	elif "washout" in _shot_only and ops != null and ops.stage == "push" and ops.left < ops.WATER * 0.8 and not _shots_taken.has("washout"):
