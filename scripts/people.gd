@@ -253,9 +253,12 @@ func _process(delta: float) -> void:
 	var cam := get_viewport().get_camera_3d()
 	var eye := cam.global_position if cam != null else Vector3.ZERO
 	for w in _walkers:
-		_make_way(w, delta)
+		if not w.get("down", false):
+			_make_way(w, delta)
 	for w in _walkers:
-		_step(w, delta, eye)
+		# (knocked over by a ute: explore's crash.gd has them till they're up)
+		if not w.get("down", false):
+			_step(w, delta, eye)
 	for it in _idlers:
 		var n: Node3D = it[0]
 		if _dist(n, eye) > SEE:

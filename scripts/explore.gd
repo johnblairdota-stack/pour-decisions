@@ -20,6 +20,7 @@ const Wallet := preload("res://scripts/wallet.gd")
 const Surrounds := preload("res://scripts/surrounds.gd")
 const Water := preload("res://scripts/water.gd")
 const Cars := preload("res://scripts/cars.gd")
+const Crash := preload("res://scripts/crash.gd")
 
 const WALK := 4.6
 const RUN := 9.0
@@ -46,6 +47,7 @@ const ENGINE_DRAG := 1.4
 const GRIP := 13.0           # how hard the tyres pull the car back onto its heading
 const MU := 10.5             # most sideways the tyres can hold (m/s²) before it slides
 const MU_HANDBRAKE := 3.2
+const COM_H := 0.85          # a ute's centre of mass above the ground (m)
 const GEARS := [0.0, 8.0, 15.5, 23.0, 30.5, 37.0, 99.0]
 
 var game
@@ -64,6 +66,8 @@ var _wseg := {}              # 20 m cell -> [a, b] bank edges
 var _wet := {}               # 2 m cell -> in the river
 var _fer := {}               # the ferry terminal: at, dir to the bank, run, yaw
 var traffic: Node
+var crash: Node3D            # what a ute can run into (crash.gd)
+var _indexed := false
 var _boat: Node3D
 
 var mode := "walk"           # walk, drive, ride, fly (knocked over), down (lying there)
@@ -112,6 +116,9 @@ var _help_t := 0.0
 var _speedo: VBoxContainer
 var _speed_label: Label
 var _ute_label: Label
+var _revs: Array = []        # the tacho's segments
+var _gear_label: Label
+var _dmg_fill: ColorRect
 var _toast: Label
 var _toast_t := 0.0
 
@@ -123,6 +130,7 @@ var _eng_load := 0.0
 var _squeal := 0.0
 var _thud := 0.0
 var _noise_lp := 0.0
+var _whine_ph := 0.0
 
 var _demo: bool = Array(OS.get_cmdline_user_args()).any(func(a: String) -> bool: return a == "--explore" or a.begins_with("--explore="))
 		# (dev: a scripted run with screenshots; `=river` starts at the CityCat)
@@ -144,6 +152,9 @@ func setup(owner_game) -> void:
 	_build_ui()
 	if not _fer.is_empty():
 		_build_terminal()
+	crash = Crash.new()
+	crash.name = "Crash"
+	add_child(crash)
 	cam = Camera3D.new()
 	cam.fov = 55.0
 	cam.near = 0.1
@@ -319,6 +330,9 @@ func enter(who = null) -> void:
 	_kit_sig = sig
 	if utes.is_empty():
 		_park_utes()
+	if not _indexed and world != null:
+		_indexed = true
+		crash.index(world)
 	_spawn_me()
 	_help_t = 9.0
 	_audio.play()
@@ -352,8 +366,10 @@ func leave() -> void:
 		(_boat.get_meta("tween") as Tween).set_speed_scale(1.0)
 	if traffic != null:
 		traffic.blockers = []
-	# (back at the site: the utes go back to the kerb for next time)
+	# (back at the site: the utes go back to the kerb for next time, and
+	# what they knocked over stands back up)
 	_clear_utes()
+	crash.reset()
 	if me != null:
 		me.visible = false
 	_audio.stop()
@@ -407,7 +423,8 @@ func _park_utes() -> void:
 		add_child(node)
 		var c := {"name": nm, "node": node, "pos": kerb + face * (1 - i) * 8.5, "yaw": atan2(face.x, face.y),
 			"v": Vector2.ZERO, "yaw_rate": 0.0, "steer": 0.0, "pitch": 0.0, "roll": 0.0, "pv": 0.0, "rv": 0.0,
-			"spin": 0.0, "rpm": 800.0, "vf_prev": 0.0, "bob": 0.0}
+			"spin": 0.0, "rpm": 800.0, "vf_prev": 0.0, "bob": 0.0, "dmg": 0.0, "gear": 1, "shift": 0.0, "tip": 0.0,
+			"rb": false, "bent": {"FL": 0.0, "FR": 0.0, "RL": 0.0, "RR": 0.0}, "stuck": 0.0, "smoke_t": 0.0}
 		utes.append(c)
 		_place_car(c, 0.0)
 	_fer["spawn"] = kerb - n * 3.6
@@ -957,6 +974,7 @@ func _sink(dt: float) -> void:
 ## Back at the site, the utes parked up again at the kerb.
 func _respawn(msg: String) -> void:
 	_clear_utes()
+	crash.reset()
 	_park_utes()
 	_kit_sig = "%s|%s|%s" % [_my_ute(), _kit_on("Hilux"), [_kit_on("Ranger"), _kit_on("Shark")]]
 	_spawn_me()
@@ -1024,36 +1042,93 @@ func _get_out(quiet := false) -> void:
 
 func _drive(dt: float, inp: Dictionary) -> void:
 	var c := car
+	if c["rb"]:
+		_tumble(c, dt)
+		return
 	var mv: Vector2 = inp["move"]
 	var gas := maxf(maxf(0.0, -mv.y), float(inp["gas"]))
 	var brake := maxf(maxf(0.0, mv.y), float(inp["brake"]))
 	var hb: bool = inp["hold_a"]
+	var dead := float(c["dmg"]) >= 1.0
+	if dead:
+		gas = 0.0
+	var e: Dictionary = Utes.ENGINE[c["name"]]
+	var mass: float = e["mass"]
+	var r: float = Utes.SPEC[c["name"]]["r"]
 	var yaw: float = c["yaw"]
 	var fwd := Vector2(sin(yaw), cos(yaw))
 	var left := Vector2(fwd.y, -fwd.x)
 	var v: Vector2 = c["v"]
 	var vf := v.dot(fwd)
 	var vl := v.dot(left)
-	# --- along: engine, brakes, reverse
+	var spd := absf(vf)
+	# --- the drivetrain: what the engine (or the motors) put through the wheels
+	var force := 0.0
+	var reversing := vf < -0.3 or (brake > 0.0 and vf < 0.5 and gas == 0.0)
+	if e["kind"] == "phev":
+		var ratio: float = e["gears"][0]
+		var fmax := float(e["nm"]) * ratio * 0.9 / r
+		force = minf(fmax, float(e["kw"]) * 1000.0 / maxf(spd, 1.0)) * gas
+		c["rpm"] = spd / r * ratio * 60.0 / TAU
+		c["gear"] = 1
+	else:
+		var gears: Array = e["gears"]
+		var fd: float = e["final"]
+		var g: int = c["gear"]
+		var ratio: float = float(e["reverse"]) if reversing else float(gears[g - 1])
+		var wheel_rpm := spd / r * 60.0 / TAU
+		var eng := wheel_rpm * ratio * fd
+		# (the torque converter lets it rev up to its stall speed off the line,
+		# and multiplies the torque while it's slipping)
+		var stall := lerpf(float(e["idle"]), float(e["torque_from"]) + 300.0, gas)
+		var slip := clampf(1.0 - eng / maxf(stall, 1.0), 0.0, 1.0)
+		var rpm := maxf(eng, maxf(float(e["idle"]), stall * slip + eng * (1.0 - slip)))
+		if not dead:
+			force = Utes.torque_at(e, rpm) * gas * ratio * fd * 0.8 / r * (1.0 + slip * 0.2)
+		if eng > float(e["cut"]):
+			force = 0.0
+		c["shift"] = maxf(0.0, float(c["shift"]) - dt)
+		if float(c["shift"]) > 0.0:
+			force *= 0.3
+		if not reversing:
+			var up_at := lerpf(1900.0, float(e["red"]), gas)
+			if eng > up_at and g < gears.size():
+				g += 1
+				c["shift"] = 0.32
+			elif g > 1 and eng < lerpf(1250.0, float(e["red"]) * 0.6, gas) \
+					and eng * float(gears[g - 2]) / float(gears[g - 1]) < float(e["red"]) * 0.95:
+				g -= 1
+				c["shift"] = 0.22
+			if spd < 1.0:
+				g = 1
+		c["gear"] = g
+		c["rpm"] = 0.0 if dead else rpm
+	if spd * 3.6 > float(e["top"]):
+		force = 0.0
+	# (what a diesel ute really pulls off the line, turbo lag and all; the
+	# Shark's motors give it everything at once)
+	force = minf(force, (0.62 if e["kind"] == "phev" else 0.45) * mass * 9.8)
+	var drag := 0.6 * float(e["cda"]) * vf * vf + 0.016 * mass * 9.8 * clampf(spd, 0.0, 1.0)
 	if gas > 0.0:
 		if vf < -0.5:
 			vf = minf(0.0, vf + BRAKE * gas * dt)
 		else:
-			vf += PULL * gas * maxf(0.0, 1.0 - pow(maxf(vf, 0.0) / TOP, 1.7)) * dt
+			vf += (force - drag) / mass * dt
 	if brake > 0.0:
 		if vf > 0.5:
 			vf = maxf(0.0, vf - BRAKE * brake * dt)
 		else:
 			vf = maxf(-REVERSE, vf - REV_ACC * brake * dt)
 	if gas == 0.0 and brake == 0.0:
-		vf = move_toward(vf, 0.0, (ENGINE_DRAG + 0.0035 * vf * vf) * dt)
-	else:
-		vf -= signf(vf) * 0.0035 * vf * vf * dt
+		# rolling, the engine holding it back
+		var hold := drag / mass + (0.5 + float(c["rpm"]) / 4000.0 * 0.9 if e["kind"] != "phev" else 0.9)
+		vf = move_toward(vf, 0.0, hold * dt)
 	if hb:
 		vf = move_toward(vf, 0.0, 5.0 * dt)
-	# --- steering: quick at a crawl, calmer at speed
+	# --- steering: quick at a crawl, calmer at speed; a bent wheel pulls
+	var bent: Dictionary = c["bent"]
 	var max_steer := lerpf(0.6, 0.12, clampf(absf(vf) / 32.0, 0.0, 1.0))
-	var target := mv.x * max_steer
+	var target := clampf(mv.x * max_steer + (float(bent["FL"]) - float(bent["FR"])) * 0.12, -0.65, 0.65)
 	var st: float = c["steer"]
 	st = move_toward(st, target, dt * (2.6 if absf(target) > absf(st) else 4.5))
 	c["steer"] = st
@@ -1079,27 +1154,33 @@ func _drive(dt: float, inp: Dictionary) -> void:
 	var was := yaw - yr * dt
 	v = Vector2(sin(was), cos(was)) * vf + Vector2(cos(was), -sin(was)) * vl
 	c["v"] = v
+	# --- sliding sideways too fast, the tyres dig in and over it goes
+	var lift := float((c["node"] as Node3D).get_meta("ride", 0.0))
+	if absf(vl) > 9.0 and spd > 8.0:
+		c["tip"] = float(c["tip"]) + (absf(vl) - 9.0) * dt * (0.6 + lift * 3.0)
+	else:
+		c["tip"] = maxf(0.0, float(c["tip"]) - dt * 2.0)
+	if float(c["tip"]) > 1.0:
+		c["tip"] = 0.0
+		_launch(c, Vector3(v.x, 2.2 + absf(vl) * 0.12, v.y), Vector3(fwd.x, 0, fwd.y) * -signf(vl) * (2.0 + absf(vl) * 0.3))
+		_toast_msg("Rolled it!")
+		return
 	_move_car(c, dt)
+	if c["rb"] or mode != "drive":
+		return
 	# --- the springs: nose dives under brakes, squats on the gas, leans out
-	# of corners
+	# of corners (more on a lift kit)
 	var a_long := (vf - float(c["vf_prev"])) / dt
 	c["vf_prev"] = vf
-	_spring(c, clampf(-a_long * 0.0075, -0.06, 0.07), clampf(yr * vf * 0.011, -0.075, 0.075), dt)
-	c["spin"] = float(c["spin"]) + (0.0 if hb else vf) / float(Utes.SPEC[c["name"]]["r"]) * dt
+	_spring(c, clampf(-a_long * 0.009, -0.08, 0.09), clampf(yr * vf * 0.0135 * (1.0 + lift * 4.0), -0.13, 0.13), dt)
+	c["spin"] = float(c["spin"]) + (0.0 if hb else vf) / r * dt
 	var slide := absf(vl)
 	_squeal = lerpf(_squeal, clampf((slide - 2.0) / 6.0, 0.0, 1.0) + (0.6 if hb and absf(vf) > 6.0 else 0.0), minf(1.0, dt * 8.0))
 	if slide > 3.5 or (hb and absf(vf) > 6.0):
 		_smoke_at(c)
 	_place_car(c, dt)
-	# engine: a five-speed auto, rough at idle
-	var g := 1
-	while g < GEARS.size() - 1 and absf(vf) > GEARS[g]:
-		g += 1
-	var lo: float = GEARS[g - 1]
-	var hi: float = GEARS[g]
-	var u := clampf((absf(vf) - lo) / maxf(hi - lo, 1.0), 0.0, 1.0)
-	var rpm := 850.0 + (1400.0 + u * 2400.0 if absf(vf) > 0.3 else 0.0) + gas * (500.0 if absf(vf) < 1.0 else 200.0)
-	_eng_rpm = lerpf(_eng_rpm, rpm, minf(1.0, dt * 6.0))
+	_damage_fx(c, dt)
+	_eng_rpm = lerpf(_eng_rpm, float(c["rpm"]), minf(1.0, dt * 10.0))
 	_eng_load = lerpf(_eng_load, gas, minf(1.0, dt * 5.0))
 	me.position = Vector3(c["pos"].x, 0, c["pos"].y)
 	var cp: Vector2 = c["pos"]
@@ -1111,37 +1192,65 @@ func _drive(dt: float, inp: Dictionary) -> void:
 		c["vy"] = 0.0
 		_toast_msg("Into the river! That's the %s gone." % Utes.TITLE[c["name"]])
 		return
+	# --- never stuck: foot down and going nowhere, or upside down
+	if gas > 0.3 and spd < 0.4:
+		c["stuck"] = float(c["stuck"]) + dt
+	else:
+		c["stuck"] = maxf(0.0, float(c["stuck"]) - dt)
+	if float(c["stuck"]) > 1.2:
+		_unstick(c, true)
+		c["stuck"] = 0.0
 	if inp["use"]:
 		_get_out()
 
-## Moves a ute along by its velocity: off buildings, the river's edge and the
-## other cars.
+## Moves a ute along by its velocity. Buildings, the other cars, poles and
+## big trees stop it (with a dent to show for it); signs, bins and small
+## plants go flat; birds and people in the way come off second best.
 func _move_car(c: Dictionary, dt: float) -> void:
 	var v: Vector2 = c["v"]
 	var at: Vector2 = c["pos"]
+	var yaw: float = c["yaw"]
 	var to := at + v * dt
-	if _car_free(c, to, float(c["yaw"])):
+	var hit := _car_block(c, to, yaw, v.length(), v)
+	if hit.is_empty():
 		c["pos"] = to
 	else:
-		var hit := v.length()
-		var x_ok := _car_free(c, at + Vector2(v.x * dt, 0), float(c["yaw"]))
-		var z_ok := _car_free(c, at + Vector2(0, v.y * dt), float(c["yaw"]))
-		if x_ok and not z_ok:
-			c["pos"] = at + Vector2(v.x * dt, 0)
-			v.y *= -0.25
-			v.x *= 0.85
-		elif z_ok and not x_ok:
-			c["pos"] = at + Vector2(0, v.y * dt)
-			v.x *= -0.25
-			v.y *= 0.85
-		else:
-			v *= -0.3
+		var n: Vector2 = hit["n"]
+		var vn := v.dot(n)
+		if vn < 0.0:
+			var imp := -vn
+			v -= n * vn * 1.3
+			v *= 0.9
+			# (hit off-centre, it slews round)
+			var r: Vector2 = (hit["p"] as Vector2) - at
+			c["yaw_rate"] = float(c["yaw_rate"]) * 0.5 + clampf((r.x * n.y - r.y * n.x) * imp * 0.06, -2.5, 2.5)
+			c["v"] = v
+			_impact(c, hit["p"], n, imp, hit["what"], hit.get("it", {}))
+			if imp > 13.0 and mode == "drive" and is_same(c, car):
+				# hard enough to throw it about: up it goes, round where it hit
+				var r3 := Vector3(r.x, -0.25, r.y)
+				var j3 := Vector3(n.x, 0, n.y) * imp
+				_launch(c, Vector3(v.x, 1.2 + imp * 0.1, v.y), (r3.cross(j3) * 0.22).limit_length(5.5))
+				return
 		c["v"] = v
-		c["yaw_rate"] = float(c["yaw_rate"]) * 0.5
-		if hit > 4.0:
-			_shake = minf(1.0, hit * 0.05)
-			_thud = clampf(hit / 15.0, 0.3, 1.0)
-			c["pv"] = float(c["pv"]) - hit * 0.02
+		if not _car_block(c, at, yaw, 0.0, Vector2.ZERO).is_empty():
+			_unstick(c, false)
+	var speed := (c["v"] as Vector2).length()
+	if speed > 1.5 and crash != null:
+		var half := _half(c["name"])
+		for w in crash.birds_in(c["pos"], half, yaw):
+			crash.squash(w, c["v"])
+			if _hit_cd <= 0.0:
+				_toast_msg(["Road kill.", "Sorry, little fella.", "That's a %s gone." % String(w["kind"]).to_lower()][randi() % 3])
+				_hit_cd = 2.0
+		if speed > 2.5:
+			for w in crash.people_in(c["pos"], half, yaw):
+				var side := Vector2(-v.y, v.x).normalized() * randf_range(-2.0, 2.0)
+				crash.bowl(w, c["v"] * 1.05 + side)
+				c["v"] = (c["v"] as Vector2) * 0.92
+				_impact(c, (c["pos"] as Vector2) + (c["v"] as Vector2).normalized() * _half(c["name"]).y, -(c["v"] as Vector2).normalized(),
+					speed * 0.25, "person", {})
+				_toast_msg(("Ooft! Knocked a cyclist off." if w["kind"] == "bike" else "Ooft! Sorry, mate!"))
 	# the traffic shoves (and is shoved by) a ute in its way
 	if traffic != null:
 		var me_half := _half(c["name"])
@@ -1156,26 +1265,30 @@ func _move_car(c: Dictionary, dt: float) -> void:
 				c["pos"] = c["pos"] + away * 0.25
 				var their := Vector2(sin(n.rotation.y), cos(n.rotation.y)) * float(dv["speed"])
 				var vv: Vector2 = c["v"]
-				var into := vv.dot(-away)
+				var into := (vv - their).dot(-away)
 				if into > 0.0:
 					vv += away * into * 1.4
-					if into > 4.0:
-						_shake = minf(1.0, into * 0.06)
-						_thud = clampf(into / 12.0, 0.3, 1.0)
+					if into > 3.0:
+						_impact(c, (c["pos"] as Vector2) - away * me_half.x, away, into, "car", {})
 				c["v"] = vv + their * 0.3 * dt * 10.0
 
-func _car_free(c: Dictionary, at: Vector2, yaw: float) -> bool:
+## What a ute at `at` facing `yaw` is up against: {} if nothing, else where
+## ("p"), the way out ("n") and what ("what", and the "it" from crash.gd).
+## Moving at `speed` (along `v`), it flattens what's flattenable as it goes.
+func _car_block(c: Dictionary, at: Vector2, yaw: float, speed: float, v: Vector2) -> Dictionary:
 	var half := _half(c["name"])
 	var fwd := Vector2(sin(yaw), cos(yaw))
 	var left := Vector2(fwd.y, -fwd.x)
-	for k in [[1, 1], [1, -1], [-1, 1], [-1, -1], [0, 1], [0, -1], [1, 0], [-1, 0]]:
+	for k in [[1, 1], [-1, 1], [0, 1], [1, -1], [-1, -1], [0, -1], [1, 0], [-1, 0], [1, 0.5], [-1, 0.5], [1, -0.5], [-1, -0.5]]:
 		var q: Vector2 = at + left * half.x * float(k[0]) + fwd * half.y * float(k[1])
-		if _blocked(q) or not _ferry_floor(q).is_empty():
-			# (buildings, and the terminal: no utes on the gangway)
-			return false
+		if _blocked(q):
+			return {"p": q, "n": _wall_normal(q, at), "what": "wall"}
+		if not _ferry_floor(q).is_empty():
+			# (no utes on the terminal)
+			return {"p": q, "n": (at - q).normalized(), "what": "wall"}
 	for o in utes:
-		if not is_same(o, c) and _boxes_touch(at, yaw, half, o["pos"], o["yaw"], _half(o["name"])):
-			return false
+		if not is_same(o, c) and not o["rb"] and _boxes_touch(at, yaw, half, o["pos"], o["yaw"], _half(o["name"])):
+			return {"p": at.lerp(o["pos"], 0.5), "n": (at - (o["pos"] as Vector2)).normalized(), "what": "car"}
 	if traffic != null:
 		for it in traffic.parked:
 			if String(it[0]) == "":
@@ -1185,8 +1298,425 @@ func _car_free(c: Dictionary, at: Vector2, yaw: float) -> bool:
 			if o.distance_squared_to(at) < 49.0:
 				var oy := atan2(t.basis.z.x, t.basis.z.z)
 				if _boxes_touch(at, yaw, half, o, oy, Cars.SIZE.get(it[0], Vector2(0.9, 2.35))):
-					return false
-	return true
+					return {"p": at.lerp(o, 0.5), "n": (at - o).normalized(), "what": "car"}
+	if crash != null:
+		for it in crash.near(at, half.y + 0.5):
+			if not _in_box(it["p"], at, yaw, half, float(it["r"])):
+				continue
+			match it["kind"]:
+				"flat", "plant":
+					crash.knock(it, v)
+					c["v"] = (c["v"] as Vector2) * (0.97 if it["kind"] == "plant" else 0.93)
+					if speed > 3.0 and it["kind"] == "flat":
+						_impact(c, it["p"], (at - (it["p"] as Vector2)).normalized(), speed * 0.2, "sign", {})
+					if _hit_cd <= 0.0 and it["kind"] == "flat":
+						_toast_msg({"StreetSign": "Flattened the street sign.", "GiveWaySign": "Didn't give way.",
+							"BusStopSign": "No more bus stop.", "ParkBin": "Bin night.", "ParkBench": "Took out a bench.",
+							"PicnicTable": "Picnic's off.", "Bubbler": "Bubbler's gone."}.get(it["model"], "Flattened it."))
+						_hit_cd = 1.5
+				"pole":
+					if speed > 9.0:
+						crash.knock(it, v)
+						c["v"] = (c["v"] as Vector2) * 0.7
+						_impact(c, it["p"], (at - (it["p"] as Vector2)).normalized(), speed * 0.45, "pole", {})
+						_toast_msg("Took the light pole with it.")
+					else:
+						return {"p": it["p"], "n": (at - (it["p"] as Vector2)).normalized(), "what": "pole", "it": it}
+				_:
+					return {"p": it["p"], "n": (at - (it["p"] as Vector2)).normalized(), "what": it["kind"], "it": it}
+	return {}
+
+## Which way's out of a building from a point inside its wall, towards `from`.
+func _wall_normal(q: Vector2, from: Vector2) -> Vector2:
+	var n := Vector2.ZERO
+	for k in 16:
+		var d := Vector2.from_angle(k * TAU / 16.0)
+		for reach in [0.6, 1.5, 3.0]:
+			if not _in_building(q + d * reach):
+				n += d / reach
+				break
+	if n == Vector2.ZERO:
+		return (from - q).normalized()
+	return n.normalized()
+
+## Clear of whatever it's in: the nearest free spot round about.
+func _unstick(c: Dictionary, say: bool) -> void:
+	var at: Vector2 = c["pos"]
+	var yaw: float = c["yaw"]
+	for ring in range(1, 16):
+		var reach := ring * 0.5
+		for k in 12:
+			var q := at + Vector2.from_angle(k * TAU / 12.0) * reach
+			if _car_block(c, q, yaw, 0.0, Vector2.ZERO).is_empty() and not _is_wet(q):
+				c["pos"] = q
+				c["v"] = Vector2.ZERO
+				if say:
+					_toast_msg("Rocked it free.")
+				return
+	_road_reset(c)
+
+## Back on the nearest bit of road, facing along it.
+func _road_reset(c: Dictionary) -> void:
+	var at: Vector2 = c["pos"]
+	var best := Vector2.ZERO
+	var dir := Vector2(0, 1)
+	var bd := INF
+	for r in _d["roads"]:
+		var pts: Array = r["pts"]
+		for i in range(1, pts.size()):
+			var a := Vector2(pts[i - 1][0], pts[i - 1][1])
+			var b := Vector2(pts[i][0], pts[i][1])
+			var q := Geometry2D.get_closest_point_to_segment(at, a, b)
+			var dd := q.distance_to(at)
+			if dd < bd and q.length() < EDGE:
+				bd = dd
+				best = q
+				dir = (b - a).normalized()
+	c["pos"] = best + Vector2(dir.y, -dir.x) * 1.8
+	c["yaw"] = atan2(dir.x, dir.y)
+	c["v"] = Vector2.ZERO
+	c["yaw_rate"] = 0.0
+	if _car_block(c, c["pos"], c["yaw"], 0.0, Vector2.ZERO).is_empty():
+		return
+	c["pos"] = best
+
+## A ute hit something `imp` m/s hard at `p` (the way out `n`): a dent there,
+## bits everywhere, and the damage adding up till it won't go.
+func _impact(c: Dictionary, p: Vector2, n: Vector2, imp: float, what: String, it: Dictionary) -> void:
+	if what == "tree" and not it.is_empty():
+		crash.shake(it, imp)
+	if _demo:
+		print("[explore] hit %s %s at %.1f m/s" % [what, it.get("model", ""), imp])
+	if imp < 1.5:
+		return
+	var node: Node3D = c["node"]
+	var shell := node.get_node("Body/Shell") as MeshInstance3D
+	var hit3 := to_global(Vector3(p.x, 0.75 + float(c.get("y", 0.0)), p.y))
+	var local := shell.global_transform.affine_inverse() * hit3
+	var front := local.z > float(Utes.SPEC[c["name"]]["L"]) * 0.25
+	var bar := 0.35 if front and node.get_node_or_null("Body/bullbar") != null else 1.0
+	var was: float = c["dmg"]
+	var amount := pow(clampf((imp - 2.0) / 28.0, 0.0, 1.2), 1.3) * 0.85 * bar
+	c["dmg"] = minf(1.0, was + amount)
+	var dir := (shell.global_transform.basis.inverse() * Vector3(n.x, 0, n.y)).normalized()
+	if imp > 2.5:
+		Utes.dent(shell, local, dir, clampf(imp * 0.012, 0.02, 0.28) * bar, 0.45 + imp * 0.025)
+	if imp > 7.0:
+		var best := "FL"
+		var bd := INF
+		for w in ["FL", "FR", "RL", "RR"]:
+			var wl := (node.get_node(w) as Node3D).position
+			var dd := Vector2(wl.x, wl.z).distance_to(Vector2(local.x, local.z))
+			if dd < bd:
+				bd = dd
+				best = w
+		var bent: Dictionary = c["bent"]
+		bent[best] = minf(0.35, float(bent[best]) + amount * 0.6)
+	_debris(hit3, Vector3(n.x, 0.4, n.y), imp, Utes.OWN_PAINT.get(c["name"], Color.WHITE) if c.get("paint") == null else c["paint"],
+		what in ["wall", "pole", "solid", "car"])
+	if is_same(c, car):
+		_shake = maxf(_shake, minf(1.0, imp * 0.05))
+		_thud = maxf(_thud, clampf(imp / 15.0, 0.3, 1.0))
+	var now: float = c["dmg"]
+	if is_same(c, car):
+		if was < 0.4 and now >= 0.4:
+			_toast_msg("Steam out the bonnet.")
+		elif was < 0.75 and now >= 0.75:
+			_toast_msg("She's not well. Black smoke.")
+		elif was < 1.0 and now >= 1.0:
+			_toast_msg("That's it, she's cactus.")
+
+## Bits of plastic, glass and paint off a hit, and sparks off metal.
+func _debris(at: Vector3, out: Vector3, imp: float, paint: Color, sparks: bool) -> void:
+	var p := CPUParticles3D.new()
+	p.one_shot = true
+	p.amount = clampi(int(imp * 2.0), 6, 40)
+	p.lifetime = 1.6
+	p.explosiveness = 0.95
+	p.direction = out.normalized()
+	p.spread = 60.0
+	p.initial_velocity_min = 1.5
+	p.initial_velocity_max = 2.0 + imp * 0.3
+	p.gravity = Vector3(0, -14, 0)
+	p.angular_velocity_min = -400.0
+	p.angular_velocity_max = 400.0
+	p.scale_amount_min = 0.5
+	p.scale_amount_max = 1.4
+	var bm := BoxMesh.new()
+	bm.size = Vector3(0.07, 0.02, 0.05)
+	bm.material = F.color_mat(paint, false)
+	p.mesh = bm
+	var g := Gradient.new()
+	g.set_color(0, Color(1, 1, 1))
+	g.set_color(1, Color(0.6, 0.65, 0.7))
+	p.color_ramp = g
+	p.position = to_local(at)
+	add_child(p)
+	p.emitting = true
+	get_tree().create_timer(2.0, true, false, true).timeout.connect(p.queue_free)
+	if not sparks or imp < 6.0:
+		return
+	var s := CPUParticles3D.new()
+	s.one_shot = true
+	s.amount = clampi(int(imp * 1.5), 8, 30)
+	s.lifetime = 0.45
+	s.explosiveness = 1.0
+	s.direction = out.normalized()
+	s.spread = 80.0
+	s.initial_velocity_min = 3.0
+	s.initial_velocity_max = 8.0
+	s.gravity = Vector3(0, -9, 0)
+	var sm := SphereMesh.new()
+	sm.radius = 0.025
+	sm.height = 0.05
+	sm.material = F.flat_mat(Color(1.0, 0.82, 0.35))
+	s.mesh = sm
+	s.position = to_local(at)
+	add_child(s)
+	s.emitting = true
+	get_tree().create_timer(0.8, true, false, true).timeout.connect(s.queue_free)
+
+## Steam, then black smoke, out from under the bonnet as it gets worse.
+func _damage_fx(c: Dictionary, dt: float) -> void:
+	var dmg: float = c["dmg"]
+	if dmg < 0.4:
+		return
+	c["smoke_t"] = float(c["smoke_t"]) - dt
+	if float(c["smoke_t"]) > 0.0 or _smoke.size() > 50:
+		return
+	c["smoke_t"] = lerpf(0.22, 0.08, dmg)
+	var n: Node3D = c["node"]
+	var s: Dictionary = Utes.SPEC[c["name"]]
+	var at := n.to_global(Vector3(randf_range(-0.3, 0.3), 1.15, float(s["L"]) * 0.5 - 0.7))
+	var col := Color(0.9, 0.92, 0.92, 0.5).lerp(Color(0.12, 0.12, 0.13, 0.75), clampf((dmg - 0.6) / 0.4, 0.0, 1.0))
+	_puff(at, col, 0.25 + dmg * 0.2, 1.6 + dmg)
+
+func _puff(at: Vector3, col: Color, size: float, life: float) -> void:
+	var s := MeshInstance3D.new()
+	var sm := SphereMesh.new()
+	sm.radius = size
+	sm.height = size * 2.0
+	sm.radial_segments = 8
+	sm.rings = 4
+	s.mesh = sm
+	s.material_override = F.flat_mat(col)
+	s.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(s)
+	s.global_position = at
+	_smoke.append(s)
+	var tw := s.create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(s, "scale", Vector3.ONE * 3.5, life)
+	tw.tween_property(s, "position:y", s.position.y + 2.5, life)
+	tw.tween_property(s, "transparency", 1.0, life)
+	tw.chain().tween_callback(func():
+		_smoke.erase(s)
+		s.queue_free())
+
+# ------------------------------------------------------------------ thrown about
+
+## Off its wheels: from here it's a box with mass, bouncing and rolling till
+## it comes to rest, then back on its wheels to drive on (righted for you if
+## it ends up on its side or its roof).
+func _launch(c: Dictionary, v3: Vector3, w: Vector3) -> void:
+	if c["rb"]:
+		return
+	c["rb"] = true
+	var B := Basis(Vector3.UP, float(c["yaw"])) * Basis.from_euler(Vector3(float(c["pitch"]), 0, float(c["roll"])))
+	c["B"] = B
+	c["P"] = Vector3(c["pos"].x, COM_H + float(c.get("y", 0.0)), c["pos"].y)
+	c["V"] = v3
+	c["W"] = w
+	c["rest"] = 0.0
+	c["right_t"] = -1.0
+	c["pitch"] = 0.0
+	c["roll"] = 0.0
+	c["pv"] = 0.0
+	c["rv"] = 0.0
+	(c["node"] as Node3D).get_node("Body").rotation = Vector3.ZERO
+
+func _tumble(c: Dictionary, dt: float) -> void:
+	var s: Dictionary = Utes.SPEC[c["name"]]
+	var mass: float = Utes.ENGINE[c["name"]]["mass"]
+	var hw: float = s["hw"]
+	var hl: float = float(s["L"]) * 0.5
+	var ib := Vector3(mass / 12.0 * (1.85 * 1.85 + 4.0 * hl * hl), mass / 12.0 * (4.0 * hw * hw + 4.0 * hl * hl),
+		mass / 12.0 * (4.0 * hw * hw + 1.85 * 1.85))
+	var B: Basis = c["B"]
+	var P: Vector3 = c["P"]
+	var V: Vector3 = c["V"]
+	var W: Vector3 = c["W"]
+	var bottom := 0.05 - COM_H
+	var top := 1.85 - COM_H
+	var wheels_down := 0
+	var biggest := 0.0
+	var big_at := Vector3.ZERO
+	var big_n := Vector3.UP
+	if float(c["right_t"]) >= 0.0:
+		# righting it: back over onto its wheels
+		c["right_t"] = float(c["right_t"]) + dt
+		var u := clampf(float(c["right_t"]) / 0.8, 0.0, 1.0)
+		var up := Basis(Vector3.UP, atan2(B.z.x, B.z.z) if absf(B.z.y) < 0.9 else float(c["yaw"]))
+		c["B"] = (c["B0"] as Basis).slerp(up, ease(u, -2.0))
+		P.y = COM_H + sin(u * PI) * 1.2
+		c["P"] = P
+		if u >= 1.0:
+			_land(c)
+			return
+		_place_rb(c)
+		return
+	var h := dt / 4.0
+	for step in 4:
+		V.y -= 9.8 * 1.4 * h
+		P += V * h
+		if W.length() > 0.0001:
+			B = Basis(W.normalized(), W.length() * h) * B
+		B = B.orthonormalized()
+		wheels_down = 0
+		for cx in [-1.0, 1.0]:
+			for cy in [bottom, top]:
+				for cz in [-1.0, 1.0]:
+					var rw := B * Vector3(cx * hw, cy, cz * hl)
+					var p := P + rw
+					var p2 := Vector2(p.x, p.z)
+					var gnd := 0.0 if not _is_wet(p2) else -99.0
+					var ff := _ferry_floor(p2)
+					if not ff.is_empty():
+						gnd = ff[0]
+					var pen := gnd - p.y
+					if pen > 0.0:
+						var j := _contact(B, ib, mass, rw, Vector3.UP, 0.25, 0.75 if cy == top or B.y.y < 0.5 else 0.0, V, W)
+						V = j[0]
+						W = j[1]
+						P.y += pen * 0.6
+						if cy == bottom and B.y.y > 0.5:
+							wheels_down += 1
+						if float(j[2]) > biggest:
+							biggest = j[2]
+							big_at = p
+							big_n = Vector3.UP
+					if _in_building(p2):
+						var n2 := _wall_normal(p2, Vector2(P.x, P.z))
+						var n3 := Vector3(n2.x, 0, n2.y)
+						var j := _contact(B, ib, mass, rw, n3, 0.3, 0.5, V, W)
+						V = j[0]
+						W = j[1]
+						P += n3 * 0.08
+						if float(j[2]) > biggest:
+							biggest = j[2]
+							big_at = p
+							big_n = n3
+		# rolling on its wheels: they don't drag along, only across
+		if wheels_down >= 2:
+			var f := B.z
+			var vf := V.dot(f)
+			V -= f * vf * 0.004
+			W *= 0.97
+		W *= 1.0 - 0.25 * h
+	c["B"] = B
+	c["P"] = P
+	c["V"] = V
+	c["W"] = W
+	c["pos"] = Vector2(P.x, P.z)
+	c["v"] = Vector2(V.x, V.z)
+	c["y"] = P.y - COM_H
+	if biggest > 3.0:
+		_impact(c, Vector2(big_at.x, big_at.z), Vector2(big_n.x, big_n.z).normalized() if absf(big_n.y) < 0.5 else -(c["v"] as Vector2).normalized(),
+			biggest, "ground", {})
+		if absf(big_n.y) > 0.5:
+			_dust(Vector3(big_at.x, 0.0, big_at.z))
+	# props, birds and people in its way (it's still a box going through them)
+	_move_props(c)
+	if _is_wet(Vector2(P.x, P.z)) and P.y < Water.RIVER_Y + 0.8:
+		c["rb"] = false
+		c["y"] = P.y - COM_H
+		c["vy"] = V.y
+		(c["node"] as Node3D).basis = Basis(Vector3.UP, atan2(B.z.x, B.z.z))
+		c["yaw"] = atan2(B.z.x, B.z.z)
+		mode = "sink"
+		_gone_t = 0.0
+		_toast_msg("Into the river! That's the %s gone." % Utes.TITLE[c["name"]])
+		return
+	if V.length() < 0.7 and W.length() < 0.7:
+		c["rest"] = float(c["rest"]) + dt
+	else:
+		c["rest"] = 0.0
+	if B.y.y > 0.85 and wheels_down >= 3 and W.length() < 1.6 and absf(V.y) < 1.5:
+		_land(c)
+		return
+	if float(c["rest"]) > 1.0:
+		_toast_msg("On its %s. Righting it." % ("roof" if B.y.y < -0.5 else "side"))
+		c["right_t"] = 0.0
+		c["B0"] = B
+	_place_rb(c)
+	c["spin"] = float(c["spin"]) + V.dot(B.z) / float(s["r"]) * dt
+	_eng_rpm = lerpf(_eng_rpm, float(Utes.ENGINE[c["name"]]["idle"]) * 1.6, minf(1.0, dt * 4.0))
+
+## One corner's bounce off the ground or a wall: [velocity, spin, how hard
+## (m/s it took out)].
+func _contact(B: Basis, ib: Vector3, mass: float, rw: Vector3, n: Vector3, bounce: float, mu: float, V: Vector3, W: Vector3) -> Array:
+	var iinv := func(x: Vector3) -> Vector3: return B * ((B.transposed() * x) / ib)
+	var vp := V + W.cross(rw)
+	var vn := vp.dot(n)
+	if vn >= 0.0:
+		return [V, W, 0.0]
+	var rn := rw.cross(n)
+	var kn := 1.0 / mass + n.dot((iinv.call(rn) as Vector3).cross(rw))
+	var j := -(1.0 + bounce) * vn / kn
+	V += n * j / mass
+	W += iinv.call(rw.cross(n * j))
+	if mu > 0.0:
+		vp = V + W.cross(rw)
+		var vt := vp - n * vp.dot(n)
+		if vt.length() > 0.01:
+			var t := vt.normalized()
+			var kt := 1.0 / mass + t.dot((iinv.call(rw.cross(t)) as Vector3).cross(rw))
+			var jt := minf(vt.length() / kt, mu * j)
+			V -= t * jt / mass
+			W -= iinv.call(rw.cross(t * jt))
+	return [V, W, -vn]
+
+func _place_rb(c: Dictionary) -> void:
+	var n: Node3D = c["node"]
+	var B: Basis = c["B"]
+	var P: Vector3 = c["P"]
+	n.basis = B
+	n.position = P - B * Vector3(0, COM_H, 0)
+	for w in ["FL", "FR", "RL", "RR"]:
+		((n.get_node(w) as Node3D).get_node("Spin") as Node3D).rotation.x = c["spin"]
+
+## Back on its wheels, driving.
+func _land(c: Dictionary) -> void:
+	var B: Basis = c["B"]
+	c["rb"] = false
+	c["yaw"] = atan2(B.z.x, B.z.z)
+	var V: Vector3 = c["V"]
+	c["v"] = Vector2(V.x, V.z)
+	c["yaw_rate"] = (c["W"] as Vector3).y
+	c["y"] = 0.0
+	c["pitch"] = 0.0
+	c["roll"] = 0.0
+	c["pv"] = -0.4
+	c["rv"] = 0.0
+	(c["node"] as Node3D).basis = Basis(Vector3.UP, c["yaw"])
+	if not _car_block(c, c["pos"], c["yaw"], 0.0, Vector2.ZERO).is_empty():
+		_unstick(c, false)
+	_place_car(c, 0.0)
+
+## Flattening and bowling over while thrown about.
+func _move_props(c: Dictionary) -> void:
+	if crash == null:
+		return
+	var at: Vector2 = c["pos"]
+	var v: Vector2 = c["v"]
+	var half := _half(c["name"])
+	for it in crash.near(at, half.y):
+		if it["kind"] in ["flat", "plant", "pole"] and (it["p"] as Vector2).distance_to(at) < half.y:
+			crash.knock(it, v)
+	for w in crash.birds_in(at, half, c["yaw"]):
+		crash.squash(w, v)
+	for w in crash.people_in(at, half, c["yaw"]):
+		crash.bowl(w, v + Vector2(randf_range(-2, 2), randf_range(-2, 2)))
 
 ## Two boxes overlap (separating axis test on each box's own axes).
 static func _boxes_touch(a: Vector2, ay: float, ah: Vector2, b: Vector2, by: float, bh: Vector2) -> bool:
@@ -1201,6 +1731,11 @@ static func _boxes_touch(a: Vector2, ay: float, ah: Vector2, b: Vector2, by: flo
 
 ## A parked ute rocks back level, and rolls to a stop if you left it moving.
 func _settle(c: Dictionary, dt: float) -> void:
+	if c["rb"]:
+		# (left tumbling: it finishes on its own)
+		_tumble(c, dt)
+		return
+	_damage_fx(c, dt)
 	var v: Vector2 = c["v"]
 	if v.length() > 0.05:
 		c["v"] = v.move_toward(Vector2.ZERO, 3.0 * dt)
@@ -1213,14 +1748,18 @@ func _settle(c: Dictionary, dt: float) -> void:
 func _spring(c: Dictionary, pitch_to: float, roll_to: float, dt: float) -> void:
 	var pv: float = c["pv"]
 	var rv: float = c["rv"]
-	pv += ((pitch_to - float(c["pitch"])) * 140.0 - pv * 11.0) * dt
-	rv += ((roll_to - float(c["roll"])) * 120.0 - rv * 10.0) * dt
+	# (soft enough to see it lean and sway)
+	pv += ((pitch_to - float(c["pitch"])) * 110.0 - pv * 9.0) * dt
+	rv += ((roll_to - float(c["roll"])) * 85.0 - rv * 7.0) * dt
 	c["pv"] = pv
 	c["rv"] = rv
 	c["pitch"] = float(c["pitch"]) + pv * dt
 	c["roll"] = float(c["roll"]) + rv * dt
 
 func _place_car(c: Dictionary, dt: float) -> void:
+	if c["rb"]:
+		_place_rb(c)
+		return
 	var n: Node3D = c["node"]
 	var p: Vector2 = c["pos"]
 	n.position = Vector3(p.x, float(c.get("y", 0.0)), p.y)
@@ -1230,9 +1769,12 @@ func _place_car(c: Dictionary, dt: float) -> void:
 	c["bob"] = float(c["bob"]) + dt * (6.0 + speed * 0.9)
 	body.position.y = float(n.get_meta("ride", 0.0)) + 0.02 + sin(float(c["bob"]) * 3.1) * 0.006 * clampf(speed / 20.0, 0.0, 1.0)
 	body.rotation = Vector3(c["pitch"], 0, c["roll"])
+	var bent: Dictionary = c["bent"]
 	for w in ["FL", "FR", "RL", "RR"]:
 		var steer := n.get_node(w) as Node3D
 		steer.rotation.y = -float(c["steer"]) if w.begins_with("F") else 0.0
+		# (a wheel knocked out of line leans in)
+		steer.rotation.z = float(bent[w]) * (1.0 if steer.position.x > 0.0 else -1.0)
 		(steer.get_node("Spin") as Node3D).rotation.x = c["spin"]
 
 func _smoke_at(c: Dictionary) -> void:
@@ -1518,9 +2060,16 @@ func _feed_audio() -> void:
 	if _gen == null:
 		return
 	var n := _gen.get_frames_available()
-	var driving := mode == "drive" and not _frozen
+	var driving := mode == "drive" and not _frozen and float(car["dmg"]) < 1.0
 	var f := _eng_rpm / 60.0 * 2.0
 	var vol := (0.16 + 0.14 * _eng_load) if driving else 0.0
+	var whine := 0.0
+	if driving and Utes.ENGINE[car["name"]]["kind"] == "phev":
+		# the Shark: the petrol engine humming away as a generator, and the
+		# motors' whine rising with the speed
+		whine = _eng_rpm / 60.0 * 4.0
+		f = (1400.0 + _eng_load * 1600.0) / 60.0 * 2.0
+		vol = 0.05 + 0.05 * _eng_load
 	for i in n:
 		_eng_ph += f / 22050.0
 		if _eng_ph > 1.0:
@@ -1530,6 +2079,9 @@ func _feed_audio() -> void:
 		_noise_lp = lerpf(_noise_lp, noise, 0.25)
 		var e := (sin(ph) * 0.55 + sin(ph * 2.0 + 0.4) * 0.3 + sin(ph * 0.5) * 0.35 + _noise_lp * 0.35) * (0.7 + 0.3 * sin(ph * 0.5))
 		var s := e * vol
+		if whine > 0.0:
+			_whine_ph = fmod(_whine_ph + whine / 22050.0, 1.0)
+			s += sin(_whine_ph * TAU) * (0.03 + 0.05 * _eng_load) + sin(_whine_ph * TAU * 1.5) * 0.015
 		s += (noise - _noise_lp) * _squeal * 0.18 * sin(_t * 900.0 + i * 0.37)
 		s += _noise_lp * _thud * 0.9
 		_thud = maxf(0.0, _thud - 1.0 / 22050.0 * 5.0)
@@ -1633,13 +2185,41 @@ func _build_ui() -> void:
 	_help.visible = false
 	_ui.add_child(_help)
 	_speedo = VBoxContainer.new()
-	_speedo.add_theme_constant_override("separation", -8)
+	_speedo.add_theme_constant_override("separation", 4)
 	_speed_label = UI.head("0", 64, UI.WHITE, 8)
 	_speed_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	_speedo.add_child(_speed_label)
+	# the tacho: a row of lights up to the redline, and the gear
+	var tach := HBoxContainer.new()
+	tach.add_theme_constant_override("separation", 3)
+	tach.alignment = BoxContainer.ALIGNMENT_END
+	_gear_label = UI.head("D1", 30, UI.YELLOW, 6)
+	_gear_label.custom_minimum_size = Vector2(64, 0)
+	tach.add_child(_gear_label)
+	for i in 22:
+		var seg := ColorRect.new()
+		seg.custom_minimum_size = Vector2(9, 10 + i)
+		seg.size_flags_vertical = Control.SIZE_SHRINK_END
+		tach.add_child(seg)
+		_revs.append(seg)
+	_speedo.add_child(tach)
 	_ute_label = UI.head("", 24, UI.BONE, 6)
 	_ute_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	_speedo.add_child(_ute_label)
+	# how knocked about it is
+	var dmg := HBoxContainer.new()
+	dmg.alignment = BoxContainer.ALIGNMENT_END
+	dmg.add_theme_constant_override("separation", 8)
+	dmg.add_child(UI.head("DAMAGE", 18, UI.BONE, 4))
+	var track := ColorRect.new()
+	track.color = Color(0, 0, 0, 0.45)
+	track.custom_minimum_size = Vector2(160, 10)
+	track.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_dmg_fill = ColorRect.new()
+	_dmg_fill.size = Vector2(0, 10)
+	track.add_child(_dmg_fill)
+	dmg.add_child(track)
+	_speedo.add_child(dmg)
 	_speedo.visible = false
 	_ui.add_child(_speedo)
 	_toast = UI.head("", 40, UI.YELLOW, 10)
@@ -1671,7 +2251,12 @@ func _update_ui(dt: float) -> void:
 					var tc := _cat_times()
 					text = "Next CityCat " + (_mins(tc.x) if tc.x >= 0.0 else "soon")
 		"drive":
-			if (car["v"] as Vector2).length() < 7.0:
+			if car["rb"]:
+				text = ""
+			elif float(car["dmg"]) >= 1.0:
+				key = "X"
+				text = "She's cactus · get out"
+			elif (car["v"] as Vector2).length() < 7.0:
 				key = "X"
 				text = "Get out"
 		"ride":
@@ -1713,6 +2298,29 @@ func _update_ui(dt: float) -> void:
 	if _speedo.visible:
 		_speed_label.text = "%d km/h" % roundi((car["v"] as Vector2).length() * 3.6)
 		_ute_label.text = Utes.TITLE[car["name"]]
+		var e: Dictionary = Utes.ENGINE[car["name"]]
+		var dead := float(car["dmg"]) >= 1.0
+		var u: float
+		var red: float
+		if e["kind"] == "phev":
+			# (the Shark shows the motors' power drawn, not revs)
+			u = clampf(_eng_load * clampf(1.0 - (car["v"] as Vector2).length() / 60.0, 0.4, 1.0), 0.0, 1.0)
+			red = 0.86
+			_gear_label.text = "EV" if not dead else "--"
+		else:
+			u = float(car["rpm"]) / float(e["cut"])
+			red = float(e["red"]) / float(e["cut"])
+			var vf := (car["v"] as Vector2).dot(Vector2(sin(float(car["yaw"])), cos(float(car["yaw"]))))
+			_gear_label.text = "--" if dead else ("R" if vf < -0.3 else "D%d" % int(car["gear"]))
+			_ute_label.text = "%s · %d rpm" % [Utes.TITLE[car["name"]], roundi(float(car["rpm"]) / 50.0) * 50]
+		for i in _revs.size():
+			var at := (i + 0.5) / _revs.size()
+			var lit := at <= u
+			var col := UI.WHITE if at < red * 0.8 else (UI.YELLOW if at < red else Color("ff4a3d"))
+			(_revs[i] as ColorRect).color = col if lit else Color(1, 1, 1, 0.14)
+		var dm: float = car["dmg"]
+		_dmg_fill.size = Vector2(160.0 * dm, 10)
+		_dmg_fill.color = UI.YELLOW.lerp(Color("ff4a3d"), dm)
 		_speedo.reset_size()
 		_speedo.position = view - _speedo.size - Vector2(36, 24)
 	_toast_t = maxf(0.0, _toast_t - dt)
@@ -1745,6 +2353,8 @@ var _demo_dv: Dictionary = {}
 func _run_demo(dt: float) -> void:
 	if _demo_t == 0.0 and (OS.get_cmdline_user_args().has("--explore=river") or OS.get_cmdline_user_args().has("--explore=board")):
 		_demo_step = 7
+	if _demo_t == 0.0 and OS.get_cmdline_user_args().has("--explore=crash"):
+		_demo_step = 20
 	_demo_t += dt
 	if Engine.get_process_frames() % 20 == 0:
 		print("[explore] t %.1f step %d mode %s at %s" % [_demo_t, _demo_step, mode, me.position])
@@ -1755,6 +2365,9 @@ func _run_demo(dt: float) -> void:
 	_fake["gas"] = 0.0
 	_fake["hold_a"] = false
 	_fake["run"] = false
+	if _demo_step >= 20:
+		_demo_crash(t)
+		return
 	match _demo_step:
 		0:
 			# a walk across to the utes
@@ -1924,6 +2537,232 @@ func _run_demo(dt: float) -> void:
 				get_tree().quit(0)
 			if t > 30.0:
 				print("[explore] demo stuck in ", mode)
+				get_tree().quit(1)
+
+## Dev: a ute lined up `back` metres short of `at`, coming at it.
+func _demo_line_up(at: Vector2, back: float, name := "Ranger", force := Vector2.ZERO) -> void:
+	var c: Dictionary = {}
+	for u in utes:
+		if u["name"] == name:
+			c = u
+	if mode == "drive" and not is_same(car, c):
+		_get_out(true)
+	var from := at + (Vector2(at.x, at.y) - Vector2.ZERO).normalized().rotated(0.0) * 0.0
+	var dir := Vector2(1, 0)
+	# (come at it from whichever side's open)
+	for k in (16 if force == Vector2.ZERO else 0):
+		var d := Vector2.from_angle(k * TAU / 16.0)
+		var ok := true
+		for t in range(2, int(back) + 4, 2):
+			var q := at - d * float(t)
+			if _blocked(q) or _is_wet(q) or not _ferry_floor(q).is_empty():
+				ok = false
+				break
+			# (and a clear run in: nothing else in the way first)
+			for o in crash.near(q, 2.2):
+				if (o["p"] as Vector2).distance_to(at) > 1.0 and (o["p"] as Vector2).distance_to(q) < 1.6 + float(o["r"]):
+					ok = false
+			if not ok:
+				break
+		if ok:
+			dir = d
+			break
+	if force != Vector2.ZERO:
+		dir = force
+	from = at - dir * back
+	_demo_dv["tgt"] = at
+	_demo_dv.erase("pass_t")
+	_rmb = false
+	c["pos"] = from
+	c["yaw"] = atan2(dir.x, dir.y)
+	c["v"] = Vector2.ZERO
+	c["yaw_rate"] = 0.0
+	c["rb"] = false
+	(c["node"] as Node3D).basis = Basis(Vector3.UP, c["yaw"])
+	if mode != "drive":
+		_get_in(c)
+	_cam_yaw = c["yaw"] + PI
+	_place_car(c, 0.0)
+
+## Flat out at the demo target till it's reached (or hit), then the shot
+## `after` s later; true once that's taken (or it's given up).
+func _demo_run(t: float, shot: String, after: float) -> bool:
+	var tgt: Vector2 = _demo_dv["tgt"]
+	var fwd := Vector2(sin(float(car["yaw"])), cos(float(car["yaw"])))
+	var to := tgt - (car["pos"] as Vector2)
+	if not _demo_dv.has("pass_t") and (to.dot(fwd) < 1.0 or to.length() < 2.5 or (t > 2.0 and (car["v"] as Vector2).length() < 0.5)):
+		_demo_dv["pass_t"] = t
+		print("[explore] reached the %s at %.1f s, %d km/h" % [shot, t, roundi((car["v"] as Vector2).length() * 3.6)])
+		# (from the side, so it's not hidden behind the ute)
+		_cam_yaw = float(car["yaw"]) + PI + 1.25
+		_rmb = true
+	_fake["gas"] = 0.0 if _demo_dv.has("pass_t") else 0.9
+	if _demo_dv.has("pass_t") and t > float(_demo_dv["pass_t"]) + after:
+		_shot(shot)
+		return true
+	if t > 14.0:
+		print("[explore] never reached the %s" % shot)
+		return true
+	return false
+
+func _demo_find(kind: String) -> Dictionary:
+	var best := {}
+	var bd := INF
+	var home: Vector2 = _fer.get("spawn", Vector2.ZERO)
+	for it in crash._items:
+		if it["kind"] == kind and not it["down"]:
+			var dd := (it["p"] as Vector2).distance_to(home)
+			if dd < bd:
+				bd = dd
+				best = it
+	return best
+
+func _demo_crash(t: float) -> void:
+	_fake["gas"] = 0.0
+	match _demo_step:
+		20:
+			# off the line, flat out: the revs, the gears and 0 to 100
+			var it := _demo_find("flat")
+			_demo_line_up(it["p"], 45.0)
+			_demo_dv = {"sign": it}
+			_next()
+		21:
+			_fake["gas"] = 1.0
+			if Engine.get_process_frames() % 10 == 0:
+				print("[explore] t %.1f %d km/h D%d %d rpm" % [t, roundi((car["v"] as Vector2).length() * 3.6), car["gear"], car["rpm"]])
+			if t > 1.0 and not _shots.has("revs"):
+				_shot("revs")
+			if (_demo_dv["sign"] as Dictionary)["down"]:
+				_demo_mark = _demo_t
+				_demo_step = 22
+			elif t > 12.0:
+				print("[explore] missed the sign")
+				_next()
+		22:
+			if t > 0.25:
+				_shot("sign")
+				var it := _demo_find("tree")
+				_demo_line_up(it["p"], 24.0)
+				_next()
+		23:
+			if _demo_run(t, "tree", 1.2):
+				print("[explore] after the tree: dmg %.2f" % car["dmg"])
+				# a bird
+				var w: Dictionary = crash._birds._walkers[0]
+				var n: Node3D = w["node"]
+				w["pause"] = 99.0
+				_demo_line_up(Vector2(n.position.x, n.position.z), 18.0)
+				_next()
+		24:
+			if _demo_run(t, "roadkill", 0.5):
+				# a cyclist
+				var bike: Dictionary = {}
+				for w in crash._people._walkers:
+					if w["kind"] == "bike":
+						bike = w
+						break
+				if bike.is_empty():
+					bike = crash._people._walkers[0]
+				bike["pause"] = 99.0
+				var n: Node3D = bike["node"]
+				_demo_line_up(Vector2(n.position.x, n.position.z), 16.0)
+				_next()
+		25:
+			if _demo_run(t, "cyclist", 0.6):
+				# a building, hard: head on at a wall with a clear 45 m run up
+				var home: Vector2 = _fer.get("spawn", Vector2.ZERO)
+				var order: Array = []
+				for bp in _bpolys:
+					var dd: float = (bp[0] as Vector2).distance_to(home)
+					if dd > 30.0 and dd < 500.0:
+						order.append([dd, bp])
+				order.sort_custom(func(x: Array, y: Array) -> bool: return x[0] < y[0])
+				var found := false
+				for o in order:
+					var poly: PackedVector2Array = o[1]
+					for i in poly.size():
+						var p0 := poly[i]
+						var p1 := poly[(i + 1) % poly.size()]
+						if p0.distance_to(p1) < 6.0:
+							continue
+						var mid := (p0 + p1) * 0.5
+						var n := (p1 - p0).normalized().orthogonal()
+						if _in_building(mid + n * 0.8):
+							n = -n
+						var ok := true
+						for k in range(1, 46, 2):
+							var q := mid + n * float(k)
+							if _blocked(q) or _is_wet(q) or not crash.near(q, 2.0).is_empty():
+								ok = false
+								break
+						if ok:
+							_demo_line_up(mid, 44.0, "Ranger", -n)
+							found = true
+							break
+					if found:
+						break
+				if not found:
+					print("[explore] no clear wall found")
+				_next()
+		26:
+			_fake["gas"] = 1.0 if not car["rb"] and float(car["dmg"]) < 0.5 else 0.0
+			if car["rb"] and not _shots.has("crash"):
+				_demo_dv["crash_t"] = t
+			if _demo_dv.has("crash_t") and t > float(_demo_dv["crash_t"]) + 0.35:
+				_shot("crash")
+			if _shots.has("crash") and not car["rb"] and t > float(_demo_dv.get("crash_t", 0.0)) + 1.0:
+				_cam_yaw += 1.6
+				_cam_dist = 7.0
+				_demo_dv["wreck_t"] = t
+				_next()
+			if t > 20.0:
+				print("[explore] never crashed: dmg %.2f rb %s" % [car["dmg"], car["rb"]])
+				_next()
+		27:
+			if t > 1.0:
+				_shot("wreck")
+				print("[explore] after the building: dmg %.2f bent %s" % [car["dmg"], car["bent"]])
+				# a rollover on the open road: flat out, then the handbrake and full lock
+				var c: Dictionary = {}
+				for u in utes:
+					if u["name"] == "Hilux":
+						c = u
+				_get_out(true)
+				var r: Dictionary = _d["roads"][0]
+				var best_len := 0.0
+				for rr in _d["roads"]:
+					var pts: Array = rr["pts"]
+					for i in range(1, pts.size()):
+						var a := Vector2(pts[i - 1][0], pts[i - 1][1])
+						var b := Vector2(pts[i][0], pts[i][1])
+						if a.distance_to(b) > best_len and a.length() < 600.0:
+							best_len = a.distance_to(b)
+							_demo_dv["road"] = [a, b]
+				var ab: Array = _demo_dv["road"]
+				var dir := ((ab[1] as Vector2) - (ab[0] as Vector2)).normalized()
+				c["pos"] = ab[0]
+				c["yaw"] = atan2(dir.x, dir.y)
+				c["v"] = dir * 30.0
+				c["rb"] = false
+				_get_in(c)
+				print("[explore] road %.0f m long" % best_len)
+				_next()
+		28:
+			_fake["gas"] = 1.0
+			if t > 1.0:
+				_fake["hold_a"] = true
+				_fake["move"] = Vector2(1.0, 0)
+			if car["rb"] and not _demo_dv.has("roll_t"):
+				_demo_dv["roll_t"] = t
+			if _demo_dv.has("roll_t") and t > float(_demo_dv["roll_t"]) + 0.5:
+				_shot("rollover")
+			if _shots.has("rollover") and not car["rb"]:
+				print("[explore] back on its wheels after %.1f s, dmg %.2f" % [t - float(_demo_dv["roll_t"]), car["dmg"]])
+				_shot("landed")
+				print("[explore] demo done")
+				get_tree().quit(0)
+			if t > 25.0:
+				print("[explore] stuck: rb %s mode %s" % [car["rb"], mode])
 				get_tree().quit(1)
 
 func _next() -> void:
