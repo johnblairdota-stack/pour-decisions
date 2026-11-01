@@ -124,7 +124,7 @@ var _squeal := 0.0
 var _thud := 0.0
 var _noise_lp := 0.0
 
-var _demo := OS.get_cmdline_user_args().has("--explore") or OS.get_cmdline_user_args().has("--explore=river")
+var _demo: bool = Array(OS.get_cmdline_user_args()).any(func(a: String) -> bool: return a == "--explore" or a.begins_with("--explore="))
 		# (dev: a scripted run with screenshots; `=river` starts at the CityCat)
 var _demo_t := 0.0
 var _fake := {}
@@ -1317,41 +1317,39 @@ func _build_terminal() -> void:
 	pm2.size = Vector3(0.12, 1.6, 0.12)
 	pole.mesh = pm2
 	pole.material_override = F.color_mat(Color("3a3e44"), false)
-	pole.position.y = 0.8
+	pole.position.y = 0.75
 	sign.add_child(pole)
 	var panel := MeshInstance3D.new()
 	var pb := BoxMesh.new()
-	pb.size = Vector3(1.5, 1.05, 0.1)
+	pb.size = Vector3(2.1, 1.25, 0.1)
 	panel.mesh = pb
 	panel.material_override = F.color_mat(Color("15181d"), false)
-	panel.position.y = 2.05
+	panel.position.y = 2.1
 	sign.add_child(panel)
 	var trim := MeshInstance3D.new()
 	var tb := BoxMesh.new()
-	tb.size = Vector3(1.5, 0.16, 0.11)
+	tb.size = Vector3(2.1, 0.2, 0.11)
 	trim.mesh = tb
 	trim.material_override = F.color_mat(Color("1f4f9a"), false)
-	trim.position.y = 2.66
+	trim.position.y = 2.82
 	sign.add_child(trim)
 	_board_label = Label3D.new()
-	_board_label.font_size = 40
-	_board_label.pixel_size = 0.0042
+	_board_label.font_size = 34
+	_board_label.pixel_size = 0.004
 	_board_label.outline_size = 0
 	_board_label.modulate = Color("ffb340")
-	_board_label.position = Vector3(0, 2.05, 0.06)
-	_board_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	_board_label.width = 330.0
-	_board_label.autowrap_mode = TextServer.AUTOWRAP_OFF
+	_board_label.position = Vector3(0, 2.07, 0.06)
+	_board_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_board_label.shaded = false
 	_board_label.double_sided = false
 	sign.add_child(_board_label)
 	var head := Label3D.new()
 	head.text = "CityCat · Northshore Hamilton"
-	head.font_size = 30
-	head.pixel_size = 0.0042
+	head.font_size = 24
+	head.pixel_size = 0.004
 	head.outline_size = 0
 	head.modulate = Color.WHITE
-	head.position = Vector3(0, 2.66, 0.065)
+	head.position = Vector3(0, 2.82, 0.065)
 	head.shaded = false
 	head.double_sided = false
 	sign.add_child(head)
@@ -1402,9 +1400,9 @@ func _update_board() -> void:
 	if tc.x < 0.0:
 		_board_label.text = _clock(0)
 		return
-	var lines := ["Now  %s" % _clock(0), ""]
+	var lines := ["Now  %s" % _clock(0), "Next CityCats"]
 	if tc.x == 0.0:
-		lines.append("At the pontoon · boarding")
+		lines.append("Boarding now")
 	else:
 		lines.append("%s   %s" % [_clock(tc.x), _mins(tc.x)])
 	for k in [1, 2]:
@@ -1745,7 +1743,7 @@ var _demo_mark := 0.0
 var _demo_dv: Dictionary = {}
 
 func _run_demo(dt: float) -> void:
-	if _demo_t == 0.0 and OS.get_cmdline_user_args().has("--explore=river"):
+	if _demo_t == 0.0 and (OS.get_cmdline_user_args().has("--explore=river") or OS.get_cmdline_user_args().has("--explore=board")):
 		_demo_step = 7
 	_demo_t += dt
 	if Engine.get_process_frames() % 20 == 0:
@@ -1847,7 +1845,7 @@ func _run_demo(dt: float) -> void:
 				# a look at the timetable
 				var sign := get_node("CityCatTimes") as Node3D
 				var front := sign.position + sign.basis.z * 4.0
-				me.position = Vector3(front.x, 0, front.z) + sign.basis.x * 1.0
+				me.position = Vector3(front.x, 0, front.z) + sign.basis.x * 2.4
 				mode = "walk"
 				_yaw = atan2(-sign.basis.z.x, -sign.basis.z.z)
 				_cam_yaw = atan2(sign.basis.z.x, sign.basis.z.z) + 0.25
@@ -1859,6 +1857,8 @@ func _run_demo(dt: float) -> void:
 			if t > 1.0:
 				_shot("timetable")
 				print("[explore] board: ", _board_label.text.replace("\n", " | "))
+				if OS.get_cmdline_user_args().has("--explore=board"):
+					get_tree().quit(0)
 				var at: Vector2 = _fer["at"]
 				var off := at + (_fer["dir"] as Vector2) * 2.0
 				me.position = Vector3(off.x, floor_y(off), off.y)
