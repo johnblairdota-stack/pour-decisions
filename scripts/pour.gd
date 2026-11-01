@@ -84,13 +84,9 @@ var _flip := false
 var _coverage := 0.0
 var _reach_cov := 0.0
 var _t := 0.0
-# She's right: with a person on the poker the screeder only finishes the
-# strips the poker's called (A on a strip that's glossy end to end). A strip
-# is strip_c columns wide. With a bot poker every strip's open, as before.
+# The screeder's green shows in strips strip_c columns wide (all of them open).
 const STRIPS_MAX := 32
 var strip_c := 6
-var gate_strips := false
-var released := PackedByteArray()
 # The bull float: screeded concrete comes up shiny with bleed water and goes
 # matt; that's when the screeder floats it. Too early drags water up, too late
 # and it won't close. (Times scale with the open time, like everything else.)
@@ -115,8 +111,6 @@ func build(width: float, depth: float, columns: Array) -> void:
 	mask_n = NX * NZ
 	_bay_c1 = NX
 	strip_c = maxi(6, ceili(float(NX) / STRIPS_MAX))
-	released.resize(strips())
-	released.fill(0)
 	vol_k = maxf(1.0, bw * bd / 192.0)
 	splash_r = SPLASH * pow(vol_k, 0.75)
 	h.resize(NX * NZ)
@@ -403,7 +397,6 @@ func reset() -> void:
 	bleed.fill(0)
 	scr.fill(0.0)
 	vib.fill(0.0)
-	released.fill(0)
 	_push_strips()
 	scr_t.fill(-1.0)
 	flt.fill(0)
@@ -1314,9 +1307,6 @@ func screed_strip(a: Vector3, b: Vector3, dt: float, carry: float) -> Dictionary
 			if not vib_ok(i):
 				raw += 1
 				continue
-			if not screed_ready(i):
-				held += 1   # (vibrated, but the poker hasn't called the strip)
-				continue
 			scr[i] = minf(1.0, scr[i] + dt * 14.0)
 			if scr[i] >= 1.0:
 				done += 1
@@ -1386,51 +1376,18 @@ func vib_ok(i: int) -> bool:
 				ok += 1
 	return n > 0 and float(ok) / n >= 0.7
 
-func strips() -> int:
-	return ceili(float(NX) / strip_c)
-
-func strip_of_x(local_x: float) -> int:
-	return clampi(int((local_x + bw * 0.5) / dx), 0, NX - 1) / strip_c
-
-## Ready for the screed: vibrated, and its strip called (when it has to be).
+## Ready for the screed: vibrated.
 func screed_ready(i: int) -> bool:
-	return vib_ok(i) and (not gate_strips or released[(i % NX) / strip_c] == 1)
+	return vib_ok(i)
 
-## Strip `s`: Vector3(placed cells, raw ones among them, slab cells).
-func strip_state(s: int) -> Vector3i:
-	var placed := 0
-	var raw := 0
-	var n := 0
-	for ix in range(s * strip_c, mini(NX, (s + 1) * strip_c)):
-		for iz in NZ:
-			var i := iz * NX + ix
-			if mask[i] == 0:
-				continue
-			n += 1
-			if h[i] > SLAB * 0.6 and set_h[i] < 0.0:
-				placed += 1
-				if not vib_ok(i):
-					raw += 1
-	return Vector3i(placed, raw, n)
-
-func release_strip(s: int) -> void:
-	if s >= 0 and s < released.size() and released[s] == 0:
-		released[s] = 1
-		_push_strips()
-
-func set_gate(on: bool) -> void:
-	if on != gate_strips:
-		gate_strips = on
-		_push_strips()
-
-## The screeder's green, only on called strips (all of them with a bot poker).
+## The screeder's green: every strip open.
 func _push_strips() -> void:
 	if smat == null:
 		return
 	var rel := PackedFloat32Array()
 	rel.resize(STRIPS_MAX)
 	for k in STRIPS_MAX:
-		rel[k] = 1.0 if not gate_strips or (k < released.size() and released[k] == 1) else 0.0
+		rel[k] = 1.0
 	smat.set_shader_parameter("strip_rel", rel)
 	smat.set_shader_parameter("strip_cols", float(strip_c))
 	smat.set_shader_parameter("grid_nx", float(NX))

@@ -2406,7 +2406,6 @@ func _start_pour() -> void:
 		Settings.put("tower_started", true)
 	covered_t = {}
 	pour.reset()
-	poker.calls = {"clean": 0, "early": 0, "auto": 0}
 	# (a big slab's face is longer, so each strip takes longer to come back
 	# to: the concrete stays workable for longer to match, in game time)
 	pour.open_time = cfg["open"] * sqrt(pour.vol_k)
@@ -2555,8 +2554,6 @@ func _slab_report(quality: float, verdict: String, medal: int, note: String, los
 			crew_rows[-1]["good"] = "Hopper hosed clean"
 		if role == "hose" and ops.ball_caught:
 			crew_rows[-1]["good"] = "Caught the sponge ball"
-		if role == "poker" and int(poker.calls["early"]) > 0:
-			crew_rows[-1]["early"] = int(poker.calls["early"])
 		if not p.bot:
 			crew_rows[-1]["wallet"] = int(score.wallet_pour.get(p.char_id, 0))
 		# (never the star if the leading hand had to do their job for them)
