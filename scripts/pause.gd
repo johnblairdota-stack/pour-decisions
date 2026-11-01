@@ -35,6 +35,12 @@ var _stats: HBoxContainer
 var _qr_url := ""
 var _cool := 0.0
 var _t := 0.0
+# The stick steps one row a flick: it has to come back to the middle before
+# the next step (a stick still held from walking when the menu opens doesn't
+# slide the choice down to Exit)
+var _nav_ok := false
+# Exit asks twice: the first A only arms it
+var _quit_armed := false
 
 static func apply_ui_scale(tree: SceneTree) -> void:
 	tree.root.content_scale_factor = float(Settings.value("ui_scale"))
@@ -134,6 +140,8 @@ func open() -> void:
 	visible = true
 	get_tree().paused = true
 	_cool = 0.2
+	_nav_ok = false
+	_quit_armed = false
 	_build_page("main")
 
 func close() -> void:
@@ -221,7 +229,7 @@ func _make_row(text: String, action: String) -> Dictionary:
 	h.add_child(tag_box)
 	var idx := _items.size()
 	b.gui_input.connect(func(e: InputEvent):
-		if e is InputEventMouseMotion:
+		if e is InputEventMouseMotion and (e as InputEventMouseMotion).relative.length() > 3.0:
 			_select(idx)
 		elif e is InputEventMouseButton and e.pressed and (e as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
 			_select(idx)
@@ -292,20 +300,26 @@ func _select(i: int) -> void:
 		return
 	var changed := i != _index
 	_index = i
+	if changed:
+		_quit_armed = false
 	for k in _items.size():
 		var e: Dictionary = _items[k]
 		var sb: StyleBoxFlat = e["style"]
 		var on := k == _index
 		var a: String = e["action"]
 		var gold := a == "resume"
-		sb.bg_color = UI.GOLD if gold else (Color(1, 1, 1, 0.12) if on else Color(1, 1, 1, 0.04))
+		# (Back to work is the gold default, but only bright when it's the
+		# one A will press: a dimmed gold when the choice is elsewhere)
+		sb.bg_color = (UI.GOLD if on else Color(UI.GOLD, 0.35)) if gold else (Color(1, 1, 1, 0.12) if on else Color(1, 1, 1, 0.04))
 		sb.border_color = Color.WHITE if on else Color(0, 0, 0, 0)
 		sb.set_border_width_all(2 if on else 0)
-		var col: Color = Color("2a1d00") if gold else (Color("ff8a84") if a == "quit" else UI.BONE)
+		var col: Color = (Color("2a1d00") if on else UI.BONE) if gold else (Color("ff8a84") if a == "quit" else UI.BONE)
 		if a.begins_with("role:") and not game.crew.is_bot(a.substr(5)):
 			col = UI.DIM
 		(e["label"] as Label).add_theme_color_override("font_color", col)
 	_note.text = _note_for(_items[_index]["action"])
+	if _quit_armed:
+		_note.text = "Press A again to close the game. B to stay."
 	if changed:
 		_build_right()
 
@@ -527,6 +541,11 @@ func _do(action: String) -> void:
 				close()
 			return
 		"quit":
+			if not _quit_armed:
+				_quit_armed = true
+				_select(_index)
+				game.sfx.hit("tink")
+				return
 			get_tree().quit()
 			return
 	_refresh()
@@ -585,15 +604,21 @@ func _process(delta: float) -> void:
 	back = back or _phone_b
 	_phone_a = false
 	_phone_b = false
-	if _cool <= 0.0 and absf(y) > 0.5:
+	if absf(y) < 0.3:
+		_nav_ok = true
+	if _cool <= 0.0 and _nav_ok and absf(y) > 0.5:
 		_select(clampi(_index + int(signf(y)), 0, _items.size() - 1))
 		_cool = 0.2
+		_nav_ok = false
 	if pressed and _cool <= 0.0:
 		_cool = 0.2
 		_do(_items[_index]["action"])
 	elif back and _cool <= 0.0:
 		_cool = 0.2
-		if _page == "main":
+		if _quit_armed:
+			_quit_armed = false
+			_select(_index)
+		elif _page == "main":
 			close()
 		else:
 			_build_page("settings" if _page == "sound" else "main")
