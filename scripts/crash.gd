@@ -67,8 +67,10 @@ func index(world: Node3D) -> void:
 		var mm: MultiMesh = mmi.multimesh
 		var base: Transform3D = inv * mmi.global_transform
 		for i in mm.instance_count:
-			var xf: Transform3D = base * mm.get_instance_transform(i)
-			var it := {"mm": mm, "i": i, "xf": xf, "p": Vector2(xf.origin.x, xf.origin.z), "down": false}
+			var own := mm.get_instance_transform(i)
+			var xf: Transform3D = base * own
+			# (xf is where it stands round here; own is the multimesh's own copy)
+			var it := {"mm": mm, "i": i, "xf": xf, "own": own, "p": Vector2(xf.origin.x, xf.origin.z), "down": false}
 			if model != "":
 				it["model"] = model
 				it["kind"] = STREET[model][0]
@@ -112,10 +114,9 @@ func knock(it: Dictionary, push: Vector2) -> void:
 		return
 	it["down"] = true
 	var xf: Transform3D = it["xf"]
-	var mm: MultiMesh = it["mm"]
-	mm.set_instance_transform(it["i"], Transform3D(Basis.from_scale(Vector3.ONE * 0.0001), xf.origin - Vector3(0, 50, 0)))
+	stow(it)
 	var n := MeshInstance3D.new()
-	n.mesh = mm.mesh
+	n.mesh = (it["mm"] as MultiMesh).mesh
 	add_child(n)
 	n.transform = xf
 	it["node"] = n
@@ -132,6 +133,11 @@ func knock(it: Dictionary, push: Vector2) -> void:
 		if is_instance_valid(n):
 			n.transform = Transform3D(Basis(axis, -lie * u * u) * b0, o0 + Vector3(dir.x, 0, dir.y) * slide * u),
 		0.0, 1.0, 0.9 if pole else 0.3)
+
+## Out of sight in its multimesh (down 50 m and shrunk to nothing).
+func stow(it: Dictionary) -> void:
+	var own: Transform3D = it["own"]
+	(it["mm"] as MultiMesh).set_instance_transform(it["i"], Transform3D(Basis.from_scale(Vector3.ONE * 0.0001), own.origin - Vector3(0, 50, 0)))
 
 ## A big tree hit: stays put, shakes, and drops leaves or flowers.
 func shake(it: Dictionary, hard: float) -> void:
@@ -249,12 +255,12 @@ func _process(delta: float) -> void:
 		var it: Dictionary = wb[0]
 		wb[1] = float(wb[1]) + dt
 		var t: float = wb[1]
-		var xf: Transform3D = it["xf"]
+		var own: Transform3D = it["own"]
 		var a := sin(t * 9.0) * float(wb[2]) * exp(-t * 2.2)
 		if t > 2.0:
 			a = 0.0
 			_wobble.remove_at(k)
-		(it["mm"] as MultiMesh).set_instance_transform(it["i"], Transform3D(Basis(Vector3(1, 0, 0.3).normalized(), a) * xf.basis, xf.origin))
+		(it["mm"] as MultiMesh).set_instance_transform(it["i"], Transform3D(Basis(Vector3(1, 0, 0.3).normalized(), a) * own.basis, own.origin))
 	for k in range(_flying.size() - 1, -1, -1):
 		if _fly(_flying[k], dt):
 			_flying.remove_at(k)
@@ -324,14 +330,14 @@ func _fly(it: Dictionary, dt: float) -> bool:
 ## Everything stood back up and the birds back about (back at the site).
 func reset() -> void:
 	for it in _knocked:
-		(it["mm"] as MultiMesh).set_instance_transform(it["i"], it["xf"])
+		(it["mm"] as MultiMesh).set_instance_transform(it["i"], it["own"])
 		it["down"] = false
 		if is_instance_valid(it.get("node")):
 			(it["node"] as Node).queue_free()
 		it.erase("node")
 	_knocked.clear()
 	for wb in _wobble:
-		(wb[0]["mm"] as MultiMesh).set_instance_transform(wb[0]["i"], wb[0]["xf"])
+		(wb[0]["mm"] as MultiMesh).set_instance_transform(wb[0]["i"], wb[0]["own"])
 	_wobble.clear()
 	for sq in _squashed:
 		var w: Dictionary = sq[0]
