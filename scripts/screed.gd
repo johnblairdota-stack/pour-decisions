@@ -235,12 +235,6 @@ func handle_player(p, delta: float, near := "") -> bool:
 			p.bark("Needs a poke first!", 1.4)
 			if not p.bot:
 				game.hud.toast("Purple's not vibrated: the screed won't finish it", 1.8)
-		if int(res.get("held", 0)) > 4 and raw <= 4 and _raw_warned <= 0.0:
-			# Vibrated, but the poker hasn't said she's right on this strip
-			_raw_warned = 4.0
-			p.bark("Waiting on she's right!", 1.4)
-			if not p.bot:
-				game.hud.toast("Screed the green strips: the poker calls each one when it's done", 1.8)
 		if done > 0:
 			game.score.trickle(p, float(done) * 0.25, "Screeding")
 			_gold_t = 0.35
