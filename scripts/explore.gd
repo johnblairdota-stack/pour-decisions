@@ -31,6 +31,10 @@ const REACH := 3.8           # m from a ute's middle to get in
 const EDGE := 1500.0         # the map runs out
 const HIP := 0.85            # the body's middle above the feet: it tumbles round here
 const SWIM_Y := Water.RIVER_Y - 1.05   # feet in the water, head and shoulders out
+const DEEP := Water.RIVER_Y - 14.0     # the Brisbane River's bed out in the channel
+const GONE := 3.4            # s from going under (or driving in) to waking up back at the site
+const SPEED := 10.0          # the CityCat's cruising speed (citycat.gd), m/s
+const RAMP := 6.0            # m of ramp from the terminal's landing down to the riverwalk
 
 ## The ute's engine and chassis (m/s, m/s²): an arcade feel, but with weight
 const TOP := 41.0            # ~150 km/h
@@ -79,6 +83,11 @@ var _squash := 0.0
 var _stars: Array = []
 var _hit_cd := 0.0
 var _back_hold := 0.0
+var _gone_t := 0.0           # drowning, or the ute going down
+var _frozen := false         # the Smoko menu's up over the wander
+var _fade: ColorRect
+var _board_label: Label3D    # the terminal's timetable screen
+var _board_t := 0.0
 
 var utes: Array = []         # {name, node, pos, yaw, v (Vector2), yaw_rate, steer, pitch, roll, pv, rv, spin, rpm}
 var car: Dictionary = {}     # the one you're driving
@@ -133,6 +142,8 @@ func setup(owner_game) -> void:
 	if not _d.is_empty():
 		_index_map()
 	_build_ui()
+	if not _fer.is_empty():
+		_build_terminal()
 	cam = Camera3D.new()
 	cam.fov = 55.0
 	cam.near = 0.1
@@ -245,6 +256,11 @@ func _ferry_floor(p: Vector2) -> Array:
 	var lz := rel.dot(Vector2(sin(a), cos(a)))
 	if absf(lx) < 14.8 and absf(lz) < 4.3:
 		return [Water.RIVER_Y + 0.84, "pontoon"]
+	# (the ramp down off the landing to the riverwalk)
+	var ed := p - (_fer["edge"] as Vector2)
+	var ea := ed.dot(_fer["dir"])
+	if ea >= 3.0 and ea < 3.0 + RAMP and absf(ed.dot(Vector2(_fer["dir"].y, -_fer["dir"].x))) < 1.25:
+		return [lerpf(0.86, 0.0, (ea - 3.0) / RAMP), "ramp"]
 	var dir: Vector2 = _fer["dir"]
 	var along := (p - (_fer["start"] as Vector2)).dot(dir)
 	var across := absf((p - (_fer["start"] as Vector2)).dot(Vector2(dir.y, -dir.x)))
@@ -260,7 +276,11 @@ func floor_y(p: Vector2) -> float:
 	if not f.is_empty():
 		return f[0]
 	if _is_wet(p):
-		return Water.wall_y(_from_bank(p))
+		# (down the bank's wall, then away to the channel: well over your head)
+		var a := _from_bank(p)
+		if a <= 3.6:
+			return Water.wall_y(a)
+		return lerpf(Water.wall_y(3.6), DEEP, clampf((a - 3.6) / 8.0, 0.0, 1.0))
 	return 0.0
 
 func _blocked(p: Vector2) -> bool:
@@ -295,9 +315,7 @@ func enter(who = null) -> void:
 	# say after a shop at Smoko)
 	var sig := "%s|%s|%s" % [_my_ute(), _kit_on("Hilux"), [_kit_on("Ranger"), _kit_on("Shark")]]
 	if not utes.is_empty() and sig != _kit_sig and car.is_empty():
-		for c in utes:
-			(c["node"] as Node3D).queue_free()
-		utes.clear()
+		_clear_utes()
 	_kit_sig = sig
 	if utes.is_empty():
 		_park_utes()
@@ -306,6 +324,14 @@ func enter(who = null) -> void:
 	_audio.play()
 	_gen = _audio.get_stream_playback() as AudioStreamGeneratorPlayback
 	_toast_msg("Knocked off. Have a look round.")
+
+func _menu_up() -> bool:
+	return game.pause_menu != null and game.pause_menu.visible
+
+func _set_world(m: int) -> void:
+	var world := game.get_node_or_null("Surrounds") as Node3D
+	if world != null:
+		world.process_mode = m
 
 func leave() -> void:
 	if not active:
@@ -326,9 +352,13 @@ func leave() -> void:
 		(_boat.get_meta("tween") as Tween).set_speed_scale(1.0)
 	if traffic != null:
 		traffic.blockers = []
+	# (back at the site: the utes go back to the kerb for next time)
+	_clear_utes()
 	if me != null:
 		me.visible = false
 	_audio.stop()
+	_frozen = false
+	_fade.color.a = 0.0
 	_prompt.visible = false
 	_help.visible = false
 	_speedo.visible = false
@@ -336,6 +366,13 @@ func leave() -> void:
 		_main_cam.current = true
 	if _paused_it:
 		get_tree().paused = false
+
+func _clear_utes() -> void:
+	for c in utes:
+		(c["node"] as Node3D).queue_free()
+	utes.clear()
+	car = {}
+	_kit_sig = ""
 
 ## Three utes nose to tail in the kerb lane on Angora Road, across from the
 ## site: the Hilux at the front, then the Ranger and the Shark.
@@ -423,8 +460,14 @@ func _spawn_me() -> void:
 	vel = Vector3.ZERO
 	mode = "walk"
 	_swim = false
+	_grounded = true
+	_gone_t = 0.0
 	tumble.basis = Basis.IDENTITY
+	tumble.position.y = HIP
 	model.visible = true
+	model.scale = Vector3.ONE
+	for s in _stars:
+		s.visible = false
 	# looking across at the utes
 	var mid: Vector2 = utes[1]["pos"] if utes.size() > 1 else at + Vector2(1, 0)
 	_yaw = atan2(mid.x - at.x, mid.y - at.y)
@@ -488,6 +531,9 @@ func _read() -> Dictionary:
 	var gas := Input.get_joy_axis(dev, JOY_AXIS_TRIGGER_RIGHT)
 	var brake := Input.get_joy_axis(dev, JOY_AXIS_TRIGGER_LEFT)
 	var rs := Vector2(Input.get_joy_axis(dev, JOY_AXIS_RIGHT_X), Input.get_joy_axis(dev, JOY_AXIS_RIGHT_Y))
+	if p != null and (p.look as Vector2).length() > rs.length():
+		# (the phone's second stick)
+		rs = p.look
 	if rs.length() > 0.2:
 		_cam_yaw -= rs.x * get_process_delta_time() * 2.4
 		_cam_pitch = clampf(_cam_pitch + rs.y * get_process_delta_time() * 1.2, 0.05, 1.2)
@@ -497,6 +543,10 @@ func _read() -> Dictionary:
 # ------------------------------------------------------------------ each frame
 
 func _process(delta: float) -> void:
+	_board_t -= delta
+	if _board_t <= 0.0 and _board_label != null:
+		_board_t = 1.0
+		_update_board()
 	if not active:
 		_badge.visible = game != null and game.phase == "topout" and game.hud.visible and can_enter() \
 			and not get_tree().paused
@@ -507,6 +557,19 @@ func _process(delta: float) -> void:
 			enter(null)
 		return
 	var dt := minf(delta, 1.0 / 20.0)
+	if _menu_up():
+		# Smoko over the wander: everything holds where it is
+		if _demo:
+			_run_demo(dt)
+		if not _frozen:
+			_frozen = true
+			_set_world(Node.PROCESS_MODE_INHERIT)
+			_audio.stream_paused = true
+		return
+	if _frozen:
+		_frozen = false
+		_set_world(Node.PROCESS_MODE_ALWAYS)
+		_audio.stream_paused = false
 	_t += dt
 	_hit_cd = maxf(0.0, _hit_cd - dt)
 	if _demo:
@@ -530,6 +593,10 @@ func _process(delta: float) -> void:
 			_drive(dt, inp)
 		"ride":
 			_ride(dt, inp)
+		"drown":
+			_drown(dt)
+		"sink":
+			_sink(dt)
 	for c in utes:
 		if not is_same(c, car):
 			_settle(c, dt)
@@ -589,6 +656,12 @@ func _walk(dt: float, inp: Dictionary) -> void:
 			_grounded = false
 	if _swim:
 		me.position.y = SWIM_Y + sin(_t * 2.6) * 0.05
+		if fl < SWIM_Y - 0.6:
+			# out of your depth in the Brisbane River: the current takes you
+			mode = "drown"
+			_gone_t = 0.0
+			_toast_msg("Out of your depth! The current's got you.")
+			return
 	var flat := Vector2(vel.x, vel.z)
 	if flat.length() > 0.3:
 		_yaw = lerp_angle(_yaw, atan2(flat.x, flat.y), minf(1.0, dt * 12.0))
@@ -727,6 +800,11 @@ func _ragdoll(dt: float, inp: Dictionary) -> void:
 				# into the river: that's the end of the flight
 				_splash(me.position)
 				vel = Vector3.ZERO
+				if fl < SWIM_Y - 0.6:
+					mode = "drown"
+					_gone_t = 0.0
+					tumble.basis = Basis(Vector3.UP, _yaw)
+					return
 			if absf(vel.y) > 2.2:
 				# bounce
 				vel.y = -vel.y * 0.42
@@ -821,6 +899,94 @@ func _splash(at: Vector3) -> void:
 	p.emitting = true
 	get_tree().create_timer(1.2, true, false, true).timeout.connect(p.queue_free)
 	_thud = maxf(_thud, 0.5)
+
+# ------------------------------------------------------------------ the river
+
+## Out of your depth: a bit of a thrash at the top, then down you go, and
+## you wake up back at the site.
+func _drown(dt: float) -> void:
+	_gone_t += dt
+	var sink := clampf((_gone_t - 1.1) / 1.6, 0.0, 1.0)
+	me.position.y = SWIM_Y + sin(_t * 7.0) * 0.12 * (1.0 - sink) - sink * sink * 3.0
+	_swim = true
+	# arms up, waving
+	for nm in ["ArmL", "ArmR"]:
+		(model.get_node(nm) as Node3D).rotation = Vector3(-2.9 + sin(_t * 9.0 + (0.0 if nm == "ArmL" else 2.0)) * 0.5, 0,
+			(-0.4 if nm == "ArmL" else 0.4))
+	for nm in ["LegL", "LegR"]:
+		(model.get_node(nm) as Node3D).rotation = Vector3(sin(_t * 8.0 + (0.0 if nm == "LegL" else PI)) * 0.7, 0, 0)
+	if sink > 0.0 and fmod(_gone_t, 0.25) < dt:
+		_bubbles(me.position + Vector3(0, 1.4, 0))
+	_fade.color.a = clampf((_gone_t - (GONE - 0.7)) / 0.6, 0.0, 1.0)
+	if _gone_t >= GONE:
+		_respawn("Drowned in the Brisbane River. Back at the site.")
+
+## The ute nose-dives off the bank, wallows, and goes under with you in it.
+func _sink(dt: float) -> void:
+	var c := car
+	_gone_t += dt
+	var v: Vector2 = c["v"]
+	c["v"] = v.move_toward(Vector2.ZERO, (6.0 if float(c["y"]) < Water.RIVER_Y else 2.0) * dt)
+	c["pos"] = (c["pos"] as Vector2) + (c["v"] as Vector2) * dt
+	var y: float = c["y"]
+	var vy: float = c["vy"]
+	if y > Water.RIVER_Y - 0.4:
+		vy -= GRAVITY * dt
+	else:
+		# floats a moment, then the water's in
+		if float(c.get("splashed", 0.0)) == 0.0:
+			c["splashed"] = 1.0
+			_splash(Vector3(c["pos"].x, 0, c["pos"].y))
+			_shake = 0.6
+			_thud = 1.0
+		vy = lerpf(vy, -0.35 - _gone_t * 0.4, minf(1.0, dt * 3.0))
+	c["y"] = y + vy * dt
+	c["vy"] = vy
+	# heavy end first
+	c["pitch"] = lerpf(float(c["pitch"]), 0.35, minf(1.0, dt * 1.2))
+	c["roll"] = lerpf(float(c["roll"]), 0.08, minf(1.0, dt))
+	_place_car(c, dt)
+	if y < Water.RIVER_Y and fmod(_gone_t, 0.15) < dt:
+		_bubbles(Vector3(c["pos"].x, Water.RIVER_Y - 0.2, c["pos"].y) + Vector3(randf_range(-1, 1), 0, randf_range(-1.5, 1.5)))
+	_eng_load = 0.0
+	_eng_rpm = lerpf(_eng_rpm, 0.0, minf(1.0, dt * 2.0))
+	_fade.color.a = clampf((_gone_t - (GONE - 0.7)) / 0.6, 0.0, 1.0)
+	if _gone_t >= GONE:
+		_respawn("The ute's at the bottom of the river. You're back at the site.")
+
+## Back at the site, the utes parked up again at the kerb.
+func _respawn(msg: String) -> void:
+	_clear_utes()
+	_park_utes()
+	_kit_sig = "%s|%s|%s" % [_my_ute(), _kit_on("Hilux"), [_kit_on("Ranger"), _kit_on("Shark")]]
+	_spawn_me()
+	_cam_pitch = 0.32
+	_fade.color.a = 1.0
+	var tw := _fade.create_tween()
+	tw.tween_interval(0.25)
+	tw.tween_property(_fade, "color:a", 0.0, 0.9)
+	_toast_msg(msg)
+
+func _bubbles(at: Vector3) -> void:
+	var p := CPUParticles3D.new()
+	p.one_shot = true
+	p.amount = 8
+	p.lifetime = 0.7
+	p.explosiveness = 0.6
+	p.direction = Vector3.UP
+	p.spread = 25.0
+	p.initial_velocity_min = 0.6
+	p.initial_velocity_max = 1.6
+	p.gravity = Vector3(0, 1.0, 0)
+	var sm := SphereMesh.new()
+	sm.radius = 0.06
+	sm.height = 0.12
+	sm.material = F.flat_mat(Color(0.92, 0.97, 1.0, 0.8))
+	p.mesh = sm
+	p.position = Vector3(at.x, maxf(at.y, Water.RIVER_Y - 0.1), at.z)
+	add_child(p)
+	p.emitting = true
+	get_tree().create_timer(1.0, true, false, true).timeout.connect(p.queue_free)
 
 # ------------------------------------------------------------------ the ute
 
@@ -936,6 +1102,15 @@ func _drive(dt: float, inp: Dictionary) -> void:
 	_eng_rpm = lerpf(_eng_rpm, rpm, minf(1.0, dt * 6.0))
 	_eng_load = lerpf(_eng_load, gas, minf(1.0, dt * 5.0))
 	me.position = Vector3(c["pos"].x, 0, c["pos"].y)
+	var cp: Vector2 = c["pos"]
+	if _is_wet(cp) and floor_y(cp) < Water.RIVER_Y - 0.3:
+		# off the edge and into the river
+		mode = "sink"
+		_gone_t = 0.0
+		c["y"] = 0.0
+		c["vy"] = 0.0
+		_toast_msg("Into the river! That's the %s gone." % Utes.TITLE[c["name"]])
+		return
 	if inp["use"]:
 		_get_out()
 
@@ -995,11 +1170,8 @@ func _car_free(c: Dictionary, at: Vector2, yaw: float) -> bool:
 	var left := Vector2(fwd.y, -fwd.x)
 	for k in [[1, 1], [1, -1], [-1, 1], [-1, -1], [0, 1], [0, -1], [1, 0], [-1, 0]]:
 		var q: Vector2 = at + left * half.x * float(k[0]) + fwd * half.y * float(k[1])
-		if _blocked(q):
-			return false
-		var fl := floor_y(q)
-		if fl < -0.6 or fl > 0.3:
-			# (the river, the bank, the pontoon's gangway)
+		if _blocked(q) or not _ferry_floor(q).is_empty():
+			# (buildings, and the terminal: no utes on the gangway)
 			return false
 	for o in utes:
 		if not is_same(o, c) and _boxes_touch(at, yaw, half, o["pos"], o["yaw"], _half(o["name"])):
@@ -1051,7 +1223,7 @@ func _spring(c: Dictionary, pitch_to: float, roll_to: float, dt: float) -> void:
 func _place_car(c: Dictionary, dt: float) -> void:
 	var n: Node3D = c["node"]
 	var p: Vector2 = c["pos"]
-	n.position = Vector3(p.x, 0.0, p.y)
+	n.position = Vector3(p.x, float(c.get("y", 0.0)), p.y)
 	n.rotation.y = c["yaw"]
 	var body := n.get_node("Body") as Node3D
 	var speed := (c["v"] as Vector2).length()
@@ -1091,6 +1263,157 @@ func _smoke_at(c: Dictionary) -> void:
 			s.queue_free())
 
 # ------------------------------------------------------------------ the CityCat
+
+## The terminal for walkers: a ramp down off the landing to the riverwalk,
+## and a screen with the time and when the next CityCats call.
+func _build_terminal() -> void:
+	var dir: Vector2 = _fer["dir"]
+	var edge: Vector2 = _fer["edge"]
+	var yaw := atan2(dir.x, dir.y)
+	var rise := 0.86
+	var slope := atan2(rise, RAMP)
+	var len := Vector2(RAMP, rise).length()
+	var mid := edge + dir * (3.0 + RAMP * 0.5)
+	var ramp := Node3D.new()
+	ramp.name = "TerminalRamp"
+	ramp.position = Vector3(mid.x, rise * 0.5, mid.y)
+	ramp.basis = Basis(Vector3.UP, yaw) * Basis(Vector3.RIGHT, slope)
+	add_child(ramp)
+	var concrete := F.color_mat(Color("b9b7b0"), false)
+	var rail := F.color_mat(Color("d2d6d8"), false)
+	var bm := BoxMesh.new()
+	bm.size = Vector3(2.4, 0.3, len)
+	var deck := MeshInstance3D.new()
+	deck.mesh = bm
+	deck.material_override = concrete
+	deck.position.y = -0.15
+	ramp.add_child(deck)
+	for sx in [-1.0, 1.0]:
+		var r := MeshInstance3D.new()
+		var rm := BoxMesh.new()
+		rm.size = Vector3(0.06, 0.06, len)
+		r.mesh = rm
+		r.material_override = rail
+		r.position = Vector3(sx * 1.17, 0.95, 0)
+		ramp.add_child(r)
+		for k in 3:
+			var post := MeshInstance3D.new()
+			var pm := BoxMesh.new()
+			pm.size = Vector3(0.05, 0.95, 0.05)
+			post.mesh = pm
+			post.material_override = rail
+			post.position = Vector3(sx * 1.17, 0.47, (k - 1) * len * 0.45)
+			ramp.add_child(post)
+	# the timetable screen, beside the top of the ramp, facing the way you come
+	var side := Vector2(dir.y, -dir.x)
+	var at := edge + dir * 3.4 + side * 1.9
+	var sign := Node3D.new()
+	sign.name = "CityCatTimes"
+	sign.position = Vector3(at.x, 0, at.y)
+	sign.rotation.y = yaw
+	add_child(sign)
+	var pole := MeshInstance3D.new()
+	var pm2 := BoxMesh.new()
+	pm2.size = Vector3(0.12, 1.6, 0.12)
+	pole.mesh = pm2
+	pole.material_override = F.color_mat(Color("3a3e44"), false)
+	pole.position.y = 0.8
+	sign.add_child(pole)
+	var panel := MeshInstance3D.new()
+	var pb := BoxMesh.new()
+	pb.size = Vector3(1.5, 1.05, 0.1)
+	panel.mesh = pb
+	panel.material_override = F.color_mat(Color("15181d"), false)
+	panel.position.y = 2.05
+	sign.add_child(panel)
+	var trim := MeshInstance3D.new()
+	var tb := BoxMesh.new()
+	tb.size = Vector3(1.5, 0.16, 0.11)
+	trim.mesh = tb
+	trim.material_override = F.color_mat(Color("1f4f9a"), false)
+	trim.position.y = 2.66
+	sign.add_child(trim)
+	_board_label = Label3D.new()
+	_board_label.font_size = 40
+	_board_label.pixel_size = 0.0042
+	_board_label.outline_size = 0
+	_board_label.modulate = Color("ffb340")
+	_board_label.position = Vector3(0, 2.05, 0.06)
+	_board_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	_board_label.width = 330.0
+	_board_label.autowrap_mode = TextServer.AUTOWRAP_OFF
+	_board_label.shaded = false
+	_board_label.double_sided = false
+	sign.add_child(_board_label)
+	var head := Label3D.new()
+	head.text = "CityCat · Northshore Hamilton"
+	head.font_size = 30
+	head.pixel_size = 0.0042
+	head.outline_size = 0
+	head.modulate = Color.WHITE
+	head.position = Vector3(0, 2.66, 0.065)
+	head.shaded = false
+	head.double_sided = false
+	sign.add_child(head)
+
+## Seconds till the CityCat's next at the terminal (0 while it's there),
+## from where it is on its run (citycat.gd), and the whole round trip.
+func _cat_times() -> Vector2:
+	if _boat == null or not _boat.has_meta("route"):
+		return Vector2(-1, 0)
+	var pts: Array = []
+	for q: Vector3 in _boat.get_meta("route"):
+		pts.append(Vector2(q.x, q.z))
+	var total := 0.0
+	for i in range(1, pts.size()):
+		total += (pts[i - 1] as Vector2).distance_to(pts[i])
+	var cycle := total * 2.0 / SPEED + 60.0
+	var p := Vector2(_boat.position.x, _boat.position.z)
+	if p.distance_to(pts[pts.size() - 1]) < 0.6:
+		return Vector2(0, cycle)
+	var best := 0
+	var bd := INF
+	for i in range(1, pts.size()):
+		var c := Geometry2D.get_closest_point_to_segment(p, pts[i - 1], pts[i])
+		if c.distance_to(p) < bd:
+			bd = c.distance_to(p)
+			best = i
+	var heading := Vector2(cos(_boat.rotation.y), -sin(_boat.rotation.y))
+	var seg: Vector2 = pts[best] - pts[best - 1]
+	if heading.dot(seg) > 0.0:
+		# on its way in
+		var left := p.distance_to(pts[best])
+		for i in range(best + 1, pts.size()):
+			left += (pts[i - 1] as Vector2).distance_to(pts[i])
+		return Vector2(left / SPEED, cycle)
+	# on its way out: back to the top of its run, a wait there, and all the way in
+	var back := p.distance_to(pts[best - 1])
+	for i in range(1, best):
+		back += (pts[i - 1] as Vector2).distance_to(pts[i])
+	return Vector2(back / SPEED + 20.0 + total / SPEED, cycle)
+
+func _clock(after: float) -> String:
+	var t := Time.get_time_dict_from_system()
+	var m := int(t["hour"]) * 60 + int(t["minute"]) + int(after / 60.0)
+	return "%d:%02d" % [(m / 60) % 24, m % 60]
+
+func _update_board() -> void:
+	var tc := _cat_times()
+	if tc.x < 0.0:
+		_board_label.text = _clock(0)
+		return
+	var lines := ["Now  %s" % _clock(0), ""]
+	if tc.x == 0.0:
+		lines.append("At the pontoon · boarding")
+	else:
+		lines.append("%s   %s" % [_clock(tc.x), _mins(tc.x)])
+	for k in [1, 2]:
+		lines.append(_clock(tc.x + tc.y * k))
+	_board_label.text = "\n".join(lines)
+
+func _mins(sec: float) -> String:
+	return "due" if sec < 45.0 else "%d min" % ceili(sec / 60.0)
+
 
 func _on_pontoon() -> bool:
 	var f := _ferry_floor(Vector2(me.position.x, me.position.z))
@@ -1158,7 +1481,7 @@ func _update_camera(dt: float) -> void:
 	var focus: Vector3
 	var want: Vector3
 	var fov := 55.0
-	if mode == "drive":
+	if mode == "drive" or mode == "sink":
 		var c := car
 		var yaw: float = c["yaw"]
 		var v: Vector2 = c["v"]
@@ -1169,7 +1492,7 @@ func _update_camera(dt: float) -> void:
 		if v.dot(Vector2(fwd.x, fwd.z)) < -3.0:
 			back = yaw
 		_cam_yaw = lerp_angle(_cam_yaw, back, minf(1.0, dt * (2.2 if not _rmb else 0.0)))
-		focus = Vector3(c["pos"].x, 1.3, c["pos"].y) + fwd * clampf(speed * 0.08, 0.0, 2.5)
+		focus = Vector3(c["pos"].x, 1.3 + maxf(float(c.get("y", 0.0)), Water.RIVER_Y - 1.0), c["pos"].y) + fwd * clampf(speed * 0.08, 0.0, 2.5)
 		var dist := _cam_dist + 0.6 + speed * 0.06
 		want = focus + Vector3(sin(_cam_yaw) * cos(_cam_pitch * 0.7), sin(_cam_pitch * 0.7) + 0.12, cos(_cam_yaw) * cos(_cam_pitch * 0.7)) * dist
 		fov = 55.0 + clampf(speed * 0.45, 0.0, 18.0)
@@ -1197,7 +1520,7 @@ func _feed_audio() -> void:
 	if _gen == null:
 		return
 	var n := _gen.get_frames_available()
-	var driving := mode == "drive"
+	var driving := mode == "drive" and not _frozen
 	var f := _eng_rpm / 60.0 * 2.0
 	var vol := (0.16 + 0.14 * _eng_load) if driving else 0.0
 	for i in n:
@@ -1223,6 +1546,11 @@ func _build_ui() -> void:
 	_ui = CanvasLayer.new()
 	_ui.layer = 8
 	add_child(_ui)
+	_fade = ColorRect.new()
+	_fade.color = Color(0.02, 0.05, 0.08, 0.0)
+	_fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_fade.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_ui.add_child(_fade)
 	# The top-out screen's way out: a beer, and "Knock off"
 	_badge = PanelContainer.new()
 	var bs := StyleBoxFlat.new()
@@ -1342,7 +1670,8 @@ func _update_ui(dt: float) -> void:
 					key = "X"
 					text = "Board the CityCat"
 				else:
-					text = "Wait here for the CityCat"
+					var tc := _cat_times()
+					text = "Next CityCat " + (_mins(tc.x) if tc.x >= 0.0 else "soon")
 		"drive":
 			if (car["v"] as Vector2).length() < 7.0:
 				key = "X"
@@ -1500,59 +1829,102 @@ func _run_demo(dt: float) -> void:
 			if mode == "walk" and t > 1.5:
 				_next()
 		7:
-			# down at the CityCat terminal
-			var at: Vector2 = _fer["at"]
-			var off := at + (_fer["dir"] as Vector2) * 2.0
-			me.position = Vector3(off.x, floor_y(off), off.y)
-			_cam_yaw = atan2((_fer["dir"] as Vector2).x, (_fer["dir"] as Vector2).y) + 0.6
-			_cam_dist = 14.0
-			_cam_pitch = 0.35
-			if _boat.has_meta("tween"):
-				(_boat.get_meta("tween") as Tween).set_speed_scale(25.0)
+			# up the ramp from the riverwalk to the terminal
+			var dir: Vector2 = _fer["dir"]
+			var foot: Vector2 = (_fer["edge"] as Vector2) + dir * (3.0 + RAMP + 1.5)
+			me.position = Vector3(foot.x, 0, foot.y)
+			_cam_yaw = atan2(dir.x, dir.y) + 0.5
+			_cam_dist = 8.0
+			_cam_pitch = 0.4
 			_next()
 		8:
+			_fake["move"] = Vector2(0, -1) if t < 2.4 else Vector2.ZERO
+			_cam_yaw = atan2((_fer["dir"] as Vector2).x, (_fer["dir"] as Vector2).y)
+			if t > 1.2:
+				_shot("ramp")
+			if t > 3.0:
+				print("[explore] after the ramp: y %.2f floor %s" % [me.position.y, _ferry_floor(Vector2(me.position.x, me.position.z))])
+				# a look at the timetable
+				var sign := get_node("CityCatTimes") as Node3D
+				var front := sign.position + sign.basis.z * 4.0
+				me.position = Vector3(front.x, 0, front.z) + sign.basis.x * 1.0
+				mode = "walk"
+				_yaw = atan2(-sign.basis.z.x, -sign.basis.z.z)
+				_cam_yaw = atan2(sign.basis.z.x, sign.basis.z.z) + 0.25
+				_cam_dist = 4.0
+				_cam_pitch = 0.15
+				_update_board()
+				_next()
+		9:
+			if t > 1.0:
+				_shot("timetable")
+				print("[explore] board: ", _board_label.text.replace("\n", " | "))
+				var at: Vector2 = _fer["at"]
+				var off := at + (_fer["dir"] as Vector2) * 2.0
+				me.position = Vector3(off.x, floor_y(off), off.y)
+				_cam_yaw = atan2((_fer["dir"] as Vector2).x, (_fer["dir"] as Vector2).y) + 0.6
+				_cam_dist = 14.0
+				_cam_pitch = 0.35
+				if _boat.has_meta("tween"):
+					(_boat.get_meta("tween") as Tween).set_speed_scale(25.0)
+				_next()
+		10:
 			if _boat_ready():
 				(_boat.get_meta("tween") as Tween).set_speed_scale(1.0)
-				if t > 0.0 and not _shots.has("terminal"):
+				if not _shots.has("terminal"):
 					_shot("terminal")
 					_demo_mark = _demo_t
-				elif _shots.has("terminal") and t > 0.5:
+				elif t > 0.5:
 					_board()
 					_next()
 			elif t > 120.0:
 				_next()
-		9:
-			# away up the river, then over the side
-			_fake["run"] = t > 1.0
-			if t > 7.0 and not _boat_ready():
+		11:
+			# away up the river, then over the side, and under
+			_fake["run"] = t > 1.0 and mode == "ride"
+			if t > 7.0 and mode == "ride" and not _boat_ready():
 				_shot("citycat")
 				_fake["jump"] = true
+			if mode == "drown" and _gone_t > 1.6:
+				_shot("drown")
+			if mode == "walk" and _shots.has("drown") and _fade.color.a < 0.3:
+				_shot("respawn")
 				_next()
-		10:
-			if t > 2.5:
-				_shot("swim")
+		12:
+			# Smoko while knocked off: the wander holds where it is
+			if t < 0.1 and not game.pause_menu.visible:
+				game.pause_menu.toggle(1)
+			if t > 0.8 and game.pause_menu.visible:
+				_shot("smoko")
+				game.pause_menu.close()
+			if t > 1.2:
+				print("[explore] after smoko: active %s paused %s mode %s" % [active, get_tree().paused, mode])
 				_next()
-		11:
-			# along the riverwalk to the water's edge
-			if mode == "ride":
-				_leave_boat()
-			var at: Vector2 = _fer["edge"]
+		13:
+			# a ute off the riverwalk into the river
 			var dir: Vector2 = _fer["dir"]
 			var along := Vector2(-dir.y, dir.x)
-			var spot := at + along * 30.0 + dir * 2.0
-			me.position = Vector3(spot.x, 0, spot.y)
-			_cam_yaw = atan2(dir.x, dir.y) + 0.4
-			_cam_dist = 9.0
+			var spot: Vector2 = (_fer["edge"] as Vector2) + along * 30.0 + dir * 7.0
+			var c: Dictionary = utes[0]
+			c["pos"] = spot
+			c["yaw"] = atan2(-dir.x, -dir.y)
+			c["v"] = Vector2.ZERO
+			_get_in(c)
+			_cam_yaw = atan2(dir.x, dir.y) + 0.7
 			_next()
-		12:
-			_fake["move"] = Vector2(0, -1)
-			if t > 0.2:
-				_cam_yaw = atan2((_fer["dir"] as Vector2).x, (_fer["dir"] as Vector2).y)
-			if t > 2.2:
-				_shot("bank")
-			if t > 3.0:
+		14:
+			if mode == "drive":
+				_fake["gas"] = 1.0
+			if mode == "sink" and _gone_t > 1.3:
+				_shot("sink")
+			if mode == "walk" and _shots.has("sink") and _fade.color.a < 0.3:
+				_shot("back")
+				print("[explore] utes %d, at %s" % [utes.size(), me.position])
 				print("[explore] demo done")
 				get_tree().quit(0)
+			if t > 30.0:
+				print("[explore] demo stuck in ", mode)
+				get_tree().quit(1)
 
 func _next() -> void:
 	print("[explore] step %d done at %.1fs (frame %d)" % [_demo_step, _demo_t, Engine.get_process_frames()])

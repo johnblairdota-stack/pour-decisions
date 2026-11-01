@@ -13,6 +13,10 @@ const Settings := preload("res://scripts/settings.gd")
 const SCALES := [1.0, 1.25, 1.5]
 const MAIN := [["Back to work", "resume"], ["Knock off", "explore"], ["Swap jobs", "swap"], ["Add a player", "join"],
 	["Settings", "settings"], ["Start again", "restart"], ["Exit", "quit"]]
+## The main page while someone's knocked off (explore.gd): carry on where you
+## are, or back to the job.
+const ROAM := [["Carry on", "resume"], ["Back to work", "work"], ["Add a player", "join"],
+	["Settings", "settings"], ["Start again", "restart"], ["Exit", "quit"]]
 const SETTINGS := ["back", "incidents", "gold_mode", "dog_help", "docket_help", "ui_scale", "world_text", "split", "fullscreen", "sound_page", "shake",
 	"real_names", "cam_test"]
 ## The Sound page, off Settings.
@@ -119,10 +123,6 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 func toggle(who := -1) -> void:
-	if game.explore != null and game.explore.active:
-		# (the menu button while you're knocked off: back to the job)
-		game.explore.leave()
-		return
 	if visible:
 		close()
 	else:
@@ -138,7 +138,11 @@ func open() -> void:
 
 func close() -> void:
 	visible = false
-	get_tree().paused = false
+	# (knocked off, the job stays stopped and the wander carries on)
+	get_tree().paused = _roaming()
+
+func _roaming() -> bool:
+	return game.explore != null and game.explore.active
 
 ## Opens straight on a page ("swap" from the slab report's Y).
 func open_on(page: String, who := -1) -> void:
@@ -157,7 +161,7 @@ func _build_page(page: String) -> void:
 	var rows: Array = []
 	match page:
 		"main":
-			rows = MAIN
+			rows = ROAM if _roaming() else MAIN
 		"settings":
 			for a in SETTINGS:
 				rows.append(["", a])
@@ -207,6 +211,10 @@ func _make_row(text: String, action: String) -> Dictionary:
 		lead = hat
 	elif action == "resume":
 		lead = UI.glyph("A", 26)
+	elif action == "work":
+		lead = UI.Hat.new()
+		lead.color = UI.GOLD
+		lead.custom_minimum_size = Vector2(30, 24)
 	elif action == "back":
 		lead = UI.glyph("B", 26)
 	if lead != null:
@@ -392,7 +400,11 @@ func _build_stats() -> void:
 func _note_for(action: String) -> String:
 	match action:
 		"resume":
+			if _roaming():
+				return "Carry on wandering, right where you were."
 			return "Everyone back on the tools. Anyone can press it."
+		"work":
+			return "Off the street and back to the job, right where you left it. The utes go back to the kerb."
 		"swap":
 			return "Move onto a job a bot's doing. The bot takes yours."
 		"join":
@@ -467,6 +479,10 @@ func _do(action: String) -> void:
 	match action:
 		"resume":
 			close()
+			return
+		"work":
+			visible = false
+			game.explore.leave()
 			return
 		"swap":
 			_build_page("swap")

@@ -59,6 +59,7 @@ var run_to := Vector3.INF    # a job running this player somewhere on its own (s
 # the keyboard, so every input source goes through the same code paths.
 var ai := false
 var ai_move := Vector2.ZERO
+var look := Vector2.ZERO        # a phone's second stick, for the camera when knocked off (explore.gd)
 var ai_action := false
 var ai_alt := false
 var ai_slow := false

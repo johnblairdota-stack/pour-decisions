@@ -101,6 +101,8 @@ static func run(root: Node3D, fe: Dictionary, route: Array) -> void:
 	# hurry the trip along)
 	b.set_meta("tween", tw)
 	b.set_meta("berth", berth)
+	# (and read the timetable off where it's got to: the run in, ending at the berth)
+	b.set_meta("route", pts)
 	var legs := [pts, pts.duplicate()]
 	legs[1].reverse()
 	for leg in legs:
