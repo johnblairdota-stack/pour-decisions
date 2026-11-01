@@ -5055,11 +5055,9 @@ func _chute_demo() -> bool:
 	if _chute_demo_t < 0.0:
 		_chute_demo_t = phase_t
 	var held := phase_t - _chute_demo_t
-	Input.action_press(op.prefix + "slow")
-	if held > 0.5 and held < 0.7:
-		Input.action_press(op.prefix + "up")
-	else:
-		Input.action_release(op.prefix + "up")
+	# (an autotest person is driven like a phone: through the ai_ inputs)
+	op.ai_slow = true
+	op.ai_move = Vector2(0, -1) if held > 0.5 and held < 0.7 else Vector2.ZERO
 	return held > 1.6 and line._chute_tag.visible
 func _signs_demo() -> bool:
 	if _signs_at < 0.0:
