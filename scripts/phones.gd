@@ -313,6 +313,11 @@ func _on_message(c: Dictionary, msg: String) -> void:
 				p.idle_in = 0.0
 			if p != null and parts.size() >= 3:
 				p.ai_move = Vector2(parts[1].to_float(), parts[2].to_float()).limit_length(1.0)
+		"r":
+			# the second stick, knocked off: the camera
+			var p = c["player"]
+			if p != null and parts.size() >= 3:
+				p.look = Vector2(parts[1].to_float(), parts[2].to_float()).limit_length(1.0)
 		"d", "u":
 			var p = c["player"]
 			if parts.size() >= 2 and parts[1] == "MENU":
@@ -431,6 +436,8 @@ func _json(c: Dictionary, key: String, d: Dictionary) -> void:
 func screen() -> String:
 	if game.pause_menu != null and game.pause_menu.visible:
 		return "pause"
+	if game.explore != null and game.explore.active:
+		return "roam"
 	if game.phase == "roles":
 		return "lobby"
 	if game.phase == "select":

@@ -82,6 +82,13 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 #zone.dog .call{display:block}
 #zone.dog .lbl{color:#ff8a80}
 #knob{position:absolute;width:16vmin;height:16vmin;border-radius:50%;background:radial-gradient(circle at 40% 35%,#ffffff,#d9d5cb);box-shadow:0 1.2vmin 0 #8f8a7e,0 2vmin 4vmin rgba(0,0,0,.6);left:50%;top:50%;transform:translate(-50%,-50%)}
+/* --- knocked off: a second stick for the camera, where the ticket was */
+#look{display:none;position:absolute;left:34vw;width:33vw;top:18vh;bottom:3vh;border:2px dashed #23262e;border-radius:5vmin}
+#look .lbl{position:absolute;left:3vmin;bottom:2.4vmin;font-size:2.6vmin;color:#3a3e4a;letter-spacing:.08em;text-transform:uppercase}
+#lbase{position:absolute;width:30vmin;height:30vmin;border-radius:50%;border:2px solid #3a3e4a;left:50%;top:50%;transform:translate(-50%,-50%);pointer-events:none}
+#lknob{position:absolute;width:13vmin;height:13vmin;border-radius:50%;background:radial-gradient(circle at 40% 35%,#ffffff,#d9d5cb);box-shadow:0 1vmin 0 #8f8a7e;left:50%;top:50%;transform:translate(-50%,-50%)}
+body.roam #look{display:block}
+body.roam #ticket,body.roam #helping{display:none}
 /* --- play: the ticket */
 #ticket{position:absolute;left:34vw;width:33vw;top:2.6vmin;bottom:2.6vmin;border-radius:4.6vmin;background:var(--paper);color:#1b1a17;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 3vmin 7vmin rgba(0,0,0,.5);transition:transform .45s cubic-bezier(.3,1.3,.5,1)}
 #thead{display:flex;align-items:center;gap:2.4vmin;background:var(--job);color:#111;padding:2.2vmin 2.8vmin;text-align:left;width:100%}
@@ -329,6 +336,7 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 <div id="play" class="screen">
   <button class="pausebtn" aria-label="Pause"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M9 5v14M15 5v14"/></svg></button>
   <div id="zone"><div class="lbl">Stick</div><div id="base"><div id="wedge"></div><div class="call" id="call0"></div><div class="call" id="call1"></div><div class="call" id="call2"></div><div class="call" id="call3"></div><div id="knob"></div></div></div>
+  <div id="look"><div class="lbl">Look</div><div id="lbase"><div id="lknob"></div></div></div>
   <div id="ticket">
     <button id="thead" aria-label="Your job, tap to swap">
       <svg class="hat" id="thhat" viewBox="0 0 24 20"><path d="M1 16h22v2H1z M3.5 16v-3a8.5 8.5 0 0 1 17 0v3z" fill="currentColor"/></svg>
@@ -526,6 +534,8 @@ function showScreen() {
   $('locked').classList.toggle('on', lobby && locked);
   $('play').classList.toggle('on', !lobby && !sign);
   $('sign').classList.toggle('on', sign);
+  document.body.classList.toggle('roam', screen === 'roam');
+  if (screen !== 'roam') endLook();
   if (sign) startSign();
   if (!lobby) closeSwap();
   showWalletBtn();
@@ -545,6 +555,7 @@ function drawTicket() {
   let name = card.name, goal = card.goal, foot = '';
   t.classList.toggle('pump', card.role === 'pump' && screen === 'play' && !now.climb);
   if (screen === 'site') { $('tk').textContent = 'P' + me.p + ' · NEXT UP'; name = 'Pick the site'; goal = 'The first player picks the site and the kit on the TV: stick to choose, A to start, B back to the crew.'; }
+  else if (screen === 'roam') { $('tk').textContent = 'P' + me.p + ' · KNOCKED OFF'; name = 'Off the clock'; goal = 'Left stick to walk and steer, right stick to look round.'; }
   else if (screen === 'pause') { $('tk').textContent = 'P' + me.p + ' · SMOKO'; name = 'Paused'; goal = 'Steer the menu on the TV: stick up and down, A to choose, B to get back to work.'; }
   else { $('tk').textContent = 'P' + me.p + ' · YOUR JOB'; foot = (card.watch ? '<b>Watch for:</b> ' + esc(card.watch) + ' ' : '') + esc(card.climb || ''); }
   $('tn').textContent = name;
@@ -774,6 +785,47 @@ function endStick(e) {
 }
 zone.addEventListener('pointerup', endStick);
 zone.addEventListener('pointercancel', endStick);
+// ---------------------------------------------------------------- knocked off: the look stick turns the camera
+const look = $('look'), lbase = $('lbase'), lknob = $('lknob');
+let lid = null, lox = 0, loy = 0, lx = 0, ly = 0, lLast = 0, lTimer = null;
+function sendLook(force) {
+  const t = performance.now();
+  if (force || t - lLast > 33) {
+    lLast = t;
+    if (lTimer) { clearTimeout(lTimer); lTimer = null; }
+    send('r ' + lx.toFixed(2) + ' ' + ly.toFixed(2));
+  } else if (!lTimer) {
+    lTimer = setTimeout(() => { lTimer = null; sendLook(true); }, 34 - (t - lLast));
+  }
+}
+function moveLook(e) {
+  const R = lbase.getBoundingClientRect().width / 2;
+  let dx = e.clientX - lox, dy = e.clientY - loy;
+  const d = Math.hypot(dx, dy);
+  if (d > R) { dx *= R / d; dy *= R / d; }
+  lknob.style.transform = 'translate(calc(-50% + ' + dx + 'px), calc(-50% + ' + dy + 'px))';
+  lx = dx / R; ly = dy / R;
+  sendLook(false);
+}
+look.addEventListener('pointerdown', (e) => {
+  e.preventDefault(); lid = e.pointerId; look.setPointerCapture(lid);
+  const r = look.getBoundingClientRect(), R = lbase.getBoundingClientRect().width / 2;
+  lox = Math.max(r.left + R * .6, Math.min(r.right - R * .6, e.clientX));
+  loy = Math.max(r.top + R * .6, Math.min(r.bottom - R * .6, e.clientY));
+  lbase.style.left = (lox - r.left) + 'px'; lbase.style.top = (loy - r.top) + 'px';
+  moveLook(e);
+});
+look.addEventListener('pointermove', (e) => { if (e.pointerId === lid) moveLook(e); });
+function endLook(e) {
+  if (e && e.pointerId !== lid) return;
+  if (lid === null && lx === 0 && ly === 0) return;
+  lid = null; lx = 0; ly = 0;
+  lknob.style.transform = 'translate(-50%,-50%)';
+  lbase.style.left = '50%'; lbase.style.top = '50%';
+  sendLook(true);
+}
+look.addEventListener('pointerup', endLook);
+look.addEventListener('pointercancel', endLook);
 // ---------------------------------------------------------------- hold-to-confirm buttons: fill with concrete, then set
 function holdButton(el, ms, done) {
   let t0 = 0, raf = 0;

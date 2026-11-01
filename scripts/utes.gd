@@ -80,6 +80,7 @@ static func drivable(name: String, paint: Color) -> Node3D:
 	body.name = "Body"
 	root.add_child(body)
 	var bm := MeshInstance3D.new()
+	bm.name = "Shell"
 	bm.mesh = mesh(name + "Body")
 	bm.set_instance_shader_parameter("tint", paint)
 	body.add_child(bm)
@@ -140,3 +141,79 @@ static func apply_kit(node: Node3D, ute: String, kit: Array) -> void:
 				part.position.y = K.DRAWER_H
 			body.add_child(part)
 	node.set_meta("ride", ride)
+
+## What drives each one, near enough the real thing: kerb mass (kg), peak
+## power (kW) and torque (Nm) and where it makes them, idle and redline
+## (rpm), the gears and final drive, tyre radius, drag area (m²) and top
+## speed (km/h). The Shark's a plug-in hybrid: its motors drive the wheels
+## through one gear and the 1.5 petrol mostly runs as a generator.
+const ENGINE := {
+	"Hilux": {"mass": 2110.0, "kw": 150.0, "nm": 500.0, "torque_from": 1600.0, "power_at": 3400.0, "idle": 750.0,
+		"red": 3600.0, "cut": 4000.0, "gears": [3.600, 2.090, 1.488, 1.000, 0.687, 0.580], "final": 3.909,
+		"reverse": 3.732, "cda": 1.32, "top": 175.0, "kind": "diesel", "label": "2.8 turbo diesel · 6-speed auto"},
+	"Ranger": {"mass": 2250.0, "kw": 154.0, "nm": 500.0, "torque_from": 1750.0, "power_at": 3750.0, "idle": 780.0,
+		"red": 4250.0, "cut": 4500.0, "gears": [4.696, 2.985, 2.146, 1.769, 1.520, 1.275, 1.000, 0.854, 0.689, 0.636],
+		"final": 3.73, "reverse": 4.866, "cda": 1.30, "top": 180.0, "kind": "diesel",
+		"label": "2.0 bi-turbo diesel · 10-speed auto"},
+	"Shark": {"mass": 2710.0, "kw": 321.0, "nm": 650.0, "torque_from": 0.0, "power_at": 0.0, "idle": 0.0,
+		"red": 0.0, "cut": 0.0, "gears": [9.2], "final": 1.0, "reverse": 9.2, "cda": 1.28, "top": 160.0,
+		"kind": "phev", "label": "1.5 turbo plug-in hybrid · twin motors"},
+}
+
+## Engine torque at `rpm` with the throttle wide open (Nm): building from
+## idle to its plateau, flat to where peak power comes in, then falling
+## away so the power holds.
+static func torque_at(e: Dictionary, rpm: float) -> float:
+	var nm: float = e["nm"]
+	var from: float = e["torque_from"]
+	var idle: float = e["idle"]
+	if rpm < from:
+		return nm * lerpf(0.35, 1.0, clampf((rpm - idle) / maxf(from - idle, 1.0), 0.0, 1.0))
+	var p_nm := float(e["kw"]) * 1000.0 / (rpm * TAU / 60.0)
+	return minf(nm, p_nm) * (1.0 if rpm <= float(e["red"]) else clampf(1.0 - (rpm - float(e["red"])) / 600.0, 0.0, 1.0))
+
+## Body copies with their own vertices, so each ute you drive dents on its
+## own: `mi` gets a mesh of its own and keeps its arrays in meta "dent".
+static func own_body(mi: MeshInstance3D) -> void:
+	var src := mi.mesh
+	var surfs: Array = []
+	for s in src.get_surface_count():
+		surfs.append([src.surface_get_arrays(s), src.surface_get_material(s)])
+	mi.set_meta("dent", surfs)
+	_rebuild(mi)
+
+## Pushes the body in round `at` (its own metres) by up to `depth` along
+## `dir`, fading out over `radius`, and turns the faces there so the light
+## shows the crease.
+static func dent(mi: MeshInstance3D, at: Vector3, dir: Vector3, depth: float, radius: float) -> void:
+	if not mi.has_meta("dent"):
+		own_body(mi)
+	for sf in mi.get_meta("dent"):
+		var arr: Array = sf[0]
+		var vs: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+		var ns: PackedVector3Array = arr[Mesh.ARRAY_NORMAL]
+		for i in vs.size():
+			var d := vs[i].distance_to(at)
+			if d >= radius:
+				continue
+			var k := 1.0 - d / radius
+			k = k * k * (3.0 - 2.0 * k)
+			# (a bit of crumple, so it doesn't push in as a smooth dish)
+			var j := 0.75 + 0.5 * fposmod(sin(vs[i].x * 37.0 + vs[i].y * 53.0 + vs[i].z * 29.0) * 43758.5, 1.0)
+			vs[i] += dir * depth * k * j
+			if ns.size() == vs.size():
+				ns[i] = (ns[i] + dir * k * 0.9 + Vector3(sin(vs[i].z * 19.0), cos(vs[i].x * 23.0), 0) * k * 0.35).normalized()
+		arr[Mesh.ARRAY_VERTEX] = vs
+		if ns.size() == vs.size():
+			arr[Mesh.ARRAY_NORMAL] = ns
+	_rebuild(mi)
+
+static func _rebuild(mi: MeshInstance3D) -> void:
+	var m := ArrayMesh.new()
+	for sf in mi.get_meta("dent"):
+		var arr: Array = (sf[0] as Array).duplicate()
+		# (tangents go stale once it's bent; the toon shading doesn't use them)
+		arr[Mesh.ARRAY_TANGENT] = null
+		m.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+		m.surface_set_material(m.get_surface_count() - 1, sf[1])
+	mi.mesh = m
