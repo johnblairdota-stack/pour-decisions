@@ -29,16 +29,6 @@ var users := {}            # instance id -> state
 var hint: Node3D           # where to plunge next, for a person holding the poker
 var _hint_mat: StandardMaterial3D
 var _plop_t := 0.0
-# She's right: with a person on the poker, they tap A on a strip that's glossy
-# end to end and it goes green for the screeder. Called with raw spots left,
-# the board drags over them (and it's on the poker's card). Nobody calls a
-# finished strip for a while: the leading hand does.
-const CALL_PLACED := 0.6     # share of a strip placed before it can be called
-const AUTO_CALL_T := 15.0    # s a finished strip waits before the leading hand calls it
-const CALL_PAY := 10
-var calls := {"clean": 0, "early": 0, "auto": 0}
-var _strip_wait := {}
-var _strip_check_t := 0.0
 
 func build(owner_game) -> void:
 	game = owner_game
@@ -234,23 +224,7 @@ func handle_player(p, delta: float) -> bool:
 	var was: String = st["state"]
 	if st["state"] in ["", "in"]:
 		st["spot"] = local + Vector3(sin(p.model.rotation.y), 0, cos(p.model.rotation.y)) * 0.45
-	# She's right: nothing raw under the poker, on a strip that's not called yet
-	var call_s := -1
-	if st["state"] == "" and pour.gate_strips and pour.raw_count(st["spot"], R) == 0:
-		var s0: int = pour.strip_of_x(local.x)
-		if pour.released[s0] == 0:
-			var ss: Vector3i = pour.strip_state(s0)
-			if ss.z > 0 and float(ss.x) / ss.z >= CALL_PLACED:
-				call_s = s0
-				if p.action_pressed():
-					call_strip(p, s0, ss)
-					st["no_plunge"] = true
-				else:
-					p.cue("action", "she's right: call the strip", -1.0, ss.y == 0)
-					p.gold(not p.bot and ss.y == 0)
-	if st.get("no_plunge", false) and not p.action_held():
-		st.erase("no_plunge")
-	var busy_now := _work(p, st, p.action_held() and not st.get("no_plunge", false), delta, COMPACT_T)
+	var busy_now := _work(p, st, p.action_held(), delta, COMPACT_T)
 	if was == "" and st["state"] == "in":
 		st["origin"] = local
 	p.busy = "plunge" if busy_now else ""
@@ -292,7 +266,7 @@ func handle_player(p, delta: float) -> bool:
 			if prop:
 				prop.position = Vector3.ZERO
 			var raw: int = pour.raw_count(st["spot"], R)
-			if raw > 0 and call_s < 0:
+			if raw > 0:
 				p.cue("action", "plunge", -1.0, true)
 				# Gold: a good spot, the circle well into the purple
 				if not p.bot:
@@ -322,54 +296,6 @@ func handle_player(p, delta: float) -> bool:
 				unit.position = unit_local
 	_draw_hose(p, st)
 	return true
-
-## The poker calls strip `s` for the screeder. Clean pays the poker and the
-## screeder; with raw spots left it's an early call.
-func call_strip(p, s: int, ss: Vector3i) -> void:
-	pour.release_strip(s)
-	_strip_wait.erase(s)
-	var at: Vector3 = p.global_position + Vector3(0, 2.4, 0)
-	game.sfx.hit("chime")
-	p.bounce()
-	if ss.y == 0:
-		calls["clean"] += 1
-		game.pop("SHE'S RIGHT", at, Color("7cd992"))
-		game.score.award(p, CALL_PAY, "She's right")
-		var scr = game.crew.crew.get("screed") if game.crew else null
-		if scr != null and scr != p:
-			game.score.award(scr, CALL_PAY, "She's right")
-			game.haptic(scr, "30,40,30")
-	else:
-		calls["early"] += 1
-		game.pop("Raw spots left!", at, Color("ffc23d"))
-		game.score.award(p, -5, "Called a strip with raw spots")
-
-## Who's on the poker decides whether strips need calling, and a finished strip
-## nobody's called gets called by the leading hand after a while.
-func _strips(delta: float) -> void:
-	var op = game.crew.crew.get("poker") if game.crew else null
-	var gate: bool = game.phase == "pour" and not game.tutorial and op != null and is_instance_valid(op) and not op.bot and not op.covering and game._filled_ratio() < 1.0
-	pour.set_gate(gate)
-	if not gate:
-		_strip_wait.clear()
-		return
-	_strip_check_t -= delta
-	if _strip_check_t > 0.0:
-		return
-	_strip_check_t = 0.5
-	for s in pour.strips():
-		if pour.released[s] == 1:
-			continue
-		var ss: Vector3i = pour.strip_state(s)
-		if ss.z > 0 and ss.y == 0 and float(ss.x) / ss.z >= 0.9:
-			_strip_wait[s] = float(_strip_wait.get(s, 0.0)) + 0.5
-			if _strip_wait[s] >= AUTO_CALL_T:
-				pour.release_strip(s)
-				_strip_wait.erase(s)
-				calls["auto"] += 1
-				game.hud.toast("Leading hand: she's right on that strip", 1.6)
-		else:
-			_strip_wait.erase(s)
 
 func _unit_world() -> Vector3:
 	return game.rig.position + unit_local
@@ -434,7 +360,6 @@ func next_spot(from: Vector3) -> Vector3:
 	return out if out.x != INF else g
 
 func update(delta: float) -> void:
-	_strips(delta)
 	# The surface trembles round every poker that's in, and the drone follows
 	# the nearest one a person is working
 	var shiver: Array = []

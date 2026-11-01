@@ -867,9 +867,6 @@ func _hat_card(r: Dictionary, star: bool) -> PanelContainer:
 	if String(r.get("good", "")) != "":
 		# Something done right that pays nothing big: a gold glint on the card
 		v.add_child(UI.label("✦ " + String(r["good"]), 13, UI.GOLD, 0))
-	if int(r.get("early", 0)) > 0:
-		# She's right called with raw spots left: the screeder's board dragged
-		v.add_child(UI.label("%d strip%s called early" % [int(r["early"]), "" if int(r["early"]) == 1 else "s"], 13, UI.ALARM, 0))
 	if star:
 		var rib := UI.pill(UI.GOLD, Vector4(8, 1, 8, 2))
 		rib.add_child(UI.head("★ CREW STAR", 14, Color("2a1d00")))
