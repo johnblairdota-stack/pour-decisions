@@ -53,7 +53,7 @@ html,body{margin:0;height:100%;touch-action:none;-webkit-text-size-adjust:100%;t
 button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer}
 .screen{position:fixed;inset:0;display:none}
 .screen.on{display:block}
-#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:30}
+#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:40}
 /* --- the edge glow: the game's waiting on you (job colour), gold moment, alarm */
 #edge{position:fixed;inset:0;pointer-events:none;z-index:25;opacity:0;transition:opacity .3s;box-shadow:inset 0 0 0 .8vmin var(--glow,var(--job)),inset 0 0 7vmin var(--glow,var(--job))}
 #edge.on{opacity:1;animation:edge 1.2s ease-in-out infinite}
@@ -292,7 +292,24 @@ body.roam #ticket,body.roam #helping{display:none}
 #wallet .tabs button.on{background:var(--gold);color:#2a1d00}
 #wallet .tabs .x{margin-left:auto;width:9vmin;height:9vmin;border-radius:50%;background:#22252d;display:flex;align-items:center;justify-content:center}
 #wallet .tabs .x svg{width:4.4vmin;height:4.4vmin}
-#wallet .body{flex:1;overflow-y:auto;padding:0 3vmin 3vmin;touch-action:pan-y}
+#wallet .body{flex:1;overflow-y:auto;padding:0 3vmin 3vmin;touch-action:pan-y;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+#wallet .body *{touch-action:pan-y}
+#wallet.shop .wl{width:46%}
+#wallet .wl .view{display:none}
+#wallet.shop .wl .view{display:block}
+#wallet.shop .wl .purse,#wallet.shop .wl #wbanked{display:none}
+#wallet.shop .wl .cash{font-size:8vmin}
+.uteview{position:relative;width:100%;aspect-ratio:480/300;border-radius:3vmin;overflow:hidden;background:#1b1e26}
+.uteview img,.uteview svg{width:100%;height:100%;display:block;object-fit:contain}
+.uteview .vimg{position:absolute;inset:0}
+.uteview .tag:empty{display:none}
+.uteview .tag{position:absolute;left:2vmin;bottom:1.6vmin;font-size:3.2vmin;color:#ffd23f;background:rgba(20,22,28,.8);padding:.6vmin 2vmin;border-radius:99px}
+.uteview .flash{position:absolute;inset:0;background:radial-gradient(circle,rgba(255,236,170,.9),rgba(255,210,63,0) 70%);opacity:0;pointer-events:none}
+.uteview .flash.go{animation:uflash .7s ease-out}
+.uteview .stamp{position:absolute;left:50%;top:44%;transform:translate(-50%,-50%) rotate(-8deg);font-size:8vmin;color:#ffd23f;border:.8vmin solid #ffd23f;border-radius:2vmin;padding:.4vmin 3vmin;background:rgba(20,22,28,.55);opacity:0;pointer-events:none;letter-spacing:.06em}
+.uteview .stamp.go{animation:ustamp 1.8s cubic-bezier(.2,1.4,.4,1) both}
+@keyframes uflash{0%{opacity:1}100%{opacity:0}}
+@keyframes ustamp{0%{opacity:0;transform:translate(-50%,-50%) rotate(-8deg) scale(2.4)}18%{opacity:1;transform:translate(-50%,-50%) rotate(-8deg) scale(1)}80%{opacity:1}100%{opacity:0;transform:translate(-50%,-50%) rotate(-8deg) scale(1)}}
 #wallet .garage svg{width:100%;height:auto;max-height:44vmin;display:block}
 #wallet .garage .n{font-size:5.4vmin}
 #wallet .garage .kitl{font-size:3.2vmin;color:#b9b6ad;margin-top:1vmin}
@@ -302,8 +319,10 @@ body.roam #ticket,body.roam #helping{display:none}
 #wallet .it .l{font-size:2.9vmin;color:#9a978f}
 #wallet .it .pr{font-size:4vmin;color:#7cd992}
 #wallet .it.pick{border-color:var(--gold)}
-#wallet .it.have{opacity:.6}
-#wallet .it.have .pr{color:var(--muted)}
+#wallet .it.have{border-color:#9b2525;background:#26191c}
+#wallet .it.have .n,#wallet .it.have .l{text-decoration:line-through;text-decoration-color:#ff5a5f;text-decoration-thickness:.5vmin;color:#ff8a7a}
+#wallet .it.have .pr{color:#ff5a5f}
+#wallet .it.drive .n,#wallet .it.drive .l{text-decoration:none;color:inherit}
 #wallet .it.short .pr{color:#ff8a7a}
 #wallet .buyrow{display:flex;gap:2vmin;align-items:center;padding:1.6vmin 3vmin 2.4vmin;border-top:1px solid #2c2f37}
 #wallet .buyrow .note{flex:1;font-size:3.4vmin;color:#b9b6ad}
@@ -386,6 +405,7 @@ body.roam #ticket,body.roam #helping{display:none}
     <div class="cash hd" id="wcash">$0</div>
     <div class="sub" id="wpour"></div>
     <div class="purse" id="wpurse"></div>
+    <div class="view" id="wview"><div class="uteview"><div class="vimg"></div><div class="tag hd"></div><div class="flash"></div><div class="stamp hd"></div></div></div>
     <div class="sub" id="wbanked"></div>
   </div>
   <div class="wr">
@@ -438,6 +458,7 @@ function connect() {
   ws.onclose = () => { ready = false; status.textContent = 'reconnecting…'; setTimeout(connect, 1000); };
   ws.onmessage = (ev) => {
     const d = ev.data;
+    if (d.startsWith('I ')) { onUteFrame(d.slice(2)); return; }
     if (d.startsWith('J ')) { try { onJson(JSON.parse(d.slice(2))); } catch (e) {} return; }
     const m = d.split(' ');
     if (m[0] === 'p') onPlayer(parseInt(m[1]), m[2]);
@@ -985,7 +1006,31 @@ if (window.visualViewport) { visualViewport.addEventListener('resize', unzoom); 
 setInterval(unzoom, 1000);
 // ---------------------------------------------------------------- the wallet and the ute shop
 let wal = {cash: 0, pour: 0, banked: 0, utes: [], ute: '', kit: [], name: ''}, shop = {utes: [], kit: []};
-let walletOpen = false, wTab = 'garage', wPick = '';
+let walletOpen = false, wTab = 'garage', wPick = '', uteFrame = '', uteSvgShown = false;
+// The turning ute (frames from the game) or, until they come, the side view
+function uteInner() {
+  const kit = (wTab === 'utes' && wPick) ? (wal.utes.includes(wPick) && wPick === wal.ute ? wal.kit : []) : wal.kit;
+  const ute = (wTab === 'utes' && wPick) ? wPick : (wal.ute || 'hilux');
+  uteSvgShown = !uteFrame;
+  return uteFrame ? '<img class="uteimg" src="' + uteFrame + '">' : uteSvg(ute, kit);
+}
+function uteView(tag) {
+  return '<div class="uteview"><div class="vimg">' + uteInner() + '</div><div class="tag hd">' + esc(tag) + '</div></div>';
+}
+// (the shop's view stays put, so a stamp or flash plays on through a redraw)
+function shopView(tag) {
+  const v = $('wview');
+  const im = v.querySelector('.uteimg');
+  if (!(uteFrame && im)) v.querySelector('.vimg').innerHTML = uteInner();
+  v.querySelector('.tag').textContent = tag;
+}
+function onUteFrame(b64) {
+  uteFrame = 'data:image/jpeg;base64,' + b64;
+  if (!walletOpen) return;
+  if (uteSvgShown) { drawWallet(); return; }
+  document.querySelectorAll('#wallet .uteimg').forEach(im => { im.src = uteFrame; });
+}
+function sendPreview() { send('preview ' + wTab + ' ' + (wPick || '-')); }
 const money = (n) => (n < 0 ? '-$' : '$') + Math.abs(n).toLocaleString('en-AU');
 function onWallet(j) {
   const more = j.cash > wal.cash;
@@ -994,11 +1039,11 @@ function onWallet(j) {
   if (more) { const b = $('walletbtn'); b.classList.remove('bump'); void b.offsetWidth; b.classList.add('bump'); }
   if (walletOpen) drawWallet();
 }
-function openWallet() { walletOpen = true; wPick = ''; endStick(); closeSwap(); $('wallet').classList.add('on'); send('wallet 1'); drawWallet(); buzz(BUZZ.press); }
+function openWallet() { walletOpen = true; wPick = ''; uteFrame = ''; endStick(); closeSwap(); $('wallet').classList.add('on'); send('wallet 1'); sendPreview(); drawWallet(); buzz(BUZZ.press); }
 function closeWallet() { walletOpen = false; $('wallet').classList.remove('on'); send('wallet 0'); }
 $('walletbtn').addEventListener('pointerdown', (e) => { e.preventDefault(); walletOpen ? closeWallet() : openWallet(); });
 $('wx').addEventListener('pointerdown', (e) => { e.preventDefault(); closeWallet(); });
-document.querySelectorAll('#wallet .tabs button[data-tab]').forEach(b => b.addEventListener('pointerdown', (e) => { e.preventDefault(); wTab = b.dataset.tab; wPick = ''; drawWallet(); buzz(BUZZ.press); }));
+document.querySelectorAll('#wallet .tabs button[data-tab]').forEach(b => b.addEventListener('pointerdown', (e) => { e.preventDefault(); wTab = b.dataset.tab; wPick = ''; $('wbody').scrollTop = 0; sendPreview(); drawWallet(); buzz(BUZZ.press); }));
 // A side-on ute, with the kit that's fitted
 function uteSvg(id, kit) {
   const u = shop.utes.find(x => x.id === id) || {col: 'cfcfcf'}, has = (k) => kit.includes(k);
@@ -1037,6 +1082,7 @@ function drawWallet() {
   $('wbanked').textContent = 'Earned all up: ' + money(wal.banked);
   $('wpurse').innerHTML = wal.purse || '';
   document.querySelectorAll('#wallet .tabs button[data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === wTab));
+  $('wallet').classList.toggle('shop', wTab !== 'garage');
   const body = $('wbody');
   let note = '', can = false;
   if (wTab === 'garage') {
@@ -1044,7 +1090,7 @@ function drawWallet() {
     else {
       const u = shop.utes.find(x => x.id === wal.ute) || {name: wal.ute};
       const names = wal.kit.map(k => (shop.kit.find(x => x.id === k) || {name: k}).name);
-      body.innerHTML = '<div class="garage">' + uteSvg(wal.ute, wal.kit) + '<div class="n hd">' + esc(u.name) + '</div><div class="kitl">' + (names.length ? esc(names.join(' · ')) : 'Stock standard. Kit it out from the 4x4 and Camping tabs.') + '</div></div>';
+      body.innerHTML = '<div class="garage">' + uteView('') + '<div class="n hd">' + esc(u.name) + '</div><div class="kitl">' + (names.length ? esc(names.join(' · ')) : 'Stock standard. Kit it out from the 4x4 and Camping tabs.') + '</div></div>';
     }
     note = 'Your ute is yours to drive when the crew knocks off.';
   } else {
@@ -1052,11 +1098,13 @@ function drawWallet() {
     body.innerHTML = '<div class="items">' + list.map(it => {
       const owned = wTab === 'utes' ? wal.utes.includes(it.id) : wal.kit.includes(it.id);
       const short = !owned && wal.cash < it.price;
-      const cls = 'it' + (it.id === wPick ? ' pick' : '') + (owned ? ' have' : '') + (short ? ' short' : '');
+      const cls = 'it' + (it.id === wPick ? ' pick' : '') + (owned ? ' have' : '') + (owned && wTab === 'utes' ? ' drive' : '') + (short ? ' short' : '');
       const pr = owned ? (wTab === 'utes' ? (wal.ute === it.id ? 'Driving it' : 'Yours: tap to drive') : 'Fitted') : money(it.price) + (short ? ' · ' + money(it.price - wal.cash) + ' short' : '');
       return '<button class="' + cls + '" data-id="' + it.id + '"><span class="n hd">' + esc(it.name) + '</span><span class="l">' + esc(it.line || 'Ute') + '</span><span class="pr hd">' + pr + '</span></button>';
     }).join('') + '</div>';
     const it = list.find(x => x.id === wPick);
+    const kitOn = wTab !== 'utes' && it && !wal.kit.includes(it.id);
+    shopView(kitOn ? 'Preview: ' + it.name : (wTab === 'utes' && it ? it.name : ''));
     if (!it) note = wTab === 'utes' ? 'Pick a ute. You drive the one you picked last.' : (wal.ute ? 'Pick some kit for your ute.' : 'Buy a ute first, then kit it out.');
     else {
       const owned = wTab === 'utes' ? wal.utes.includes(it.id) : wal.kit.includes(it.id);
@@ -1075,9 +1123,26 @@ function drawWallet() {
   const drive = wTab === 'utes' && wal.utes.includes(wPick);
   $('wbuy').querySelector('span').textContent = drive ? 'HOLD TO DRIVE' : 'HOLD TO BUY';
 }
-$('wbody').addEventListener('pointerdown', (e) => { const b = e.target.closest('button.it'); if (!b) return; wPick = b.dataset.id; drawWallet(); buzz(BUZZ.press); });
+// (a tap picks; a drag scrolls the list without picking)
+$('wbody').addEventListener('click', (e) => { const b = e.target.closest('button.it'); if (!b) return; wPick = b.dataset.id; sendPreview(); drawWallet(); buzz(BUZZ.press); });
 holdButton($('wbuy'), 700, () => { if (wPick) send('buy ' + wPick); });
-function onBought(j) { if (j.why) toast(j.why); else { buzz(BUZZ.done); stars($('wcash'), 20); wPick = ''; wTab = 'garage'; } setTimeout(drawWallet, 120); }
+// Bought: the part goes on the turning ute (the game drops it in with sparks)
+// and the phone stamps it INSTALLED
+function onBought(j) {
+  if (j.why) { toast(j.why); return; }
+  buzz([20, 40, 20, 40, 60]);
+  stars($('wcash'), 20);
+  const isUte = shop.utes.some(u => u.id === j.id);
+  wPick = isUte ? j.id : '';
+  setTimeout(() => {
+    drawWallet();
+    const v = document.querySelector('#wview .uteview');
+    const st = v.querySelector('.stamp'), fl = v.querySelector('.flash');
+    st.textContent = isUte ? "IT'S YOURS" : 'INSTALLED';
+    for (const el of [st, fl]) { el.classList.remove('go'); void el.offsetWidth; el.classList.add('go'); }
+    stars(v, 26);
+  }, 120);
+}
 function showWalletBtn() { $('walletbtn').classList.toggle('on', screen === 'play' || screen === 'pause'); if (walletOpen && screen !== 'play' && screen !== 'pause') closeWallet(); if (screen === 'sign' && walletOpen) closeWallet(); }
 connect();
 </script>

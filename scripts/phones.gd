@@ -24,6 +24,10 @@ extends Node
 
 const Wallet := preload("res://scripts/wallet.gd")
 const CashArt := preload("res://scripts/cash_art.gd")
+const UtePreview := preload("res://scripts/ute_preview.gd")
+## Phones with the wallet shop's turning ute at once (each is a small
+## off-screen render)
+const MAX_PREVIEWS := 4
 
 const PORTS := [[8080, 8081], [8090, 8091], [8180, 8181], [18080, 18081]]
 const VIRTUAL := ["virtualbox", "vmware", "vethernet", "hyper-v", "wsl", "docker", "loopback", "bluetooth", "tailscale", "zerotier", "hamachi", "vpn", "tap-", "tun"]
@@ -116,6 +120,7 @@ func _process(delta: float) -> void:
 	_serve_http(delta)
 	_serve_ws()
 	_release_taps()
+	_send_previews(delta)
 	_cue_t -= delta
 	if _cue_t <= 0.0:
 		_cue_t = 0.1
@@ -257,6 +262,19 @@ func _on_message(c: Dictionary, msg: String) -> void:
 					game.hud.toast("%s bought a %s" % [bp.char_name, String(what.get("name", "")).to_lower()], 2.0)
 					game.sfx.hit("ding")
 				(c["ws"] as WebSocketPeer).send_text("J " + JSON.stringify({"t": "bought", "id": parts[1], "why": why}))
+				if why == "" and c.has("preview"):
+					if Wallet.ute(parts[1]).is_empty():
+						c["pv_id"] = ""
+						var w := Wallet.of(bp.char_id)
+						(c["preview"] as UtePreview).installed(String(w.get("ute", "")), Wallet.kit_on(bp.char_id), parts[1])
+					else:
+						_show_preview(c)
+			return
+		"preview":
+			# (what the wallet shop's showing: its tab and the item picked)
+			c["pv_tab"] = parts[1] if parts.size() >= 2 else ""
+			c["pv_id"] = parts[2] if parts.size() >= 3 else ""
+			_show_preview(c)
 			return
 		"order":
 			# A smoko order on climb days (scripts/smoko_run.gd)
@@ -266,7 +284,12 @@ func _on_message(c: Dictionary, msg: String) -> void:
 		"wallet":
 			# (the wallet's open: the chibi stands still meanwhile)
 			if c["player"] != null:
-				c["player"].set_meta("wallet_open", parts.size() >= 2 and parts[1] == "1")
+				var open := parts.size() >= 2 and parts[1] == "1"
+				c["player"].set_meta("wallet_open", open)
+				if open:
+					_show_preview(c)
+				else:
+					_drop_preview(c)
 			return
 		"ink":
 			if parts.size() >= 3 and c["player"] != null:
@@ -363,6 +386,7 @@ func _set_button(p, b: String, on: bool) -> void:
 		"Y": p.ai_slow = on
 
 func _release(c: Dictionary) -> void:
+	_drop_preview(c)
 	var p = c["player"]
 	if p != null and is_instance_valid(p):
 		p.ai_move = Vector2.ZERO
@@ -571,3 +595,49 @@ func connected_count() -> int:
 		if c["player"] != null:
 			n += 1
 	return n
+
+# ------------------------------------------------------------------ the wallet shop's turning ute
+
+## Shows this phone's turning ute: on the Utes tab the one they've picked
+## (with their kit if it's theirs), otherwise the ute they drive with the
+## kit they've picked as a preview.
+func _show_preview(c: Dictionary) -> void:
+	var p = c["player"]
+	if p == null or not is_instance_valid(p):
+		return
+	if not c.has("preview"):
+		if clients.filter(func(o): return o.has("preview")).size() >= MAX_PREVIEWS:
+			return
+		var pv := UtePreview.new()
+		add_child(pv)
+		c["preview"] = pv
+	var w := Wallet.of(p.char_id)
+	var tab: String = c.get("pv_tab", "")
+	var id: String = c.get("pv_id", "")
+	var ute: String = w.get("ute", "")
+	var kit: Array = Wallet.kit_on(p.char_id)
+	var look := ""
+	if tab == "utes" and not Wallet.ute(id).is_empty():
+		ute = id
+		kit = Array((w.get("kit", {}) as Dictionary).get(id, [])) if (w.get("utes", []) as Array).has(id) else []
+	elif tab in ["4x4", "camping"]:
+		look = id
+	if ute == "":
+		ute = String(Wallet.UTES[0]["id"])   # (no ute yet: see it on a Hilux)
+	(c["preview"] as UtePreview).show_ute(ute, kit, look)
+
+func _drop_preview(c: Dictionary) -> void:
+	if c.has("preview"):
+		(c["preview"] as Node).queue_free()
+		c.erase("preview")
+
+func _send_previews(delta: float) -> void:
+	for c in clients:
+		if not c.has("preview"):
+			continue
+		var buf: PackedByteArray = (c["preview"] as UtePreview).frame(delta)
+		var ws: WebSocketPeer = c["ws"]
+		# (a slow phone skips frames rather than queueing them)
+		if buf.is_empty() or ws.get_ready_state() != WebSocketPeer.STATE_OPEN or ws.get_current_outbound_buffered_amount() > 24000:
+			continue
+		ws.send_text("I " + Marshalls.raw_to_base64(buf))
