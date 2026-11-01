@@ -148,6 +148,11 @@ var _band_t := 0.0
 var _spill_t := 0.0
 var _spill_paid := false
 var _chute_shown_at := -1.0
+const CHUTE_R := [0.0, 0.08, 0.14, 0.22]  # the stream's thickness at each chute speed, m
+const CHUTE_COL := ["ff4d4d", "7fb2ff", "4cd964", "ff9f1a"]
+var _chute_tag: Label3D                  # the truck's chute speed, over the chute, while signalling
+var _hop_tag: Label3D                    # how full the hopper is, over it, while signalling
+var _chute_pulse := 0.0                  # the chute tag's bump when it changes
 var slump: Node
 const AGE_RATE := 0.75                   # docket minutes per game second
 const SAFE_BAR := 6.0                    # below this the line can be opened
@@ -616,6 +621,12 @@ func _build_pump() -> void:
 	chute_stream = F.cylinder(0.14, 1.0, F.color_mat(Color("6c6f73")), Vector3.ZERO, 8)
 	chute_stream.visible = false
 	add_child(chute_stream)
+	_chute_tag = F.label3d("", 56, Color.WHITE)
+	_chute_tag.visible = false
+	add_child(_chute_tag)
+	_hop_tag = F.label3d("", 48, Color.WHITE)
+	_hop_tag.visible = false
+	add_child(_hop_tag)
 	# Spotting a truck back: a stop line painted where its tail stops, and a
 	# big readout over the tail while someone's waving it on
 	spot_label = F.label3d("", 64, Color.WHITE)
@@ -1556,7 +1567,9 @@ func _update_trucks(delta: float) -> void:
 			_went_old(t)
 			st = t["state"]
 		var drum: Node3D = node.get_node("Drum")
-		drum.rotate_object_local(Vector3.RIGHT, delta * (3.0 if st == "pour" else 1.0))
+		# (the drum turns faster as the chute's opened up)
+		var spin := (3.0 * maxf(0.3, CHUTE[chute]) if chute_signalled() else 3.0) if st == "pour" else 1.0
+		drum.rotate_object_local(Vector3.RIGHT, delta * spin)
 		var lab: Label3D = node.get_node("Docket")
 		lab.text = ""
 		var ext: Node3D = node.get_node("ChuteExt")
@@ -1765,7 +1778,10 @@ func _update_trucks(delta: float) -> void:
 	for t in trucks:
 		if t["state"] == "pour":
 			feeding = t
-	chute_stream.visible = feeding != null and hopper < HOPPER_CAP - 0.02
+	# (the stream's as thick as the chute's open: what the pump operator's
+	# signals change, there to see)
+	var stream_r: float = CHUTE_R[chute] if chute_signalled() else 0.14
+	chute_stream.visible = feeding != null and hopper < HOPPER_CAP - 0.02 and stream_r > 0.0
 	if _hop_splash == null:
 		_hop_splash = _particles(30, 0.5, Vector3(0, 1, 0), 60.0, 1.0, 2.2, _blob(0.06, Color("6f7276")))
 		_hop_splash.position = HOPPER + Vector3(0.3, 1.0, 0)
@@ -1773,7 +1789,8 @@ func _update_trucks(delta: float) -> void:
 	if chute_stream.visible:
 		var side := _chute_side(feeding)
 		var mouth: Vector3 = (feeding["node"] as Node3D).global_transform * (Vector3(-5.4, 1.35, 1.55 * side) if side != 0.0 else Vector3(-4.5, 1.6, 0))
-		_line(chute_stream, mouth, HOPPER + Vector3(0.0, 1.2, 0), 0.14)
+		_line(chute_stream, mouth, HOPPER + Vector3(0.0, 1.2, 0), stream_r)
+	_signal_tags(feeding, delta)
 
 ## The chute running on trust while the slump test's done (from the moment
 ## the sample's in the barrow until the call, up to TRUST_M3).
@@ -1967,30 +1984,36 @@ func _pouring_truck() -> bool:
 	return false
 
 ## Holding Y at the panel: signalling the driver. The stick flicks the chute
-## up (faster) or down (slower), one step a flick.
+## up (faster) or down (slower), one step a flick. While Y's held they stand
+## still at the panel (between trucks too: the stick's the signal, not a walk),
+## and the chute's speed and the hopper's fill show big over each.
 func _chute_signal(p, delta: float) -> bool:
-	if p.bot or p.covering or not chute_signalled() or not _pouring_truck():
+	if p.bot or p.covering or not chute_signalled():
 		if p.busy == "chute":
 			_end_chute(p)
 		return false
+	var feeding := _pouring_truck()
 	var fill := hopper / HOPPER_CAP
 	if p.slow_held():
 		p.busy = "chute"   # (stands still: the stick's the signal now)
 		var v: Vector2 = p.move_input()
+		var was := chute
 		if _flick_ok and v.y < -0.6:
 			chute = mini(CHUTE.size() - 1, chute + 1)
 			_flick_ok = false
-			game.sfx.hit("tink")
 		elif _flick_ok and v.y > 0.6:
 			chute = maxi(0, chute - 1)
 			_flick_ok = false
-			game.sfx.hit("tink")
 		elif absf(v.y) < 0.3:
 			_flick_ok = true
+		if chute != was:
+			game.sfx.hit("tink")
+			_chute_pulse = 1.0
 		var right := fill >= HOP_BAND.x and fill <= HOP_BAND.y
-		p.cue("slow", "chute %s · stick up faster, down slower" % CHUTE_NAME[chute].to_lower(), -1.0, not right)
-		p.gold(not p.bot and right)
-		game.hud.show_meter(true, "HOPPER · CHUTE %s" % CHUTE_NAME[chute], "", HOP_BAND.x, HOP_BAND.y - HOP_BAND.x, fill, "Y")
+		var whose := "truck chute" if feeding else "next truck's chute"
+		p.cue("slow", "%s %s · stick up faster, down slower" % [whose, CHUTE_NAME[chute].to_lower()], -1.0, feeding and not right)
+		p.gold(not p.bot and feeding and right)
+		game.hud.show_meter(true, "HOPPER · TRUCK CHUTE %s" % CHUTE_NAME[chute], "", HOP_BAND.x, HOP_BAND.y - HOP_BAND.x, fill, "Y")
 		_chute_shown_at = game.phase_t
 		# Arm up and rolling for faster, flat hand patting down for slower
 		var up := chute >= 2
@@ -1999,9 +2022,35 @@ func _chute_signal(p, delta: float) -> bool:
 		return true
 	if p.busy == "chute":
 		_end_chute(p)
+	if not feeding:
+		return false
 	var off := fill < HOP_BAND.x or fill > HOP_BAND.y
-	p.cue("slow", "signal the chute", -1.0, off)
+	p.cue("slow", "signal the truck chute", -1.0, off)
 	return false
+
+## While the pump operator's signalling (holding Y): the chute's speed over the
+## truck's chute, and the hopper's fill over the hopper, green between the
+## lines, so what the stick changes is there in the world.
+func _signal_tags(feeding, delta: float) -> void:
+	var op = game.crew.crew.get("pump") if game.crew else null
+	var on: bool = op != null and is_instance_valid(op) and op.busy == "chute"
+	_chute_tag.visible = on
+	_hop_tag.visible = on
+	_chute_pulse = maxf(0.0, _chute_pulse - delta * 3.0)
+	if not on:
+		return
+	var at := HOPPER + Vector3(0, 4.2, 0)
+	if feeding != null:
+		var side := _chute_side(feeding)
+		at = (feeding["node"] as Node3D).global_transform * (Vector3(-5.4, 1.35, 1.55 * side) if side != 0.0 else Vector3(-4.5, 1.6, 0)) + Vector3(0, 2.4, 0)
+	_chute_tag.position = at
+	_chute_tag.text = ("CHUTE: %s" if feeding != null else "NEXT TRUCK: %s") % CHUTE_NAME[chute]
+	_chute_tag.modulate = Color(CHUTE_COL[chute])
+	_chute_tag.scale = Vector3.ONE * (1.0 + 0.35 * _chute_pulse)
+	var fill := hopper / HOPPER_CAP
+	_hop_tag.position = HOPPER + Vector3(0, 2.6, 0)
+	_hop_tag.text = "HOPPER %d%%" % int(fill * 100.0)
+	_hop_tag.modulate = Color("4cd964") if fill >= HOP_BAND.x and fill <= HOP_BAND.y else (Color("ff4d4d") if fill > HOP_BAND.y else Color("ffc72c"))
 
 func _end_chute(p) -> void:
 	p.busy = ""
