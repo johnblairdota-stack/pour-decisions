@@ -49,7 +49,7 @@ const LOAD := {"canopy": [150.0, 1.3], "rooftent": [65.0, 2.1], "roofrack": [28.
 	"winch": [42.0, 0.6], "bullbar": [65.0, 0.7], "lightbar": [6.0, 1.9], "spotlights": [8.0, 0.9], "snorkel": [4.0, 1.4]}
 
 const LIFT_TRAVEL := 0.035   # and the longer shocks' extra travel each way
-const SNORKEL_WADE := 1.15   # the intake up at the roof (m of water)
+const SNORKEL_WADE := 1.35   # the intake up at the roof (m of water)
 
 ## Everything about one ute with its kit, worked out once when you get in.
 ## `ride` is how much higher the kit sits it (utes.gd apply_kit's "ride").

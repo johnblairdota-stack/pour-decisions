@@ -248,8 +248,7 @@ func air_near(p: Vector2) -> bool:
 	return false
 
 ## A FREE AIR post just in off the road at each way in: a compressor box on a
-## pole, the hose coiled on it, a sign. (A stand-in till the asset thread's
-## model lands.)
+## pole, the hose coiled on it, a sign (props.glb "AirPost").
 func _build_air() -> void:
 	for k in WAY_IN:
 		var w: Array = WAY_IN[k]
@@ -258,31 +257,12 @@ func _build_air() -> void:
 		var side := Vector2(-dir.y, dir.x)
 		var at: Vector2 = a + dir * 13.0 + side * (TRACK_W * 0.5 + 1.6)
 		air_posts.append(at)
-		var post := Node3D.new()
+		var post := F.prop("AirPost")
 		post.name = "AirPost"
 		post.position = Vector3(at.x, height(at), at.y)
+		# (dial to the track)
 		post.rotation.y = atan2(-side.x, -side.y)
 		add_child(post)
-		post.add_child(F.box(Vector3(0.12, 1.6, 0.12), F.color_mat(Color("3a3e44")), Vector3(0, 0.8, 0)))
-		post.add_child(F.box(Vector3(0.5, 0.42, 0.32), F.color_mat(Color("1f5fae")), Vector3(0, 1.05, 0.12)))
-		var coil := MeshInstance3D.new()
-		var tm := TorusMesh.new()
-		tm.inner_radius = 0.13
-		tm.outer_radius = 0.19
-		coil.mesh = tm
-		coil.material_override = F.color_mat(Color("1e1e1e"))
-		coil.rotation.x = PI * 0.5
-		coil.position = Vector3(0, 0.62, 0.1)
-		post.add_child(coil)
-		var l := Label3D.new()
-		l.text = "FREE AIR"
-		l.font_size = 64
-		l.pixel_size = 0.005
-		l.outline_size = 10
-		l.modulate = Color("ffe08a")
-		l.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
-		l.position.y = 1.85
-		post.add_child(l)
 
 ## Which way's up off the ground at `p`.
 func normal(p: Vector2) -> Vector3:

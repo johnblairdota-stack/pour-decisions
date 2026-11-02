@@ -25,11 +25,11 @@ const UTES := [
 ]
 ## 4x4 and camping kit. `needs` is kit that has to be on the ute first.
 const KIT := [
-	{"id": "mudtyres", "name": "Mud-terrain tyres", "price": 2400, "shop": "4x4", "line": "Big tread for the boat ramp and the beach."},
-	{"id": "lift", "name": "2-inch lift kit", "price": 3500, "shop": "4x4", "line": "Springs and shocks: sits higher, clears more."},
-	{"id": "bullbar", "name": "Steel bull bar", "price": 2800, "shop": "4x4", "line": "Roo bar, recovery points, a mount for the winch."},
+	{"id": "mudtyres", "name": "Mud-terrain tyres", "price": 2400, "shop": "4x4", "line": "Big tread: bites harder in the mud and up the hill."},
+	{"id": "lift", "name": "2-inch lift kit", "price": 3500, "shop": "4x4", "line": "50 mm higher, more wheel travel: clears crests and ruts. Leans more on the road."},
+	{"id": "bullbar", "name": "Steel bull bar", "price": 2800, "shop": "4x4", "line": "Takes the hit off the front in a crash, and mounts the winch."},
 	{"id": "winch", "name": "12,000 lb winch", "price": 1900, "shop": "4x4", "line": "Pulls you out when the track wins.", "needs": "bullbar"},
-	{"id": "snorkel", "name": "Snorkel", "price": 650, "shop": "4x4", "line": "Clean air for the motor, river crossings."},
+	{"id": "snorkel", "name": "Snorkel", "price": 650, "shop": "4x4", "line": "Air intake up at the roof: wade the Dam's deep end without drowning it."},
 	{"id": "lightbar", "name": "LED light bar", "price": 700, "shop": "4x4", "line": "Turns night into day on the dirt."},
 	{"id": "spotlights", "name": "Driving lights", "price": 900, "shop": "4x4", "line": "A pair of spotties on the bar.", "needs": "bullbar"},
 	{"id": "roofrack", "name": "Roof rack", "price": 1300, "shop": "camping", "line": "A flat platform up top for the big gear."},

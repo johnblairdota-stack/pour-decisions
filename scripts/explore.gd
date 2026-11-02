@@ -1597,7 +1597,7 @@ func _offroad_tick(c: Dictionary, surf: String, gas: float, dt: float) -> void:
 			# low; too fast and it comes over the bonnet)
 			var bow := 0.0
 			if spd > 2.8:
-				bow = 0.025 * (spd - 2.8) * (spd - 2.8)
+				bow = 0.012 * (spd - 2.8) * (spd - 2.8)
 			elif spd > 1.0:
 				bow = -0.06
 			var at := deep + bow
@@ -2367,6 +2367,11 @@ func _place_car(c: Dictionary, dt: float) -> void:
 	if surf in ["dirt", "grass", "sand", "mud"] and not c.get("air", false):
 		# (the little stuff under the tyres: ruts, tussocks, stones)
 		bump = {"dirt": 0.035, "grass": 0.02, "sand": 0.015, "mud": 0.03}[surf] * clampf(speed / 6.0, 0.0, 1.0)
+	var psi_now: float = c.get("psi", Offroad.PSI_ROAD)
+	var aired: bool = psi_now < 26.0 or c.get("flat", "") != ""
+	if c.has("kit"):
+		Utes.air(n, c["name"], aired, "mudtyres" in c["kit"])
+	var ys := [0.0, 0.0, 0.0, 0.0]
 	for i in 4:
 		var w: String = ["FL", "FR", "RL", "RR"][i]
 		var steer := n.get_node(w) as Node3D
@@ -2374,15 +2379,23 @@ func _place_car(c: Dictionary, dt: float) -> void:
 			var q := p + Vector2(steer.position.x, steer.position.z).rotated(-float(c["yaw"]))
 			var jig := bump * sin(q.x * 3.1 + q.y * 2.3) * cos(q.y * 4.7 - q.x * 1.3)
 			var flat: bool = c.get("flat", "") == w
-			# (aired down the tyres bag out; a flat one sits on its rim)
-			var psi: float = c.get("psi", Offroad.PSI_ROAD)
-			var sag := 0.14 if flat else clampf((Offroad.PSI_ROAD - psi) / 20.0, 0.0, 1.0) * 0.05
-			steer.position.y = float(wy0[i]) * (1.0 - sag) + float(woff[i]) + jig - float(c.get("dig", 0.0)) * 0.4
+			# (aired down the tread sits lower; a flat one's down on its rim)
+			var sag := 0.12 if flat else 0.0
+			steer.position.y = float(wy0[i]) * (1.0 - sag) - (Utes.LOW_DROP if aired else 0.0) + float(woff[i]) + jig \
+				- float(c.get("dig", 0.0)) * 0.4
 			steer.scale = Vector3(1.0 + sag * 0.6, 1.0 - sag, 1.0 - sag)
+			ys[i] = steer.position.y
 		steer.rotation.y = -float(c["steer"]) if w.begins_with("F") else 0.0
 		# (a wheel knocked out of line leans in)
 		steer.rotation.z = float(bent[w]) * (1.0 if steer.position.x > 0.0 else -1.0)
 		(steer.get_node("Spin") as Node3D).rotation.x = c["spin"]
+	# the live rear axle rolls with the back wheels (the Shark's independent:
+	# its motor housing stays with the body)
+	var ax := n.get_node_or_null("AxleR") as Node3D
+	if ax != null and wy0.size() == 4 and c["name"] != "Shark":
+		var tr: float = Utes.SPEC[c["name"]]["track"]
+		ax.position.y = (float(ys[2]) + float(ys[3])) * 0.5
+		ax.rotation.z = atan2(float(ys[2]) - float(ys[3]), tr)
 
 func _smoke_at(c: Dictionary) -> void:
 	if _smoke.size() > 40 or randf() > 0.6:
@@ -3413,8 +3426,8 @@ func _demo_park(t: float) -> void:
 				_cam_yaw = float(car["yaw"]) + PI + 1.0
 				_rmb = true
 				_shot("park_dam")
-			if _demo_follow(route, 18.0) or t > 30.0:
-				print("[explore] dam done %s" % _park_done.has("dam"))
+			if _demo_follow(route, 10.0) or t > 30.0:
+				print("[explore] dam done %s, drowned %s" % [_park_done.has("dam"), car["drowned"]])
 				_rmb = false
 				_demo_place(Vector2(-180.0, 162.0), Vector2(-200.0, 142.0))
 				_demo_dv["wp"] = 1
@@ -3478,10 +3491,15 @@ func _demo_4x4(t: float) -> void:
 			var at: Vector2 = car["pos"]
 			var yw: float = car["yaw"]
 			var side := Vector2(cos(yw), -sin(yw))
-			var eye := at + side * 6.5 + Vector2(sin(yw), cos(yw)) * 2.5
-			_demo_dv["cam"] = [Vector3(eye.x, park.height(at) + 1.2, eye.y), Vector3(at.x, park.height(at) + 0.5, at.y)]
-			if t > 1.2:
+			# (from the downhill side, looking up under the arches)
+			if park.height(at - side * 7.0) < park.height(at + side * 7.0):
+				side = -side
+			var eye := at + side * 7.5 + Vector2(sin(yw), cos(yw)) * 2.0
+			var gy := float(car["y"])
+			_demo_dv["cam"] = [Vector3(eye.x, maxf(park.height(eye) + 1.0, gy + 0.9), eye.y), Vector3(at.x, gy + 0.6, at.y)]
+			if t > 1.2 and not _shots.has("4x4_twist"):
 				_shot("4x4_twist")
+			if t > 1.8:
 				print("[explore] twist: lift %s woff %s raise %.2f" % [car["lift"], car["woff"], car["raise"]])
 				print("[explore] twist node %s cam %s air %s y %.2f" % [(car["node"] as Node3D).global_position, cam.global_position, car["air"], car["y"]])
 				_demo_dv.erase("cam")
