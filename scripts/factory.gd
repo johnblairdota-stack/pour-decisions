@@ -173,7 +173,7 @@ const CREW_COLORS := {
 	"splat": Color("a9adb3"),
 }
 ## Small or painted-on parts: no outline (it would swallow them)
-const CREW_NO_OUTLINE := ["nose", "eye", "eye_hi", "cheek", "mouth", "tape", "pocket", "splat", "docket",
+const CREW_NO_OUTLINE := ["air_text", "nose", "eye", "eye_hi", "cheek", "mouth", "tape", "pocket", "splat", "docket",
 	"wet", "wet_crust", "chain", "rope", "fence_wire", "barrier", "band", "lamp", "sign_blue", "rebar"]
 ## What each job wears (role keys as in crew.gd)
 const CREW_KIT := {
@@ -221,6 +221,8 @@ const PROP_COLORS := {
 	# Washout and finishing (tools/blender/props.py)
 	"foam": Color("e0412f"), "foam_dark": Color("b8301f"), "hose": Color("2f5d3a"), "nozzle": Color("ffc72c"),
 	"brass": Color("c9a24a"),
+	# The 4x4 park's free air post and deflator (tools/blender/props.py)
+	"air_red": Color("d8342c"), "air_text": Color("d8342c"), "air_sign": Color("f4f7fa"), "gauge_face": Color("f4f7fa"),
 	# Smoko (tools/blender/smoko.py)
 	"van": Color("f2efe6"), "van_stripe": Color("5a3a26"), "van_trim": Color("2b2e33"), "awning_a": Color("f4f7fa"),
 	"awning_b": Color("c8402e"), "van_inside": Color("3a2a20"), "counter": Color("b98a55"), "menu": Color("26302b"),

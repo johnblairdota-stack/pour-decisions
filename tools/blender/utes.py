@@ -18,6 +18,24 @@ For each:
   <Name>Body    without its wheels, for driving: the game spins and steers
   <Name>Wheel   one wheel, centred, axle along x, rim face towards +x
   <Name>Lite    a lighter whole ute for the far kerbs and the traffic
+  <Name>Under   what's under it, for the Body: chassis rails and cross
+                members, the front diff and its half shafts, control arms and
+                coil-overs, the sump guard (the Shark: its battery pack),
+                gearbox and transfer case, tailshafts, fuel tank, exhaust and
+                the tow bar. Same origin as the Body; parent it to the Body.
+  <Name>AxleR   the rear axle, origin at the axle's centre (put it at
+                (0, r, zr) and roll it with the rear wheels): the Hilux and
+                Ranger a live beam axle with its diff pumpkin, drums, leaf
+                springs and shocks; the Shark (independent rear) its e-motor
+                and diff housing, half shafts, arms and coil springs.
+  <Name>WheelLow    the wheel aired down to about 18 psi: a little lower,
+                the sidewalls bulged; round all the way, so it can spin
+  <Name>WheelBulge  the aired-down tyre's squashed bottom: the flat contact
+                patch and the sidewall bulge over it. Doesn't spin: put it at
+                the hub, not under the spinning wheel.
+
+The arches are deep wells with a dark liner and an inner wall, room for the
+wheels to ride 13 cm up into them (the flares cover the tyre's top).
 
 Each model's origin is on the road under its middle, front towards +z, as
 tools/blender/cars.py. Paint is "body" (the game picks the colour); the
@@ -28,7 +46,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
-from kit import Piece, box, build, cylinder, export_glb, lathe, reset, tri_count, tube  # noqa: E402
+from kit import Piece, box, build, cylinder, export_glb, lathe, reset, sphere, tri_count, tube  # noqa: E402
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 OUT = os.path.join(ROOT, "assets", "cars", "utes.glb")
@@ -37,6 +55,8 @@ PALETTE = {
 	"body": "f4f4f2", "glass": "26323d", "tyre": "1e1e1e", "rim": "b9bfc4", "rim_dark": "3a3e44", "light": "eef3f6",
 	"drl": "ffffff", "tail": "c8282a", "amber": "ff9a1f", "trim": "25282c", "chrome": "d8dde2", "grille": "1a1c1f",
 	"plate": "f4f4f2", "liner": "2c2e31", "skid": "9aa0a6", "badge": "d8dde2", "ford_blue": "1f4f9a",
+	"chassis": "26282b", "diff": "4a4d52", "spring": "1b1d20", "shock": "3a3e44", "drum": "6b6460",
+	"exhaust": "8a847b", "battery": "39424d", "well": "1c1d1f",
 }
 
 # The three utes, in metres off their brochures (length, width, height,
@@ -238,8 +258,7 @@ def body(name, s, lite=False):
 
 	# arch liners (dark, so you don't see through to the far wheel) and flares
 	for z in (zf, zr):
-		p.append(cylinder(R - 0.01, 2 * hw - 0.06, "liner", 12 if lite else 20).rot("z", math.pi / 2)
-			.move(hw - 0.03, r, z))
+		p += wells(s, z, R, lite)
 		for side in (1, -1):
 			fl = arc(z, r, R + s["flare_w"] * 2.4, -98, 98, 10 if not lite else 6)
 			inner = arc(z, r, R, 98, -98, 10 if not lite else 6)
@@ -451,6 +470,251 @@ def _shark_face(p, s, hw, nz, tz, top, lite):
 
 # ------------------------------------------------------------------ main
 
+# ------------------------------------------------------------------ under it
+
+TRAVEL = 0.13       # how far a wheel rides up into its arch (m)
+
+
+def wells(s, z, R, lite):
+	"""The wheel arch wells, both sides: a dark liner arching over the wheel
+	with room for it to ride TRAVEL up, and an inner wall so you can't see
+	through to the other side."""
+	r = s["r"]
+	Rw = R + TRAVEL - 0.02
+	n = 8 if lite else 14
+	# (down each side only as far as the body's bottom edge, so no black
+	# shows below it beside the wheel)
+	a = math.degrees(math.acos(max(-1.0, min(1.0, (0.46 - r) / Rw))))
+	out = []
+	for side in (1, -1):
+		xi = s["track"] / 2 - s["tw"] / 2 - 0.05
+		xo = s["hw"] - 0.015
+		shell = arc(z, r, Rw + 0.015, -a, a, n) + arc(z, r, Rw, a, -a, n)
+		lo, hi = (xi, xo) if side > 0 else (-xo, -xi)
+		out.append(profile_x(_ccw(shell), lo, hi, "well"))
+		wall = arc(z, r, Rw + 0.015, -a, a, n)
+		wx = side * xi
+		out.append(profile_x(_ccw(wall), min(wx, wx - side * 0.015), max(wx, wx - side * 0.015), "liner"))
+	return out
+
+
+def _rail_path(s):
+	"""The chassis rail's line, nose to tail (z, y of its middle): level under
+	the cab, kicking up over the rear axle."""
+	L, r = s["L"], s["r"]
+	zf = L / 2 - s["front"]
+	zr = zf - s["wb"]
+	y = r + 0.14
+	return [(L / 2 - 0.3, y + 0.04), (zf - 0.5, y), (zr + 0.75, y), (zr + 0.35, y + 0.12), (zr - 0.35, y + 0.12),
+		(zr - 0.7, y + 0.06), (-L / 2 + 0.2, y + 0.06)]
+
+
+def _beam(a, b, sx, sy, mat, bevel=0.01):
+	"""A box beam from a to b (in a z-y plane at a's x)."""
+	dz, dy = b[2] - a[2], b[1] - a[1]
+	ln = math.hypot(dz, dy)
+	return box(sx, sy, ln + sy * 0.5, mat, bevel=bevel).rot("x", -math.atan2(dy, dz)).move(
+		a[0], (a[1] + b[1]) / 2, (a[2] + b[2]) / 2)
+
+
+def under(name, s, lite=False):
+	L, r, hw = s["L"], s["r"], s["hw"]
+	nz, tz = L / 2, -L / 2
+	zf = nz - s["front"]
+	zr = zf - s["wb"]
+	hub = s["track"] / 2 - s["tw"] / 2 - 0.04
+	p = []
+	path = _rail_path(s)
+	rx = 0.46
+	# the ladder: two rails, cross members, body mounts
+	for side in (1, -1):
+		for (z0, y0), (z1, y1) in zip(path, path[1:]):
+			p.append(_beam((side * rx, y0, z0), (side * rx, y1, z1), 0.07, 0.17, "chassis"))
+		for z in (zf + 0.35, zf - 0.75, zr + 1.2, zr - 0.95):
+			p.append(box(0.12, 0.04, 0.1, "chassis", bevel=0.01, at=(side * (rx + 0.08), r + 0.22, z)))
+	for z, y in ((nz - 0.32, r + 0.18), (zf - 0.45, r + 0.12), (zf - 1.25, r + 0.1), (zr + 0.85, r + 0.12),
+			(zr - 0.75, r + 0.2), (tz + 0.25, r + 0.2)):
+		p.append(box(2 * rx, 0.09, 0.08, "chassis", bevel=0.01, at=(0, y, z)))
+	# the front: the diff off-centre, half shafts out to the hubs, the lower
+	# arms and the coil-overs (independent front suspension on all three)
+	dx = 0.07
+	p.append(lathe([(0.0, -0.11), (0.1, -0.1), (0.13, 0.0), (0.1, 0.1), (0.0, 0.11)], 12 if lite else 18, "diff")
+		.rot("z", math.pi / 2).move(dx, r + 0.01, zf))
+	p.append(tube([(dx, r + 0.03, zf + 0.05), (dx, r + 0.1, zf - 0.45)], 0.05, "diff", 8))
+	for side in (1, -1):
+		p.append(tube([(dx + side * 0.1, r + 0.01, zf), (side * hub, r, zf)], 0.028, "spring", 8))
+		p.append(cylinder(0.06, 0.08, "spring", 10).rot("z", math.pi / 2).move(side * (hub * 0.6 + 0.04), r, zf))
+		for dz in (0.16, -0.16):
+			p.append(tube([(side * (rx - 0.02), r + 0.03, zf + dz), (side * (hub - 0.04), r - 0.05, zf + dz * 0.2)],
+				0.024, "chassis", 6))
+		p.append(tube([(side * (hub - 0.12), r - 0.02, zf - 0.04), (side * (rx + 0.04), r + 0.42, zf - 0.08)],
+			0.045, "shock", 8))
+		p.append(tube([(side * (hub - 0.11), r + 0.08, zf - 0.04), (side * (rx + 0.03), r + 0.36, zf - 0.08)],
+			0.07, "spring", 8))
+		p.append(tube([(side * (rx - 0.02), r + 0.1, zf - 0.22), (side * (hub - 0.08), r + 0.05, zf - 0.18)],
+			0.012, "chassis", 5))
+	# the steering rack
+	p.append(tube([(-hub + 0.12, r + 0.04, zf - 0.2), (hub - 0.12, r + 0.04, zf - 0.2)], 0.026, "diff", 8))
+	if name == "Shark":
+		# the battery pack between the axles, flat under the floor
+		p.append(box(1.25, 0.12, zf - zr - 1.0, "battery", bevel=0.03, at=(0, r + 0.02, (zf + zr) / 2 + 0.05)))
+		for k in range(6):
+			z = zr + 0.75 + k * (zf - zr - 1.4) / 5
+			p.append(box(1.2, 0.012, 0.03, "chassis", at=(0, r - 0.045, z)))
+		# the engine's sump guard, and the front e-motor
+		p.append(box(0.72, 0.012, 0.75, "skid", bevel=0.004, at=(0, r - 0.04, zf + 0.12)))
+		p.append(box(0.32, 0.26, 0.3, "battery", bevel=0.03, at=(-0.12, r + 0.1, zf - 0.32)))
+	else:
+		# the sump guard: a bash plate from the bumper back under the engine,
+		# its front turned up, with drain holes
+		g = box(0.78, 0.012, 1.15, "skid", bevel=0.004, at=(0, r - 0.05, zf + 0.25))
+		g.warp(lambda v: (v.x, v.y + max(0.0, v.z - (zf + 0.6)) * 0.55, v.z))
+		p.append(g)
+		for hx, hz in ((-0.18, zf + 0.1), (0.18, zf + 0.1), (0.0, zf - 0.15)):
+			p.append(cylinder(0.035, 0.004, "chassis", 10).move(hx, r - 0.06, hz))
+		# gearbox and transfer case, the tailshafts front and back
+		p.append(lathe([(0.0, 0.0), (0.16, 0.05), (0.13, 0.55), (0.0, 0.6)], 12 if lite else 16, "diff")
+			.rot("x", -math.pi / 2).move(0.0, r + 0.22, zf - 0.55))
+		p.append(box(0.3, 0.22, 0.28, "diff", bevel=0.03, at=(0.04, r + 0.12, zf - 1.3)))
+		p.append(tube([(0.07, r + 0.08, zf - 1.2), (dx, r + 0.07, zf - 0.5)], 0.03, "spring", 8))
+		p.append(tube([(0.0, r + 0.12, zf - 1.45), (0.0, r + 0.04, zr + 0.28)], 0.038, "spring", 8))
+		p.append(cylinder(0.05, 0.05, "diff", 10).rot("x", math.pi / 2).move(0, r + 0.08, zf - 1.42))
+	# fuel tank on the left, the exhaust down the right with its muffler
+	p.append(box(0.42, 0.24, 0.62, "chassis", bevel=0.04, at=(-0.22 if name != "Shark" else -0.3, r + 0.2,
+		zr + 0.85)))
+	ex = [(0.18, r + 0.18, zf - 0.9), (0.28, r + 0.09, zf - 1.5), (0.3, r + 0.09, zr + 1.1),
+		(0.3, r + 0.1, zr + 0.45), (0.32, r + 0.28, zr), (0.32, r + 0.16, zr - 0.5), (0.55, r + 0.12, zr - 0.95)]
+	p.append(tube(ex, 0.03, "exhaust", 8))
+	p.append(lathe([(0.0, 0.0), (0.12, 0.02), (0.12, 0.5), (0.0, 0.52)], 12, "exhaust").rot("x", math.pi / 2)
+		.move(0.29, r + 0.1, zr + 1.05))
+	# the tow bar: a cross bar between the rails, the receiver, the tongue and
+	# ball, the safety chain loops and the trailer plug
+	ty = r + 0.1
+	p.append(box(2 * rx + 0.1, 0.07, 0.07, "chassis", bevel=0.01, at=(0, ty, tz + 0.18)))
+	for side in (1, -1):
+		p.append(box(0.05, 0.16, 0.25, "chassis", at=(side * rx, ty + 0.08, tz + 0.27)))
+	p.append(box(0.075, 0.075, 0.42, "chassis", bevel=0.008, at=(0, ty, tz + 0.06)))
+	p.append(box(0.055, 0.055, 0.3, "chassis", bevel=0.006, at=(0, ty, tz - 0.2)))
+	p.append(box(0.12, 0.02, 0.12, "chassis", bevel=0.005, at=(0, ty + 0.03, tz - 0.32)))
+	p.append(cylinder(0.014, 0.05, "chrome", 8).move(0, ty + 0.04, tz - 0.32))
+	p.append(lathe([(0.0, -0.025), (0.025, 0.0), (0.0, 0.025)], 12, "chrome").move(0, ty + 0.115, tz - 0.32))
+	for side in (1, -1):
+		p.append(tube([(side * 0.06, ty - 0.03, tz - 0.08), (side * 0.09, ty - 0.07, tz - 0.12),
+			(side * 0.06, ty - 0.07, tz - 0.16), (side * 0.04, ty - 0.03, tz - 0.12)], 0.009, "chassis", 5))
+	p.append(box(0.06, 0.06, 0.04, "trim", bevel=0.01, at=(0.16, ty + 0.02, tz + 0.02)))
+	return p
+
+
+def axle_rear(name, s, lite=False):
+	"""Round the axle's centre (0, 0, 0): x across, z forward."""
+	r = s["r"]
+	hub = s["track"] / 2 - s["tw"] / 2 - 0.04
+	p = []
+	segs = 12 if lite else 18
+	if name == "Shark":
+		# independent rear: the e-motor and diff in one housing, half shafts
+		# with their CV boots, the lower arms, coil springs and shocks
+		p.append(box(0.42, 0.26, 0.36, "diff", bevel=0.04, at=(0, 0.04, 0.02)))
+		p.append(cylinder(0.14, 0.3, "battery", segs).rot("z", math.pi / 2).move(0.15, 0.06, 0.12))
+		for side in (1, -1):
+			p.append(tube([(side * 0.2, 0.0, 0.0), (side * hub, 0.0, 0.0)], 0.026, "spring", 8))
+			for f in (0.28, 0.85):
+				p.append(lathe([(0.0, -0.04), (0.05, -0.02), (0.05, 0.02), (0.0, 0.04)], 10, "spring")
+					.rot("z", math.pi / 2).move(side * (0.2 + (hub - 0.2) * f), 0, 0))
+			p.append(cylinder(0.14, 0.05, "drum", segs).rot("z", math.pi / 2).move(side * (hub - 0.04), 0, 0))
+			for dz in (0.2, -0.18):
+				p.append(tube([(side * 0.3, -0.04, dz), (side * (hub - 0.06), -0.08, dz * 0.25)], 0.022, "chassis", 6))
+			p.append(tube([(side * (hub - 0.16), -0.06, -0.06), (side * (hub - 0.2), 0.36, -0.06)], 0.065, "spring", 8))
+			p.append(tube([(side * (hub - 0.1), -0.04, 0.08), (side * (hub - 0.14), 0.38, 0.1)], 0.035, "shock", 8))
+		return p
+	# a live beam axle: the tubes, the pumpkin with its ribbed cover at the
+	# back and the pinion snout forward, brake drums at the ends
+	p.append(cylinder(0.045, 2 * hub - 0.1, "diff", 12).rot("z", math.pi / 2).move(hub - 0.05, 0, 0))
+	for side in (1, -1):
+		p.append(lathe([(0.045, 0.0), (0.075, 0.22), (0.045, 0.3)], 12, "diff", cap_top=False, cap_bottom=False)
+			.rot("z", -side * math.pi / 2).move(side * 0.12, 0, 0))
+	p.append(sphere(0.15, "diff", segs, 10, s=(1.0, 0.95, 0.85)).move(0.05, -0.01, 0.0))
+	p.append(lathe([(0.0, 0.0), (0.13, 0.0), (0.12, 0.05), (0.0, 0.07)], segs, "diff").rot("x", -math.pi / 2)
+		.move(0.05, -0.01, -0.1))
+	for k in range(4):
+		p.append(box(0.012, 0.16, 0.02, "chassis", at=(0.0 + k * 0.035, -0.01, -0.165)))
+	p.append(lathe([(0.0, 0.0), (0.07, 0.0), (0.055, 0.18), (0.06, 0.2), (0.075, 0.24), (0.0, 0.25)], 12, "diff")
+		.rot("x", -math.pi / 2).rot("x", math.pi).move(0.05, 0.0, 0.08))
+	for side in (1, -1):
+		p.append(cylinder(0.14, 0.09, "drum", segs).rot("z", math.pi / 2).move(side * hub + (0.0 if side > 0 else 0.09), 0, 0))
+		for k in range(5):
+			p.append(box(0.012, 0.02, 0.28, "drum", at=(side * (hub - 0.05), 0.0, 0.0)).rot("x", k * math.pi / 5)
+				.move(0, 0, 0))
+	# leaf springs: a pack of leaves, longest on top, arched with eyes at
+	# their ends, clamped to the axle by U-bolts; shocks angled up to the rails
+	for side in (1, -1):
+		x = side * 0.48
+		for k, half in enumerate((0.7, 0.6, 0.48, 0.34, 0.22)):
+			y = 0.065 - k * 0.016
+			pts = []
+			for i in range(11):
+				t = -1 + 2 * i / 10
+				pts.append((t * half, y + 0.17 * (t * half / 0.7) ** 2))
+			for (z0, y0), (z1, y1) in zip(pts, pts[1:]):
+				p.append(_beam((x, y0, z0), (x, y1, z1), 0.07, 0.013, "spring", bevel=0.0))
+		for zz in (-0.7, 0.7):
+			p.append(cylinder(0.025, 0.08, "spring", 8).rot("z", math.pi / 2).move(x + 0.04, 0.24, zz))
+		for dx in (-0.045, 0.045):
+			p.append(tube([(x + dx, 0.1, -0.05), (x + dx, -0.06, -0.05), (x + dx, -0.06, 0.05), (x + dx, 0.1, 0.05)],
+				0.008, "chassis", 5))
+		p.append(box(0.1, 0.03, 0.14, "chassis", at=(x, -0.05, 0.0)))
+		sx = side * (0.48 - 0.12)
+		p.append(tube([(sx, -0.04, -0.12 * side), (sx + side * 0.05, 0.4, -0.2 * side)], 0.032, "shock", 8))
+		p.append(tube([(sx, 0.02, -0.12 * side), (sx + side * 0.03, 0.22, -0.16 * side)], 0.042, "shock", 8))
+	# the breather hose and the brake line along the housing
+	p.append(tube([(0.15, 0.13, 0.0), (0.2, 0.3, 0.08)], 0.008, "spring", 4))
+	p.append(tube([(-hub + 0.1, 0.05, 0.03), (hub - 0.1, 0.05, 0.03)], 0.005, "chassis", 4))
+	return p
+
+
+# ------------------------------------------------------------------ aired down
+
+LOW_DROP = 0.035      # how much lower the aired-down tyre's tread sits
+LOW_BULGE = 0.022     # how far each sidewall bows out
+
+
+def air_down(pieces, r, rim_r, w, mat="tyre"):
+	"""Lets the air out of a wheel's tyre pieces, the same all round so it can
+	still spin: the tread drops LOW_DROP and the sidewalls bow out."""
+	def fn(v):
+		d = math.hypot(v.y, v.z)
+		if d < rim_r * 0.98 or d < 1e-6:
+			return (v.x, v.y, v.z)
+		t = max(0.0, min(1.0, (d - rim_r) / (r - rim_r)))
+		nd = d - LOW_DROP * t
+		k = nd / d
+		side = 1.0 if v.x > 0 else -1.0
+		bul = LOW_BULGE * math.sin(math.pi * min(1.0, t * 1.15)) * min(1.0, abs(v.x) / (w * 0.35))
+		return (v.x + side * bul, v.y * k, v.z * k)
+	for pc in pieces:
+		if pc.mat == mat:
+			pc.warp(fn)
+	return pieces
+
+
+def bulge(r, w, mat="tyre", lite=False):
+	"""The bottom of an aired-down tyre, which doesn't turn: the flat patch on
+	the ground and the sidewalls bagging out over it. Round the hub."""
+	p = []
+	y = -(r - LOW_DROP)          # where the ground is
+	patch = 0.32
+	p.append(box(w + 0.01, 0.06, patch, mat, bevel=0.02, at=(0, y + 0.03, 0)))
+	n = 6 if lite else 10
+	for side in (1, -1):
+		pts = []
+		for i in range(n + 1):
+			a = math.radians(-34 + 68 * i / n)
+			rr = r - LOW_DROP - 0.065
+			pts.append((side * (w / 2 + LOW_BULGE * 0.6), -math.cos(a) * rr, math.sin(a) * rr))
+		p.append(tube(pts, lambda t: 0.028 + 0.03 * math.sin(math.pi * t), mat, 8))
+	return p
+
+
 def main():
 	reset()
 	made = []
@@ -459,6 +723,10 @@ def main():
 		made.append(put(name + "Wheel", wheel(s)))
 		made.append(put(name, body(name, s) + wheels_at(s, False)))
 		made.append(put(name + "Lite", body(name, s, True) + wheels_at(s, True)))
+		made.append(put(name + "Under", under(name, s)))
+		made.append(put(name + "AxleR", axle_rear(name, s)))
+		made.append(put(name + "WheelLow", air_down(wheel(s), s["r"], s["r"] * 0.64, s["tw"])))
+		made.append(put(name + "WheelBulge", bulge(s["r"], s["tw"])))
 	tot = 0
 	for o in made:
 		t = tri_count([o])
