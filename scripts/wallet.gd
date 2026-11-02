@@ -28,7 +28,7 @@ const KIT := [
 	{"id": "mudtyres", "name": "Mud-terrain tyres", "price": 2400, "shop": "4x4", "line": "Big tread: bites harder in the mud and up the hill."},
 	{"id": "lift", "name": "2-inch lift kit", "price": 3500, "shop": "4x4", "line": "50 mm higher, more wheel travel: clears crests and ruts. Leans more on the road."},
 	{"id": "bullbar", "name": "Steel bull bar", "price": 2800, "shop": "4x4", "line": "Takes the hit off the front in a crash, and mounts the winch."},
-	{"id": "winch", "name": "12,000 lb winch", "price": 1900, "shop": "4x4", "line": "Pulls you out when the track wins.", "needs": "bullbar"},
+	{"id": "winch", "name": "12,000 lb winch", "price": 1900, "shop": "4x4", "line": "Bogged or hung up? Hold A and it drags you out to a tree or a ground anchor.", "needs": "bullbar"},
 	{"id": "snorkel", "name": "Snorkel", "price": 650, "shop": "4x4", "line": "Air intake up at the roof: wade the Dam's deep end without drowning it."},
 	{"id": "lightbar", "name": "LED light bar", "price": 700, "shop": "4x4", "line": "Turns night into day on the dirt."},
 	{"id": "spotlights", "name": "Driving lights", "price": 900, "shop": "4x4", "line": "A pair of spotties on the bar.", "needs": "bullbar"},

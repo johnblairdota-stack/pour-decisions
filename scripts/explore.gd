@@ -1045,6 +1045,8 @@ func _get_in(c: Dictionary) -> void:
 ## Out of the driver's door (on the right). Bailing out at speed doesn't end
 ## well.
 func _get_out(quiet := false) -> void:
+	_end_rec()
+	_drop_spotter()
 	var c := car
 	car = {}
 	mode = "walk"
@@ -1090,6 +1092,9 @@ func _drive(dt: float, inp: Dictionary) -> void:
 	var vl := v.dot(left)
 	var spd := absf(vf)
 	c["pos_prev"] = c["pos"]
+	# --- winching out, or being snatched out by a mate: it's doing the driving
+	if _recover(c, hb and not dead, gas, dt):
+		return
 	# --- Y: a tap steps through 2H, 4H, 4L and the rear locker; held while
 	# stopped, it lets the tyres down (or pumps them up at an air station)
 	var yh: bool = inp["run"]
@@ -1317,6 +1322,7 @@ func _drive(dt: float, inp: Dictionary) -> void:
 	_park_fx(c, surf, gas, vf, dt)
 	_mud_slap = lerpf(_mud_slap, clampf((spd - 1.0) / 7.0, 0.0, 1.0) if surf == "mud" or (surf == "water" and spd > 2.0) else 0.0, minf(1.0, dt * 6.0))
 	_park_challenges(c, dt)
+	_spotter(c, dt)
 	_eng_rpm = lerpf(_eng_rpm, float(c["rpm"]), minf(1.0, dt * 10.0))
 	_eng_load = lerpf(_eng_load, gas, minf(1.0, dt * 5.0))
 	me.position = Vector3(c["pos"].x, float(c.get("y", 0.0)), c["pos"].y)
@@ -1336,22 +1342,337 @@ func _drive(dt: float, inp: Dictionary) -> void:
 		c["stuck"] = maxf(0.0, float(c["stuck"]) - dt)
 	if float(c["stuck"]) > 1.2:
 		if surf in ["mud", "sand", "water", "grass", "dirt"] and _car_block(c, c["pos"], c["yaw"], 0.0, Vector2.ZERO).is_empty():
-			# (bogged or beaten by the hill: a mate with a snatch strap)
-			if float(c["stuck"]) > 6.0:
-				# (dragged back a few metres the way it came)
-				var back: Vector2 = (c["pos"] as Vector2) - fwd * 3.0
-				if _car_block(c, back, c["yaw"], 0.0, Vector2.ZERO).is_empty():
-					c["pos"] = back
-				c["v"] = -fwd * 1.5
-				c["rescued"] = true
+			# (bogged or beaten by the hill: a mate with a snatch strap, unless
+			# you've a winch to get yourself out; they wait longer for that)
+			if float(c["stuck"]) > (12.0 if "winch" in (c["kit"] as Array) else 6.0) and _rec.is_empty():
 				c["stuck"] = 0.0
-				c["dig"] = 0.0
-				_toast_msg("Bogged. A mate's snatch strap pulls you back out.")
+				_start_strap(c, -fwd)
 		else:
 			_unstick(c, true)
 			c["stuck"] = 0.0
 	if inp["use"]:
 		_get_out()
+
+# ------------------------------------------------------------------ recovery
+
+## Getting unstuck: the winch on the bull bar (hold A when you're bogged or
+## hung up and it drags you out to a tree, or a ground anchor if there's no
+## tree in reach); with no winch, a mate backs up with a snatch strap. And on
+## the park's steep stuff, a mate walks out in front and spots you over it.
+const WINCH_LINE := 28.0     # m of rope on the drum
+const WINCH_PULL := 0.7      # m/s it drags the ute in (more with the wheels turning too)
+const CARTON := 40           # $: what a mate's snatch costs you
+const SPOT_AT := ["hill", "logs", "moguls"]
+
+var _rec := {}               # the winch or strap job on now: kind, t, anchor, rope, the mate's ute
+var _winch := 0.0            # the winch motor's grind
+var _winch_ph := 0.0
+var _spot: Node3D            # the spotter, out in front on the hard stuff
+var _spot_label: Label3D
+var _spot_t := 0.0
+var _spot_call := ""
+var _spot_away := 0.0
+
+## Hung up enough to need the winch: stopped, and bogged, dug in or on its belly.
+func _hung_up(c: Dictionary) -> bool:
+	if (c["v"] as Vector2).length() > 0.8 or c["rb"] or _dead(c):
+		return false
+	var clr: Array = c.get("clr", [-1.0, -1.0, -1.0])
+	return float(c["stuck"]) > 0.6 or float(c["dig"]) > 0.08 or float(c["belly"]) > 0.3 or float(clr[0]) > -0.02
+
+## The winch's hook: the middle of the bull bar.
+func _bar(c: Dictionary) -> Vector3:
+	var s: Dictionary = Utes.SPEC[c["name"]]
+	var fwd := Vector2(sin(float(c["yaw"])), cos(float(c["yaw"])))
+	var at := (c["pos"] as Vector2) + fwd * (float(s["L"]) * 0.5 - 0.15)
+	return Vector3(at.x, float(c.get("y", 0.0)) + float(c.get("raise", 0.0)) + 0.55, at.y)
+
+## A rope (a unit-long box) stretched from `a` to `b`.
+func _rope(mi: MeshInstance3D, a: Vector3, b: Vector3) -> void:
+	var d := b - a
+	if d.length() < 0.01:
+		return
+	var dir := d.normalized()
+	var up := Vector3.UP if absf(dir.dot(Vector3.UP)) < 0.99 else Vector3.RIGHT
+	mi.transform = Transform3D(Basis.looking_at(dir, up) * Basis.from_scale(Vector3(1, 1, d.length())), (a + b) * 0.5)
+
+## Where the winch rope goes: the nearest big tree out in front, in reach;
+## else a ground anchor dug in up ahead.
+func _winch_anchor(c: Dictionary) -> Dictionary:
+	var fwd := Vector2(sin(float(c["yaw"])), cos(float(c["yaw"])))
+	var p: Vector2 = c["pos"]
+	var best := {}
+	var bd := INF
+	if crash != null:
+		for it in crash.near(p + fwd * WINCH_LINE * 0.5, WINCH_LINE * 0.5):
+			if it["kind"] != "tree":
+				continue
+			var d := (it["p"] as Vector2) - p
+			if d.length() < 6.0 or d.length() > WINCH_LINE or d.normalized().dot(fwd) < 0.8:
+				continue
+			if d.length() < bd:
+				bd = d.length()
+				best = {"p": it["p"], "tree": true}
+	if best.is_empty():
+		best = {"p": p + fwd * 18.0, "tree": false}
+	return best
+
+func _start_winch(c: Dictionary) -> void:
+	var a := _winch_anchor(c)
+	var ap: Vector2 = a["p"]
+	var gy := floor_y(ap)
+	var rope := F.box(Vector3(0.04, 0.04, 1.0), F.color_mat(Color("5a5550")), Vector3.ZERO, false)
+	add_child(rope)
+	var stake: Node3D = null
+	if not a["tree"]:
+		# (a ground anchor: a yellow stake driven in on an angle)
+		stake = F.box(Vector3(0.1, 0.9, 0.1), F.color_mat(Color("e0b020"), true), Vector3(ap.x, gy + 0.25, ap.y))
+		var fwd := Vector2(sin(float(c["yaw"])), cos(float(c["yaw"])))
+		stake.rotation = Vector3(0.0, atan2(fwd.x, fwd.y), 0.0)
+		stake.rotate_object_local(Vector3.RIGHT, 0.45)
+		add_child(stake)
+	_rec = {"kind": "winch", "t": 0.0, "p": ap, "y": gy + (0.9 if a["tree"] else 0.4), "rope": rope, "stake": stake}
+	_toast_msg("Winching out to %s. Keep holding A; a touch of throttle helps." % ("that tree" if a["tree"] else "a ground anchor"))
+	if _who != null:
+		game.haptic(_who, "40,30,40")
+
+## A mate in another ute backs up in front of `dir`, hooks a snatch strap on
+## and takes off: the strap stretches and yanks you out the way you came.
+func _start_strap(c: Dictionary, dir: Vector2) -> void:
+	var nm: String = "Ranger" if c["name"] != "Ranger" else "Hilux"
+	var mate := Utes.drivable(nm, Color("e9e6df"))
+	add_child(mate)
+	var gap := float(Utes.SPEC[c["name"]]["L"]) * 0.5 + float(Utes.SPEC[nm]["L"]) * 0.5 + 3.5
+	var mp := (c["pos"] as Vector2) + dir * gap
+	mate.position = Vector3(mp.x, floor_y(mp), mp.y)
+	mate.basis = Basis(Vector3.UP, atan2(dir.x, dir.y))
+	var m := F.color_mat(Color("ff8c1a"), true)
+	var r1 := F.box(Vector3(0.07, 0.02, 1.0), m, Vector3.ZERO, false)
+	var r2 := F.box(Vector3(0.07, 0.02, 1.0), m, Vector3.ZERO, false)
+	add_child(r1)
+	add_child(r2)
+	_rec = {"kind": "strap", "t": 0.0, "dir": dir, "from": c["pos"], "mate": mate, "mate_l": float(Utes.SPEC[nm]["L"]),
+		"mp": mp, "rope": r1, "rope2": r2, "done": false}
+	_toast_msg("Bogged. Your mate's backed up with a snatch strap.")
+
+func _end_rec() -> void:
+	for k in ["rope", "rope2", "stake", "mate"]:
+		var n = _rec.get(k)
+		if n != null and is_instance_valid(n):
+			(n as Node).queue_free()
+	_rec = {}
+	_winch = 0.0
+
+## The winch and the strap, each frame: true while one's moving the ute (so
+## it isn't driving itself).
+func _recover(c: Dictionary, hb: bool, gas: float, dt: float) -> bool:
+	if _rec.is_empty() and hb and "winch" in (c["kit"] as Array) and _hung_up(c):
+		_start_winch(c)
+	if _rec.is_empty():
+		return false
+	_rec["t"] = float(_rec["t"]) + dt
+	if _rec["kind"] == "strap":
+		return _strap(c, dt)
+	var anchor: Vector2 = _rec["p"]
+	var hook := Vector3(anchor.x, float(_rec["y"]), anchor.y)
+	if not hb:
+		# (let go: the drum stops; drive off and the rope's packed away)
+		_winch = maxf(0.0, _winch - dt * 4.0)
+		_rec["idle"] = float(_rec.get("idle", 0.0)) + dt
+		if float(_rec["idle"]) > 1.5 or (c["v"] as Vector2).length() > 2.0:
+			_end_rec()
+		else:
+			_rope(_rec["rope"], _bar(c), hook)
+		return false
+	_rec["idle"] = 0.0
+	var to := anchor - (c["pos"] as Vector2)
+	if to.length() < 6.0:
+		_toast_msg("Winched right up to it. Unhook and drive on.")
+		_end_rec()
+		return false
+	var dir := to.normalized()
+	var sp := WINCH_PULL * (1.0 + gas * 0.8)
+	c["pos"] = (c["pos"] as Vector2) + dir * sp * dt
+	c["v"] = dir * sp
+	c["yaw_rate"] = 0.0
+	# (the nose swings round to line up with the rope)
+	var want := atan2(dir.x, dir.y)
+	c["yaw"] = float(c["yaw"]) + clampf(wrapf(want - float(c["yaw"]), -PI, PI), -0.35 * dt, 0.35 * dt)
+	c["dig"] = maxf(0.0, float(c["dig"]) - dt * 0.2)
+	c["stuck"] = 0.0
+	c["winched"] = true
+	c["winching"] = true
+	_winch = minf(1.0, _winch + dt * 5.0)
+	_follow_ground(c, dt, false)
+	_chassis(c, dt)
+	c["winching"] = false
+	c["spin"] = float(c["spin"]) + sp / float(Utes.SPEC[c["name"]]["r"]) * dt
+	_rope(_rec["rope"], _bar(c), hook)
+	_place_car(c, dt)
+	_park_challenges(c, dt)
+	_spotter(c, dt)
+	return true
+
+## The snatch: the mate creeps off to take up the slack, the strap stretches,
+## and you come out with a jolt. Then they drive off and you owe them a carton.
+func _strap(c: Dictionary, dt: float) -> bool:
+	var t: float = _rec["t"]
+	var dir: Vector2 = _rec["dir"]
+	var mate: Node3D = _rec["mate"]
+	var md := 1.5 * smoothstep(0.3, 1.6, t)
+	if t > 1.6:
+		md = 1.5 + 3.5 * (1.0 - pow(1.0 - clampf((t - 1.6) / 0.8, 0.0, 1.0), 3.0))
+	if t > 2.4:
+		md = 5.0 + (t - 2.4) * (1.5 + (t - 2.4) * 1.2)
+	var mp: Vector2 = (_rec["mp"] as Vector2) + dir * md
+	mate.position = Vector3(mp.x, floor_y(mp), mp.y)
+	if t > 9.0:
+		_end_rec()
+		return false
+	if t > 2.4:
+		if not _rec["done"]:
+			_rec["done"] = true
+			(_rec["rope"] as Node3D).visible = false
+			(_rec["rope2"] as Node3D).visible = false
+			c["rescued"] = true
+			c["dug"] = false
+			c["dig"] = 0.0
+			c["stuck"] = 0.0
+			c["v"] = dir * 1.0
+			var paid := _char() != "" and Wallet.cash(_char()) >= CARTON
+			if paid:
+				Wallet.pay(_char(), -CARTON)
+				Wallet.save()
+			_toast_msg("Out! That's a carton you owe your mate%s." % (" (%s)" % Wallet.money(CARTON) if paid else ""))
+			_hint(c, "nowinch", "A bull bar and winch from the 4x4 shop and you'd get yourself out.")
+		return false
+	# (you, dragged out the way you came)
+	var k := 0.0
+	if t > 1.6:
+		k = 1.0 - pow(1.0 - (t - 1.6) / 0.8, 3.0)
+	c["pos"] = (_rec["from"] as Vector2) + dir * 3.5 * k
+	c["v"] = Vector2.ZERO
+	c["dig"] = maxf(0.0, float(c["dig"]) - dt * 0.3)
+	if t > 1.6 and not _rec.has("jolt"):
+		_rec["jolt"] = true
+		_thud = 0.6
+		_shake = maxf(_shake, 0.25)
+		if _who != null:
+			game.haptic(_who, "80")
+	_follow_ground(c, dt, false)
+	_place_car(c, dt)
+	var s: Dictionary = Utes.SPEC[c["name"]]
+	var mine := (c["pos"] as Vector2) + dir * float(s["L"]) * 0.5
+	var theirs := mp - dir * float(_rec["mate_l"]) * 0.5
+	var a := Vector3(mine.x, float(c.get("y", 0.0)) + 0.45, mine.y)
+	var b := Vector3(theirs.x, floor_y(theirs) + 0.45, theirs.y)
+	# (slack on the ground, then tight)
+	var mid := (a + b) * 0.5 + Vector3.DOWN * 0.4 * (1.0 - smoothstep(0.2, 1.6, t))
+	_rope(_rec["rope"], a, mid)
+	_rope(_rec["rope2"], mid, b)
+	return true
+
+## A mate walks out in front on the hill, the logs and the moguls, and calls
+## you over it: what's touching, which wheel's in the air, when to stop.
+func _spotter(c: Dictionary, dt: float) -> void:
+	var yaw: float = c["yaw"]
+	var fwd := Vector2(sin(yaw), cos(yaw))
+	var left := Vector2(fwd.y, -fwd.x)
+	var p: Vector2 = c["pos"]
+	var s: Dictionary = Utes.SPEC[c["name"]]
+	# (in it, or with the bull bar up against it)
+	var ahead: String = park.challenge(p + fwd * (float(s["L"]) * 0.5 + 2.0))
+	var want: bool = (_park_in in SPOT_AT or ahead in SPOT_AT) and not _dead(c)
+	_spot_away = 0.0 if want else _spot_away + dt
+	var tp := p + fwd * (float(s["L"]) * 0.5 + 5.0) + left * 0.6
+	if _rec.get("kind", "") == "winch":
+		# (well off to the side of a loaded winch rope)
+		tp = p + fwd * (float(s["L"]) * 0.5 + 1.5) + left * 4.5
+	if _spot == null:
+		if not want or (c["v"] as Vector2).length() > 4.5:
+			return
+		_spot = Node3D.new()
+		_spot.name = "Spotter"
+		add_child(_spot)
+		var body := F.chibi(Color("ff7a1a"), Color("f4f4f0"))
+		body.name = "Body"
+		_spot.add_child(body)
+		_spot_label = F.label3d("", 34, UI.GOLD)
+		_spot_label.position.y = 2.25
+		_spot.add_child(_spot_label)
+		_spot.position = Vector3(tp.x, floor_y(tp), tp.y)
+		_spot_call = ""
+		_spot_t = 0.0
+	if _spot_away > 2.0:
+		_drop_spotter()
+		return
+	# (walks backwards out in front, keeping clear of the bull bar)
+	var cur := Vector2(_spot.position.x, _spot.position.z)
+	cur = cur.move_toward(tp, dt * 3.2)
+	_spot.position = Vector3(cur.x, floor_y(cur), cur.y)
+	var face := p - cur
+	_spot.rotation.y = atan2(face.x, face.y)
+	_spot_t -= dt
+	if _spot_t <= 0.0:
+		_spot_t = 0.6
+		var clr: Array = c.get("clr", [-1.0, -1.0, -1.0])
+		var vf := (c["v"] as Vector2).dot(fwd)
+		var lift: Array = c["lift"]
+		var call := "Keep coming... keep coming"
+		var pose := "come"
+		if _rec.get("kind", "") == "winch":
+			call = "Steady on the winch... she's coming"
+			pose = "slow"
+		elif float(c["dig"]) > 0.08:
+			call = "You're digging in! Back up, then go again"
+			pose = "back"
+		elif float(clr[0]) > -0.03 and vf > -0.1:
+			call = "STOP! Your bumper's on it. Back up, take it on an angle"
+			pose = "stop"
+		elif float(clr[2]) > -0.02:
+			call = "Easy! You're on your belly"
+			pose = "stop"
+		elif float(clr[1]) > -0.02:
+			call = "Watch your tow bar!"
+			pose = "slow"
+		elif lift.has(true):
+			call = "%s's in the air. Slow, keep it slow" % ["Front left", "Front right", "Back left", "Back right"][lift.find(true)]
+			pose = "slow"
+		elif (c["v"] as Vector2).length() > 2.8:
+			call = "Too quick! Slow it right down"
+			pose = "slow"
+		elif absf(vf) < 0.2:
+			call = "Come to me"
+		if call != _spot_call:
+			_spot_call = call
+			_spot_label.text = call
+			if _demo:
+				print("[explore] spotter: " + call)
+		_spot.set_meta("pose", pose)
+	# (the hand signals)
+	var body := _spot.get_node("Body") as Node3D
+	var al := body.get_node("ArmL") as Node3D
+	var ar := body.get_node("ArmR") as Node3D
+	var w := sin(_t * 7.0)
+	match String(_spot.get_meta("pose", "come")):
+		"stop":
+			al.rotation.z = -2.8
+			ar.rotation.z = 2.8
+		"slow":
+			al.rotation.z = -1.35 + w * 0.25
+			ar.rotation.z = 1.35 - w * 0.25
+		"back":
+			al.rotation.z = -0.25
+			ar.rotation.z = 1.6 + w * 0.5
+		_:
+			al.rotation.z = -0.25
+			ar.rotation.z = 2.3 + w * 0.45
+
+func _drop_spotter() -> void:
+	if _spot != null:
+		_spot.queue_free()
+	_spot = null
+	_spot_away = 0.0
 
 # ------------------------------------------------------------------ 4x4
 
@@ -1383,6 +1704,8 @@ func _offroad(c: Dictionary, kit: Array) -> void:
 
 ## A tip on screen, at most every half a minute for each kind.
 func _hint(c: Dictionary, key: String, text: String) -> void:
+	if c.get("winching", false):
+		return
 	if not is_same(c, car):
 		return
 	var h: Dictionary = c["hints"]
@@ -1486,6 +1809,7 @@ func _chassis(c: Dictionary, dt: float) -> void:
 		nose = -1.0
 		tail = -1.0
 		belly = -1.0
+	c["clr"] = [nose, tail, belly]
 	# (sat on its belly: the wheels hang off it)
 	var perch := maxf(belly, 0.0)
 	up += perch
@@ -1506,7 +1830,7 @@ func _chassis(c: Dictionary, dt: float) -> void:
 	var scrape := 0.0
 	# --- the front bumper into a face steeper than it clears
 	if nose > 0.0 and vf > 0.2:
-		if nose > 0.08:
+		if nose > 0.08 and not c.get("winching", false):
 			c["pos"] = c["pos_prev"]
 			if vf > 3.0:
 				_impact(c, p + fwd * (zf + float(o["front_oh"])), -fwd, vf * 0.8, "ground", {})
@@ -2310,6 +2634,12 @@ func _park_challenges(c: Dictionary, dt: float) -> void:
 	if park == null:
 		return
 	var ch: String = park.challenge(c["pos"])
+	# (put somewhere else: back at the site after drowning one, or another ute)
+	var jumped: bool = _park_run.has("at") and (c["pos"] as Vector2).distance_to(_park_run["at"]) > 4.0
+	_park_run["at"] = c["pos"]
+	if jumped and _park_in != "":
+		_park_in = ""
+		_park_run = {"at": c["pos"]}
 	if ch == _park_in:
 		_park_t += dt
 		if ch != "":
@@ -2332,9 +2662,10 @@ func _park_challenges(c: Dictionary, dt: float) -> void:
 		if (c["pos"] as Vector2).distance_to(from) > park.centre(was).distance_to(from):
 			_park_finish(was, c)
 	_park_t = 0.0
-	_park_run = {"from": c["pos"], "low": 0.0, "stopped": 0.0, "dmg": c["dmg"]}
+	_park_run = {"from": c["pos"], "at": c["pos"], "low": 0.0, "stopped": 0.0, "dmg": c["dmg"]}
 	c["dug"] = false
 	c["rescued"] = false
+	c["winched"] = false
 
 ## A go at a challenge finished: its time, a medal (gold needs the hard
 ## line too), and a record if it's your best.
@@ -2359,6 +2690,8 @@ func _park_finish(ch: String, c: Dictionary) -> void:
 			hard = float(r["stopped"]) < 0.4
 		"logs":
 			hard = not c.get("dug", false)
+	if c.get("winched", false):
+		hard = false
 	var medal := "bronze"
 	if t <= float(m[1]):
 		medal = "silver"
@@ -2373,7 +2706,7 @@ func _park_finish(ch: String, c: Dictionary) -> void:
 	var best := _record(ch, t, medal)
 	var why := ""
 	if medal != "gold" and t <= float(m[0]) and not hard:
-		why = " Gold's %s." % m[2]
+		why = " Gold's %s." % ("without the winch" if c.get("winched", false) else m[2])
 	_toast_msg("%s: %.1f s · %s%s%s" % [name, t, medal.to_upper(), " · new best!" if best else "", why])
 	if _who != null:
 		game.haptic(_who, "20,40,20,40,60" if medal == "gold" else "20,40,20")
@@ -2832,6 +3165,10 @@ func _feed_audio() -> void:
 		# (mud slapping the arches: lumpy bursts of low noise)
 		s += _noise_lp * _mud_slap * 0.5 * maxf(0.0, sin(_t * 23.0 + i * 0.004) * sin(_t * 9.0 + i * 0.0017))
 		s += (noise * 0.6 + sin(_t * 310.0 + i * 0.09) * 0.4) * _scrape * 0.16
+		# (the winch motor grinding the rope in)
+		if _winch > 0.0:
+			_winch_ph = fmod(_winch_ph + (170.0 + 50.0 * _winch) / 22050.0, 1.0)
+			s += (sin(_winch_ph * TAU) * 0.6 + signf(sin(_winch_ph * TAU * 2.0)) * 0.2) * _winch * 0.05
 		_thud = maxf(0.0, _thud - 1.0 / 22050.0 * 5.0)
 		s = clampf(s, -1.0, 1.0)
 		_gen.push_frame(Vector2(s, s))
@@ -3016,6 +3353,11 @@ func _update_ui(dt: float) -> void:
 			elif _dead(car):
 				key = "X"
 				text = ("Drowned it · get out" if car.get("drowned", false) else "She's cactus · get out")
+			elif _rec.get("kind", "") == "strap":
+				text = "Hang on: your mate's snatching you out"
+			elif _rec.get("kind", "") == "winch" or (_rec.is_empty() and "winch" in (car["kit"] as Array) and _hung_up(car)):
+				key = "A"
+				text = "Hold: winch out"
 			elif (car["v"] as Vector2).length() < 7.0:
 				key = "X"
 				text = "Get out"
@@ -3148,6 +3490,8 @@ func _run_demo(dt: float) -> void:
 		_demo_step = 40
 	if _demo_t == 0.0 and OS.get_cmdline_user_args().has("--explore=4x4"):
 		_demo_step = 60
+	if _demo_t == 0.0 and OS.get_cmdline_user_args().has("--explore=recovery"):
+		_demo_step = 70
 	if _demo_t == 0.0 and OS.get_cmdline_user_args().has("--explore=obstacles"):
 		_demo_obstacle("moguls", "Hilux", "4H")
 		_demo_step = 67
@@ -3168,6 +3512,9 @@ func _run_demo(dt: float) -> void:
 	_fake["gas"] = 0.0
 	_fake["hold_a"] = false
 	_fake["run"] = false
+	if _demo_step >= 70:
+		_demo_recovery(t)
+		return
 	if _demo_step >= 60:
 		_demo_4x4(t)
 		return
@@ -3415,14 +3762,18 @@ func _demo_run(t: float, shot: String, after: float) -> bool:
 	return false
 
 ## Puts the Hilux at `at` facing `to`, you in it.
-func _demo_place(at: Vector2, to: Vector2) -> void:
+func _demo_place(at: Vector2, to: Vector2, ute := "Hilux") -> void:
 	var c: Dictionary = {}
 	for u in utes:
-		if u["name"] == "Hilux":
+		if u["name"] == ute:
 			c = u
-	if mode == "drive" and not is_same(car, c):
-		_get_out(true)
 	var dir := (to - at).normalized()
+	if mode == "drive" and not is_same(car, c):
+		var old := car
+		_get_out(true)
+		# (and out of the way)
+		old["pos"] = (old["pos"] as Vector2) + Vector2(-dir.y, dir.x) * 9.0
+		old["v"] = Vector2.ZERO
 	c["pos"] = at
 	c["yaw"] = atan2(dir.x, dir.y)
 	c["v"] = Vector2.ZERO
@@ -3818,6 +4169,94 @@ func _demo_4x4(t: float) -> void:
 			if _demo_follow(r, 6.0) or t > 20.0:
 				print("[explore] logs Shark: at %s, dug %s, medal %s" % [car["pos"], car.get("dug", false), _park_medal.get("logs", "-")])
 				print("[explore] boards: %s" % (park.boards[0] as Label3D).text.replace("\n", " | "))
+				print("[explore] demo done")
+				_quit_code = 0
+
+## The recovery run (--explore=recovery): a Hilux with a bar and winch bogs
+## itself in 2H and winches out; a stock Ranger bogs and a mate snatches it
+## out; then the winch Hilux noses into the log step with a spotter calling
+## it, and winches itself over.
+func _demo_recovery(t: float) -> void:
+	if mode == "drive" and Engine.get_process_frames() % 10 == 0:
+		print("[explore] rec t %.1f %s %d km/h %s stuck %.1f dig %.2f belly %.2f rec %s spot %s" % [t, car["name"],
+			roundi((car["v"] as Vector2).length() * 3.6), car["pos"], car["stuck"], car["dig"], car["belly"],
+			_rec.get("kind", "-"), _spot != null])
+	var bog := PackedVector2Array([Vector2(-126.0, 169.0), Vector2(-195.0, 162.0)])
+	match _demo_step:
+		70:
+			_demo_dv.clear()
+			for u in utes:
+				if u["name"] == "Hilux":
+					Utes.apply_kit(u["node"], "hilux", ["bullbar", "winch"])
+					_offroad(u, ["bullbar", "winch"])
+			_demo_place(bog[0], bog[1])
+			car["drive"] = "2H"
+			_demo_dv["wp"] = 1
+			_next()
+		71:
+			# bogged in 2H, foot down; then hold A and winch out
+			if _rec.is_empty() and not car.get("winched", false):
+				_demo_follow(bog, 14.0)
+				if float(car["stuck"]) > 1.5:
+					_fake["hold_a"] = true
+					_fake["gas"] = 0.3
+			elif _rec.get("kind", "") == "winch":
+				_fake["hold_a"] = true
+				_fake["gas"] = 0.3
+				if float(_rec["t"]) > 2.5 and not _shots.has("rec_winch"):
+					var at: Vector2 = car["pos"]
+					var yw: float = car["yaw"]
+					var eye := at + Vector2(cos(yw), -sin(yw)) * 7.0 + Vector2(sin(yw), cos(yw)) * 5.0
+					_demo_dv["cam"] = [Vector3(eye.x, float(car["y"]) + 2.4, eye.y), Vector3(at.x, float(car["y"]) + 0.6, at.y) + Vector3(sin(yw), 0, cos(yw)) * 4.0]
+					_shot("rec_winch")
+				if float(_rec["t"]) > 9.0:
+					_fake["hold_a"] = false
+			if (car.get("winched", false) and _rec.is_empty()) or t > 45.0:
+				print("[explore] winch done at %s in %.1f s, winched %s, dig %.2f" % [car["pos"], t, car.get("winched", false), car["dig"]])
+				_demo_dv.erase("cam")
+				_demo_place(bog[0] + Vector2(0.0, -4.0), bog[1] + Vector2(0.0, -4.0), "Ranger")
+				car["drive"] = "2H"
+				_demo_dv["wp"] = 1
+				_next()
+		72:
+			# a stock Ranger: bogged, and a mate turns up with a snatch strap
+			if _rec.is_empty() and not car.get("rescued", false):
+				_demo_follow(PackedVector2Array([bog[0] + Vector2(0.0, -4.0), bog[1] + Vector2(0.0, -4.0)]), 14.0)
+			if _rec.get("kind", "") == "strap" and float(_rec["t"]) > 1.7 and not _shots.has("rec_strap"):
+				var at: Vector2 = car["pos"]
+				var dir: Vector2 = _rec["dir"]
+				var side := Vector2(-dir.y, dir.x)
+				var eye := at + side * 9.0 + dir * 3.0
+				_demo_dv["cam"] = [Vector3(eye.x, float(car["y"]) + 2.6, eye.y), Vector3(at.x, float(car["y"]) + 0.6, at.y) + Vector3(dir.x, 0, dir.y) * 4.0]
+				_shot("rec_strap")
+			if (car.get("rescued", false) and _rec.is_empty()) or t > 45.0:
+				print("[explore] strap done at %s in %.1f s, rescued %s" % [car["pos"], t, car.get("rescued", false)])
+				_demo_dv.erase("cam")
+				_demo_obstacle("logs", "Hilux", "4L")
+				_next()
+		73:
+			# the bull bar sits low: it noses into the logs with the spotter
+			# calling stop; winch it over
+			var r: PackedVector2Array = _demo_dv["route"]
+			if _spot != null and _spot_call.begins_with("STOP") and not _shots.has("rec_spotter"):
+				var at: Vector2 = car["pos"]
+				var yw: float = car["yaw"]
+				var eye := at + Vector2(cos(yw), -sin(yw)) * 6.0 - Vector2(sin(yw), cos(yw)) * 3.0
+				_demo_dv["cam"] = [Vector3(eye.x, float(car["y"]) + 2.2, eye.y), Vector3(at.x, float(car["y"]) + 0.8, at.y) + Vector3(sin(yw), 0, cos(yw)) * 4.0]
+				_shot("rec_spotter")
+				_demo_dv["stop_t"] = t
+			if _demo_dv.has("stop_t") and t > float(_demo_dv["stop_t"]) + 0.6:
+				_demo_dv.erase("cam")
+				_fake["hold_a"] = t < float(_demo_dv["stop_t"]) + 12.0
+				_fake["gas"] = 0.3 if _fake["hold_a"] else 0.0
+				if _rec.get("kind", "") == "winch" and float(_rec["t"]) > 4.0 and not _shots.has("rec_logs_winch"):
+					_cam_yaw = float(car["yaw"]) + PI + 1.3
+					_rmb = true
+					_shot("rec_logs_winch")
+			elif not _demo_dv.has("stop_t"):
+				_demo_follow(r, 4.0)
+			if (_demo_dv.has("stop_t") and t > float(_demo_dv["stop_t"]) + 13.0) or t > 40.0:
+				print("[explore] logs winch: at %s, winched %s, medal %s" % [car["pos"], car.get("winched", false), _park_medal.get("logs", "-")])
 				print("[explore] demo done")
 				_quit_code = 0
 
