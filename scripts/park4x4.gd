@@ -41,8 +41,11 @@ const FEATURES := [
 	["sand", Vector2(-232.0, 116.0), 7.0, 5.0, 0.5, 0.2],
 ]
 const HILL_BACK := 40.0      # the hill's gentler back slope (m from the top)
+const LIP_R := 2.5          # m the face rounds over at the lip (a sharp lip high-centres anything at a crawl)
+const FOOT_R := 1.5         # and rounds in at its foot
 const HILL_TOP := 3.0        # half the flat top's length: the face ends in a lip you can fly off
-const DAM_DEEP := 0.85       # the dam's crossing at its deepest
+const DAM_DEEP := 0.6        # the dam's crossing (on the track) at its deepest
+const DAM_HOLE := 1.25       # and off the track, where it drowns a stock ute
 const FORD_DEEP := 0.38      # the causeways under the creek's water
 ## Where the challenges count as done
 const CHALLENGES := {"bog": "The Bog", "dam": "The Dam", "hill": "Hill Climb", "sand": "Sand Traps"}
@@ -60,6 +63,7 @@ var _feat: Array = []        # FEATURES as dicts
 var _fords: Array = []       # {c, along (unit, the track's way), across, hl, hw}
 var _tgrid := {}             # 10 m cell -> [track index, segment index]
 var _mud_mat: StandardMaterial3D
+var air_posts: Array = []    # where the FREE AIR posts stand, by each way in
 
 func build(d: Dictionary) -> void:
 	for k in WAY_IN:
@@ -112,6 +116,7 @@ func build(d: Dictionary) -> void:
 	_build_hill()
 	_build_pits()
 	_build_fords()
+	_build_air()
 	_build_tracks()
 	_build_road_mud()
 	_build_signs()
@@ -151,7 +156,17 @@ func height(p: Vector2) -> float:
 				var l := _local(f, p)
 				var along := 1.0
 				if l.x > HILL_TOP:
-					along = clampf(1.0 - (l.x - HILL_TOP) / float(f["a"]), 0.0, 1.0)
+					# (the face: rounded over at the lip and in at the foot, so a
+					# crawl can make it over; straight between)
+					var a: float = f["a"]
+					var dn := l.x - HILL_TOP
+					var k := 1.0 / (a - LIP_R * 0.5 - FOOT_R * 0.5)
+					if dn < LIP_R:
+						along = 1.0 - k * dn * dn / (2.0 * LIP_R)
+					elif dn < a - FOOT_R:
+						along = 1.0 - k * (dn - LIP_R * 0.5)
+					else:
+						along = k * maxf(0.0, a - dn) * maxf(0.0, a - dn) / (2.0 * FOOT_R)
 				elif l.x < -HILL_TOP:
 					var q := clampf((-l.x - HILL_TOP) / HILL_BACK, 0.0, 1.0)
 					along = (1.0 - q * q) * (1.0 - q * q)
@@ -163,7 +178,7 @@ func height(p: Vector2) -> float:
 	if fd >= 0.0:
 		h -= fd
 	elif not dam.is_empty() and Geometry2D.is_point_in_polygon(p, dam):
-		h -= minf(DAM_DEEP, _edge(p, dam) * 0.22)
+		h -= minf(DAM_DEEP if on_track(p, TRACK_W * 0.5 + 1.0) else DAM_HOLE, _edge(p, dam) * 0.22)
 	return h
 
 ## How deep a causeway's water is at `p` (-1 off them).
@@ -224,6 +239,50 @@ func on_track(p: Vector2, w: float) -> bool:
 		if Geometry2D.get_closest_point_to_segment(p, t[ts[1]], t[ts[1] + 1]).distance_to(p) < w:
 			return true
 	return false
+
+## Near enough a FREE AIR post to pump the tyres up.
+func air_near(p: Vector2) -> bool:
+	for a in air_posts:
+		if (a as Vector2).distance_to(p) < 8.0:
+			return true
+	return false
+
+## A FREE AIR post just in off the road at each way in: a compressor box on a
+## pole, the hose coiled on it, a sign. (A stand-in till the asset thread's
+## model lands.)
+func _build_air() -> void:
+	for k in WAY_IN:
+		var w: Array = WAY_IN[k]
+		var a: Vector2 = w[0]
+		var dir: Vector2 = (w[1] - a).normalized()
+		var side := Vector2(-dir.y, dir.x)
+		var at: Vector2 = a + dir * 13.0 + side * (TRACK_W * 0.5 + 1.6)
+		air_posts.append(at)
+		var post := Node3D.new()
+		post.name = "AirPost"
+		post.position = Vector3(at.x, height(at), at.y)
+		post.rotation.y = atan2(-side.x, -side.y)
+		add_child(post)
+		post.add_child(F.box(Vector3(0.12, 1.6, 0.12), F.color_mat(Color("3a3e44")), Vector3(0, 0.8, 0)))
+		post.add_child(F.box(Vector3(0.5, 0.42, 0.32), F.color_mat(Color("1f5fae")), Vector3(0, 1.05, 0.12)))
+		var coil := MeshInstance3D.new()
+		var tm := TorusMesh.new()
+		tm.inner_radius = 0.13
+		tm.outer_radius = 0.19
+		coil.mesh = tm
+		coil.material_override = F.color_mat(Color("1e1e1e"))
+		coil.rotation.x = PI * 0.5
+		coil.position = Vector3(0, 0.62, 0.1)
+		post.add_child(coil)
+		var l := Label3D.new()
+		l.text = "FREE AIR"
+		l.font_size = 64
+		l.pixel_size = 0.005
+		l.outline_size = 10
+		l.modulate = Color("ffe08a")
+		l.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
+		l.position.y = 1.85
+		post.add_child(l)
 
 ## Which way's up off the ground at `p`.
 func normal(p: Vector2) -> Vector3:

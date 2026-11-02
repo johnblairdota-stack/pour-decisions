@@ -555,7 +555,7 @@ function drawTicket() {
   let name = card.name, goal = card.goal, foot = '';
   t.classList.toggle('pump', card.role === 'pump' && screen === 'play' && !now.climb);
   if (screen === 'site') { $('tk').textContent = 'P' + me.p + ' · NEXT UP'; name = 'Pick the site'; goal = 'The first player picks the site and the kit on the TV: stick to choose, A to start, B back to the crew.'; }
-  else if (screen === 'roam') { $('tk').textContent = 'P' + me.p + ' · KNOCKED OFF'; name = 'Off the clock'; goal = 'Left stick to walk and steer, right stick to look round.'; }
+  else if (screen === 'roam') { $('tk').textContent = 'P' + me.p + ' · KNOCKED OFF'; name = 'Off the clock'; goal = 'Left stick to walk and steer, right stick to look round. In a ute: tap Y for 2H, 4H, 4L and the locker; hold Y stopped to air the tyres down.'; }
   else if (screen === 'pause') { $('tk').textContent = 'P' + me.p + ' · SMOKO'; name = 'Paused'; goal = 'Steer the menu on the TV: stick up and down, A to choose, B to get back to work.'; }
   else { $('tk').textContent = 'P' + me.p + ' · YOUR JOB'; foot = (card.watch ? '<b>Watch for:</b> ' + esc(card.watch) + ' ' : '') + esc(card.climb || ''); }
   $('tn').textContent = name;
