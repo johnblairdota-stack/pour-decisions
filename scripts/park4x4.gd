@@ -41,11 +41,32 @@ const FEATURES := [
 	["sand", Vector2(-232.0, 116.0), 7.0, 5.0, 0.5, 0.2],
 ]
 const HILL_BACK := 40.0      # the hill's gentler back slope (m from the top)
+const LIP_R := 2.5          # m the face rounds over at the lip (a sharp lip high-centres anything at a crawl)
+const FOOT_R := 1.5         # and rounds in at its foot
 const HILL_TOP := 3.0        # half the flat top's length: the face ends in a lip you can fly off
-const DAM_DEEP := 0.85       # the dam's crossing at its deepest
+const DAM_DEEP := 0.6        # the dam's crossing (on the track) at its deepest
+const DAM_HOLE := 1.25       # and off the track, where it drowns a stock ute
 const FORD_DEEP := 0.38      # the causeways under the creek's water
+## Two more on the tracks: a run of moguls that twists a ute corner to corner
+## (a wheel in each axle in the air: the rear locker's job), and a bank faced
+## with logs, a step up higher than a stock Hilux's front bumper clears (a
+## lift kit's job, or the Ranger's and Shark's steeper noses) and a step down
+## the far side that drags a long tail (the Shark's).
+## [kind, centre, half length, half width, yaw, height]
+const OBSTACLES := [
+	["moguls", Vector2(-355.0, 47.0), 14.0, 3.6, 0.119, 0.7],
+	["logs", Vector2(-85.0, 180.6), 4.0, 3.0, -2.968, 0.6],
+]
+const MOGUL_WAVE := 6.2      # m from hump to hump along the track: twice a wheelbase, so it twists
 ## Where the challenges count as done
-const CHALLENGES := {"bog": "The Bog", "dam": "The Dam", "hill": "Hill Climb", "sand": "Sand Traps"}
+const CHALLENGES := {"bog": "The Bog", "dam": "The Dam", "hill": "Hill Climb", "sand": "Sand Traps",
+	"moguls": "Moguls", "logs": "Log Step"}
+## Times for gold and silver (s), and what gold also needs: the hard line
+const MEDALS := {
+	"hill": [14.0, 22.0, "up the face with all four on the ground"], "bog": [7.0, 11.0, "through the deep middle"],
+	"dam": [14.0, 22.0, "across the deep end"], "sand": [7.0, 11.0, "without stopping"],
+	"moguls": [10.0, 18.0, "without stopping"], "logs": [5.0, 9.0, "without the bumper digging in"],
+}
 
 const MUD := Color("5b4530")
 const DIRT := Color("8a6a48")
@@ -57,9 +78,12 @@ var box := Rect2()           # the park's bounds (anything outside's plain groun
 var tracks: Array = []       # PackedVector2Array, the way-ins first
 var dam: PackedVector2Array  # the golf lake the dam loop wades across
 var _feat: Array = []        # FEATURES as dicts
+var _obs: Array = []         # OBSTACLES as dicts
+var boards: Array = []       # the records boards by the gates (Label3D)
 var _fords: Array = []       # {c, along (unit, the track's way), across, hl, hw}
 var _tgrid := {}             # 10 m cell -> [track index, segment index]
 var _mud_mat: StandardMaterial3D
+var air_posts: Array = []    # where the FREE AIR posts stand, by each way in
 
 func build(d: Dictionary) -> void:
 	for k in WAY_IN:
@@ -68,6 +92,8 @@ func build(d: Dictionary) -> void:
 		tracks.append(PackedVector2Array(t))
 	for f in FEATURES:
 		_feat.append({"kind": f[0], "c": f[1], "a": f[2], "b": f[3], "yaw": f[4], "size": f[5]})
+	for f in OBSTACLES:
+		_obs.append({"kind": f[0], "c": f[1], "a": f[2], "b": f[3], "yaw": f[4], "size": f[5]})
 	for a in d.get("areas", []):
 		if a["kind"] == "golf_water":
 			var poly := Surrounds._v2(a["pts"])
@@ -112,6 +138,8 @@ func build(d: Dictionary) -> void:
 	_build_hill()
 	_build_pits()
 	_build_fords()
+	_build_air()
+	_build_obstacles()
 	_build_tracks()
 	_build_road_mud()
 	_build_signs()
@@ -151,7 +179,17 @@ func height(p: Vector2) -> float:
 				var l := _local(f, p)
 				var along := 1.0
 				if l.x > HILL_TOP:
-					along = clampf(1.0 - (l.x - HILL_TOP) / float(f["a"]), 0.0, 1.0)
+					# (the face: rounded over at the lip and in at the foot, so a
+					# crawl can make it over; straight between)
+					var a: float = f["a"]
+					var dn := l.x - HILL_TOP
+					var k := 1.0 / (a - LIP_R * 0.5 - FOOT_R * 0.5)
+					if dn < LIP_R:
+						along = 1.0 - k * dn * dn / (2.0 * LIP_R)
+					elif dn < a - FOOT_R:
+						along = 1.0 - k * (dn - LIP_R * 0.5)
+					else:
+						along = k * maxf(0.0, a - dn) * maxf(0.0, a - dn) / (2.0 * FOOT_R)
 				elif l.x < -HILL_TOP:
 					var q := clampf((-l.x - HILL_TOP) / HILL_BACK, 0.0, 1.0)
 					along = (1.0 - q * q) * (1.0 - q * q)
@@ -159,12 +197,30 @@ func height(p: Vector2) -> float:
 				h += float(f["size"]) * along * smoothstep(b, b * 0.45, absf(l.y))
 			"bog", "sand":
 				h -= float(f["size"]) * smoothstep(0.0, 0.5, u)
+	for o in _obs:
+		h += _obstacle(o, p)
 	var fd := _ford(p)
 	if fd >= 0.0:
 		h -= fd
 	elif not dam.is_empty() and Geometry2D.is_point_in_polygon(p, dam):
-		h -= minf(DAM_DEEP, _edge(p, dam) * 0.22)
+		h -= minf(DAM_DEEP if on_track(p, TRACK_W * 0.5 + 1.0) else DAM_HOLE, _edge(p, dam) * 0.22)
 	return h
+
+## How much an obstacle stands up at `p`.
+static func _obstacle(o: Dictionary, p: Vector2) -> float:
+	var l := _local(o, p)
+	var a: float = o["a"]
+	var b: float = o["b"]
+	if absf(l.x) > a or absf(l.y) > b:
+		return 0.0
+	var hgt: float = o["size"]
+	if o["kind"] == "logs":
+		# (a flat top, the logs' faces rounded off each end like the logs they are)
+		var e := absf(l.x) - (a - 0.35)
+		return hgt * (sqrt(maxf(0.0, 1.0 - e * e / (0.35 * 0.35))) if e > 0.0 else 1.0)
+	# moguls: humps left and right in turn, faded in at each end and the sides
+	var fade := smoothstep(a, a - 2.5, absf(l.x)) * smoothstep(b, b - 1.0, absf(l.y))
+	return hgt * 0.5 * (1.0 + sin(l.x * TAU / MOGUL_WAVE) * sin(l.y * PI / 1.6)) * fade
 
 ## How deep a causeway's water is at `p` (-1 off them).
 func _ford(p: Vector2) -> float:
@@ -203,6 +259,10 @@ func surface(p: Vector2) -> String:
 	for f in _feat:
 		if f["kind"] != "hill" and _inside(f, p) > 0.0:
 			return "mud" if f["kind"] == "bog" else "sand"
+	for o in _obs:
+		var l := _local(o, p)
+		if absf(l.x) < float(o["a"]) and absf(l.y) < float(o["b"]):
+			return "dirt"
 	if on_track(p, TRACK_W * 0.5):
 		return "dirt"
 	return "grass"
@@ -214,9 +274,33 @@ func challenge(p: Vector2) -> String:
 	for f in _feat:
 		if _inside(f, p) > 0.0:
 			return f["kind"]
+	for o in _obs:
+		var l := _local(o, p)
+		# (the run-up and run-out count too)
+		if absf(l.x) < float(o["a"]) + 2.0 and absf(l.y) < float(o["b"]):
+			return o["kind"]
 	if not dam.is_empty() and Geometry2D.is_point_in_polygon(p, dam):
 		return "dam"
 	return ""
+
+## The middle of a challenge.
+func centre(ch: String) -> Vector2:
+	if ch == "dam" and not dam.is_empty():
+		var m := Vector2.ZERO
+		for q in dam:
+			m += q
+		return m / dam.size()
+	for f in _feat + _obs:
+		if f["kind"] == ch:
+			return f["c"]
+	return Vector2.ZERO
+
+## Where a run at `ch` comes in from: true for the hard way in (the hill's
+## steep face, rather than up its back).
+func hard_way(ch: String, from: Vector2) -> bool:
+	if ch == "hill":
+		return _local(_feat[0], from).x > 0.0
+	return true
 
 func on_track(p: Vector2, w: float) -> bool:
 	for ts in _tgrid.get(Vector2i(floori(p.x / 10.0), floori(p.y / 10.0)), []):
@@ -224,6 +308,114 @@ func on_track(p: Vector2, w: float) -> bool:
 		if Geometry2D.get_closest_point_to_segment(p, t[ts[1]], t[ts[1] + 1]).distance_to(p) < w:
 			return true
 	return false
+
+## Near enough a FREE AIR post to pump the tyres up.
+func air_near(p: Vector2) -> bool:
+	for a in air_posts:
+		if (a as Vector2).distance_to(p) < 8.0:
+			return true
+	return false
+
+## A FREE AIR post just in off the road at each way in: a compressor box on a
+## pole, the hose coiled on it, a sign (props.glb "AirPost").
+func _build_air() -> void:
+	for k in WAY_IN:
+		var w: Array = WAY_IN[k]
+		var a: Vector2 = w[0]
+		var dir: Vector2 = (w[1] - a).normalized()
+		var side := Vector2(-dir.y, dir.x)
+		var at: Vector2 = a + dir * 13.0 + side * (TRACK_W * 0.5 + 1.6)
+		air_posts.append(at)
+		var post := F.prop("AirPost")
+		post.name = "AirPost"
+		post.position = Vector3(at.x, height(at), at.y)
+		# (dial to the track)
+		post.rotation.y = atan2(-side.x, -side.y)
+		add_child(post)
+
+## The moguls' churned dirt and the log step's logs, and a records board by
+## each FREE AIR post.
+func _build_obstacles() -> void:
+	for o in _obs:
+		var c: Vector2 = o["c"]
+		var a: float = o["a"]
+		var b: float = o["b"]
+		var yaw: float = o["yaw"]
+		var ax := Vector2(cos(yaw), sin(yaw))
+		var side := Vector2(-ax.y, ax.x)
+		if true:
+			var r := Rect2(c, Vector2.ZERO)
+			for sx: float in [-1.0, 1.0]:
+				for sy: float in [-1.0, 1.0]:
+					r = r.expand(c + ax * a * sx + side * b * sy)
+			var mi := _grid_mesh(r, 0.5, func(p: Vector2) -> Array:
+				var l := _local(o, p)
+				if absf(l.x) > a + 0.5 or absf(l.y) > b + 0.5:
+					return []
+				var h := height(p)
+				return [h + 0.03, DIRT.lerp(RUT, clampf(1.0 - h / float(o["size"]), 0.0, 1.0) * 0.6), 5])
+			mi.name = "Moguls" if o["kind"] == "moguls" else "LogStep"
+			if o["kind"] == "moguls":
+				continue
+		# logs: two layers stacked across the track at each face
+		var bark := F.color_mat(Color("6b4a2f"))
+		var ends := F.color_mat(Color("c9a46b"))
+		var hgt: float = o["size"]
+		var rad := hgt * 0.27
+		var layers := []
+		for sd: float in [-1.0, 1.0]:
+			var x0 := sd * (a - rad * 0.5)
+			layers.append_array([[x0, 0.0], [x0 - sd * rad * 2.0, 0.0], [x0 - sd * rad, 1.0]])
+		for lg in layers:
+			var m := MeshInstance3D.new()
+			var cm := CylinderMesh.new()
+			cm.top_radius = rad * randf_range(0.92, 1.08)
+			cm.bottom_radius = cm.top_radius
+			cm.height = b * 2.0 + randf_range(-0.3, 0.3)
+			cm.radial_segments = 10
+			m.mesh = cm
+			m.material_override = bark
+			var at: Vector2 = c + ax * float(lg[0])
+			m.position = Vector3(at.x, rad + float(lg[1]) * (hgt - rad * 2.0) * 0.95, at.y)
+			m.basis = Basis(Vector3.UP, atan2(side.x, side.y)) * Basis(Vector3.RIGHT, PI * 0.5)
+			add_child(m)
+			# (the sawn ends)
+			for sd: float in [-1.0, 1.0]:
+				var e := MeshInstance3D.new()
+				var em := CylinderMesh.new()
+				em.top_radius = cm.top_radius * 0.96
+				em.bottom_radius = em.top_radius
+				em.height = 0.02
+				e.mesh = em
+				e.material_override = ends
+				e.position = Vector3(0, cm.height * 0.5 * sd, 0)
+				m.add_child(e)
+	# the records boards
+	for i in air_posts.size():
+		var at: Vector2 = air_posts[i]
+		var w: Array = WAY_IN.values()[i]
+		var dir: Vector2 = (w[1] - w[0]).normalized()
+		var spot: Vector2 = at + dir * 3.5
+		var bd := Node3D.new()
+		bd.name = "Records"
+		bd.position = Vector3(spot.x, height(spot), spot.y)
+		bd.rotation.y = atan2(-dir.x, -dir.y)
+		add_child(bd)
+		for sx: float in [-0.9, 0.9]:
+			bd.add_child(F.box(Vector3(0.1, 2.4, 0.1), F.color_mat(Color("6b4a2f")), Vector3(sx, 1.2, 0)))
+		bd.add_child(F.box(Vector3(2.1, 1.25, 0.06), F.color_mat(Color("23402c")), Vector3(0, 1.75, 0)))
+		var l := Label3D.new()
+		l.font_size = 30
+		l.pixel_size = 0.0045
+		l.outline_size = 0
+		l.modulate = Color("f4f2ea")
+		l.width = 440.0
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD
+		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+		l.position = Vector3(0, 1.75, 0.04)
+		l.text = "4x4 PARK RECORDS"
+		bd.add_child(l)
+		boards.append(l)
 
 ## Which way's up off the ground at `p`.
 func normal(p: Vector2) -> Vector3:
@@ -420,7 +612,7 @@ func _build_tracks() -> void:
 				if _ford(a) >= 0.0 and _ford(b) >= 0.0:
 					continue
 				# (no track through the bog, the sand or the dam: it's churned up, or under water)
-				if _pit(a) or _pit(b):
+				if _pit(a) or _pit(b) or _on_logs(a) or _on_logs(b):
 					continue
 				var dir := (b - a).normalized()
 				var side := Vector2(-dir.y, dir.x)
@@ -445,6 +637,14 @@ func _build_tracks() -> void:
 	mi.material_override = Surrounds.ground_mat()
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(mi)
+
+func _on_logs(p: Vector2) -> bool:
+	for o in _obs:
+		if o["kind"] == "logs":
+			var l := _local(o, p)
+			if absf(l.x) < float(o["a"]) + 0.2 and absf(l.y) < float(o["b"]) + 0.5:
+				return true
+	return false
 
 func _pit(p: Vector2) -> bool:
 	if not dam.is_empty() and Geometry2D.is_point_in_polygon(p, dam):
@@ -538,7 +738,7 @@ func _build_signs() -> void:
 		var dir := (t[i + 1] - t[i]).normalized()
 		var at := t[i] + dir * 4.0 + Vector2(-dir.y, dir.x) * (TRACK_W * 0.5 + 1.8)
 		_club_sign(at, atan2(-dir.x, -dir.y))
-	var names := {"bog": "THE BOG", "hill": "HILL CLIMB", "sand": "SAND TRAPS"}
+	var names := {"bog": "THE BOG", "hill": "HILL CLIMB", "sand": "SAND TRAPS", "moguls": "MOGULS", "logs": "LOG STEP"}
 	var signed := {}
 	for f in _feat:
 		if signed.has(f["kind"]):
@@ -549,6 +749,11 @@ func _build_signs() -> void:
 		var ax := Vector2(cos(float(f["yaw"])), sin(float(f["yaw"])))
 		var at := c + ax * (a + 5.0) + Vector2(-ax.y, ax.x) * (float(f["b"]) * 0.6 + 3.0)
 		_timber_sign(at, atan2(ax.x, ax.y), names[f["kind"]], f["kind"] == "hill")
+	for o in _obs:
+		var c: Vector2 = o["c"]
+		var ax := Vector2(cos(float(o["yaw"])), sin(float(o["yaw"])))
+		var at := c - ax * (float(o["a"]) + 4.0) + Vector2(-ax.y, ax.x) * (float(o["b"]) + 1.5)
+		_timber_sign(at, atan2(-ax.x, -ax.y), names[o["kind"]], o["kind"] == "logs")
 	if not dam.is_empty():
 		_timber_sign(Vector2(-57.0, 262.0), atan2(-1.0, 0.0), "THE DAM", false)
 

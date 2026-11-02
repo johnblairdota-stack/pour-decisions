@@ -87,8 +87,23 @@ static func drivable(name: String, paint: Color) -> Node3D:
 	bm.mesh = mesh(name + "Body")
 	bm.set_instance_shader_parameter("tint", paint)
 	body.add_child(bm)
+	# (what's underneath: rails, front diff, sump guard, tow bar; and the
+	# rear axle, which rolls with the back wheels)
+	var under := mesh(name + "Under")
+	if under != null:
+		var um := MeshInstance3D.new()
+		um.name = "Under"
+		um.mesh = under
+		body.add_child(um)
 	var zf: float = s["L"] * 0.5 - s["front"]
 	var zr: float = zf - s["wb"]
+	var axle := mesh(name + "AxleR")
+	if axle != null:
+		var am := MeshInstance3D.new()
+		am.name = "AxleR"
+		am.mesh = axle
+		am.position = Vector3(0, s["r"], zr)
+		root.add_child(am)
 	for w in [["FL", 1.0, zf], ["FR", -1.0, zf], ["RL", 1.0, zr], ["RR", -1.0, zr]]:
 		var steer := Node3D.new()
 		steer.name = w[0]
@@ -103,7 +118,48 @@ static func drivable(name: String, paint: Color) -> Node3D:
 			# (the rim faces out on both sides)
 			wm.rotation.y = PI
 		spin.add_child(wm)
+		# (aired down, the tyre's squashed bottom: it doesn't turn)
+		var bulge := mesh(name + "WheelBulge")
+		if bulge != null:
+			var bg := MeshInstance3D.new()
+			bg.name = "Bulge"
+			bg.mesh = bulge
+			bg.visible = false
+			if w[1] < 0.0:
+				bg.rotation.y = PI
+			steer.add_child(bg)
 	return root
+
+## How much lower an aired-down tyre's tread sits (tools/blender/utes.py)
+const LOW_DROP := 0.035
+
+## Swaps every wheel to its aired-down tyre (bagged sidewalls, squashed
+## bottom) or back; mud-terrains have their own.
+static func air(node: Node3D, name: String, low: bool, mud: bool) -> void:
+	if bool(node.get_meta("aired", false)) == low:
+		return
+	node.set_meta("aired", low)
+	var K: Script = load("res://scripts/ute_kit.gd") if mud and ResourceLoader.exists("res://scripts/ute_kit.gd") else null
+	for w in ["FL", "FR", "RL", "RR"]:
+		var steer := node.get_node(w) as Node3D
+		var spin := steer.get_node("Spin") as Node3D
+		if spin.get_child_count() == 0:
+			continue
+		var tyre := spin.get_child(0) as MeshInstance3D
+		var m: Mesh
+		if K != null:
+			m = K.mesh("mudtyreslow" if low else "mudtyres", name.to_lower())
+		else:
+			m = mesh(name + ("WheelLow" if low else "Wheel"))
+		if m != null:
+			tyre.mesh = m
+		var bg := steer.get_node_or_null("Bulge") as MeshInstance3D
+		if bg != null:
+			if K != null:
+				var mb: Mesh = K.mesh("mudtyresbulge", name.to_lower())
+				if mb != null:
+					bg.mesh = mb
+			bg.visible = low
 
 ## A lift kit raises the body this much (m)
 const LIFT := 0.05
