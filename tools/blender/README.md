@@ -13,7 +13,8 @@ Or open Blender 5.2, Scripting tab, open the script and Run.
 - `crew.py`: the crew (body, hard hat, the eight named looks, each job's kit).
 - `props.py`: tools in hand and on deck (screed, poker, clamp, pipe, slump kit,
   hand tools, rigging, the two-part bull float, washout sponge ball, wash-down
-  gun, tag line eye) -> `assets/props/props.glb`.
+  gun, tag line eye, the 4x4 park's FREE AIR post and a tyre deflator) ->
+  `assets/props/props.glb`.
 - `plant.py`: the agitator truck (cab, chassis, drum with livery spiral, chute)
   and the line pump with its hopper -> `assets/plant/plant.glb`.
 - `towers.py`: the boom tower's lattice sections, collar, turret and arms, the
@@ -52,6 +53,13 @@ Or open Blender 5.2, Scripting tab, open the script and Run.
   body is white so `scripts/cars.gd` gives each car its own colour; it
   drives them along the real roads and parks the riverside car park traced in
   `tools/estate_to_game.py`.
+- `utes.py`: the Hilux, Ranger and Shark you drive at knock off, each
+  whole, as a Body plus one Wheel, and a Lite one for the traffic; under
+  each, `<Name>Under` (chassis, front diff and suspension, sump guard or
+  battery pack, tailshafts, tank, exhaust, tow bar) and `<Name>AxleR` (the
+  rear axle round its centre), deep arch wells for 13 cm of wheel travel,
+  and the tyres aired down (`<Name>WheelLow`, `<Name>WheelBulge`) ->
+  `assets/cars/utes.glb`, painted by `scripts/utes.gd`.
 - `citycat.py`: the CityCat (a 25 m catamaran, bow towards +x) and the
   Northshore Hamilton terminal (pontoon, shelter, gangway spans, landing)
   -> `assets/citycat/citycat.glb`, placed by `scripts/citycat.gd`; the same
@@ -76,7 +84,9 @@ Or open Blender 5.2, Scripting tab, open the script and Run.
   bar, winch, spotlights, snorkel, light bar, mud tyres, roof rack, rooftop
   tent, awning, canopy, drawers, fridge, jerry cans, swag), each fitted to
   each ute as `kit_<item>_<ute>` -> `assets/cars/ute_kit.glb`, painted by
-  `scripts/ute_kit.gd`.
+  `scripts/ute_kit.gd`. Also the mud tyres aired down
+  (`kit_mudtyreslow_<ute>`, `kit_mudtyresbulge_<ute>`) and a scuffed bash
+  plate under the bull bar (`kit_bullbarscrape_<ute>`).
 - `smoko.py`: the coffee van at the Angora Rd gate (hatch propped open on its
   kerb side, counter, espresso machine, roof sign, A-frame menu board), a
   pulp four-cup tray, a takeaway cup, a meat pie and a sausage roll ->
