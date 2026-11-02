@@ -73,6 +73,9 @@ var park: Park                # the golf course's 4x4 park (park4x4.gd)
 var _park_done := {}         # its challenges you've driven: "bog", "dam", "hill", "sand"
 var _park_in := ""           # the challenge you're in now
 var _park_t := 0.0           # (and since when)
+var _park_run := {}          # this go at it: where you came in, the lowest you got, time stopped, rescued
+var _park_medal := {}        # this knock-off's best medal at each ("gold", "silver", "bronze")
+var _mud_slap := 0.0         # mud flung up into the wheel arches
 var _park_label: Label
 var _indexed := false
 var _boat: Node3D
@@ -353,6 +356,7 @@ func enter(who = null) -> void:
 		crash.index(world)
 		park.clear_trees(crash)
 	_spawn_me()
+	_update_boards()
 	_help_t = 9.0
 	_audio.play()
 	_gen = _audio.get_stream_playback() as AudioStreamGeneratorPlayback
@@ -1311,6 +1315,7 @@ func _drive(dt: float, inp: Dictionary) -> void:
 	_place_car(c, dt)
 	_damage_fx(c, dt)
 	_park_fx(c, surf, gas, vf, dt)
+	_mud_slap = lerpf(_mud_slap, clampf((spd - 1.0) / 7.0, 0.0, 1.0) if surf == "mud" or (surf == "water" and spd > 2.0) else 0.0, minf(1.0, dt * 6.0))
 	_park_challenges(c, dt)
 	_eng_rpm = lerpf(_eng_rpm, float(c["rpm"]), minf(1.0, dt * 10.0))
 	_eng_load = lerpf(_eng_load, gas, minf(1.0, dt * 5.0))
@@ -1338,6 +1343,7 @@ func _drive(dt: float, inp: Dictionary) -> void:
 				if _car_block(c, back, c["yaw"], 0.0, Vector2.ZERO).is_empty():
 					c["pos"] = back
 				c["v"] = -fwd * 1.5
+				c["rescued"] = true
 				c["stuck"] = 0.0
 				c["dig"] = 0.0
 				_toast_msg("Bogged. A mate's snatch strap pulls you back out.")
@@ -1506,6 +1512,7 @@ func _chassis(c: Dictionary, dt: float) -> void:
 				_impact(c, p + fwd * (zf + float(o["front_oh"])), -fwd, vf * 0.8, "ground", {})
 			v -= fwd * vf
 			vf = 0.0
+			c["dug"] = true
 			_hint(c, "nose", "Bumper's dug in: that's steeper than your approach angle. Back off and take it on an angle.")
 		else:
 			vf = maxf(0.0, vf - (2.0 + nose * 60.0) * dt)
@@ -1532,6 +1539,8 @@ func _chassis(c: Dictionary, dt: float) -> void:
 			_hint(c, "belly", "High-centred! Belly's on the crest. Rock it back, or come at it with more speed.")
 	c["v"] = v
 	if scrape > 0.0 and is_same(c, car):
+		if _scrape < 0.05 and _who != null:
+			game.haptic(_who, "60")
 		_scrape = maxf(_scrape, scrape)
 		if randf() < dt * 14.0:
 			var at := p + fwd * (zf + float(o["front_oh"]) if nose > 0.0 else (zr - float(o["rear_oh"]) if tail > 0.0 else (zf + zr) * 0.5))
@@ -1584,6 +1593,8 @@ func _offroad_tick(c: Dictionary, surf: String, gas: float, dt: float) -> void:
 			_thud = 1.0
 			_shake = maxf(_shake, 0.4)
 			_toast_msg("Rolled a tyre off the rim! Limp it to the FREE AIR post.")
+			if _who != null:
+				game.haptic(_who, "120")
 	else:
 		c["heat"] = maxf(0.0, float(c["heat"]) - dt * 0.3)
 	# --- wading: water up the air intake drowns the engine
@@ -1611,6 +1622,8 @@ func _offroad_tick(c: Dictionary, surf: String, gas: float, dt: float) -> void:
 				_shake = maxf(_shake, 0.5)
 				var n: Node3D = c["node"]
 				_puff(n.global_position + Vector3(0, 1.3, 0) + n.global_basis.z * 1.6, Color(0.9, 0.92, 0.95, 0.4), 0.5, 2.5)
+				if _who != null:
+					game.haptic(_who, "90,60,90")
 				_toast_msg("Hydrolocked! Water up the intake. %s" % ("" if "snorkel" in c["kit"] else "A snorkel would've saved it."))
 
 ## Moves a ute along by its velocity. Buildings, the other cars, poles and
@@ -2217,6 +2230,8 @@ func _landed(c: Dictionary, hit: float) -> bool:
 	var v: Vector2 = c["v"]
 	var fwd := Vector2(sin(float(c["yaw"])), cos(float(c["yaw"])))
 	if hit > 3.0:
+		if _who != null and is_same(c, car):
+			game.haptic(_who, str(clampi(int(hit * 10.0), 25, 140)))
 		c["pv"] = float(c["pv"]) - hit * 0.12
 		_shake = maxf(_shake, clampf(hit * 0.05, 0.1, 0.6))
 		_dust(Vector3(c["pos"].x, float(c["y"]), c["pos"].y))
@@ -2295,26 +2310,121 @@ func _park_challenges(c: Dictionary, dt: float) -> void:
 	if park == null:
 		return
 	var ch: String = park.challenge(c["pos"])
-	if ch == "hill" and not _park_done.has("hill") and float(c.get("y", 0.0)) > float(park.FEATURES[0][5]) - 1.2:
-		_park_tick("hill")
 	if ch == _park_in:
 		_park_t += dt
+		if ch != "":
+			var r := _park_run
+			r["low"] = minf(float(r.get("low", 0.0)), park.height(c["pos"]))
+			if (c["v"] as Vector2).length() < 0.5:
+				r["stopped"] = float(r.get("stopped", 0.0)) + dt
+			if c.get("air", false):
+				r["air"] = true
+		if ch == "hill" and not _park_run.has("done") and float(c.get("y", 0.0)) > float(park.FEATURES[0][5]) - 1.2:
+			_park_run["done"] = true
+			_park_finish("hill", c)
 		return
 	# (out the other side, still going, after a proper go at it)
 	var was := _park_in
 	_park_in = ch
-	if was in ["bog", "dam", "sand"] and _park_t > 1.2 and (c["v"] as Vector2).length() > 1.0:
-		_park_tick(was)
+	if was != "" and was != "hill" and _park_t > 1.2 and _park_run.has("from"):
+		# (out the far side, not back the way you came)
+		var from: Vector2 = _park_run["from"]
+		if (c["pos"] as Vector2).distance_to(from) > park.centre(was).distance_to(from):
+			_park_finish(was, c)
 	_park_t = 0.0
+	_park_run = {"from": c["pos"], "low": 0.0, "stopped": 0.0, "dmg": c["dmg"]}
+	c["dug"] = false
+	c["rescued"] = false
 
-func _park_tick(ch: String) -> void:
+## A go at a challenge finished: its time, a medal (gold needs the hard
+## line too), and a record if it's your best.
+func _park_finish(ch: String, c: Dictionary) -> void:
+	var r := _park_run
+	var t := _park_t
+	var m: Array = park.MEDALS[ch]
+	var name: String = park.CHALLENGES[ch]
+	if c.get("rescued", false) or _dead(c):
+		_toast_msg("%s: no time, you had help." % name)
+		_park_tick(ch)
+		return
+	var hard := park.hard_way(ch, r.get("from", c["pos"]))
+	match ch:
+		"hill":
+			hard = hard and not r.get("air", false)
+		"bog":
+			hard = float(r["low"]) < -0.3
+		"dam":
+			hard = float(r["low"]) < -0.9
+		"sand", "moguls":
+			hard = float(r["stopped"]) < 0.4
+		"logs":
+			hard = not c.get("dug", false)
+	var medal := "bronze"
+	if t <= float(m[1]):
+		medal = "silver"
+	if t <= float(m[0]) and hard:
+		medal = "gold"
+	# (knocked it about getting there: down one)
+	if float(c["dmg"]) - float(r.get("dmg", 0.0)) > 0.15:
+		medal = {"gold": "silver", "silver": "bronze", "bronze": "bronze"}[medal]
+	var rank := {"gold": 3, "silver": 2, "bronze": 1}
+	if rank[medal] > int(rank.get(_park_medal.get(ch, ""), 0)):
+		_park_medal[ch] = medal
+	var best := _record(ch, t, medal)
+	var why := ""
+	if medal != "gold" and t <= float(m[0]) and not hard:
+		why = " Gold's %s." % m[2]
+	_toast_msg("%s: %.1f s · %s%s%s" % [name, t, medal.to_upper(), " · new best!" if best else "", why])
+	if _who != null:
+		game.haptic(_who, "20,40,20,40,60" if medal == "gold" else "20,40,20")
+	_park_tick(ch, true)
+
+## Keeps a crew member's best time at each (wallet.gd's save); true if it's a
+## new one. The boards by the gates show the crew's best.
+func _record(ch: String, t: float, medal: String) -> bool:
+	var who := _char()
+	var w := Wallet.of(who if who != "" else "you")
+	if not w.has("park"):
+		w["park"] = {}
+	var pk: Dictionary = w["park"]
+	var was: Dictionary = pk.get(ch, {})
+	var rank := {"gold": 3, "silver": 2, "bronze": 1}
+	var better: bool = was.is_empty() or int(rank[medal]) > int(rank.get(was.get("m", ""), 0)) \
+		or (medal == was.get("m", "") and t < float(was.get("t", 999.0)))
+	if better:
+		pk[ch] = {"t": snappedf(t, 0.1), "m": medal}
+		Wallet.save()
+		_update_boards()
+	return better
+
+func _update_boards() -> void:
+	if park == null or park.boards.is_empty():
+		return
+	var rank := {"gold": 3, "silver": 2, "bronze": 1}
+	var lines := ["4x4 PARK RECORDS"]
+	for ch in park.CHALLENGES:
+		var best := {}
+		var by := ""
+		for who in (Wallet.data["chars"] as Dictionary):
+			var rec: Dictionary = ((Wallet.data["chars"][who] as Dictionary).get("park", {}) as Dictionary).get(ch, {})
+			if rec.is_empty():
+				continue
+			if best.is_empty() or int(rank[rec["m"]]) > int(rank[best["m"]]) \
+					or (rec["m"] == best["m"] and float(rec["t"]) < float(best["t"])):
+				best = rec
+				by = String(who).capitalize()
+		lines.append("%s   %s" % [park.CHALLENGES[ch], ("%.1f s %s  %s" % [best["t"], String(best["m"]).to_upper(), by]) if not best.is_empty() else "--"])
+	for b in park.boards:
+		(b as Label3D).text = "\n".join(lines)
+
+func _park_tick(ch: String, quiet := false) -> void:
 	if _park_done.has(ch):
 		return
 	_park_done[ch] = true
 	var n := _park_done.size()
 	if n >= park.CHALLENGES.size():
-		_toast_msg("%s done. All four! Fair dinkum bush basher." % park.CHALLENGES[ch])
-	else:
+		_toast_msg("All %d done! Fair dinkum bush basher." % n)
+	elif not quiet:
 		_toast_msg("%s done. %d of %d." % [park.CHALLENGES[ch], n, park.CHALLENGES.size()])
 
 ## A parked ute rocks back level, and rolls to a stop if you left it moving.
@@ -2690,6 +2800,10 @@ func _feed_audio() -> void:
 	var f := _eng_rpm / 60.0 * 2.0
 	var vol := (0.16 + 0.14 * _eng_load) if driving else 0.0
 	var whine := 0.0
+	var gear_whine := 0.0
+	if driving and String(car.get("drive", "")).begins_with("4L") and Utes.ENGINE[car["name"]]["kind"] != "phev":
+		# (low range: the transfer case's straight-cut gears singing)
+		gear_whine = _eng_rpm / 60.0 * 5.3
 	if driving and Utes.ENGINE[car["name"]]["kind"] == "phev":
 		# the Shark: the petrol engine humming away as a generator, and the
 		# motors' whine rising with the speed
@@ -2712,12 +2826,18 @@ func _feed_audio() -> void:
 		s += _noise_lp * _thud * 0.9
 		# (air hissing out of the valves; metal and rock scraping underneath)
 		s += (noise - _noise_lp) * _hiss * 0.12
+		if gear_whine > 0.0:
+			_whine_ph = fmod(_whine_ph + gear_whine / 22050.0, 1.0)
+			s += sin(_whine_ph * TAU) * (0.012 + 0.02 * _eng_load)
+		# (mud slapping the arches: lumpy bursts of low noise)
+		s += _noise_lp * _mud_slap * 0.5 * maxf(0.0, sin(_t * 23.0 + i * 0.004) * sin(_t * 9.0 + i * 0.0017))
 		s += (noise * 0.6 + sin(_t * 310.0 + i * 0.09) * 0.4) * _scrape * 0.16
 		_thud = maxf(0.0, _thud - 1.0 / 22050.0 * 5.0)
 		s = clampf(s, -1.0, 1.0)
 		_gen.push_frame(Vector2(s, s))
 	_scrape = maxf(0.0, _scrape - 0.12)
 	if not driving:
+		_mud_slap = 0.0
 		_squeal = 0.0
 		_hiss = 0.0
 
@@ -2866,6 +2986,8 @@ func _build_ui() -> void:
 	_ui.add_child(_park_label)
 
 func _toast_msg(text: String) -> void:
+	if _demo:
+		print("[explore] toast: " + text)
 	_toast.text = text
 	_toast.visible = true
 	_toast_t = 2.6
@@ -2977,7 +3099,8 @@ func _update_ui(dt: float) -> void:
 	if _park_label.visible:
 		var bits: Array = []
 		for k in park.CHALLENGES:
-			bits.append(("✓ " if _park_done.has(k) else "") + String(park.CHALLENGES[k]))
+			var md: String = _park_medal.get(k, "")
+			bits.append(("✓ " if _park_done.has(k) else "") + String(park.CHALLENGES[k]) + ((" " + md.to_upper()) if md != "" else ""))
 		_park_label.text = "4x4 PARK   " + "   ".join(bits)
 		_park_label.position = Vector2(36, 28)
 	_toast_t = maxf(0.0, _toast_t - dt)
@@ -3025,6 +3148,9 @@ func _run_demo(dt: float) -> void:
 		_demo_step = 40
 	if _demo_t == 0.0 and OS.get_cmdline_user_args().has("--explore=4x4"):
 		_demo_step = 60
+	if _demo_t == 0.0 and OS.get_cmdline_user_args().has("--explore=obstacles"):
+		_demo_obstacle("moguls", "Hilux", "4H")
+		_demo_step = 67
 	_demo_t += dt
 	if Engine.get_process_frames() % 20 == 0:
 		print("[explore] t %.1f step %d mode %s at %s" % [_demo_t, _demo_step, mode, me.position])
@@ -3451,6 +3577,44 @@ func _demo_park(t: float) -> void:
 				print("[explore] demo done")
 				_quit_code = 0
 
+## Lines a ute up 12 m short of an obstacle, to drive straight over it.
+func _demo_obstacle(kind: String, ute: String, drive: String) -> void:
+	var o: Dictionary = {}
+	for ob in park._obs:
+		if ob["kind"] == kind:
+			o = ob
+	var ax := Vector2(cos(float(o["yaw"])), sin(float(o["yaw"])))
+	var a: float = o["a"]
+	var from: Vector2 = (o["c"] as Vector2) - ax * (a + 12.0)
+	_demo_dv["route"] = PackedVector2Array([from, (o["c"] as Vector2) + ax * (a + 10.0)])
+	_demo_dv["wp"] = 1
+	var c: Dictionary = {}
+	for u in utes:
+		if u["name"] == ute:
+			c = u
+	if mode == "drive" and not is_same(car, c):
+		var old := car
+		_get_out(true)
+		# (and out of the way)
+		old["pos"] = (old["pos"] as Vector2) + Vector2(-ax.y, ax.x) * 8.0
+		old["v"] = Vector2.ZERO
+	c["pos"] = from
+	c["yaw"] = atan2(ax.x, ax.y)
+	c["v"] = Vector2.ZERO
+	c["yaw_rate"] = 0.0
+	c["rb"] = false
+	c["air"] = false
+	c["vy"] = 0.0
+	c["y"] = float(_ground_under(c)[0])
+	c["dig"] = 0.0
+	c["drowned"] = false
+	c["dmg"] = 0.0
+	if mode != "drive":
+		_get_in(c)
+	c["drive"] = drive
+	_cam_yaw = float(c["yaw"]) + PI
+	_place_car(c, 0.0)
+
 ## The 4x4 run (--explore=4x4): the wheels working over a twist, crawling
 ## onto the hill's lip, spinning in the bog in 2H, airing down for the sand,
 ## and drowning one in the deep end of the dam.
@@ -3606,6 +3770,54 @@ func _demo_4x4(t: float) -> void:
 			var done := _demo_follow(_demo_dv["dam"], 15.0)
 			if (_demo_dv.has("drown_t") and t > float(_demo_dv["drown_t"]) + 1.0) or done or t > 20.0:
 				print("[explore] dam: drowned %s at %s" % [car["drowned"], car["pos"]])
+				_rmb = false
+				_demo_obstacle("moguls", "Hilux", "4H")
+				_next()
+		67:
+			# the moguls in 4H: a wheel in the air spins and it stops; tap Y
+			# to 4L, again for the locker, and it walks through
+			var r: PackedVector2Array = _demo_dv["route"]
+			if (car["lift"] as Array).has(true) and not _shots.has("4x4_moguls"):
+				_cam_yaw = float(car["yaw"]) + PI + 1.3
+				_rmb = true
+				_shot("4x4_moguls")
+				print("[explore] moguls: lift %s woff %s" % [car["lift"], car["woff"]])
+			if float(car["slip"]) > 0.3 and (car["v"] as Vector2).length() < 0.4 and car["drive"] != "4L+LOCK":
+				_demo_dv["stall_t"] = float(_demo_dv.get("stall_t", 0.0)) + get_process_delta_time()
+				if float(_demo_dv["stall_t"]) > 1.5:
+					_demo_dv["stall_t"] = 0.0
+					_fake["run"] = true
+					print("[explore] moguls: stalled in %s at %s, tap Y" % [car["drive"], car["pos"]])
+			if _demo_follow(r, 7.0) or t > 40.0:
+				print("[explore] moguls done in %s at %s, %.1f s; medal %s" % [car["drive"], car["pos"], t, _park_medal.get("moguls", "-")])
+				_rmb = false
+				_demo_obstacle("logs", "Hilux", "4L")
+				_next()
+		68:
+			# the log step: a stock Hilux's bumper digs in
+			var r: PackedVector2Array = _demo_dv["route"]
+			if car.get("dug", false) and not _shots.has("4x4_logs_dug"):
+				_cam_yaw = float(car["yaw"]) + PI + 1.4
+				_rmb = true
+				_shot("4x4_logs_dug")
+				print("[explore] logs: Hilux dug in at %s" % [car["pos"]])
+				_demo_dv["dug_t"] = t
+			if _demo_follow(r, 6.0) or t > 14.0 or (_demo_dv.has("dug_t") and t > float(_demo_dv["dug_t"]) + 2.0):
+				print("[explore] logs Hilux: at %s, dug %s" % [car["pos"], car.get("dug", false)])
+				_rmb = false
+				_demo_obstacle("logs", "Shark", "AWD")
+				_next()
+		69:
+			# and the Shark's 31° nose clears it
+			var r: PackedVector2Array = _demo_dv["route"]
+			var o: Dictionary = park._obs[1]
+			if (car["pos"] as Vector2).distance_to(o["c"]) < 1.0 and not _shots.has("4x4_logs_shark"):
+				_cam_yaw = float(car["yaw"]) + PI + 1.4
+				_rmb = true
+				_shot("4x4_logs_shark")
+			if _demo_follow(r, 6.0) or t > 20.0:
+				print("[explore] logs Shark: at %s, dug %s, medal %s" % [car["pos"], car.get("dug", false), _park_medal.get("logs", "-")])
+				print("[explore] boards: %s" % (park.boards[0] as Label3D).text.replace("\n", " | "))
 				print("[explore] demo done")
 				_quit_code = 0
 
