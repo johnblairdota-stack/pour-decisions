@@ -29,6 +29,15 @@ middle, front towards +z), so it goes under the ute's body with no offset.
   swag        a rolled swag across the back of the tub (on the tub floor:
               raise it 0.30 m when the drawers are in)
 
+Not sold on their own (they go with the mud tyres and the bull bar):
+
+  mudtyreslow    the mud tyre aired down (about 18 psi): lower, sidewalls
+                 bowed out, round all the way so it still spins
+  mudtyresbulge  its squashed bottom, the flat patch and the bagged
+                 sidewalls; doesn't spin, goes at the hub
+  bullbarscrape  a bash plate under the bull bar's pan, scuffed where it's
+                 dragged over rocks
+
 "Lift" is no mesh: the game raises the body. Materials are named by role
 (scripts/ute_kit.gd paints them); "body" takes the ute's own paint.
 """
@@ -38,6 +47,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
 from kit import box as _box, build, cylinder, export_glb, lathe, reset, tri_count, tube  # noqa: E402
+from utes import air_down, bulge  # noqa: E402
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 OUT = os.path.join(ROOT, "assets", "cars", "ute_kit.glb")
@@ -245,6 +255,36 @@ def mudtyre(u):
 	return p
 
 
+def bullbar_scrape(u):
+	"""A bash plate bolted under the bull bar's pan, its bottom edge and front
+	lip scuffed bright where it's dragged over rocks (fits with the bull bar)."""
+	import random
+	s = u.s
+	z = u.nz + 0.07
+	w = u.hw - 0.02
+	y0 = 0.36
+	sw = 2 * (w - 0.2)
+	p = [box(sw, 0.012, 0.2, "bar_plate", bevel=0.004, at=(0, y0 + 0.012, z - 0.06))]
+	lip = box(sw, 0.06, 0.012, "bar_plate", bevel=0.004, at=(0, y0 + 0.04, z + 0.04))
+	lip.rot("x", -0.5)
+	p.append(lip.move(0, 0.01, -0.01))
+	for x in (-sw / 2 + 0.08, -0.15, 0.15, sw / 2 - 0.08):
+		p.append(cylinder(0.012, 0.008, "steel", 8).move(x, y0 + 0.004, z - 0.1))
+	# the scrapes: bright streaks running front to back underneath, and nicks
+	# along the lip
+	rng = random.Random(len(SPECS) + int(u.hw * 1000))
+	for _ in range(22):
+		x = rng.uniform(-sw / 2 + 0.05, sw / 2 - 0.05)
+		ln = rng.uniform(0.05, 0.17)
+		p.append(box(rng.uniform(0.004, 0.012), 0.002, ln, "steel").rot("y", rng.uniform(-0.25, 0.25))
+			.move(x, y0 + 0.0055, z - 0.06 + rng.uniform(-0.05, 0.05)))
+	for _ in range(12):
+		x = rng.uniform(-sw / 2 + 0.04, sw / 2 - 0.04)
+		p.append(box(rng.uniform(0.01, 0.04), 0.004, 0.006, "steel").rot("z", rng.uniform(-0.4, 0.4))
+			.rot("x", -0.5).move(x, y0 + 0.03 + rng.uniform(0.0, 0.02), z + 0.05))
+	return p
+
+
 # ------------------------------------------------------------------ the roof
 
 def _rack_span(u):
@@ -419,6 +459,17 @@ def main():
 		u = Ute(s)
 		for item in ITEMS:
 			o = put("kit_%s_%s" % (item, ute), BUILD[item](u))
+			t = tri_count([o])
+			tot += t
+			print("  %-22s %6d triangles" % (o.name, t))
+		# extras the shop doesn't sell on their own: the mud tyres aired down
+		# (and their squashed bottom, which doesn't spin), and the bull bar's
+		# scuffed bash plate
+		r = s["r"] + MUD_UP
+		w = s["tw"] + 0.04
+		for nm, pcs in (("mudtyreslow", air_down(mudtyre(u), r, r * 0.6, w)), ("mudtyresbulge", bulge(r, w)),
+				("bullbarscrape", bullbar_scrape(u))):
+			o = put("kit_%s_%s" % (nm, ute), pcs)
 			t = tri_count([o])
 			tot += t
 			print("  %-22s %6d triangles" % (o.name, t))

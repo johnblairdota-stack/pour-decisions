@@ -25,7 +25,8 @@ PALETTE = {
 	"bin_dark": "24559f", "rack": "e0a800", "tray": "2f8f6b", "wet": "8f949b", "timber": "b98a55",
 	"barrow": "3d7a4a", "tyre": "1d1f23", "rope": "d9c27a", "chain": "8a929c", "red": "e5383b",
 	"bucket": "2b2b2b", "wet_crust": "9b968a", "foam": "e0412f", "foam_dark": "b8301f", "hose": "2f5d3a",
-	"nozzle": "ffc72c", "brass": "c9a24a",
+	"nozzle": "ffc72c", "brass": "c9a24a", "air_red": "d8342c", "air_text": "d8342c", "air_sign": "f4f7fa", "gauge_face": "f4f7fa",
+	"concrete": "b5b6b3",
 }
 
 
@@ -352,6 +353,94 @@ def finishing_and_washout():
 	put("TagLineEye", [eye, whip, tail, bow, pin])
 
 
+# Stroke letters on a 2 x 4 grid, for signs: each a list of (x0, y0, x1, y1)
+LETTERS = {
+	"F": [(0, 0, 0, 4), (0, 4, 2, 4), (0, 2, 1.6, 2)],
+	"R": [(0, 0, 0, 4), (0, 4, 1.6, 4), (2, 3.6, 2, 2.4), (0, 2, 1.6, 2), (0.9, 2, 2, 0)],
+	"E": [(0, 0, 0, 4), (0, 4, 2, 4), (0, 2, 1.6, 2), (0, 0, 2, 0)],
+	"A": [(0, 0, 1, 4), (1, 4, 2, 0), (0.5, 1.6, 1.5, 1.6)],
+	"I": [(1, 0, 1, 4), (0.4, 4, 1.6, 4), (0.4, 0, 1.6, 0)],
+	"P": [(0, 0, 0, 4), (0, 4, 1.6, 4), (2, 3.6, 2, 2.4), (0, 2, 1.6, 2)],
+	"S": [(2, 4, 0.3, 4), (0, 3.7, 0, 2.3), (0.3, 2, 1.7, 2), (2, 1.7, 2, 0.3), (1.7, 0, 0, 0)],
+}
+
+
+def sign_text(text, cx, cy, z, h, mat, depth=0.006, facing=1):
+	"""Block capitals `h` high centred on (cx, cy), standing proud of a sign
+	face at z (facing +z, or -z with facing=-1)."""
+	u = h / 4.0
+	stroke = u * 0.7
+	adv = 2.8 * u
+	width = adv * len(text) - 0.8 * u
+	out = []
+	for i, ch in enumerate(text):
+		x0 = cx - width / 2 + i * adv
+		for a, b, c, d in LETTERS.get(ch, []):
+			ax, ay = x0 + a * u, cy - h / 2 + b * u
+			bx, by = x0 + c * u, cy - h / 2 + d * u
+			ln = math.hypot(bx - ax, by - ay) + stroke
+			pc = box(ln, stroke, depth, mat).rot("z", math.atan2(by - ay, (bx - ax) * facing))
+			out.append(pc.move((ax + bx) / 2 * facing, (ay + by) / 2, z + facing * depth / 2))
+	return out
+
+
+def air():
+	# The free air post at the 4x4 park gate: a steel post on a concrete
+	# footing, the red compressor head with its dial and the FREE AIR sign
+	# on both sides, the coiled hose hanging off a hook, the chuck on its end.
+	# Origin on the ground at the footing's middle, front (the dial) to +z.
+	p = [box(0.4, 0.12, 0.4, "concrete", bevel=0.02, at=(0, 0.06, 0))]
+	p.append(box(0.1, 1.1, 0.1, "dark_steel", bevel=0.01, at=(0, 0.66, 0)))
+	head = (0, 1.32, 0)
+	p.append(box(0.36, 0.42, 0.24, "air_red", bevel=0.04, at=head))
+	p.append(box(0.4, 0.04, 0.28, "dark_steel", bevel=0.01, at=(0, 1.55, 0)))
+	# the dial and the + / - buttons on the front
+	p.append(cylinder(0.075, 0.03, "dark_steel", 20).rot("x", math.pi / 2).move(0, 1.38, 0.12))
+	p.append(cylinder(0.065, 0.004, "gauge_face", 20).rot("x", math.pi / 2).move(0, 1.38, 0.149))
+	for k in range(9):
+		a = math.radians(-120 + 30 * k)
+		p.append(box(0.004, 0.014, 0.003, "grip").rot("z", -a).move(math.sin(a) * 0.052, 1.38 + math.cos(a) * 0.052, 0.152))
+	p.append(box(0.004, 0.05, 0.003, "red").rot("z", -0.6).move(0.012, 1.395, 0.154))
+	for x, ch in ((-0.1, "+"), (0.1, "-")):
+		p.append(cylinder(0.025, 0.02, "machine", 12).rot("x", math.pi / 2).move(x, 1.22, 0.12))
+		p.append(box(0.022, 0.005, 0.003, "grip", at=(x, 1.22, 0.142)))
+		if ch == "+":
+			p.append(box(0.005, 0.022, 0.003, "grip", at=(x, 1.22, 0.142)))
+	# the sign board on top, both faces
+	p.append(box(0.6, 0.2, 0.03, "air_sign", bevel=0.01, at=(0, 1.72, 0)))
+	p.append(box(0.04, 0.06, 0.04, "dark_steel", at=(0, 1.6, 0)))
+	for f in (1, -1):
+		p.append(box(0.58, 0.035, 0.004, "air_red", at=(0, 1.645, f * 0.017)))
+		p += sign_text("FREE AIR", 0, 1.745, f * 0.015, 0.08, "air_text", facing=f)
+	# the hook and the coiled hose hanging from it, its end and chuck
+	p.append(tube([(0.18, 1.2, 0.0), (0.26, 1.2, 0.0), (0.27, 1.25, 0.0)], 0.01, "dark_steel", 6))
+	pts = []
+	for k in range(70):
+		t = k / 69
+		a = t * 2 * math.pi * 5
+		pts.append((0.31 + 0.03 * math.cos(a), 1.2 - 0.17 - 0.15 * math.cos(a) - t * 0.02, 0.15 * math.sin(a) * 0.35 + t * 0.03))
+	pts += [(0.31, 0.95, 0.06), (0.3, 0.75, 0.1), (0.3, 0.62, 0.12)]
+	p.append(tube(pts, 0.011, "rubber", 6))
+	p.append(cylinder(0.016, 0.07, "brass", 10).move(0.3, 0.55, 0.12))
+	p.append(tube([(0.0, 1.12, -0.1), (0.15, 1.2, -0.08), (0.24, 1.2, -0.02)], 0.012, "rubber", 6))
+	put("AirPost", p)
+	# A tyre deflator: a dial gauge with a short hose to a brass chuck that
+	# screws onto the valve, and the bleed button. Origin at the dial's
+	# middle, face to +z, the chuck below it (about 0.25 m long all up).
+	d = [cylinder(0.035, 0.03, "air_red", 20, bevel=0.008).rot("x", math.pi / 2).move(0, 0, -0.015)]
+	d.append(cylinder(0.03, 0.003, "gauge_face", 20).rot("x", math.pi / 2).move(0, 0, 0.016))
+	for k in range(7):
+		a = math.radians(-120 + 40 * k)
+		d.append(box(0.002, 0.008, 0.002, "grip").rot("z", -a).move(math.sin(a) * 0.024, math.cos(a) * 0.024, 0.018))
+	d.append(box(0.002, 0.024, 0.002, "red").rot("z", 0.9).move(-0.008, 0.006, 0.019))
+	d.append(cylinder(0.009, 0.03, "brass", 10).move(0, -0.06, 0))
+	d.append(cylinder(0.008, 0.02, "machine", 10).rot("z", math.pi / 2).move(0.02, -0.05, 0))
+	d.append(tube([(0, -0.06, 0), (0.0, -0.1, 0.0), (0.02, -0.16, 0.01), (0.0, -0.21, 0.0)], 0.007, "rubber", 6))
+	d.append(cylinder(0.009, 0.04, "brass", 10).move(0, -0.25, 0))
+	d.append(cylinder(0.005, 0.012, "steel", 8).move(0, -0.262, 0))
+	put("Deflator", d)
+
+
 def main():
 	reset()
 	screed_board()
@@ -365,6 +454,7 @@ def main():
 	barrow()
 	rigging()
 	finishing_and_washout()
+	air()
 	import bpy
 	for o in bpy.context.scene.objects:
 		if o.type == "MESH":

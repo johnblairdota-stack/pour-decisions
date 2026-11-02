@@ -26,6 +26,9 @@ const COLORS := {
 	"light": Color("eef3f6"), "drl": Color("ffffff"), "tail": Color("c8282a"), "amber": Color("ff9a1f"),
 	"trim": Color("25282c"), "chrome": Color("d8dde2"), "grille": Color("1a1c1f"), "plate": Color("f4f4f2"),
 	"liner": Color("2c2e31"), "skid": Color("9aa0a6"), "badge": Color("d8dde2"), "ford_blue": Color("1f4f9a"),
+	# underneath (<Name>Under, <Name>AxleR) and the arch wells
+	"chassis": Color("26282b"), "diff": Color("4a4d52"), "spring": Color("1b1d20"), "shock": Color("3a3e44"),
+	"drum": Color("6b6460"), "exhaust": Color("8a847b"), "battery": Color("39424d"), "well": Color("1c1d1f"),
 }
 
 static var _lib: Node
