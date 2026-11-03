@@ -33,6 +33,9 @@ const SIZE := {"Bus": Vector2(1.25, 6.25), "Van": Vector2(0.95, 2.65), "Ute": Ve
 const BUS := Color("f4f4f2")
 const HEADWAY := 1.3         # seconds behind the car in front, as on a real road
 const STOP_GAP := 2.0        # metres bumper to bumper in a queue
+const PATIENCE := 6.0        # s sat behind a ute stopped in the road before going round it
+const DODGE := 2.8           # m out round it
+const UNJAM := 15.0          # s stopped for anything else before squeezing on through
 
 static var _lib: Node
 static var _meshes := {}
@@ -308,6 +311,47 @@ static func _heading(r: Dictionary, end: int) -> Vector2:
 
 ## How far left of the way's line a car drives: in its lane (the left one on a
 ## two-way street, the travel lane beside the parking lane on a one-way).
+## Where a car `s` along route `r` sits, going `dir`, in its lane (`pick`),
+## `dodge` m out round something: [position, heading].
+static func _at(r: Dictionary, s: float, dir: float, pick: float, dodge := 0.0) -> Array:
+	var cum: PackedFloat32Array = r["cum"]
+	var pts: PackedVector2Array = r["pts"]
+	var i := 1
+	while i < cum.size() - 1 and cum[i] < s:
+		i += 1
+	var a := pts[i - 1]
+	var b := pts[i]
+	var p := a.lerp(b, clampf((s - cum[i - 1]) / maxf(cum[i] - cum[i - 1], 0.001), 0.0, 1.0))
+	var fwd := (b - a).normalized() * dir
+	# keep left
+	var lane := _lane(r, pick)
+	# (closing up with the other carriageway: into the left lane of a two-way)
+	var meet: Array = r["meet"]
+	for end in [0, 1]:
+		if meet[end]:
+			var to_end := s if end == 0 else float(r["len"]) - s
+			lane = lerpf(LANE_W * 0.5, lane, smoothstep(0.0, 30.0, to_end))
+	return [p + Vector2(fwd.y, -fwd.x) * (lane - dodge), fwd]
+
+## How far up the road this car's on it gets to `b` (in its lane, as it's
+## driving it, past the end straight on), or -1 if it doesn't.
+func _on_path(dv: Dictionary, b: Vector2) -> float:
+	var r: Dictionary = dv["route"]
+	var dir: float = dv["dir"]
+	var s0: float = dv["s"]
+	var rl: float = r["len"]
+	var k := 2.0
+	while k <= 30.0:
+		var s := s0 + k * dir
+		var at := _at(r, clampf(s, 0.0, rl), dir, float(dv["pick"]), float(dv.get("dodge", 0.0)))
+		var q: Vector2 = at[0]
+		if s < 0.0 or s > rl:
+			q += (at[1] as Vector2) * absf(s - clampf(s, 0.0, rl))
+		if q.distance_to(b) < 1.9:
+			return k
+		k += 1.5
+	return -1.0
+
 static func _lane(r: Dictionary, pick: float) -> float:
 	var w := float(r["w"])
 	var lanes := int(r["lanes"])
@@ -343,7 +387,19 @@ func _follow(dv: Dictionary, delta: float) -> void:
 	var p: Vector2 = dv["p"]
 	var fwd: Vector2 = dv["fwd"]
 	var want: float = dv["cruise"]
+	# (stopped far too long for the cars about: something's locked up, so
+	# squeeze on through and let the others sort themselves out)
+	var still := float(dv.get("still", 0.0))
+	still = still + delta if float(dv["speed"]) < 0.3 else 0.0
+	dv["still"] = still
+	if still > UNJAM:
+		dv["ghost"] = 4.0
+		dv["still"] = 0.0
+	dv["ghost"] = maxf(0.0, float(dv.get("ghost", 0.0)) - delta)
+	var ghost: bool = float(dv["ghost"]) > 0.0
 	for o in _drivers:
+		if ghost:
+			break
 		if is_same(o, dv):
 			continue
 		var d: Vector2 = (o["p"] as Vector2) - p
@@ -357,6 +413,10 @@ func _follow(dv: Dictionary, delta: float) -> void:
 		if same >= 0.5 and side < 2.0:
 			# going the same way, in this lane
 			want = minf(want, maxf(along - lens - STOP_GAP, 0.0) / HEADWAY)
+		elif same <= -0.95 and float(dv.get("dodge", 0.0)) > 0.5 and side < 2.6:
+			# out round a stopped ute, on the wrong side: wait for a gap in
+			# what's coming the other way
+			want = minf(want, maxf(along - lens - 6.0, 0.0) / HEADWAY)
 		elif same > -0.95:
 			# coming across, merging in or turning across at a corner: if we'd
 			# meet, whoever's got further to go to the other gives way (just
@@ -373,12 +433,29 @@ func _follow(dv: Dictionary, delta: float) -> void:
 				continue
 			want = minf(want, maxf(dist - lens - 1.0, 0.0) / HEADWAY)
 	# ...and behind a ute parked or stopped in the lane (yours, when you
-	# knock off: explore.gd)
+	# knock off: explore.gd). Only if it's on the road this car's taking,
+	# round the bend and all, not just somewhere straight out in front; and
+	# after a wait behind one that isn't going anywhere, out and round it.
+	var near := false
+	var held := false
 	for b: Vector2 in blockers:
 		var d := b - p
-		var along := d.dot(fwd)
-		if along > 0.0 and along < 30.0 and absf(d.cross(fwd)) < 2.0:
-			want = minf(want, maxf(along - float(dv["len"]) * 0.5 - 2.7 - STOP_GAP, 0.0) / HEADWAY)
+		if d.length() > 34.0:
+			continue
+		near = near or d.length() < 14.0
+		var hit := _on_path(dv, b)
+		if hit < 0.0:
+			continue
+		held = true
+		want = minf(want, maxf(hit - float(dv["len"]) * 0.5 - 2.7 - STOP_GAP, 0.0) / HEADWAY)
+	var wait := float(dv.get("wait", 0.0))
+	wait = wait + delta if held and float(dv["speed"]) < 0.5 else maxf(0.0, wait - delta * 0.5)
+	dv["wait"] = wait
+	if wait > PATIENCE:
+		dv["dodge_to"] = DODGE
+	elif not near:
+		dv["dodge_to"] = 0.0
+	dv["dodge"] = move_toward(float(dv.get("dodge", 0.0)), float(dv.get("dodge_to", 0.0)), delta * 1.2)
 	var v: float = dv["speed"]
 	# (gentle away, firmer on the brakes)
 	dv["speed"] = move_toward(v, want, delta * (2.5 if want > v else 7.0))
@@ -413,24 +490,9 @@ func _drive(dv: Dictionary, delta: float) -> void:
 				dv["dir"] = 1.0
 				s = 0.0
 	dv["s"] = s
-	var cum: PackedFloat32Array = r["cum"]
-	var pts: PackedVector2Array = r["pts"]
-	var i := 1
-	while i < cum.size() - 1 and cum[i] < s:
-		i += 1
-	var a := pts[i - 1]
-	var b := pts[i]
-	var p := a.lerp(b, clampf((s - cum[i - 1]) / maxf(cum[i] - cum[i - 1], 0.001), 0.0, 1.0))
-	var fwd := (b - a).normalized() * float(dv["dir"])
-	# keep left
-	var lane := _lane(r, float(dv["pick"]))
-	# (closing up with the other carriageway: into the left lane of a two-way)
-	var meet: Array = r["meet"]
-	for end in [0, 1]:
-		if meet[end]:
-			var to_end := s if end == 0 else float(r["len"]) - s
-			lane = lerpf(LANE_W * 0.5, lane, smoothstep(0.0, 30.0, to_end))
-	p += Vector2(fwd.y, -fwd.x) * lane
+	var at := _at(r, s, float(dv["dir"]), float(dv["pick"]), float(dv.get("dodge", 0.0)))
+	var p: Vector2 = at[0]
+	var fwd: Vector2 = at[1]
 	var yaw := atan2(fwd.x, fwd.y)
 	dv["yaw"] = yaw if delta == 0.0 else lerp_angle(float(dv["yaw"]), yaw, minf(1.0, delta * 4.0))
 	dv["p"] = p
