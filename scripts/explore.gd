@@ -36,7 +36,6 @@ const HIP := 0.85            # the body's middle above the feet: it tumbles roun
 const SWIM_Y := Water.RIVER_Y - 1.05   # feet in the water, head and shoulders out
 const DEEP := Water.RIVER_Y - 14.0     # the Brisbane River's bed out in the channel
 const GONE := 3.4            # s from going under (or driving in) to waking up back at the site
-const SPEED := 10.0          # the CityCat's cruising speed (citycat.gd), m/s
 const RAMP := 6.0            # m of ramp from the terminal's landing down to the riverwalk
 
 ## The ute's engine and chassis (m/s, m/s²): an arcade feel, but with weight
@@ -64,6 +63,7 @@ var _d := {}
 var _bpolys: Array = []      # building footprints you can't walk into
 var _bgrid := {}             # 20 m cell -> footprint indexes
 var _water: Array = []
+var _piers: Array = []        # [box, polygon] of the piers you can walk out on (surrounds.gd)
 var _wseg := {}              # 20 m cell -> [a, b] bank edges
 var _wet := {}               # 2 m cell -> in the river
 var _fer := {}               # the ferry terminal: at, dir to the bank, run, yaw
@@ -245,6 +245,20 @@ func _index_map() -> void:
 				if not _wseg.has(cell):
 					_wseg[cell] = []
 				_wseg[cell].append([p0, p1])
+	for pr in Surrounds.piers(_d):
+		var polys: Array = []
+		if pr.has("pts"):
+			polys.append(Surrounds._v2(pr["pts"]))
+		else:
+			var ln := Surrounds._v2(pr["line"])
+			for i in ln.size() - 1:
+				var side := (ln[i + 1] - ln[i]).normalized().orthogonal() * float(pr["w"]) * 0.5
+				polys.append(PackedVector2Array([ln[i] + side, ln[i + 1] + side, ln[i + 1] - side, ln[i] - side]))
+		for poly: PackedVector2Array in polys:
+			var box := Rect2(poly[0], Vector2.ZERO)
+			for q in poly:
+				box = box.expand(q)
+			_piers.append([box, poly])
 	for fe in _d.get("ferry", []):
 		var at := Vector2(fe["at"][0], fe["at"][1])
 		var edge := Vector2(fe["edge"][0], fe["edge"][1])
@@ -324,6 +338,9 @@ func floor_y(p: Vector2) -> float:
 	var f := _ferry_floor(p)
 	if not f.is_empty():
 		return f[0]
+	for pr in _piers:
+		if (pr[0] as Rect2).has_point(p) and Geometry2D.is_point_in_polygon(p, pr[1]):
+			return 0.3
 	if _is_wet(p):
 		# (down the bank's wall, then away to the channel: well over your head)
 		var a := _from_bank(p)
@@ -3087,38 +3104,10 @@ func _build_terminal() -> void:
 ## Seconds till the CityCat's next at the terminal (0 while it's there),
 ## from where it is on its run (citycat.gd), and the whole round trip.
 func _cat_times() -> Vector2:
-	if _boat == null or not _boat.has_meta("route"):
+	if _boat == null or not _boat.has_meta("eta"):
 		return Vector2(-1, 0)
-	var pts: Array = []
-	for q: Vector3 in _boat.get_meta("route"):
-		pts.append(Vector2(q.x, q.z))
-	var total := 0.0
-	for i in range(1, pts.size()):
-		total += (pts[i - 1] as Vector2).distance_to(pts[i])
-	var cycle := total * 2.0 / SPEED + 60.0
-	var p := Vector2(_boat.position.x, _boat.position.z)
-	if p.distance_to(pts[pts.size() - 1]) < 0.6:
-		return Vector2(0, cycle)
-	var best := 0
-	var bd := INF
-	for i in range(1, pts.size()):
-		var c := Geometry2D.get_closest_point_to_segment(p, pts[i - 1], pts[i])
-		if c.distance_to(p) < bd:
-			bd = c.distance_to(p)
-			best = i
-	var heading := Vector2(cos(_boat.rotation.y), -sin(_boat.rotation.y))
-	var seg: Vector2 = pts[best] - pts[best - 1]
-	if heading.dot(seg) > 0.0:
-		# on its way in
-		var left := p.distance_to(pts[best])
-		for i in range(best + 1, pts.size()):
-			left += (pts[i - 1] as Vector2).distance_to(pts[i])
-		return Vector2(left / SPEED, cycle)
-	# on its way out: back to the top of its run, a wait there, and all the way in
-	var back := p.distance_to(pts[best - 1])
-	for i in range(1, best):
-		back += (pts[i - 1] as Vector2).distance_to(pts[i])
-	return Vector2(back / SPEED + 20.0 + total / SPEED, cycle)
+	var eta: float = _boat.get_meta("eta")
+	return Vector2(0.0 if eta < 0.5 else eta, float(_boat.get_meta("cycle")))
 
 func _clock(after: float) -> String:
 	var t := Time.get_time_dict_from_system()
@@ -3669,6 +3658,8 @@ func _run_demo(dt: float) -> void:
 		_demo_step = 60
 	if _demo_t == 0.0 and OS.get_cmdline_user_args().has("--explore=recovery"):
 		_demo_step = 70
+	if _demo_t == 0.0 and OS.get_cmdline_user_args().has("--explore=traffic"):
+		_demo_step = 90
 	if _demo_t == 0.0 and OS.get_cmdline_user_args().has("--explore=obstacles"):
 		_demo_obstacle("moguls", "Hilux", "4H")
 		_demo_step = 67
@@ -3689,6 +3680,9 @@ func _run_demo(dt: float) -> void:
 	_fake["gas"] = 0.0
 	_fake["hold_a"] = false
 	_fake["run"] = false
+	if _demo_step >= 90:
+		_demo_traffic(t)
+		return
 	if _demo_step >= 70:
 		_demo_recovery(t)
 		return
@@ -3815,12 +3809,54 @@ func _run_demo(dt: float) -> void:
 					(_boat.get_meta("tween") as Tween).set_speed_scale(25.0)
 				_next()
 		10:
+			if t < 2.2:
+				# (down the gangway first: you walk on it, not in it)
+				if not _shots.has("gangway_off"):
+					var dir: Vector2 = _fer["dir"]
+					var mid: Vector2 = (_fer["start"] as Vector2) + dir * float(_fer["run"]) * 0.5
+					if t < 0.1:
+						me.position = Vector3(mid.x, floor_y(mid), mid.y)
+						_yaw = atan2(dir.x, dir.y)
+						var side := Vector2(dir.y, -dir.x) * 9.0
+						_demo_dv = {"cam": [Vector3(mid.x + side.x, 1.2, mid.y + side.y) - Vector3(dir.x, 0, dir.y) * 4.0,
+							Vector3(mid.x, me.position.y + 0.6, mid.y)]}
+					elif t > 1.5 and not _shots.has("gangway_q"):
+						_shots["gangway_q"] = true
+						_shot("gangway")
+					elif t > 1.9:
+						_shots["gangway_off"] = true
+						print("[explore] on the gangway: y %.2f floor %s" % [me.position.y, _ferry_floor(Vector2(me.position.x, me.position.z))])
+						var at: Vector2 = _fer["at"]
+						var off := at + (_fer["dir"] as Vector2) * 2.0
+						me.position = Vector3(off.x, floor_y(off), off.y)
+						_cam_yaw = atan2((_fer["dir"] as Vector2).x, (_fer["dir"] as Vector2).y) + 0.6
+						_cam_dist = 14.0
+						# (and up on the bank downstream, looking back up the river the
+						# way it comes in)
+						var bt: Vector2 = _boat.get_meta("berth")
+						var o := -(_fer["dir"] as Vector2)
+						var up_river := Vector2(cos(float(_fer["rot"])), -sin(float(_fer["rot"])))
+						var aim := bt + up_river * 45.0 + o * 20.0
+						var eye := at - o * 20.0 - up_river * 30.0
+						_demo_dv = {"cam": [Vector3(eye.x, 16.0, eye.y), Vector3(aim.x, Water.RIVER_Y, aim.y)]}
+				return
+			var eta: float = _boat.get_meta("eta", 99.0)
+			if not _boat_ready() and eta < 90.0 and not _shots.has("approach"):
+				# (slow it to watch it swing in alongside)
+				(_boat.get_meta("tween") as Tween).set_speed_scale(3.0)
+				if eta < 45.0:
+					_shot("approach_far")
+				if eta < 22.0:
+					_shot("approach")
+					print("[explore] coming in: eta %.1f at %s" % [eta, _boat.position])
+				return
 			if _boat_ready():
 				(_boat.get_meta("tween") as Tween).set_speed_scale(1.0)
 				if not _shots.has("terminal"):
 					_shot("terminal")
 					_demo_mark = _demo_t
 				elif t > 0.5:
+					_demo_dv = {}
 					_board()
 					_next()
 			elif t > 120.0:
@@ -3871,6 +3907,67 @@ func _run_demo(dt: float) -> void:
 			if t > 30.0:
 				print("[explore] demo stuck in ", mode)
 				_quit_code = 1
+
+## Dev: riding behind a car each way along two-way streets, to see they keep
+## left (and print which side of the line every car's on).
+func _demo_traffic(t: float) -> void:
+	var k := _demo_step - 90
+	if k == 4 or k == 5:
+		# (the estate's blocks along Parkside Circuit, and a roundabout from up
+		# high: everyone round it clockwise)
+		_demo_dv = {"cam": [Vector3(-232, 2.4, -101), Vector3(-300, 3, -96)] if k == 4 else
+			[Vector3(108, 34, -60), Vector3(108, 0, -92)]}
+		if t > 1.5:
+			_shot("traffic_%d" % k)
+		if t > 2.0:
+			_next()
+		return
+	if k >= 6:
+		var wrong := 0
+		for dv in traffic._drivers:
+			var r: Dictionary = dv["route"]
+			if r["oneway"]:
+				continue
+			var pts: PackedVector2Array = r["pts"]
+			var p: Vector2 = dv["p"]
+			var best := INF
+			var side := 0.0
+			for i in range(1, pts.size()):
+				var c := Geometry2D.get_closest_point_to_segment(p, pts[i - 1], pts[i])
+				if c.distance_to(p) < best:
+					best = c.distance_to(p)
+					var f: Vector2 = dv["fwd"]
+					side = (p - c).dot(Vector2(f.y, -f.x))
+			if side < -0.3:
+				wrong += 1
+		print("[explore] two-way traffic on the right of the line: %d of %d" % [wrong, traffic._drivers.size()])
+		print("[explore] demo done")
+		_quit_code = 0
+		return
+	if not _demo_dv.has("dv") or int(_demo_dv.get("k", -1)) != k:
+		_demo_dv = {}
+		var want := 1.0 if k % 2 == 0 else -1.0
+		var n := 0
+		for dv in traffic._drivers:
+			if not dv["route"]["oneway"] and float(dv["dir"]) == want and (dv["p"] as Vector2).length() < 350.0:
+				n += 1
+				if n == 1 + k / 2:
+					_demo_dv = {"dv": dv, "k": k}
+					break
+		if _demo_dv.is_empty():
+			_next()
+			return
+	var d: Dictionary = _demo_dv["dv"]
+	var p: Vector2 = d["p"]
+	var f: Vector2 = d["fwd"]
+	var p3 := Vector3(p.x, 0, p.y)
+	var f3 := Vector3(f.x, 0, f.y)
+	_demo_dv["cam"] = [p3 - f3 * 16.0 + Vector3.UP * 6.0, p3 + f3 * 12.0]
+	if t > 1.5:
+		_shot("traffic_%d" % k)
+		print("[explore] car %d dir %d on %s" % [d["i"], d["dir"], d["route"].get("name", "?")])
+	if t > 2.0:
+		_next()
 
 ## Dev: a ute lined up `back` metres short of `at`, coming at it.
 func _demo_line_up(at: Vector2, back: float, name := "Ranger", force := Vector2.ZERO) -> void:

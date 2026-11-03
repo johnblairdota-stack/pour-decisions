@@ -176,7 +176,7 @@ static func _ground(root: Node3D, d: Dictionary) -> void:
 			for k in 3:
 				t.add_vertex(Vector3(tris[i + k * 2], RIVER_Y if wet else GROUND_Y, tris[i + k * 2 + 1]))
 	st.set_uv(Vector2.ZERO)
-	for pr in d["piers"]:
+	for pr in piers(d):
 		var line: PackedVector2Array
 		if pr.has("pts"):
 			line = _v2(pr["pts"])
@@ -200,6 +200,28 @@ static func _ground(root: Node3D, d: Dictionary) -> void:
 	water.material_override = _water()
 	water.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	root.add_child(water)
+
+## The map's piers and jetties, less the one OSM draws where the CityCat
+## terminal is: citycat.gd builds that gangway and pontoon itself, lower
+## down, and the flat old pier over them was what you sank into.
+static func piers(d: Dictionary) -> Array:
+	var near: Array = []
+	for fe in d.get("ferry", []):
+		near.append(Vector2(fe["at"][0], fe["at"][1]))
+		near.append(Vector2(fe["edge"][0], fe["edge"][1]))
+	var out: Array = []
+	for pr in d.get("piers", []):
+		var line := _v2(pr["pts"] if pr.has("pts") else pr["line"])
+		var hit := false
+		for f: Vector2 in near:
+			if pr.has("pts") and Geometry2D.is_point_in_polygon(f, line):
+				hit = true
+			for i in line.size() - 1:
+				if Geometry2D.get_closest_point_to_segment(f, line[i], line[i + 1]).distance_to(f) < 10.0:
+					hit = true
+		if not hit:
+			out.append(pr)
+	return out
 
 ## The river's banks, from the land down into the water (data/river_banks.json).
 ## Near the site water.gd lays the rock wall and the beach over them.
