@@ -9,6 +9,7 @@
 ## them with the map.
 extends RefCounted
 
+const ParkWays := preload("res://scripts/park_ways.gd")
 const F := preload("res://scripts/factory.gd")
 const LIB := "res://assets/fences/fences.glb"
 const ESTATE := "res://data/hamilton_reach.json"
@@ -42,6 +43,13 @@ static func build(root: Node3D, d: Dictionary, ok: Callable, road: Callable, rng
 	var est: Dictionary = {}
 	if FileAccess.file_exists(ESTATE):
 		est = JSON.parse_string(FileAccess.get_file_as_string(ESTATE))
+	# (nothing across the 4x4 park's ways in, and no fences for the house
+	# that came down for one)
+	var clear := ok
+	ok = func(p: Vector2) -> bool: return clear.call(p) and not ParkWays.near(p, 4.5)
+	if est.has("houses"):
+		est["houses"] = (est["houses"] as Array).filter(func(h) -> bool:
+			return not ParkWays.near(Vector2(h["at"][0], h["at"][1]), 9.0))
 	var on := func(p: Vector2) -> bool: return ok.call(p) and not road.call(p, 0.6)
 	_houses(est, items, on, rng)
 	_blocks(est, items, func(p: Vector2) -> bool: return ok.call(p) and not road.call(p, 1.2), rng)

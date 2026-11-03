@@ -165,6 +165,11 @@ func setup(owner_game) -> void:
 	_d = Surrounds._load()
 	if not _d.is_empty():
 		_index_map()
+	if world != null:
+		# the estate's apartment blocks, terraces and houses (neighbours.gd)
+		for poly in world.get_meta("foot", []):
+			if (poly as PackedVector2Array).size() >= 3:
+				_add_poly(poly)
 	_build_ui()
 	if not _fer.is_empty():
 		_build_terminal()
@@ -316,7 +321,36 @@ func floor_y(p: Vector2) -> float:
 	return park.height(p) if park != null else 0.0
 
 func _blocked(p: Vector2) -> bool:
-	return p.length() > EDGE or _in_building(p)
+	return p.length() > EDGE or _in_building(p) or _ferry_solid(p)
+
+## The CityCat terminal's posts, glass windbreak, benches and boarding rail
+## (citycat.py's Terminal): solid, with the gaps where the gangway comes in
+## and the boat ties up.
+func _ferry_solid(p: Vector2) -> bool:
+	if _fer.is_empty():
+		return false
+	var rel: Vector2 = p - _fer["at"]
+	var a: float = _fer["rot"]
+	var x := rel.dot(Vector2(cos(a), -sin(a)))
+	var z := rel.dot(Vector2(sin(a), cos(a)))
+	if absf(x) > 15.5 or absf(z) > 6.5:
+		return false
+	for px: float in [-10.5, -3.5, 3.5, 10.5]:
+		for pz: float in [-3.0, 3.8]:
+			if Vector2(x - px, z - pz).length() < 0.4:
+				return true
+	for px: float in [-11.0, 11.0]:
+		if Vector2(x - px, z - 5.2).length() < 0.85:
+			return true
+	# (the windbreak and the benches along it)
+	if absf(x) > 1.3 and absf(x) < 10.3 and z > 3.7 and z < 4.35:
+		return true
+	if absf(absf(x) - 6.0) < 2.1 and z > 3.15 and z < 4.35:
+		return true
+	# (the rail along the river edge, open where the boat comes alongside)
+	if absf(x) > 2.3 and absf(x) < 15.0 and z < -3.9 and z > -4.6:
+		return true
+	return false
 
 # ------------------------------------------------------------------ in and out
 
@@ -670,7 +704,9 @@ func _walk(dt: float, inp: Dictionary) -> void:
 		var step := Vector3.ZERO
 		step[axis] = vel[axis] * dt
 		var to := Vector2(me.position.x + step.x, me.position.z + step.z)
-		if _blocked(to) or _car_at(to, 0.35) or (floor_y(to) - maxf(me.position.y, fl) > STEP and not _swim):
+		# (your shoulder against the wall, not your middle)
+		var reach := Vector2(signf(step.x), signf(step.z)) * 0.32
+		if _blocked(to) or _blocked(to + reach) or _car_at(to, 0.35) or (floor_y(to) - maxf(me.position.y, fl) > STEP and not _swim):
 			vel[axis] = 0.0
 		else:
 			me.position += step
@@ -1222,8 +1258,11 @@ func _drive(dt: float, inp: Dictionary) -> void:
 	if brake > 0.0:
 		if vf > 0.5:
 			vf = maxf(0.0, vf - BRAKE * brake * maxf(grip, 0.25) * dt)
-		else:
+		elif not dead:
 			vf = maxf(-REVERSE, vf - REV_ACC * brake * dt)
+		else:
+			# (a drowned or wrecked engine doesn't go backwards either)
+			vf = move_toward(vf, 0.0, BRAKE * brake * dt)
 	if gas == 0.0 and brake == 0.0:
 		# rolling, the engine holding it back
 		var hold := drag / mass + (0.5 + float(c["rpm"]) / 4000.0 * 0.9 if e["kind"] != "phev" else 0.9)
@@ -1930,9 +1969,11 @@ func _offroad_tick(c: Dictionary, surf: String, gas: float, dt: float) -> void:
 			var deep: float = wl - park.height(pf)
 			# (a steady walking pace pushes a bow wave that keeps the engine bay
 			# low; too fast and it comes over the bonnet)
+			# (and it can only throw so much: the creek's causeways are shallow
+			# enough for a stock ute at any speed; the dam's deep end isn't)
 			var bow := 0.0
 			if spd > 2.8:
-				bow = 0.012 * (spd - 2.8) * (spd - 2.8)
+				bow = minf(0.012 * (spd - 2.8) * (spd - 2.8), 0.22)
 			elif spd > 1.0:
 				bow = -0.06
 			var at := deep + bow
@@ -3923,8 +3964,29 @@ func _demo_park(t: float) -> void:
 				_demo_place(e1[0] + (e1[0] - e1[1]).normalized() * 8.0, e1[0])
 				_next()
 		48:
-			if t > 0.8:
+			if t > 0.8 and not _shots.has("park_mouth2"):
 				_shot("park_mouth2")
+			if t > 1.4 and not _shots.has("park_records"):
+				# (the records board by the MacArthur gate, square on)
+				var bd := (park.boards[0] as Node3D).get_parent() as Node3D
+				var fwd := bd.basis.z
+				_demo_dv["cam"] = [bd.position + fwd * 3.2 + Vector3(0, 1.8, 0), bd.position + Vector3(0, 1.8, 0)]
+				_shot("park_records")
+			if t > 2.2:
+				_demo_dv.erase("cam")
+				# flat out through the creek: shallow enough for a stock ute
+				var e1: PackedVector2Array = PackedVector2Array(park.WAY_IN["MacArthur"])
+				_demo_dv["route"] = e1.slice(2)
+				_demo_place(e1[2], e1[3])
+				car["drive"] = "4H"
+				_demo_dv["wp"] = 1
+				_next()
+		49:
+			if Engine.get_process_frames() % 10 == 0:
+				print("[explore] ford run %d km/h %s surf %s drowned %s" % [roundi((car["v"] as Vector2).length() * 3.6), car["pos"],
+					park.surface(car["pos"]), car.get("drowned", false)])
+			if _demo_follow(_demo_dv["route"], 60.0) or t > 25.0:
+				print("[explore] ford run done: drowned %s at %s" % [car.get("drowned", false), car["pos"]])
 				print("[explore] demo done")
 				_quit_code = 0
 
