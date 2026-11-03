@@ -3372,16 +3372,42 @@ func _update_machines(delta: float) -> void:
 	if not screed._working:
 		sfx.set_loop("screed", 0.0)
 
+## The place's own sound (sounds/amb/ and the CityCat's engines), by what's
+## on screen. On site: street birds that thin out and wind that builds as the
+## deck climbs, the dawn chorus on a dawn pour, rain when it's raining. The
+## top-out fly-past: the river and the CityCat while the camera rides behind
+## it, wind as it lifts up the tower, the city's hum far below on the roof.
+## The handover: a quiet garden morning. (Knock off has its own: explore.gd.)
+func _update_places() -> void:
+	var up := clampf(work_y / 30.0, 0.0, 1.0)
+	var amb := {"morning": (1.0 - 0.6 * up) * (0.0 if is_dawn() and phase == "pour" else 1.0),
+		"dawn": 1.0 if is_dawn() else 0.0, "wind": 0.25 + 0.75 * up, "rain": 1.0 if rain.emitting else 0.0,
+		"river": 0.0, "city": 0.0, "park": 0.0, "traffic": 0.0}
+	var boat := 0.0
+	if _fly_on:
+		var water := 1.0 - smoothstep(7.0, 12.0, _fly_t)
+		boat = 1.0 - smoothstep(4.0, 10.0, _fly_t)
+		amb["river"] = water
+		amb["morning"] = 0.35 * water
+		amb["dawn"] = 0.0
+		amb["wind"] = 0.2 * water + 0.8 * smoothstep(8.0, 14.0, _fly_t) * (1.0 - 0.5 * smoothstep(16.0, 20.0, _fly_t))
+		amb["city"] = smoothstep(12.0, 18.0, _fly_t)
+	elif phase == "topout":
+		# the site's gone quiet and the garden's in
+		amb = {"morning": 1.0, "dawn": 0.0, "wind": 0.2, "rain": amb["rain"], "river": 0.15, "city": 0.3,
+			"park": 0.4, "traffic": 0.0}
+	for name in amb:
+		sfx.set_ambience(name, amb[name])
+	sfx.set_loop("citycat", boat)
+	if autotest and _fly_on and fmod(_fly_t, 2.0) < get_process_delta_time():
+		print("[autotest]   fly-past %.0fs: river %.2f, CityCat %.2f, city %.2f" % [_fly_t, float(amb["river"]), boat, float(amb["city"])])
+
 func _update_site_band(delta: float) -> void:
 	sfx.band_on = bool(Settings.value("band"))
 	# The place itself (sounds/amb/, when it's there): a Brisbane morning on
 	# the street that thins out and gets windier as the deck climbs, the dawn
 	# chorus on a dawn pour, rain when it's raining
-	var up := clampf(work_y / 30.0, 0.0, 1.0)
-	sfx.set_ambience("morning", (1.0 - 0.6 * up) * (0.0 if is_dawn() and phase == "pour" else 1.0))
-	sfx.set_ambience("dawn", 1.0 if is_dawn() else 0.0)
-	sfx.set_ambience("wind", 0.25 + 0.75 * up)
-	sfx.set_ambience("rain", 1.0 if rain.emitting else 0.0)
+	_update_places()
 	_update_machines(delta)
 	sfx.band_live = phase == "pour" and ops != null and ops.primed
 	# (the stroke's thump and a worn clamp's rattle)

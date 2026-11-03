@@ -30,7 +30,7 @@ var _loops := {}            # "amb/<name>" or "loop/<name>" -> {"pl": AudioStrea
 ## How loud each machine loop sits against the rest, dB (they're all levelled
 ## to the same loudness by tools/sounds/tidy_sounds.sh).
 const LOOP_DB := {"truck_idle": -5.0, "truck_beeper": -4.0, "pump_engine": -2.0, "boom_hydraulics": -3.0,
-	"crane_slew": -4.0, "hoist": -8.0, "concrete_pour": 0.0, "poker": -3.0, "screed": 0.0}
+	"crane_slew": -4.0, "hoist": -8.0, "concrete_pour": 0.0, "poker": -3.0, "screed": 0.0, "citycat": -2.0}
 const STEP_DB := -9.0
 var _steps := {}            # surface -> [AudioStream, ...]
 var _step_pl: Array = []    # a few players taken in turn, so steps can overlap
@@ -49,6 +49,14 @@ const WHISTLES := {
 	"horizontal": [SHORT, SHORT, SHORT, SHORT],
 	"emergency": [[1.5, 0.0]],
 }
+# Recorded, it's a real metal pea whistle: res://sounds/sfx/whistle_short_<1..3>
+# (a different take for each blast, so a code doesn't sound like a copy) and
+# whistle_long, blown a little slower than the made-up one so blasts don't run together.
+const BLAST_GAP := 0.34
+var _blasts: Array = []     # the short takes
+var _blast_long: AudioStream
+var _whistle_pl: AudioStreamPlayer
+var _wq: Array = []         # [s from now, AudioStream, alert] blasts still to blow
 
 const BIRD_CHIRPS := [0.0, 0.16, 0.5, 0.64, 1.0, 1.12, 1.26]   # s, when each chirp of "birds" starts
 
@@ -225,6 +233,18 @@ func _ready() -> void:
 	_load_samples()
 	_load_hits()
 	_poker_rec = has_loop("poker")
+	for i in range(1, 4):
+		for ext in ["ogg", "wav", "mp3"]:
+			var path := "res://sounds/sfx/whistle_short_%d.%s" % [i, ext]
+			if ResourceLoader.exists(path):
+				_blasts.append(load(path))
+				break
+	for ext in ["ogg", "wav", "mp3"]:
+		if ResourceLoader.exists("res://sounds/sfx/whistle_long." + ext):
+			_blast_long = load("res://sounds/sfx/whistle_long." + ext)
+			break
+	_whistle_pl = AudioStreamPlayer.new()
+	add_child(_whistle_pl)
 
 ## kind: "bang", "clank", "thunk", "buzz", "ding", "clang", "tink", "hiss",
 ## "knock", "ring", "thud", "beep", "whip", "rain", "birds", "bleep", "bleep_s", "sign_<kind>" (hand_signs.gd),
@@ -236,6 +256,8 @@ func hit(kind: String) -> void:
 		print("[sfx] %s" % kind)
 	if kind.begins_with("whistle:"):
 		_events = _events.filter(func(e): return not String(e[0]).begins_with("whistle:"))
+		if _blow(kind.substr(8)):
+			return
 	else:
 		for e in _events:
 			if e[0] == kind and e[1] < 0.18:
@@ -249,6 +271,44 @@ func hit(kind: String) -> void:
 		_events.append(["~" + kind, 0.0])   # (only so the same hit doesn't double up)
 		return
 	_events.append([kind, 0.0])
+
+## A whistle code on the recorded whistle (false if there's no recording).
+func _blow(code: String) -> bool:
+	if _blasts.is_empty() or not WHISTLES.has(code):
+		return false
+	_wq.clear()
+	_whistle_pl.stop()
+	var alert := ("whistle:" + code) in ALERTS
+	if alert:
+		_duck = 1.0
+	if code == "emergency" and _blast_long != null:
+		_wq.append([0.0, _blast_long, alert])
+		return true
+	var take := randi() % _blasts.size()
+	for i in WHISTLES[code].size():
+		_wq.append([i * BLAST_GAP, _blasts[(take + i) % _blasts.size()], alert])
+	return true
+
+func _play_blasts(delta: float) -> void:
+	for q in _wq:
+		q[0] -= delta
+		if q[0] <= 0.0:
+			_whistle_pl.stream = q[1]
+			_whistle_pl.pitch_scale = randf_range(0.98, 1.02)
+			_whistle_pl.volume_db = -80.0 if muted else volume_db + 4.0 + linear_to_db(maxf(0.001, _g_alert if q[2] else _g_site))
+			_whistle_pl.play()
+	_wq = _wq.filter(func(q): return q[0] > 0.0)
+
+## Off the clock (knock off): every machine stops and the band packs up,
+## leaving the place's own sounds. (main sets them all again when the job's back on.)
+func hush_site() -> void:
+	for id in _loops:
+		if String(id).begins_with("loop/"):
+			_loops[id]["want"] = 0.0
+	pumping = false
+	rattle = 0.0
+	rumble = 0.0
+	band_live = false
 
 ## How loud an ambience loop (res://sounds/amb/<name>.ogg) should be, 0..1.
 ## Nothing happens if the file isn't there.
@@ -362,6 +422,7 @@ func _process(delta: float) -> void:
 		return
 	_update_mix(delta)
 	_play_queued(delta)
+	_play_blasts(delta)
 	var n := _playback.get_frames_available()
 	if n <= 0:
 		return
