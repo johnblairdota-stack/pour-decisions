@@ -122,6 +122,8 @@ body.roam.drive #pedals{display:block}
 .pedal .pf{position:absolute;left:0;right:0;bottom:0;height:0;background:color-mix(in srgb,var(--pc) 30%,transparent)}
 .pedal.down{transform:translateY(.8vmin);box-shadow:0 .4vmin 0 #15171d}
 #brake{--pc:#ff5a5f;left:67vw;width:13vw;top:47vh;bottom:4vh}
+#brake b{font-size:4.6vmin;line-height:1;text-align:center}
+#brake small{font-size:1.9vmin;letter-spacing:0}
 #gas{--pc:#7cd992;left:82vw;width:15vw;top:16vh;bottom:4vh}
 body.roam #ticket,body.roam #helping{display:none}
 /* --- play: the ticket */
@@ -379,7 +381,7 @@ body.roam #ticket,body.roam #helping{display:none}
     <button class="dc" id="dp" aria-label="Hold to let the tyres down or pump them up"><div class="fill"></div><b>38 PSI</b><small>HOLD: AIR DOWN</small></button>
   </div>
   <div id="pedals">
-    <div class="pedal" id="brake"><div class="pf"></div><b>BRAKE</b><small>HOLD STOPPED: REVERSE</small></div>
+    <div class="pedal" id="brake"><div class="pf"></div><b>BRAKE/<wbr>REVERSE</b><small>HOLD AT A STOP TO BACK UP</small></div>
     <div class="pedal" id="gas"><div class="pf"></div><b>GAS</b><small>SLIDE UP = MORE</small></div>
   </div>
   <div id="ticket">
