@@ -13,13 +13,12 @@ extends Node3D
 
 const F := preload("res://scripts/factory.gd")
 const Surrounds := preload("res://scripts/surrounds.gd")
+const ParkWays := preload("res://scripts/park_ways.gd")
 
 ## The tracks (map metres; x is west, z is north). Each way in starts at the
-## road's edge and crosses the creek on the way.
-const WAY_IN := {
-	"MacArthur": [Vector2(-11.6, 126.0), Vector2(-30.0, 150.0), Vector2(-45.0, 172.0), Vector2(-60.0, 185.0)],
-	"Parkside": [Vector2(-214.0, -8.0), Vector2(-235.0, 15.0), Vector2(-255.0, 40.0), Vector2(-275.0, 62.0), Vector2(-295.0, 78.0)],
-}
+## road's edge and crosses the creek on the way (park_ways.gd).
+const WAY_IN := ParkWays.WAY_IN
+const GATE := ParkWays.GATE
 const TRACKS := [
 	# the main run: bog, sand traps, up the hill and round
 	[Vector2(-60.0, 185.0), Vector2(-100.0, 178.0), Vector2(-142.0, 166.0), Vector2(-178.0, 164.0), Vector2(-200.0, 142.0),
@@ -82,6 +81,7 @@ var _obs: Array = []         # OBSTACLES as dicts
 var boards: Array = []       # the records boards by the gates (Label3D)
 var _fords: Array = []       # {c, along (unit, the track's way), across, hl, hw}
 var _tgrid := {}             # 10 m cell -> [track index, segment index]
+var _rgrid := {}             # 10 m cell -> [a, b, half width]: the streets through the park's edge
 var _mud_mat: StandardMaterial3D
 var air_posts: Array = []    # where the FREE AIR posts stand, by each way in
 
@@ -119,6 +119,25 @@ func build(d: Dictionary) -> void:
 		for q in t:
 			box = box.expand(q)
 	box = box.grow(30.0)
+	# (the streets that run through the edge of it stay bitumen)
+	for r in d.get("roads", []):
+		var line := Surrounds._v2(r["pts"])
+		for i in line.size() - 1:
+			var a := line[i]
+			var b := line[i + 1]
+			if not box.grow(20.0).intersects(Rect2(a, Vector2.ZERO).expand(b)):
+				continue
+			var n := maxi(1, ceili(a.distance_to(b) / 5.0))
+			for k in n + 1:
+				var q := a.lerp(b, float(k) / n)
+				var cell := Vector2i(floori(q.x / 10.0), floori(q.y / 10.0))
+				for dx in [-1, 0, 1]:
+					for dz in [-1, 0, 1]:
+						var c2 := cell + Vector2i(dx, dz)
+						if not _rgrid.has(c2):
+							_rgrid[c2] = []
+						if not (_rgrid[c2] as Array).has([a, b, float(r["w"]) * 0.5]):
+							_rgrid[c2].append([a, b, float(r["w"]) * 0.5])
 	for ti in tracks.size():
 		var t: PackedVector2Array = tracks[ti]
 		for i in t.size() - 1:
@@ -265,6 +284,9 @@ func surface(p: Vector2) -> String:
 			return "dirt"
 	if on_track(p, TRACK_W * 0.5):
 		return "dirt"
+	for sg in _rgrid.get(Vector2i(floori(p.x / 10.0), floori(p.y / 10.0)), []):
+		if Geometry2D.get_closest_point_to_segment(p, sg[0], sg[1]).distance_to(p) < float(sg[2]):
+			return ""
 	return "grass"
 
 ## The challenge `p`'s in, if any ("bog", "dam", "hill", "sand").
@@ -321,8 +343,9 @@ func air_near(p: Vector2) -> bool:
 func _build_air() -> void:
 	for k in WAY_IN:
 		var w: Array = WAY_IN[k]
-		var a: Vector2 = w[0]
-		var dir: Vector2 = (w[1] - a).normalized()
+		var g: int = GATE[k]
+		var a: Vector2 = w[g]
+		var dir: Vector2 = (w[g + 1] - a).normalized()
 		var side := Vector2(-dir.y, dir.x)
 		var at: Vector2 = a + dir * 13.0 + side * (TRACK_W * 0.5 + 1.6)
 		air_posts.append(at)
@@ -394,25 +417,27 @@ func _build_obstacles() -> void:
 	for i in air_posts.size():
 		var at: Vector2 = air_posts[i]
 		var w: Array = WAY_IN.values()[i]
-		var dir: Vector2 = (w[1] - w[0]).normalized()
+		var g: int = GATE.values()[i]
+		var dir: Vector2 = (w[g + 1] - w[g]).normalized()
 		var spot: Vector2 = at + dir * 3.5
 		var bd := Node3D.new()
 		bd.name = "Records"
 		bd.position = Vector3(spot.x, height(spot), spot.y)
 		bd.rotation.y = atan2(-dir.x, -dir.y)
 		add_child(bd)
-		for sx: float in [-0.9, 0.9]:
-			bd.add_child(F.box(Vector3(0.1, 2.4, 0.1), F.color_mat(Color("6b4a2f")), Vector3(sx, 1.2, 0)))
-		bd.add_child(F.box(Vector3(2.1, 1.25, 0.06), F.color_mat(Color("23402c")), Vector3(0, 1.75, 0)))
+		for sx: float in [-1.25, 1.25]:
+			bd.add_child(F.box(Vector3(0.1, 2.5, 0.1), F.color_mat(Color("6b4a2f")), Vector3(sx, 1.25, 0)))
+		bd.add_child(F.box(Vector3(2.8, 1.35, 0.06), F.color_mat(Color("23402c")), Vector3(0, 1.8, 0)))
+		# (centred on the board and small enough that the longest line,
+		# "Sand Traps   99.9 s BRONZE  Somebody", stays on it)
 		var l := Label3D.new()
 		l.font_size = 30
-		l.pixel_size = 0.0045
+		l.pixel_size = 0.0034
 		l.outline_size = 0
 		l.modulate = Color("f4f2ea")
-		l.width = 440.0
-		l.autowrap_mode = TextServer.AUTOWRAP_WORD
-		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-		l.position = Vector3(0, 1.75, 0.04)
+		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		l.position = Vector3(0, 1.8, 0.04)
 		l.text = "4x4 PARK RECORDS"
 		bd.add_child(l)
 		boards.append(l)
@@ -738,6 +763,10 @@ func _build_signs() -> void:
 		var dir := (t[i + 1] - t[i]).normalized()
 		var at := t[i] + dir * 4.0 + Vector2(-dir.y, dir.x) * (TRACK_W * 0.5 + 1.8)
 		_club_sign(at, atan2(-dir.x, -dir.y))
+		# and right at the mouth, off the street, so you can see where to go in
+		var md := (t[1] - t[0]).normalized()
+		var ms := t[0] + md * 5.0 + Vector2(-md.y, md.x) * (TRACK_W * 0.5 + 1.4)
+		_timber_sign(ms, atan2(-md.x, -md.y), "4x4 PARK", false)
 	var names := {"bog": "THE BOG", "hill": "HILL CLIMB", "sand": "SAND TRAPS", "moguls": "MOGULS", "logs": "LOG STEP"}
 	var signed := {}
 	for f in _feat:

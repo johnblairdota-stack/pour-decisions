@@ -9,7 +9,7 @@ Run:  python tools/blender/citycat.py
                  life rings. Bow towards +x, waterline at y = 0.
   Terminal       the pontoon: deck at y = 0.8, 30 m along x, river side -z,
                  bank side +z; a winged shelter roof, a glass windbreak with
-                 a bench along it, boarding rails with a gap in the middle,
+                 benches along it (a gap for the gangway), boarding rails with a gap in the middle,
                  a stop sign, bins, a life ring box and two guide piles.
   GangwaySpan    6 m of gangway (along +z from z = 0), trusses and
                  handrails; the game lays as many as the walk to the bank
@@ -165,10 +165,12 @@ def terminal():
 	r.paint("fascia", lambda c: abs(abs(c.z) - 0) < 99 and (c.z < -4.3 or c.z > 4.5))
 	p.append(r)
 	p.append(box(25.0, 0.05, 0.12, "fascia", at=(0, 4.2, -4.4)))
-	# glass windbreak with a bench along it, the river side open
-	p.append(box(20.0, 2.0, 0.05, "screen", at=(0, 1.9, zb + 0.15)))
-	p.append(box(20.2, 0.08, 0.1, "white", at=(0, 2.92, zb + 0.15)))
-	for x in (-6.0, 0.0, 6.0):
+	# glass windbreak with benches along it, the river side open, and a gap
+	# in the middle where the gangway comes in off the bank
+	for x0, x1 in ((-10.0, -1.6), (1.6, 10.0)):
+		p.append(box(x1 - x0, 2.0, 0.05, "screen", at=((x0 + x1) / 2, 1.9, zb + 0.15)))
+		p.append(box(x1 - x0 + 0.2, 0.08, 0.1, "white", at=((x0 + x1) / 2, 2.92, zb + 0.15)))
+	for x in (-6.0, 6.0):
 		p.append(box(3.6, 0.08, 0.5, "seat", at=(x, 1.25, zb - 0.35)))
 		p.append(box(3.6, 0.45, 0.06, "seat", at=(x, 1.55, zb - 0.1)))
 		for dx in (-1.6, 1.6):

@@ -10,6 +10,7 @@
 ## extrudes the rest itself.
 extends RefCounted
 
+const ParkWays := preload("res://scripts/park_ways.gd")
 const F := preload("res://scripts/factory.gd")
 const LIB := "res://assets/buildings/buildings.glb"
 const ESTATE := "res://data/hamilton_reach.json"
@@ -203,6 +204,9 @@ static func _estate(root: Node3D, items: Array, foot: Array, rng: RandomNumberGe
 	var k := 0
 	for hs in d["houses"]:
 		var p := Vector2(hs["at"][0], hs["at"][1])
+		if ParkWays.near(p, 9.0):
+			# (knocked down for the 4x4 park's way in off the roundabout)
+			continue
 		var face := Vector2(hs["face"][0], hs["face"][1])
 		items.append(["ModernHouse" if k % 2 == 0 else "ModernHouseB", at(p, face), Color.WHITE])
 		k += 1
