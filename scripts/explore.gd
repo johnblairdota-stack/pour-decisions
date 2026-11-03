@@ -119,6 +119,14 @@ var _cam_dist := 6.5
 var _cam_pos := Vector3.ZERO
 var _shake := 0.0
 var _rmb := false
+var _look_hold := 0.0        # just looked round: the camera leaves you be this long before easing back behind
+const LOOK_HOLD := 1.5
+## In a ute the D-pad is the 4x4 controls: up/down the drive, right the
+## locker, left the tyres (so it doesn't steer as well)
+const DPAD := {"up": JOY_BUTTON_DPAD_UP, "down": JOY_BUTTON_DPAD_DOWN, "left": JOY_BUTTON_DPAD_LEFT, "right": JOY_BUTTON_DPAD_RIGHT}
+var _dpad_was := {}
+var _snap_was := false
+var _dash_q := ""            # a tap on the phone's dash (drive, lock, air), done next frame
 var _pad := false
 
 var _ui: CanvasLayer
@@ -148,7 +156,10 @@ var _thud := 0.0
 var _noise_lp := 0.0
 var _whine_ph := 0.0
 
-var _demo: bool = Array(OS.get_cmdline_user_args()).any(func(a: String) -> bool: return a == "--explore" or a.begins_with("--explore="))
+var _demo: bool = Array(OS.get_cmdline_user_args()).any(func(a: String) -> bool: return a == "--explore" or (a.begins_with("--explore=") and a != "--explore=live"))
+## Dev: `--explore=live` knocks the first phone to join off straight away and
+## leaves the driving to that phone (for trying the phone's free roam page)
+var _live: bool = OS.get_cmdline_user_args().has("--explore=live")
 		# (dev: a scripted run with screenshots; `=river` starts at the CityCat)
 var _demo_t := 0.0
 var _fake := {}
@@ -539,6 +550,7 @@ func _input(event: InputEvent) -> void:
 		var mm := event as InputEventMouseMotion
 		_cam_yaw -= mm.relative.x * 0.006
 		_cam_pitch = clampf(_cam_pitch + mm.relative.y * 0.004, 0.05, 1.2)
+		_look_hold = LOOK_HOLD
 
 func _read() -> Dictionary:
 	if _demo:
@@ -571,17 +583,61 @@ func _read() -> Dictionary:
 		run = Input.is_action_pressed("p1_slow")
 		back = Input.is_action_pressed("p1_leave")
 	var dev: int = 0 if p == null or p.ai else p.index - 1
-	var gas := Input.get_joy_axis(dev, JOY_AXIS_TRIGGER_RIGHT)
-	var brake := Input.get_joy_axis(dev, JOY_AXIS_TRIGGER_LEFT)
-	var rs := Vector2(Input.get_joy_axis(dev, JOY_AXIS_RIGHT_X), Input.get_joy_axis(dev, JOY_AXIS_RIGHT_Y))
-	if p != null and (p.look as Vector2).length() > rs.length():
-		# (the phone's second stick)
-		rs = p.look
+	# (a phone has pedals and a swipe to look, no pad behind it)
+	var phone: bool = p != null and p.remote_id >= 0
+	var gas := 0.0
+	var brake := 0.0
+	var rs := Vector2.ZERO
+	var jl := Vector2.ZERO
+	var dpad := {}
+	var snap := false
+	if not phone:
+		gas = Input.get_joy_axis(dev, JOY_AXIS_TRIGGER_RIGHT)
+		brake = Input.get_joy_axis(dev, JOY_AXIS_TRIGGER_LEFT)
+		rs = Vector2(Input.get_joy_axis(dev, JOY_AXIS_RIGHT_X), Input.get_joy_axis(dev, JOY_AXIS_RIGHT_Y))
+		jl = Vector2(Input.get_joy_axis(dev, JOY_AXIS_LEFT_X), Input.get_joy_axis(dev, JOY_AXIS_LEFT_Y))
+		var any_dpad := false
+		for k in DPAD:
+			var on := Input.is_joy_button_pressed(dev, DPAD[k])
+			dpad[k] = on and not bool(_dpad_was.get(k, false))
+			_dpad_was[k] = on
+			any_dpad = any_dpad or on
+		if mode == "drive" and any_dpad:
+			mv = jl if jl.length() > 0.2 else Vector2.ZERO
+		var r3 := Input.is_joy_button_pressed(dev, JOY_BUTTON_RIGHT_STICK)
+		snap = r3 and not _snap_was
+		_snap_was = r3
+	var drag := Vector2.ZERO
+	if p != null:
+		if (p.look as Vector2).length() > rs.length():
+			rs = p.look
+		gas = maxf(gas, (p.pedal as Vector2).x)
+		brake = maxf(brake, (p.pedal as Vector2).y)
+		drag = p.look_drag
+		p.look_drag = Vector2.ZERO
+	var dt := get_process_delta_time()
+	_look_hold = maxf(0.0, _look_hold - dt)
 	if rs.length() > 0.2:
-		_cam_yaw -= rs.x * get_process_delta_time() * 2.4
-		_cam_pitch = clampf(_cam_pitch + rs.y * get_process_delta_time() * 1.2, 0.05, 1.2)
+		_cam_yaw -= rs.x * dt * 2.4
+		_cam_pitch = clampf(_cam_pitch + rs.y * dt * 1.2, 0.05, 1.2)
+		_look_hold = LOOK_HOLD
+	if drag != Vector2.ZERO:
+		# (a swipe right across the whole phone turns you round most of the way)
+		_cam_yaw -= drag.x * 3.6
+		_cam_pitch = clampf(_cam_pitch + drag.y * 2.0, 0.05, 1.2)
+		_look_hold = LOOK_HOLD
+	if snap:
+		_look_hold = 0.0
+		_cam_yaw = (float(car["yaw"]) if mode == "drive" and not car.is_empty() else _yaw) + PI
+	var dash := _dash_q
+	_dash_q = ""
 	return {"move": mv, "jump": jump, "hold_a": hold_a, "use": use, "run": run, "back": back,
-		"gas": gas if gas > 0.1 else 0.0, "brake": brake if brake > 0.1 else 0.0}
+		"gas": gas if gas > 0.1 else 0.0, "brake": brake if brake > 0.1 else 0.0,
+		# gas and brake off the stick only on keys: a pad has triggers, a phone pedals
+		"stick_gas": not phone and jl.length() < 0.2,
+		# an analog stick (a phone's or a pad's) pushed right to its edge: run
+		"edge": (phone or jl.length() > 0.2) and mv.length() > 0.95,
+		"dpad": dpad, "dash": dash}
 
 # ------------------------------------------------------------------ each frame
 
@@ -598,6 +654,12 @@ func _process(delta: float) -> void:
 			_badge.scale = Vector2(k, k)
 		if _demo and game != null and game._frames > 20 and _demo_t == 0.0 and can_enter():
 			enter(null)
+		if _live and game != null and game._frames > 20 and can_enter():
+			for p in game.players:
+				if p.remote_id >= 0:
+					_live = false
+					enter(p)
+					break
 		return
 	var dt := minf(delta, 1.0 / 20.0)
 	if _menu_up():
@@ -660,7 +722,7 @@ func _walk(dt: float, inp: Dictionary) -> void:
 	_swim = fl < SWIM_Y - 0.05 and me.position.y <= SWIM_Y + 0.3
 	var mv: Vector2 = inp["move"]
 	var dir := Vector3(mv.x, 0, mv.y).rotated(Vector3.UP, _cam_yaw)
-	var sp := SWIM if _swim else (RUN if inp["run"] else WALK)
+	var sp := SWIM if _swim else (RUN if inp["run"] or inp.get("edge", false) else WALK)
 	var want := dir * sp
 	var k := 1.0 - exp(-dt * (6.0 if _swim else (14.0 if _grounded else 2.5)))
 	vel.x = lerpf(vel.x, want.x, k)
@@ -709,11 +771,15 @@ func _walk(dt: float, inp: Dictionary) -> void:
 	if flat.length() > 0.3:
 		_yaw = lerp_angle(_yaw, atan2(flat.x, flat.y), minf(1.0, dt * 12.0))
 		# the camera swings round behind you as you walk forwards
-		var fwd := maxf(0.0, -mv.y)
+		# (unless you've just looked round)
+		var fwd := maxf(0.0, -mv.y) if _look_hold <= 0.0 else 0.0
 		_cam_yaw = lerp_angle(_cam_yaw, _yaw + PI, minf(1.0, dt * 1.1 * fwd))
 		_walk_t += dt * (8.0 if _swim else flat.length() * 2.3)
 	else:
 		_walk_t = lerpf(_walk_t, roundf(_walk_t / PI) * PI, minf(1.0, dt * 8.0))
+		# stood still, done looking round: the camera eases back behind you
+		if _look_hold <= 0.0 and not _rmb:
+			_cam_yaw = lerp_angle(_cam_yaw, _yaw + PI, minf(1.0, dt * 0.8))
 	tumble.basis = Basis(Vector3.UP, _yaw)
 	_pose(dt, flat.length())
 	if inp["use"]:
@@ -1074,8 +1140,9 @@ func _drive(dt: float, inp: Dictionary) -> void:
 		_tumble(c, dt)
 		return
 	var mv: Vector2 = inp["move"]
-	var gas := maxf(maxf(0.0, -mv.y), float(inp["gas"]))
-	var brake := maxf(maxf(0.0, mv.y), float(inp["brake"]))
+	var sg: bool = inp.get("stick_gas", true)
+	var gas := maxf(maxf(0.0, -mv.y) if sg else 0.0, float(inp["gas"]))
+	var brake := maxf(maxf(0.0, mv.y) if sg else 0.0, float(inp["brake"]))
 	var hb: bool = inp["hold_a"]
 	var dead := _dead(c)
 	if dead:
@@ -1109,6 +1176,7 @@ func _drive(dt: float, inp: Dictionary) -> void:
 		_y_used = true
 		_start_air(c)
 	_y_was = yh
+	_dash_controls(c, spd, inp)
 	_tyre_job(c, spd, dt)
 	var drive: String = c["drive"]
 	var low := drive.begins_with("4L") and float(o["low"]) > 0.0
@@ -1720,7 +1788,13 @@ func _hint(c: Dictionary, key: String, text: String) -> void:
 func _shift_drive(c: Dictionary, spd: float) -> void:
 	var modes: Array = c["off"]["modes"]
 	var now: String = c["drive"]
-	var to: String = modes[(modes.find(now) + 1) % modes.size()]
+	_drive_to(c, modes[(modes.find(now) + 1) % modes.size()], spd)
+
+## Into another drive (2H, 4H, 4L, 4L+LOCK; AWD, MUD): low range only at a crawl.
+func _drive_to(c: Dictionary, to: String, spd: float) -> void:
+	var now: String = c["drive"]
+	if to == now:
+		return
 	if (to.begins_with("4L") != now.begins_with("4L")) and spd > 2.0:
 		_toast_msg("Stop first to shift %s low range." % ("into" if to.begins_with("4L") else "out of"))
 		return
@@ -3100,7 +3174,7 @@ func _update_camera(dt: float) -> void:
 		var back := yaw + PI
 		if v.dot(Vector2(fwd.x, fwd.z)) < -3.0:
 			back = yaw
-		_cam_yaw = lerp_angle(_cam_yaw, back, minf(1.0, dt * (2.2 if not _rmb else 0.0)))
+		_cam_yaw = lerp_angle(_cam_yaw, back, minf(1.0, dt * (2.2 if not _rmb and _look_hold <= 0.0 else 0.0)))
 		focus = Vector3(c["pos"].x, 1.3 + maxf(float(c.get("y", 0.0)), Water.RIVER_Y - 1.0), c["pos"].y) + fwd * clampf(speed * 0.08, 0.0, 2.5)
 		var dist := _cam_dist + 0.6 + speed * 0.06
 		want = focus + Vector3(sin(_cam_yaw) * cos(_cam_pitch * 0.7), sin(_cam_pitch * 0.7) + 0.12, cos(_cam_yaw) * cos(_cam_pitch * 0.7)) * dist
@@ -3386,18 +3460,30 @@ func _update_ui(dt: float) -> void:
 	_help.visible = _help_t > 0.0
 	if _help.visible:
 		_help.modulate.a = clampf(_help_t, 0.0, 1.0)
+		var phone: bool = _who != null and _who.remote_id >= 0
 		if mode == "drive":
-			_help.text = ("Stick steer · RT go · LT brake / reverse · hold A handbrake · X get out" if _pad else
-				"W go · S brake / reverse · A D steer · hold Space handbrake · E get out") + \
-				"\n" + ("Tap RB: 2H / 4H / 4L / locker · hold RB stopped: tyre pressure" if _pad else
-				"Tap F: 2H / 4H / 4L / locker · hold F stopped: tyre pressure") + \
-				"\n" + ("Hold B: back to the site" if _pad else "Hold Q: back to the site")
+			if phone:
+				_help.text = "Phone: the stick steers · GAS and BRAKE pedals · A handbrake · X get out" + \
+					"\nTap the dash for 2H / 4H / 4L and the locker · hold PSI for the tyres" + \
+					"\nHold BACK TO WORK on the phone: back to the site"
+			else:
+				_help.text = ("Stick steer · RT go · LT brake / reverse · hold A handbrake · X get out" if _pad else
+					"W go · S brake / reverse · A D steer · hold Space handbrake · E get out") + \
+					"\n" + ("D-pad: up / down 2H 4H 4L · right locker · left tyres" if _pad else
+					"Tap F: 2H / 4H / 4L / locker · hold F stopped: tyre pressure") + \
+					"\n" + ("Click the right stick: camera behind · hold B: back to the site" if _pad else "Hold Q: back to the site")
+		elif phone:
+			_help.text = "Phone: stick to walk, push it to the edge to run · drag the right side to look round" + \
+				"\nA jump · X get in · hold BACK TO WORK on the phone: back to the site"
 		else:
-			_help.text = ("Stick walk · hold RB run · A jump · X get in · right stick look" if _pad else
+			_help.text = ("Stick walk, push it all the way to run · A jump · X get in · right stick look" if _pad else
 				"WASD walk · hold F run · Space jump · E get in · right-drag look") + \
-				"\n" + ("Hold B: back to the site" if _pad else "Hold Q or Esc: back to the site")
+				"\n" + ("Click the right stick: camera behind · hold B: back to the site" if _pad else "Hold Q or Esc: back to the site")
 		_help.reset_size()
 		_help.position = Vector2((view.x - _help.size.x) * 0.5, view.y - _help.size.y - 18.0)
+		# (the prompt sits clear above the help, never over it)
+		if _prompt.visible:
+			_prompt.position.y = minf(_prompt.position.y, _help.position.y - _prompt.size.y - 10.0)
 	_speedo.visible = mode == "drive"
 	if _speedo.visible:
 		_speed_label.text = "%d km/h" % roundi((car["v"] as Vector2).length() * 3.6)
@@ -4426,3 +4512,76 @@ func _next() -> void:
 	print("[explore] step %d done at %.1fs (frame %d)" % [_demo_step, _demo_t, Engine.get_process_frames()])
 	_demo_step += 1
 	_demo_mark = _demo_t
+
+# ------------------------------------------------------------------ the 4x4 dash (phone dash chips, pad D-pad)
+
+## The phone's dash or the pad's D-pad, in the ute: the drive up and down
+## (2H, 4H, 4L; the Shark AWD, MUD), the rear locker in and out (4L only),
+## and the tyres let down or pumped up at a stop.
+func _dash_controls(c: Dictionary, spd: float, inp: Dictionary) -> void:
+	var dp: Dictionary = inp.get("dpad", {})
+	var dash: String = inp.get("dash", "")
+	if dash == "drive":
+		_step_drive(c, spd, 1, true)
+	elif dp.get("up", false):
+		_step_drive(c, spd, 1, false)
+	elif dp.get("down", false):
+		_step_drive(c, spd, -1, false)
+	if dp.get("right", false) or dash == "lock":
+		_toggle_lock(c, spd)
+	if dp.get("left", false) or dash == "air":
+		if spd >= 0.6:
+			_toast_msg("Stop first to do the tyres.")
+		elif not c.has("air_job"):
+			_start_air(c)
+
+## One step along the drives, the locker left out (it has its own switch).
+## The phone's one drive chip goes round and round; the pad's up and down
+## stop at the ends.
+func _step_drive(c: Dictionary, spd: float, dir: int, wrap: bool) -> void:
+	var base: Array = []
+	for m in c["off"]["modes"]:
+		if not String(m).ends_with("+LOCK"):
+			base.append(m)
+	var i := base.find(String(c["drive"]).replace("+LOCK", ""))
+	var j := i + dir
+	if not wrap and (j < 0 or j >= base.size()):
+		return
+	_drive_to(c, base[posmod(j, base.size())], spd)
+
+## The rear locker: in and out in 4L (the Shark has none).
+func _toggle_lock(c: Dictionary, spd: float) -> void:
+	if not ("4L+LOCK" in (c["off"]["modes"] as Array)):
+		_toast_msg("No rear locker on this one. MUD mode grabs a spinning wheel instead.")
+		return
+	match String(c["drive"]):
+		"4L":
+			_drive_to(c, "4L+LOCK", spd)
+		"4L+LOCK":
+			_drive_to(c, "4L", spd)
+			_toast_msg("Locker out.")
+		_:
+			_toast_msg("The locker goes in in 4L. Shift down to 4L first.")
+
+## A tap on the phone's dash from person `p`: drive, lock or air.
+func dash(p, what: String) -> void:
+	if not active or (_who != null and p != _who):
+		return
+	_dash_q = what
+
+## What the phone shows when knocked off: walking or driving, and in a ute
+## the dash (drive, locker, tyres) and whether the winch is on offer.
+func phone_state() -> Dictionary:
+	var st := {"t": "roam", "m": mode}
+	if mode == "drive" and not car.is_empty() and car.has("off"):
+		var d := String(car["drive"])
+		st["drive"] = d.replace("+LOCK", "")
+		st["lock"] = d.ends_with("+LOCK")
+		st["has_lock"] = "4L+LOCK" in (car["off"]["modes"] as Array)
+		st["psi"] = roundi(float(car["psi"]))
+		st["air"] = car.has("air_job")
+		st["low"] = float(car["psi"]) < Offroad.PSI_ROAD - 1.0
+		st["winch"] = "winch" in (car["kit"] as Array) and _hung_up(car)
+	elif mode == "walk":
+		st["near"] = "ute" if not _near_ute().is_empty() else ("boat" if _boat_ready() and _on_pontoon() else "")
+	return st

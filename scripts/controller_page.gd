@@ -82,12 +82,47 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 #zone.dog .call{display:block}
 #zone.dog .lbl{color:#ff8a80}
 #knob{position:absolute;width:16vmin;height:16vmin;border-radius:50%;background:radial-gradient(circle at 40% 35%,#ffffff,#d9d5cb);box-shadow:0 1.2vmin 0 #8f8a7e,0 2vmin 4vmin rgba(0,0,0,.6);left:50%;top:50%;transform:translate(-50%,-50%)}
-/* --- knocked off: a second stick for the camera, where the ticket was */
-#look{display:none;position:absolute;left:34vw;width:33vw;top:18vh;bottom:3vh;border:2px dashed #23262e;border-radius:5vmin}
-#look .lbl{position:absolute;left:3vmin;bottom:2.4vmin;font-size:2.6vmin;color:#3a3e4a;letter-spacing:.08em;text-transform:uppercase}
-#lbase{position:absolute;width:30vmin;height:30vmin;border-radius:50%;border:2px solid #3a3e4a;left:50%;top:50%;transform:translate(-50%,-50%);pointer-events:none}
-#lknob{position:absolute;width:13vmin;height:13vmin;border-radius:50%;background:radial-gradient(circle at 40% 35%,#ffffff,#d9d5cb);box-shadow:0 1vmin 0 #8f8a7e;left:50%;top:50%;transform:translate(-50%,-50%)}
-body.roam #look{display:block}
+/* --- knocked off: drag the right side to look; in a ute, pedals and the 4x4 dash */
+#lookpad{display:none;position:absolute;left:34vw;right:0;top:16vh;bottom:0;z-index:1;touch-action:none}
+#lookpad .lbl{position:absolute;left:3vmin;top:1vmin;font-size:2.6vmin;color:#4a4e5c;letter-spacing:.08em;text-transform:uppercase}
+#ldot{position:absolute;width:13vmin;height:13vmin;margin:-6.5vmin 0 0 -6.5vmin;border-radius:50%;border:2px solid rgba(255,255,255,.55);background:rgba(255,255,255,.08);display:none;pointer-events:none}
+#lookpad.on #ldot{display:block}
+body.roam #lookpad{display:block}
+body.roam #pad{pointer-events:none;z-index:2}
+body.roam #pad .btn{pointer-events:auto}
+body.roam #Y,body.roam #B{display:none}
+body.roam .btn .verb{display:none !important}
+.rl{display:none;position:absolute;left:50%;top:100%;margin-top:2.4vmin;transform:translateX(-50%);padding:.6vmin 2vmin;border-radius:99px;background:rgba(26,29,36,.94);border:1px solid #3a3d47;font-family:"Barlow Condensed",sans-serif;font-weight:800;font-size:3.4vmin;color:var(--bone);white-space:nowrap;pointer-events:none}
+body.roam .rl{display:block}
+.rl:empty{display:none !important}
+body.roam .btn.rgold{--face:#ffd23f;--lip:#b17a00;--ink:#2a1d00}
+body.roam .btn.rgold .face{animation:goldbeat .3s ease-in-out infinite}
+body.roam .btn.rgold .rl{color:var(--gold);border-color:var(--gold)}
+body.roam.drive #A{left:-62%;top:56%;width:22vmin;height:22vmin}
+body.roam.drive #A .face span{font-size:11vmin}
+body.roam.drive #X{left:-104%;top:62%;width:15vmin;height:15vmin}
+#rback{display:none;position:absolute;right:14vmin;top:2.6vmin;height:10vmin;padding:0 3vmin;border-radius:2.6vmin;border:1px solid #3a3d47;background:var(--card);color:#ff8b80;font-family:"Barlow Condensed",sans-serif;font-weight:800;font-size:3.6vmin;letter-spacing:.04em;align-items:center;overflow:hidden;z-index:12}
+#rback .fill{position:absolute;left:0;top:0;bottom:0;width:0;background:rgba(255,90,95,.3)}
+#rback.down .fill{width:100%;transition:width .8s linear}
+#rback span{position:relative}
+body.roam #rback{display:flex}
+#dash{display:none;position:absolute;left:30vw;top:2.6vmin;gap:1.6vmin;z-index:12}
+body.roam.drive #dash{display:flex}
+.dc{position:relative;overflow:hidden;min-width:17vmin;height:11vmin;padding:0 2.4vmin;border-radius:2.6vmin;border:2px solid #3a3d47;background:var(--card);color:var(--bone);display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1}
+.dc b{position:relative;font-family:"Barlow Condensed",sans-serif;font-weight:800;font-size:5vmin}
+.dc small{position:relative;font-size:2.2vmin;letter-spacing:.06em;color:#8d91a0;margin-top:.5vmin;white-space:nowrap}
+.dc.on{border-color:var(--gold);color:var(--gold)}
+.dc.down{transform:scale(.94)}
+.dc .fill{position:absolute;left:0;top:0;bottom:0;width:0;background:rgba(255,210,63,.25)}
+#pedals{display:none}
+body.roam.drive #pedals{display:block}
+.pedal{position:absolute;z-index:3;border-radius:3.6vmin;background:#2a2d36;border:2px solid var(--pc);color:var(--pc);display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding-bottom:2.6vmin;box-sizing:border-box;overflow:hidden;touch-action:none;box-shadow:0 1.2vmin 0 #15171d}
+.pedal b{position:relative;font-family:"Barlow Condensed",sans-serif;font-weight:800;font-size:5vmin;letter-spacing:.06em}
+.pedal small{position:relative;font-size:2.2vmin;color:#8d91a0;letter-spacing:.04em;margin-top:.6vmin;white-space:nowrap}
+.pedal .pf{position:absolute;left:0;right:0;bottom:0;height:0;background:color-mix(in srgb,var(--pc) 30%,transparent)}
+.pedal.down{transform:translateY(.8vmin);box-shadow:0 .4vmin 0 #15171d}
+#brake{--pc:#ff5a5f;left:67vw;width:13vw;top:47vh;bottom:4vh}
+#gas{--pc:#7cd992;left:82vw;width:15vw;top:16vh;bottom:4vh}
 body.roam #ticket,body.roam #helping{display:none}
 /* --- play: the ticket */
 #ticket{position:absolute;left:34vw;width:33vw;top:2.6vmin;bottom:2.6vmin;border-radius:4.6vmin;background:var(--paper);color:#1b1a17;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 3vmin 7vmin rgba(0,0,0,.5);transition:transform .45s cubic-bezier(.3,1.3,.5,1)}
@@ -336,7 +371,17 @@ body.roam #ticket,body.roam #helping{display:none}
 <div id="play" class="screen">
   <button class="pausebtn" aria-label="Pause"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M9 5v14M15 5v14"/></svg></button>
   <div id="zone"><div class="lbl">Stick</div><div id="base"><div id="wedge"></div><div class="call" id="call0"></div><div class="call" id="call1"></div><div class="call" id="call2"></div><div class="call" id="call3"></div><div id="knob"></div></div></div>
-  <div id="look"><div class="lbl">Look</div><div id="lbase"><div id="lknob"></div></div></div>
+  <div id="lookpad"><div class="lbl">Drag here to look round</div><div id="ldot"></div></div>
+  <button id="rback" aria-label="Hold to go back to work"><div class="fill"></div><span>HOLD · BACK TO WORK</span></button>
+  <div id="dash">
+    <button class="dc" id="dd" aria-label="Change drive"><b>2H</b><small>TAP: DRIVE</small></button>
+    <button class="dc" id="dl" aria-label="Rear locker"><b>LOCK</b><small>TAP: REAR DIFF</small></button>
+    <button class="dc" id="dp" aria-label="Hold to let the tyres down or pump them up"><div class="fill"></div><b>38 PSI</b><small>HOLD: AIR DOWN</small></button>
+  </div>
+  <div id="pedals">
+    <div class="pedal" id="brake"><div class="pf"></div><b>BRAKE</b><small>HOLD STOPPED: REVERSE</small></div>
+    <div class="pedal" id="gas"><div class="pf"></div><b>GAS</b><small>SLIDE UP = MORE</small></div>
+  </div>
   <div id="ticket">
     <button id="thead" aria-label="Your job, tap to swap">
       <svg class="hat" id="thhat" viewBox="0 0 24 20"><path d="M1 16h22v2H1z M3.5 16v-3a8.5 8.5 0 0 1 17 0v3z" fill="currentColor"/></svg>
@@ -501,6 +546,7 @@ function onJson(j) {
   else if (j.t === 'wallet') onWallet(j);
   else if (j.t === 'shop') { shop = j; if (walletOpen) drawWallet(); }
   else if (j.t === 'bought') onBought(j);
+  else if (j.t === 'roam') onRoam(j);
 }
 // Climb-day smoko: tap your order till the screeder's bought the lot
 function drawSmoko(j) {
@@ -535,7 +581,7 @@ function showScreen() {
   $('play').classList.toggle('on', !lobby && !sign);
   $('sign').classList.toggle('on', sign);
   document.body.classList.toggle('roam', screen === 'roam');
-  if (screen !== 'roam') endLook();
+  if (screen !== 'roam') { endLook(); onRoam({m: ''}); }
   if (sign) startSign();
   if (!lobby) closeSwap();
   showWalletBtn();
@@ -555,7 +601,7 @@ function drawTicket() {
   let name = card.name, goal = card.goal, foot = '';
   t.classList.toggle('pump', card.role === 'pump' && screen === 'play' && !now.climb);
   if (screen === 'site') { $('tk').textContent = 'P' + me.p + ' · NEXT UP'; name = 'Pick the site'; goal = 'The first player picks the site and the kit on the TV: stick to choose, A to start, B back to the crew.'; }
-  else if (screen === 'roam') { $('tk').textContent = 'P' + me.p + ' · KNOCKED OFF'; name = 'Off the clock'; goal = 'Left stick to walk and steer, right stick to look round. In a ute: tap Y for 2H, 4H, 4L and the locker; hold Y stopped to air the tyres down.'; }
+  else if (screen === 'roam') { $('tk').textContent = 'P' + me.p + ' · KNOCKED OFF'; name = 'Off the clock'; goal = 'Stick to walk, drag the right side to look round. In a ute: steer with the stick, GAS and BRAKE pedals, and the dash for 2H, 4H, 4L, the locker and the tyres.'; }
   else if (screen === 'pause') { $('tk').textContent = 'P' + me.p + ' · SMOKO'; name = 'Paused'; goal = 'Steer the menu on the TV: stick up and down, A to choose, B to get back to work.'; }
   else { $('tk').textContent = 'P' + me.p + ' · YOUR JOB'; foot = (card.watch ? '<b>Watch for:</b> ' + esc(card.watch) + ' ' : '') + esc(card.climb || ''); }
   $('tn').textContent = name;
@@ -765,6 +811,8 @@ zone.addEventListener('pointerdown', (e) => {
 function moveStick(e) {
   const R = radius();
   let dx = e.clientX - ox, dy = e.clientY - oy;
+  // (in a ute the stick only steers: the pedals do the rest)
+  if (driving) dy = 0;
   const d = Math.hypot(dx, dy);
   if (d > R) { dx *= R / d; dy *= R / d; }
   setKnob(dx, dy);
@@ -785,47 +833,115 @@ function endStick(e) {
 }
 zone.addEventListener('pointerup', endStick);
 zone.addEventListener('pointercancel', endStick);
-// ---------------------------------------------------------------- knocked off: the look stick turns the camera
-const look = $('look'), lbase = $('lbase'), lknob = $('lknob');
-let lid = null, lox = 0, loy = 0, lx = 0, ly = 0, lLast = 0, lTimer = null;
+// ---------------------------------------------------------------- knocked off: drag the right side to look round
+const lookpad = $('lookpad'), ldot = $('ldot');
+let lid = null, lpx = 0, lpy = 0, ldx = 0, ldy = 0, lLast = 0, lTimer = null;
 function sendLook(force) {
+  if (ldx === 0 && ldy === 0) return;
   const t = performance.now();
   if (force || t - lLast > 33) {
     lLast = t;
     if (lTimer) { clearTimeout(lTimer); lTimer = null; }
-    send('r ' + lx.toFixed(2) + ' ' + ly.toFixed(2));
+    // (how far the finger moved since the last one, in phone widths)
+    send('rd ' + ldx.toFixed(4) + ' ' + ldy.toFixed(4));
+    ldx = 0; ldy = 0;
   } else if (!lTimer) {
     lTimer = setTimeout(() => { lTimer = null; sendLook(true); }, 34 - (t - lLast));
   }
 }
-function moveLook(e) {
-  const R = lbase.getBoundingClientRect().width / 2;
-  let dx = e.clientX - lox, dy = e.clientY - loy;
-  const d = Math.hypot(dx, dy);
-  if (d > R) { dx *= R / d; dy *= R / d; }
-  lknob.style.transform = 'translate(calc(-50% + ' + dx + 'px), calc(-50% + ' + dy + 'px))';
-  lx = dx / R; ly = dy / R;
-  sendLook(false);
-}
-look.addEventListener('pointerdown', (e) => {
-  e.preventDefault(); lid = e.pointerId; look.setPointerCapture(lid);
-  const r = look.getBoundingClientRect(), R = lbase.getBoundingClientRect().width / 2;
-  lox = Math.max(r.left + R * .6, Math.min(r.right - R * .6, e.clientX));
-  loy = Math.max(r.top + R * .6, Math.min(r.bottom - R * .6, e.clientY));
-  lbase.style.left = (lox - r.left) + 'px'; lbase.style.top = (loy - r.top) + 'px';
-  moveLook(e);
+function placeDot(e) { const r = lookpad.getBoundingClientRect(); ldot.style.left = (e.clientX - r.left) + 'px'; ldot.style.top = (e.clientY - r.top) + 'px'; }
+lookpad.addEventListener('pointerdown', (e) => {
+  if (walletOpen || lid !== null) return;
+  e.preventDefault(); lid = e.pointerId; lookpad.setPointerCapture(lid);
+  lpx = e.clientX; lpy = e.clientY; lookpad.classList.add('on'); placeDot(e);
 });
-look.addEventListener('pointermove', (e) => { if (e.pointerId === lid) moveLook(e); });
+lookpad.addEventListener('pointermove', (e) => {
+  if (e.pointerId !== lid) return;
+  const W = Math.max(window.innerWidth, window.innerHeight);
+  ldx += (e.clientX - lpx) / W; ldy += (e.clientY - lpy) / W;
+  lpx = e.clientX; lpy = e.clientY;
+  placeDot(e); sendLook(false);
+});
 function endLook(e) {
   if (e && e.pointerId !== lid) return;
-  if (lid === null && lx === 0 && ly === 0) return;
-  lid = null; lx = 0; ly = 0;
-  lknob.style.transform = 'translate(-50%,-50%)';
-  lbase.style.left = '50%'; lbase.style.top = '50%';
+  lid = null; lookpad.classList.remove('on');
   sendLook(true);
 }
-look.addEventListener('pointerup', endLook);
-look.addEventListener('pointercancel', endLook);
+lookpad.addEventListener('pointerup', endLook);
+lookpad.addEventListener('pointercancel', endLook);
+// ---------------------------------------------------------------- knocked off, in a ute: the pedals (slide up for more)
+let driving = false, gasV = 0, brkV = 0, pLast = 0, pTimer = null;
+function sendPedals(force) {
+  const t = performance.now();
+  if (force || t - pLast > 33) {
+    pLast = t;
+    if (pTimer) { clearTimeout(pTimer); pTimer = null; }
+    send('pd ' + gasV.toFixed(2) + ' ' + brkV.toFixed(2));
+  } else if (!pTimer) {
+    pTimer = setTimeout(() => { pTimer = null; sendPedals(true); }, 34 - (t - pLast));
+  }
+}
+function pedal(id, lo, set) {
+  const el = $(id), pf = el.querySelector('.pf');
+  let pid = null;
+  const at = (e) => {
+    const r = el.getBoundingClientRect();
+    const k = Math.max(0, Math.min(1, (r.bottom - e.clientY) / r.height));
+    const v = lo + (1 - lo) * k;
+    pf.style.height = (v * 100) + '%';
+    set(v); sendPedals(false);
+  };
+  const up = (e) => {
+    if (pid === null || (e && e.pointerId !== pid)) return;
+    pid = null; el.classList.remove('down'); pf.style.height = '0';
+    set(0); sendPedals(true);
+  };
+  el.addEventListener('pointerdown', (e) => {
+    e.preventDefault(); pid = e.pointerId;
+    try { el.setPointerCapture(pid); } catch (err) {}
+    el.classList.add('down'); buzz(BUZZ.press); at(e);
+  });
+  el.addEventListener('pointermove', (e) => { if (e.pointerId === pid) at(e); });
+  el.addEventListener('pointerup', up);
+  el.addEventListener('pointercancel', up);
+  el.addEventListener('lostpointercapture', up);
+}
+pedal('gas', .3, (v) => { gasV = v; });
+pedal('brake', .5, (v) => { brkV = v; });
+// ---------------------------------------------------------------- knocked off: the 4x4 dash, and back to work
+$('dd').addEventListener('pointerdown', (e) => { e.preventDefault(); send('dash drive'); buzz(BUZZ.press); });
+$('dl').addEventListener('pointerdown', (e) => { e.preventDefault(); send('dash lock'); buzz(BUZZ.press); });
+const rb = $('rback');
+rb.addEventListener('pointerdown', (e) => { e.preventDefault(); try { rb.setPointerCapture(e.pointerId); } catch (err) {} rb.classList.add('down'); send('d B'); buzz(BUZZ.press); });
+const rbUp = () => { if (!rb.classList.contains('down')) return; rb.classList.remove('down'); send('u B'); };
+rb.addEventListener('pointerup', rbUp);
+rb.addEventListener('pointercancel', rbUp);
+rb.addEventListener('lostpointercapture', rbUp);
+// The labels by A and X while knocked off (what they do right now)
+['A', 'X'].forEach(b => { const l = document.createElement('div'); l.className = 'rl'; $(b).appendChild(l); });
+function rlab(b, text) { $(b).querySelector('.rl').textContent = text; }
+function onRoam(j) {
+  const drv = j.m === 'drive';
+  if (drv !== driving) {
+    driving = drv;
+    document.body.classList.toggle('drive', drv);
+    if (!drv && (gasV || brkV)) { gasV = 0; brkV = 0; sendPedals(true); }
+    if (sid !== null) endStick();
+  }
+  if (!j.m) { $('zone').querySelector('.lbl').textContent = 'Stick'; $('A').classList.remove('rgold'); return; }
+  $('zone').querySelector('.lbl').textContent = drv ? 'Steer' : 'Move · push to the edge to run';
+  rlab('A', drv ? (j.winch ? 'HOLD: WINCH' : 'HANDBRAKE') : 'JUMP');
+  rlab('X', drv ? 'GET OUT' : (j.near === 'ute' ? 'GET IN' : (j.near === 'boat' ? 'ALL ABOARD' : '')));
+  $('A').classList.toggle('rgold', drv && !!j.winch);
+  if (!drv) return;
+  $('dd').querySelector('b').textContent = j.drive || '';
+  $('dd').classList.toggle('on', j.drive === '4L' || j.drive === 'MUD');
+  $('dl').style.display = j.has_lock ? '' : 'none';
+  $('dl').classList.toggle('on', !!j.lock);
+  $('dl').querySelector('small').textContent = j.lock ? 'LOCKED · TAP: OUT' : 'TAP: REAR DIFF';
+  $('dp').querySelector('b').textContent = j.psi + ' PSI';
+  $('dp').querySelector('small').textContent = j.air ? 'AIRING…' : (j.low ? 'HOLD: PUMP UP' : 'HOLD: AIR DOWN');
+}
 // ---------------------------------------------------------------- hold-to-confirm buttons: fill with concrete, then set
 function holdButton(el, ms, done) {
   let t0 = 0, raf = 0;
@@ -841,6 +957,7 @@ function holdButton(el, ms, done) {
   el.addEventListener('pointerup', () => stop());
   el.addEventListener('pointercancel', () => stop());
 }
+holdButton($('dp'), 600, () => send('dash air'));
 // ---------------------------------------------------------------- lobby
 function jobCard(r, cls, extra) {
   return '<button class="job ' + cls + '" data-id="' + r.id + '" style="--c:#' + r.col + '"><span class="n"><span class="sq">' + hat(r.id, '#' + r.col, false) + '</span>' + esc(r.name) + extra + '</span>' +
