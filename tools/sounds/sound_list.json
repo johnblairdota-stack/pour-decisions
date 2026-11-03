@@ -371,6 +371,27 @@
    "seconds": 2.0,
    "loop": false,
    "text": "One long continuous loud blast on a metal pea whistle with its rattling trill, blown hard for about one and a half seconds by a construction worker outdoors as an emergency stop signal. Just one blast, then silence."
+  },
+  {
+   "folder": "sfx",
+   "name": "whistle_trail",
+   "seconds": 2.0,
+   "loop": false,
+   "text": "One long blast on a metal pea whistle that starts strong and then trails off, the pitch and volume falling away as the breath runs out, about one and a half seconds, blown by a crane signaller on a building site outdoors. Just one blast, then silence."
+  },
+  {
+   "folder": "sfx",
+   "name": "whistle_double_1",
+   "seconds": 0.8,
+   "loop": false,
+   "text": "One pea whistle blast with two quick peaks in a single breath, a fast twee-tweet with no silence between the two peaks, about half a second, blown by a crane signaller on a building site outdoors. Just this one blast, then silence."
+  },
+  {
+   "folder": "sfx",
+   "name": "whistle_double_2",
+   "seconds": 0.8,
+   "loop": false,
+   "text": "One pea whistle blast with two quick peaks in a single breath, a fast twee-tweet with no silence between the two peaks, about half a second, blown by a crane signaller on a building site outdoors. Just this one blast, then silence."
   }
  ]
 }
