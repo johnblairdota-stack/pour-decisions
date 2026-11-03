@@ -96,6 +96,8 @@ static func build(root: Node3D) -> void:
 		_through = _road_grid({"roads": d["roads"].filter(func(r) -> bool: return r["name"] != ""), "paths": []})
 		_ground(root, d)
 		var foot := _buildings(root, d, rng)
+		# (the estate's blocks and houses: free roam can't walk or drive into them)
+		root.set_meta("foot", foot)
 		var roads := _road_grid(d)
 		var bank := _bank_grid(d)
 		var taken := {}

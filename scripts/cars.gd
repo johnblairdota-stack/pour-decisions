@@ -9,6 +9,7 @@ extends Node3D
 
 const F := preload("res://scripts/factory.gd")
 const Utes := preload("res://scripts/utes.gd")
+const ParkWays := preload("res://scripts/park_ways.gd")
 const LIB := "res://assets/cars/cars.glb"
 const ESTATE := "res://data/hamilton_reach.json"
 const TILE := 80.0
@@ -63,7 +64,7 @@ func setup(d: Dictionary, keep_clear: Callable, taken: Callable, road: Callable,
 		var e: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(ESTATE))
 		for p in e.get("parked", []):
 			var at := Vector2(p[0], p[1])
-			if keep_clear.call(at) and not road.call(at, 1.5):
+			if keep_clear.call(at) and not road.call(at, 1.5) and not ParkWays.near(at, 4.0):
 				parked.append([_kind(rng), Transform3D(Basis(Vector3.UP, deg_to_rad(float(p[2]))), Vector3(at.x, 0, at.y)),
 					PAINT[rng.randi() % PAINT.size()]])
 	_kerbs(d, keep_clear, taken, parked, rng)
