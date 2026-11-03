@@ -834,7 +834,8 @@ func release_item() -> Node3D:
 ## `cam_yaw` turns stick input into camera-relative movement.
 func walk(delta: float, walkable: Callable, cam_yaw: float) -> void:
 	var v := move_input()
-	if (busy != "" and busy != "hose") or zone == "ladder" or zone == "hoist":
+	# (on the hose, or on a tag line, they walk it themselves)
+	if (busy != "" and not (busy in ["hose", "tag", "tag2"])) or zone == "ladder" or zone == "hoist":
 		v = Vector2.ZERO
 	var dir := Vector3(v.x, 0, v.y).rotated(Vector3.UP, cam_yaw)
 	var run := run_to != Vector3.INF

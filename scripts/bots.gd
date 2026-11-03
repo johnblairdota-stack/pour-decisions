@@ -435,10 +435,9 @@ func _hose(p, delta: float) -> void:
 	if g.climb.active:
 		# The second tag line: same as the poker hand's, off the other corner
 		if p.busy == "tag2":
-			p.ai_action = true
-			return
-		if go(p, "deck", _deck("tag2"), 0.45):
-			p.ai_action = g.climb.tag_ready(1) and g.climb.tag_hand2 == null
+			return   # (walking it in and working the line is the climb's own)
+		if go(p, "deck", g.climb.tag_spot(1), 0.45):
+			p.ai_action = g.climb.tag_ready(1) and g.climb.tag_hand2 == null and _tap()
 		return
 	if g.phase != "pour":
 		if p.busy == "" and g.phase != "pour":
@@ -798,13 +797,12 @@ func _poker(p, _delta: float) -> void:
 	var g = game
 	var wy: float = g.work_y
 	if g.climb.active:
-		# The tag line: wait at the tag spot, then hold A once the load's over
-		# the deck (the run out to the line and back is the job's own)
+		# The tag line: wait where the load comes in over the slab, grab the
+		# line's end there, then the climb walks it in and works it
 		if p.busy == "tag":
-			p.ai_action = true
 			return
-		if go(p, "deck", _deck("tag"), 0.45):
-			p.ai_action = g.climb.tag_ready() and g.climb.tag_hand == null
+		if go(p, "deck", g.climb.tag_spot(0), 0.45):
+			p.ai_action = g.climb.tag_ready() and g.climb.tag_hand == null and _tap()
 		return
 	if _cover_defect(p):
 		return

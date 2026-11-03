@@ -128,7 +128,7 @@ const ROLE_ASK := {
 	"poker": "Can you tell when the bubbles stop?",
 	"screed": "Can you walk backwards dead straight?",
 }
-const ROLE_CLIMB := {"boom": "Climb days: dogman", "line": "Climb days: slinger and pins", "poker": "Climb days: tag line", "pump": "Climb days: rigger", "screed": "", "hose": ""}
+const ROLE_CLIMB := {"boom": "Climb days: dogman", "line": "Climb days: slinger and pins", "poker": "Climb days: tag line", "pump": "Climb days: rigger", "screed": "", "hose": "Climb days: tag line 2"}
 ## The job ticket: what each job is for and its steps on a pour, in order,
 ## as the phone shows it (with the live step highlighted), the pause menu's
 ## "Your job" card and the toolbox talk. Each step: [button ("stick" for the
@@ -179,7 +179,7 @@ const JOB_CARD := {
 ## list is the job ticket's steps (JOB_CARD).
 const ROLE_HOW := {
 	"boom": {
-		"climb": [["stick", "push to a call: TROLLEY OUT / IN, SLEW LEFT / RIGHT · let go: STOP"], ["A", "hold: LOWER (when the ghost sits on the green)"], ["X", "hold: HOIST"], ["Y", "hold: EASY · twice: ALL STOP"]],
+		"climb": [["stick", "push to a call: TROLLEY OUT / IN, SLEW LEFT / RIGHT · let go: STOP"], ["A", "hold: LOWER (when the ghost's four legs sit on their spots)"], ["X", "hold: HOIST"], ["Y", "hold: EASY · twice: ALL STOP"]],
 	},
 	"line": {
 		"climb": [["A", "hold at the LAYDOWN to sling the next section"], ["A", "a PIN BAG from the base, up the HAUL ROPE"]],
@@ -188,9 +188,11 @@ const ROLE_HOW := {
 		"climb": [["A", "jack the frame · roll the section in"], ["stick", "line up the holes, A: podger"], ["A", "swing the hammer, let go in the gold"], ["A", "hold: R-clip back on (Y skips it: a safety note)"]],
 	},
 	"poker": {
-		"climb": [["A", "hold once the load is over the deck: grab the tag line and walk it back"], ["stick", "walk with the load"]],
+		"climb": [["A", "grab your TAG LINE where the load comes in over the slab"], ["stick", "walk with the load: run out of line and it's gone"], ["A", "hold: take in slack (pull to turn it square)"], ["X", "hold: give slack when it pulls"], ["B", "let go"]],
 	},
-	"hose": {},
+	"hose": {
+		"climb": [["A", "grab TAG LINE 2 where the load comes in over the slab"], ["stick", "walk with the load: run out of line and it's gone"], ["A", "hold: take in slack (pull to turn it square)"], ["X", "hold: give slack when it pulls"], ["B", "let go"]],
+	},
 	"screed": {
 		"climb": [["stick", "a breather: show off with the board"]],
 	},

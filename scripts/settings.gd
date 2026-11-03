@@ -8,9 +8,10 @@
 ##   gold_mode   the gold assist (buttons light up gold when it's the moment, or
 ##               the spot, to press them): 0 fades as each person gets good at a
 ##               job and comes back if they slip · 1 locked on at full sparkle · 2 off
-##   dog_help    the dogman's help on climb days: 0 First Day (the swing mostly
-##               damped, a quick driver, the stop ghost) · 1 On Site (the stop
-##               ghost) · 2 Ticketed (full swing and lag, no ghost)
+##   dog_help    the dogman's help on climb days: 0 First Day (the swing and turn
+##               mostly damped, a quick driver, a strong grip on the tag lines,
+##               the legs seat 0.35 m off) · 1 On Site · 2 Ticketed (full swing
+##               and lag, a light grip, legs within 0.18 m). The ghost's always on.
 ##   real_names  the real company, building and equipment names, or made-up lookalikes
 ##   split       the screen splits (deck on top, street below) when the crew are far apart
 ##   band        the Site Band: the pour plays a tune out of the site's own noises
