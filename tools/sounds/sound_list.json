@@ -308,6 +308,90 @@
    "text": "A tiny metal tink, a steel pin tapped with a hammer, short.",
    "seconds": 0.5,
    "loop": false
+  },
+  {
+   "folder": "amb",
+   "name": "river",
+   "seconds": 20,
+   "loop": true,
+   "text": "Brisbane River lapping against a riverside boardwalk and a floating ferry pontoon: gentle small waves slapping on concrete and timber, water sloshing under the pontoon, a light breeze, a few distant gulls. Calm and steady. No boats, no voices."
+  },
+  {
+   "folder": "amb",
+   "name": "traffic",
+   "seconds": 20,
+   "loop": true,
+   "text": "Busy suburban road heard from the footpath: a steady flow of cars passing both ways, tyres on asphalt, the occasional bus pulling away. No horns, no sirens, no voices."
+  },
+  {
+   "folder": "amb",
+   "name": "park",
+   "seconds": 20,
+   "loop": true,
+   "text": "Open parkland golf course in Brisbane in the morning: wide open space, magpies carolling, a kookaburra laughing in the distance, noisy miners chattering, a soft breeze in tall gum trees. No voices, no traffic."
+  },
+  {
+   "folder": "amb",
+   "name": "city",
+   "seconds": 20,
+   "loop": true,
+   "text": "High up on a rooftop above a city in the morning: a soft distant hum of traffic far below, a steady breeze, the odd faint far-off bird. Calm and spacious. No voices."
+  },
+  {
+   "folder": "loop",
+   "name": "citycat",
+   "seconds": 10,
+   "loop": true,
+   "text": "Fast catamaran river ferry cruising: steady muffled diesel engines and water jets humming, the wake rushing and hissing along the twin hulls, heard from the back deck. Steady. No horn, no voices."
+  },
+  {
+   "folder": "sfx",
+   "name": "whistle_short_1",
+   "seconds": 0.5,
+   "loop": false,
+   "text": "One single short sharp blast on a metal pea whistle, blown hard by a crane signaller on a building site, outdoors. Just one blast, about a quarter of a second long, then silence."
+  },
+  {
+   "folder": "sfx",
+   "name": "whistle_short_2",
+   "seconds": 0.5,
+   "loop": false,
+   "text": "One single short sharp blast on a metal pea whistle, blown hard by a crane signaller on a building site, outdoors. Just one blast, about a quarter of a second long, then silence."
+  },
+  {
+   "folder": "sfx",
+   "name": "whistle_short_3",
+   "seconds": 0.5,
+   "loop": false,
+   "text": "One single short sharp blast on a metal pea whistle, blown hard by a crane signaller on a building site, outdoors. Just one blast, about a quarter of a second long, then silence."
+  },
+  {
+   "folder": "sfx",
+   "name": "whistle_long",
+   "seconds": 2.0,
+   "loop": false,
+   "text": "One long continuous loud blast on a metal pea whistle with its rattling trill, blown hard for about one and a half seconds by a construction worker outdoors as an emergency stop signal. Just one blast, then silence."
+  },
+  {
+   "folder": "sfx",
+   "name": "whistle_trail",
+   "seconds": 2.0,
+   "loop": false,
+   "text": "One long blast on a metal pea whistle that starts strong and then trails off, the pitch and volume falling away as the breath runs out, about one and a half seconds, blown by a crane signaller on a building site outdoors. Just one blast, then silence."
+  },
+  {
+   "folder": "sfx",
+   "name": "whistle_double_1",
+   "seconds": 0.8,
+   "loop": false,
+   "text": "One pea whistle blast with two quick peaks in a single breath, a fast twee-tweet with no silence between the two peaks, about half a second, blown by a crane signaller on a building site outdoors. Just this one blast, then silence."
+  },
+  {
+   "folder": "sfx",
+   "name": "whistle_double_2",
+   "seconds": 0.8,
+   "loop": false,
+   "text": "One pea whistle blast with two quick peaks in a single breath, a fast twee-tweet with no silence between the two peaks, about half a second, blown by a crane signaller on a building site outdoors. Just this one blast, then silence."
   }
  ]
 }

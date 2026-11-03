@@ -30,7 +30,7 @@ var _loops := {}            # "amb/<name>" or "loop/<name>" -> {"pl": AudioStrea
 ## How loud each machine loop sits against the rest, dB (they're all levelled
 ## to the same loudness by tools/sounds/tidy_sounds.sh).
 const LOOP_DB := {"truck_idle": -5.0, "truck_beeper": -4.0, "pump_engine": -2.0, "boom_hydraulics": -3.0,
-	"crane_slew": -4.0, "hoist": -8.0, "concrete_pour": 0.0, "poker": -3.0, "screed": 0.0}
+	"crane_slew": -4.0, "hoist": -8.0, "concrete_pour": 0.0, "poker": -3.0, "screed": 0.0, "citycat": -2.0}
 const STEP_DB := -9.0
 var _steps := {}            # surface -> [AudioStream, ...]
 var _step_pl: Array = []    # a few players taken in turn, so steps can overlap
@@ -38,17 +38,36 @@ var _step_i := 0
 
 const RATE := 22050.0
 
-# Dogman whistle code as used on Australian sites: [blast seconds, gap seconds].
-# One short = stop, two short = hoist, three short = lower, four short = move
-# horizontally (slew or trolley), one long continuous blast = emergency stop.
-const SHORT := [0.14, 0.11]
-const WHISTLES := {
-	"stop": [SHORT],
-	"hoist": [SHORT, SHORT],
-	"lower": [SHORT, SHORT, SHORT],
-	"horizontal": [SHORT, SHORT, SHORT, SHORT],
-	"emergency": [[1.5, 0.0]],
+# Dogman whistle code as taught on Australian sites (John's Ascent Training
+# cheat sheet). Short is a short sharp blast, long a long one:
+#   stop        short                  hoist up    short short
+#   hoist down  long, trailing off     trolley in  short short short   (a luffer's boom up)
+#   trolley out two double-peak blasts (four shorts, a luffer's boom down)
+#   slew left   long short             slew right  long short short    (the crane driver's left and right)
+# Emergency stop is one long held blast.
+const CODES := {
+	"stop": ["short"],
+	"hoist": ["short", "short"],
+	"lower": ["trail"],
+	"trolley_in": ["short", "short", "short"],
+	"trolley_out": ["double", "double"],
+	"slew_left": ["long", "short"],
+	"slew_right": ["long", "short", "short"],
+	"emergency": ["held"],
 }
+## Each blast: [s it sounds, s before the next one starts, trails off]
+## (the made-up whistle's timing; the recorded one is a little slower, BLAST_NEXT)
+const BLAST := {"short": [0.14, 0.25, false], "long": [0.8, 1.0, false], "trail": [1.2, 1.2, true],
+	"double": [0.24, 0.42, false], "held": [1.5, 1.5, false]}
+const BLAST_NEXT := {"short": 0.34, "long": 1.05, "trail": 1.4, "double": 0.6, "held": 2.0}
+# Recorded, it's a real metal pea whistle (res://sounds/sfx/): whistle_short_<1..3>
+# (a different take each blast, so a code doesn't sound copied), whistle_long
+# (cut short for a slew's long, held for emergency), whistle_trail and
+# whistle_double_<1..2>. A missing take is made from the others.
+var _takes := {}            # "short", "long", "trail", "double" -> [AudioStream, ...]
+var _whistle_pls: Array = []    # two players, so a long blast can fade while the next starts
+var _wp_i := 0
+var _wq: Array = []         # [s from now, blast, alert] blasts still to blow
 
 const BIRD_CHIRPS := [0.0, 0.16, 0.5, 0.64, 1.0, 1.12, 1.26]   # s, when each chirp of "birds" starts
 
@@ -225,10 +244,22 @@ func _ready() -> void:
 	_load_samples()
 	_load_hits()
 	_poker_rec = has_loop("poker")
+	for blast in ["short", "long", "trail", "double"]:
+		var got: Array = []
+		for name in ["whistle_" + blast] + Array(range(1, 4)).map(func(i): return "whistle_%s_%d" % [blast, i]):
+			for ext in ["ogg", "wav", "mp3"]:
+				if ResourceLoader.exists("res://sounds/sfx/%s.%s" % [name, ext]):
+					got.append(load("res://sounds/sfx/%s.%s" % [name, ext]))
+					break
+		_takes[blast] = got
+	for i in 2:
+		var pl := AudioStreamPlayer.new()
+		add_child(pl)
+		_whistle_pls.append(pl)
 
 ## kind: "bang", "clank", "thunk", "buzz", "ding", "clang", "tink", "hiss",
 ## "knock", "ring", "thud", "beep", "whip", "rain", "birds", "bleep", "bleep_s", "sign_<kind>" (hand_signs.gd),
-## or "whistle:<code>" with a code from WHISTLES
+## or "whistle:<code>" with a code from CODES
 func hit(kind: String) -> void:
 	# Never stack: a new whistle replaces the one still sounding, and the same
 	# hit twice within a fraction of a second only plays once
@@ -236,6 +267,8 @@ func hit(kind: String) -> void:
 		print("[sfx] %s" % kind)
 	if kind.begins_with("whistle:"):
 		_events = _events.filter(func(e): return not String(e[0]).begins_with("whistle:"))
+		if _blow(kind.substr(8)):
+			return
 	else:
 		for e in _events:
 			if e[0] == kind and e[1] < 0.18:
@@ -249,6 +282,91 @@ func hit(kind: String) -> void:
 		_events.append(["~" + kind, 0.0])   # (only so the same hit doesn't double up)
 		return
 	_events.append([kind, 0.0])
+
+## A whistle code on the recorded whistle (false if there's no recording).
+func _blow(code: String) -> bool:
+	if _takes.get("short", []).is_empty() or not CODES.has(code):
+		return false
+	_wq.clear()
+	for pl in _whistle_pls:
+		(pl as AudioStreamPlayer).stop()
+	var alert := ("whistle:" + code) in ALERTS
+	if alert:
+		_duck = 1.0
+	var t := 0.0
+	for blast in CODES[code]:
+		_wq.append([t, blast, alert])
+		t += float(BLAST_NEXT[blast])
+	return true
+
+func _play_blasts(delta: float) -> void:
+	var due: Array = []
+	for q in _wq:
+		q[0] -= delta
+		if q[0] <= 0.0:
+			due.append(q)
+	_wq = _wq.filter(func(q): return q[0] > 0.0)
+	for q in due:
+		_play_blast(q[1], q[2])
+	# (a cut blast fades out where it's cut, and a trail fades as it goes)
+	for pl in _whistle_pls:
+		var p := pl as AudioStreamPlayer
+		if not p.playing or not p.has_meta("cut"):
+			continue
+		# (timed here, not off the stream, so it holds with any audio driver)
+		var at: float = float(p.get_meta("age", 0.0)) + delta
+		p.set_meta("age", at)
+		var cut: Vector2 = p.get_meta("cut")
+		var k := clampf(1.0 - (at - cut.x) / cut.y, 0.0, 1.0)
+		if k <= 0.0:
+			p.stop()
+		else:
+			p.volume_db = float(p.get_meta("db")) + linear_to_db(maxf(0.001, k))
+
+func _play_blast(blast: String, alert: bool) -> void:
+	var takes: Array = _takes.get(blast, [])
+	var cut := Vector2(-1, 0)             # [s in to start fading, s the fade takes]
+	if takes.is_empty():
+		match blast:
+			"held":
+				takes = _takes.get("long", [])
+			"trail":
+				# (the long take, let go early and dying away)
+				takes = _takes.get("long", [])
+				cut = Vector2(0.45, 0.75)
+			"double":
+				# (two shorts close together)
+				_play_blast("short", alert)
+				_wq.append([0.13, "short", alert])
+				return
+	if blast == "long":
+		cut = Vector2(0.75, 0.12)
+	if takes.is_empty():
+		takes = _takes["short"]
+	var p: AudioStreamPlayer = _whistle_pls[_wp_i]
+	_wp_i = (_wp_i + 1) % _whistle_pls.size()
+	p.stream = takes.pick_random()
+	p.pitch_scale = randf_range(0.98, 1.02)
+	var db := -80.0 if muted else volume_db + 4.0 + linear_to_db(maxf(0.001, _g_alert if alert else _g_site))
+	p.volume_db = db
+	p.set_meta("db", db)
+	p.set_meta("age", 0.0)
+	if cut.x >= 0.0:
+		p.set_meta("cut", cut)
+	elif p.has_meta("cut"):
+		p.remove_meta("cut")
+	p.play()
+
+## Off the clock (knock off): every machine stops and the band packs up,
+## leaving the place's own sounds. (main sets them all again when the job's back on.)
+func hush_site() -> void:
+	for id in _loops:
+		if String(id).begins_with("loop/"):
+			_loops[id]["want"] = 0.0
+	pumping = false
+	rattle = 0.0
+	rumble = 0.0
+	band_live = false
 
 ## How loud an ambience loop (res://sounds/amb/<name>.ogg) should be, 0..1.
 ## Nothing happens if the file isn't there.
@@ -349,19 +467,26 @@ func toggle_mute() -> void:
 	for lane in _samples:
 		(_samples[lane] as AudioStreamPlayer).volume_db = -80.0
 
-func _whistle_on(code: String, a: float) -> bool:
+## How loud the made-up whistle is `a` s into a code, 0..1.
+func _whistle_on(code: String, a: float) -> float:
 	var t := 0.0
-	for seg in WHISTLES.get(code, []):
-		if a >= t and a < t + seg[0]:
-			return true
-		t += seg[0] + seg[1]
-	return false
+	for blast in CODES.get(code, []):
+		var b: Array = BLAST[blast]
+		var u: float = a - t
+		if u >= 0.0 and u < float(b[0]):
+			if blast == "double":
+				# (two peaks in the one breath: it dips but never stops)
+				return 0.45 + 0.55 * absf(sin(u / float(b[0]) * TAU))
+			return 1.0 - u / float(b[0]) if b[2] else 1.0
+		t += float(b[1])
+	return 0.0
 
 func _process(delta: float) -> void:
 	if _playback == null:
 		return
 	_update_mix(delta)
 	_play_queued(delta)
+	_play_blasts(delta)
 	var n := _playback.get_frames_available()
 	if n <= 0:
 		return
@@ -418,8 +543,9 @@ func _process(delta: float) -> void:
 			var a: float = e[1] + f * dt
 			var kind: String = e[0]
 			if kind.begins_with("whistle:"):
-				if _whistle_on(kind.substr(8), a):
-					var w := sin(TAU * (2850.0 + 60.0 * sin(TAU * 32.0 * a)) * a) * 0.07
+				var wa := _whistle_on(kind.substr(8), a)
+				if wa > 0.0:
+					var w := sin(TAU * (2850.0 + 60.0 * sin(TAU * 32.0 * a)) * a) * 0.07 * wa
 					if kind in ALERTS:
 						sa += w
 					else:

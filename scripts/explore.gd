@@ -147,6 +147,7 @@ var _toast: Label
 var _toast_t := 0.0
 
 var _audio: AudioStreamPlayer
+var _places_t := 0.0
 var _gen: AudioStreamGeneratorPlayback
 var _eng_ph := 0.0
 var _eng_rpm := 800.0
@@ -405,6 +406,11 @@ func enter(who = null) -> void:
 	_help_t = 9.0
 	_audio.play()
 	_gen = _audio.get_stream_playback() as AudioStreamGeneratorPlayback
+	# (the site's sound keeps going while the job's paused, but only the place:
+	# the machines and the band stop till you're back)
+	game.sfx.process_mode = Node.PROCESS_MODE_ALWAYS
+	game.sfx.hush_site()
+	_places_t = 0.0
 	_toast_msg("Knocked off. Have a look round.")
 
 func _menu_up() -> bool:
@@ -441,6 +447,9 @@ func leave() -> void:
 	if me != null:
 		me.visible = false
 	_audio.stop()
+	for name in PLACES:
+		game.sfx.set_ambience(name, 0.0)
+	game.sfx.process_mode = Node.PROCESS_MODE_INHERIT
 	_frozen = false
 	_fade.color.a = 0.0
 	_prompt.visible = false
@@ -747,6 +756,7 @@ func _process(delta: float) -> void:
 	_update_camera(dt)
 	_update_ui(dt)
 	_feed_audio()
+	_feed_places(dt)
 
 # ------------------------------------------------------------------ on foot
 
@@ -3292,6 +3302,46 @@ func _feed_audio() -> void:
 		_mud_slap = 0.0
 		_squeal = 0.0
 		_hiss = 0.0
+
+## What you hear of the place, by where you are (sounds/amb/ and the CityCat's
+## engines): street birds everywhere; traffic by how many cars are close; the
+## river lapping near the bank, the pontoon or in the water; the golf course's
+## birds in the 4x4 park; the CityCat when it's close or you're on it; and the
+## breeze off the river.
+const PLACES := ["morning", "traffic", "river", "park", "wind", "city", "dawn", "rain"]
+func _feed_places(dt: float) -> void:
+	_places_t -= dt
+	if _places_t > 0.0 or me == null:
+		return
+	_places_t = 0.25
+	var at: Vector3 = me.global_position
+	var p := Vector2(me.position.x, me.position.z)
+	if mode == "drive" and not car.is_empty():
+		p = car["pos"]
+	var cars := 0.0
+	if traffic != null:
+		for dv in traffic._drivers:
+			var n: Node3D = dv["node"]
+			if is_instance_valid(n) and n.visible:
+				cars += clampf(1.0 - n.global_position.distance_to(at) / 90.0, 0.0, 1.0)
+	var bank := 0.0 if _is_wet(p) else _from_bank(p)
+	var river := 1.0 if mode in ["ride", "drown", "sink"] or not _ferry_floor(p).is_empty() else clampf(1.0 - bank / 60.0, 0.0, 1.0)
+	var in_park: bool = park != null and park.surface(p) != ""
+	var boat := 0.0
+	if mode == "ride":
+		boat = 1.0
+	elif _boat != null and _boat.visible:
+		boat = clampf(1.0 - _boat.global_position.distance_to(at) / 160.0, 0.0, 1.0)
+	var sfx = game.sfx
+	sfx.set_ambience("morning", 0.3 if in_park else 0.8 - 0.4 * river)
+	sfx.set_ambience("traffic", clampf(cars / 2.0, 0.0, 1.0) * (0.4 if mode == "ride" else 1.0))
+	sfx.set_ambience("river", river)
+	sfx.set_ambience("park", 1.0 if in_park else 0.0)
+	sfx.set_ambience("wind", 0.15 + 0.35 * river)
+	sfx.set_ambience("city", 0.0)
+	sfx.set_ambience("dawn", 0.0)
+	sfx.set_ambience("rain", 0.0)
+	sfx.set_loop("citycat", boat)
 
 # ------------------------------------------------------------------ on screen
 

@@ -2389,11 +2389,11 @@ func predict_stop() -> Vector3:
 const CALL_INFO := {
 	"STOP": "one short",
 	"HOIST": "two short",
-	"LOWER": "three short",
-	"TROLLEY OUT": "four short",
-	"TROLLEY IN": "four short",
-	"SLEW LEFT": "four short",
-	"SLEW RIGHT": "four short",
+	"LOWER": "one long, trailing off",
+	"TROLLEY OUT": "four short, in two pairs",
+	"TROLLEY IN": "three short",
+	"SLEW LEFT": "long, short",
+	"SLEW RIGHT": "long, short, short",
 	"EMERGENCY STOP": "one long blast",
 	"DOG EVERYTHING": "hands clasped",
 }
@@ -2453,7 +2453,8 @@ func _signal(p, dir: Vector2, vert: float, delta: float, slow := false, dog_all 
 			call_name = "TROLLEY OUT" if cr > 0.0 else "TROLLEY IN"
 		else:
 			call_name = "SLEW LEFT" if ct > 0.0 else "SLEW RIGHT"
-		code = "horizontal"
+		# (each way has its own whistle: sfx.gd CODES)
+		code = call_name.to_lower().replace(" ", "_")
 	# Debounce: a call has to be held a moment before the whistle goes, and
 	# whistles never stack, so quick corrections don't turn into a racket
 	if call_name != _pending:
