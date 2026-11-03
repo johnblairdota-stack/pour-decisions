@@ -318,6 +318,20 @@ func _on_message(c: Dictionary, msg: String) -> void:
 			var p = c["player"]
 			if p != null and parts.size() >= 3:
 				p.look = Vector2(parts[1].to_float(), parts[2].to_float()).limit_length(1.0)
+		"rd":
+			# knocked off: a swipe on the phone turns the camera (screen widths moved)
+			var p = c["player"]
+			if p != null and parts.size() >= 3:
+				p.look_drag += Vector2(parts[1].to_float(), parts[2].to_float())
+		"pd":
+			# knocked off, in a ute: the phone's gas and brake pedals
+			var p = c["player"]
+			if p != null and parts.size() >= 3:
+				p.pedal = Vector2(clampf(parts[1].to_float(), 0.0, 1.0), clampf(parts[2].to_float(), 0.0, 1.0))
+		"dash":
+			# knocked off, in a ute: a tap on the phone's dash (drive, lock, air)
+			if c["player"] != null and parts.size() >= 2 and game.explore != null:
+				game.explore.dash(c["player"], parts[1])
 		"d", "u":
 			var p = c["player"]
 			if parts.size() >= 2 and parts[1] == "MENU":
@@ -390,6 +404,7 @@ func _release(c: Dictionary) -> void:
 	var p = c["player"]
 	if p != null and is_instance_valid(p):
 		p.ai_move = Vector2.ZERO
+		p.pedal = Vector2.ZERO
 		p.ai_action = false
 		p.ai_alt = false
 		p.ai_slow = false
@@ -494,6 +509,8 @@ func _send_state(c: Dictionary) -> void:
 	_json(c, "nudge", {"t": "nudge", "lvl": int(game.nudge_level(p)) if game.has_method("nudge_level") else 0,
 		"lh": game.lead_hand.lh_name() if game.lead_hand else "Macca", "firm": bool(p.cover_firm)})
 	_json(c, "wallet", wallet(p))
+	if scr == "roam" and game.explore != null:
+		_json(c, "roam", game.explore.phone_state())
 	if not c.has("shop_sent"):
 		c["shop_sent"] = true
 		(c["ws"] as WebSocketPeer).send_text("J " + JSON.stringify({"t": "shop", "utes": Wallet.UTES, "kit": Wallet.KIT}))
