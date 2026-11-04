@@ -30,9 +30,14 @@ import math
 import os
 import random
 
+from shapely.geometry import LineString, Polygon
+from shapely.ops import unary_union
+
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "data", "hamilton_reach.json")
+MAP = os.path.join(ROOT, "data", "riverlight_osm.json")
+FOOTPATH = 2.5      # m of footpath kept clear between a kerb and a wall
 PX = 0.2            # metres a pixel
 MID = 2000.0        # the image's centre pixel is Riverlight's centroid
 TURN = -14.4        # as tools/osm_to_game.py
@@ -127,10 +132,32 @@ def edge_dist(p, poly):
 	return best
 
 
+def streets():
+	"""The map's streets, kerb to kerb plus the footpath: hand traced
+	rectangles off a 20 cm aerial can run a few metres over them, and then a
+	wall stands out over the road (Parkside Circuit)."""
+	with open(MAP) as f:
+		roads = json.load(f)["roads"]
+	return unary_union([LineString(r["pts"]).buffer(r["w"] / 2 + FOOTPATH, cap_style=2, join_style=2)
+		for r in roads if len(r["pts"]) > 1])
+
+
+def clip(g, street):
+	"""A block's footprint back off the street, kept to its main piece and
+	squared up (no slivers or near-duplicate corners)."""
+	p = Polygon(g).difference(street)
+	if p.geom_type == "MultiPolygon":
+		p = max(p.geoms, key=lambda q: q.area)
+	p = p.simplify(0.3)
+	pts = list(p.exterior.coords)[:-1]
+	return pts
+
+
 def main():
+	street = streets()
 	blocks = []
 	for name, (kind, storeys, pts) in BLOCKS.items():
-		g = [game(*p) for p in pts]
+		g = clip([game(*p) for p in pts], street)
 		blocks.append({"name": name, "kind": kind, "storeys": storeys,
 			"pts": [[round(x, 1), round(z, 1)] for x, z in g]})
 	face = gdir(*HOUSE_FACE)

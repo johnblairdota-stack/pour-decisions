@@ -275,12 +275,19 @@ def main():
             continue
         if hw in ROAD_W:
             w = ROAD_W[hw]
-            one = p.get("oneway") == "yes"
+            # (a roundabout's one way without saying so: clockwise, as
+            # OpenStreetMap draws them here, keeping left: one lane round, no parking)
+            ring = p.get("junction") in ("roundabout", "circular")
+            one = p.get("oneway") == "yes" or (ring and p.get("oneway") != "no")
             lanes, park = 0, 0
             if hw in KERB_STREETS:
                 lanes = lanes_of.get((p.get("name", ""), one), 1 if one else 2)
                 park = 1 if one else 2
                 w = lanes * LANE_W + park * PARK_W
+                if ring:
+                    # (as wide as it's always been drawn; one lane round it)
+                    w = lanes_of.get((p.get("name", ""), False), 2) * LANE_W + 2 * PARK_W
+                    lanes, park = 1, 0
             elif p.get("width"):
                 try:
                     w = float(str(p["width"]).split()[0])
