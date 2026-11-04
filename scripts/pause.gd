@@ -457,7 +457,7 @@ func _note_for(action: String) -> String:
 		"gold_mode":
 			return "Fades as you learn: a button lights up gold, with sparkle, the moment it's the right time to press it. As each person gets a job right the sparkle fades till only the button's left; slip up and it comes back. Full sparkle: always bright, for everyone. Off: read the job yourself."
 		"dog_help":
-			return "Climb days. First Day: the load barely swings, the crane driver's quick, and a see-through ghost shows where it stops if you call stop now. On Site: a real swing and a real driver, ghost still on. Ticketed: no ghost, a real dogman."
+			return "Climb days. The see-through ghost always shows where the load's headed. First Day: the swing and turn are tamed, the crane driver's quick, the tag lines grip hard, and the legs seat with a bit to spare. On Site: a real swing and a real driver. Ticketed: full swing and lag, a light grip on the lines, and the legs have to be spot on."
 		"fullscreen":
 			return "Fill the whole screen. F11 flips it any time."
 		"sound":

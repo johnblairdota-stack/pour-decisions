@@ -4708,6 +4708,11 @@ func _update_stations() -> void:
 	# The end hose hangs under the boom tip, wherever it is
 	var ha := hose_anchor() - rig.position
 	(stations["hose"]["node"] as Node3D).position = Vector3(ha.x, 0, ha.z)
+	# The tag lines are picked up where their ends hang, which moves with the load
+	if climb.active:
+		for n in 2:
+			var ts: Vector3 = climb.tag_spot(n) - rig.position
+			(stations[climb.TAG_KEYS[n]]["node"] as Node3D).position = Vector3(ts.x, 0, ts.z)
 	if ops.wants_bin():
 		needed.append("bin")
 	if ops.stage == "valve":
