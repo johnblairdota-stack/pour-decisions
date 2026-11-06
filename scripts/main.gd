@@ -5388,7 +5388,7 @@ func _update_camera(delta: float) -> void:
 			# back far enough that none of them ever leaves the shot
 			var fr: Array = climb.guide_frame()
 			focus = fr[0]
-			dist = clampf(float(fr[1]) * 2.4 + 9.0, 18.0, 34.0)
+			dist = clampf(float(fr[1]) * 2.4 + 9.0, 18.0, 42.0)
 		else:
 			cam_yaw = _yaw_before
 			cam_pitch = _pitch_before
@@ -5676,6 +5676,10 @@ func _maybe_shot() -> void:
 		key = "tutorial"
 	elif "tag2" in _shot_only and climb.active and climb.stage == "guide" and climb._steady_t > 1.0 and not _shots_taken.has("tag2"):
 		key = "tag2"
+	elif "dogin" in _shot_only and climb.active and climb.stage == "guide" and climb.stage_t > 9.0 and not _shots_taken.has("dogin"):
+		key = "dogin"
+	elif "handson" in _shot_only and climb.active and climb.stage == "guide" and climb.hands and not _shots_taken.has("handson"):
+		key = "handson"
 	elif "smokovan" in _shot_only and climb.active and climb.smoko._buy > 0.8 and not _shots_taken.has("smokovan"):
 		key = "smokovan"
 	elif "smokohand" in _shot_only and climb.active and climb.smoko.stage == "back" and sc.zone == "deck" and climb.smoko.owed.size() < 5 and not _shots_taken.has("smokohand"):
