@@ -338,7 +338,7 @@ func _setup_input() -> void:
 		"p4_": {"left": [], "right": [], "up": [], "down": [], "action": [], "alt": [], "slow": [], "leave": []},
 	}
 	var axes := {"left": [JOY_AXIS_LEFT_X, -1.0], "right": [JOY_AXIS_LEFT_X, 1.0], "up": [JOY_AXIS_LEFT_Y, -1.0], "down": [JOY_AXIS_LEFT_Y, 1.0]}
-	var pad := {"left": JOY_BUTTON_DPAD_LEFT, "right": JOY_BUTTON_DPAD_RIGHT, "up": JOY_BUTTON_DPAD_UP, "down": JOY_BUTTON_DPAD_DOWN, "action": JOY_BUTTON_A, "alt": JOY_BUTTON_X, "slow": JOY_BUTTON_RIGHT_SHOULDER, "leave": JOY_BUTTON_B}
+	var pad := {"left": JOY_BUTTON_DPAD_LEFT, "right": JOY_BUTTON_DPAD_RIGHT, "up": JOY_BUTTON_DPAD_UP, "down": JOY_BUTTON_DPAD_DOWN, "action": JOY_BUTTON_A, "alt": JOY_BUTTON_X, "slow": [JOY_BUTTON_Y, JOY_BUTTON_RIGHT_SHOULDER], "leave": JOY_BUTTON_B}
 	var device := 0
 	for prefix in keys:
 		var map: Dictionary = keys[prefix]
@@ -357,10 +357,12 @@ func _setup_input() -> void:
 				jm.axis = axes[act][0]
 				jm.axis_value = axes[act][1]
 				InputMap.action_add_event(act_name, jm)
-			var jb := InputEventJoypadButton.new()
-			jb.device = device
-			jb.button_index = pad[act]
-			InputMap.action_add_event(act_name, jb)
+			# (Y, as every prompt says; RB too, as it always was)
+			for b in (pad[act] if pad[act] is Array else [pad[act]]):
+				var jb := InputEventJoypadButton.new()
+				jb.device = device
+				jb.button_index = b
+				InputMap.action_add_event(act_name, jb)
 		device += 1
 	for pair in [["skyline", KEY_TAB], ["restart", KEY_R], ["dev_climb", KEY_F1], ["toggle_shake", KEY_F2], ["toggle_sound", KEY_F3], ["toggle_hud", KEY_H]]:
 		if InputMap.has_action(pair[0]):

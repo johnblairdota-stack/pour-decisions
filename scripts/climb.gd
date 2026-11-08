@@ -2210,9 +2210,23 @@ func tag_spot(n := 0) -> Vector3:
 	if load != null and load_state == "" and stage in ["fly", "guide"]:
 		var c := _tag_corner(n)
 		var out := Vector3(c.x - load.position.x, 0, c.z - load.position.z).normalized()
-		return Vector3(c.x, game.work_y, c.z) + out * 0.8
+		return _on_deck(Vector3(c.x, game.work_y, c.z) + out * 0.8)
 	var at := _hand_off if _hand_off != Vector2.ZERO else hand_off_point()
 	return Vector3(at.x + k * 1.6, game.work_y, at.y + k * 1.6)
+
+## The nearest point to `at` someone can stand on (deck or scaffold), up to
+## TAG_EDGE away: a line's end swung out past the edge is taken from there.
+func _on_deck(at: Vector3) -> Vector3:
+	if game._walkable(at, "deck"):
+		return at
+	for ring in 6:
+		var r := 0.45 * (ring + 1)
+		for i in 12:
+			var a := float(i) / 12.0 * TAU
+			var q := at + Vector3(cos(a), 0, sin(a)) * r
+			if game._walkable(q, "deck"):
+				return q
+	return at
 
 ## True if there's deck or scaffold walkway within `r` m (across) of `at`.
 func _deck_within(at: Vector3, r: float) -> bool:
@@ -2512,6 +2526,17 @@ func handle_player(p, delta: float, near: String, act: String, alt: String, leav
 				deliver(p)
 			return true
 		return false
+	# A tag line's end within reach comes first (it moves with the load, so
+	# it can lie by another station's spot)
+	for n in 2:
+		if tag_hands[n] == null and p.busy == "" and p.zone == "deck" and tag_ready(n):
+			var s := tag_spot(n)
+			if Vector2(s.x - p.position.x, s.z - p.position.z).length() < TAG_GRAB:
+				p.cue("action", "grab the tag line", -1.0, true)
+				p.gold(not p.bot)
+				if p.action_pressed():
+					_grab_tag(p, n)
+				return true
 	match near:
 		"sling":
 			if needs_sling():
@@ -2555,17 +2580,6 @@ func handle_player(p, delta: float, near: String, act: String, alt: String, leav
 					if p.action_pressed():
 						_grab_tag(p, n)
 			return true
-	# A tag line's end within reach (it moves with the load, so it's not
-	# always on the station spot)
-	for n in 2:
-		if tag_hands[n] == null and p.busy == "" and p.zone == "deck" and tag_ready(n):
-			var s := tag_spot(n)
-			if Vector2(s.x - p.position.x, s.z - p.position.z).length() < TAG_GRAB:
-				p.cue("action", "grab the tag line", -1.0, true)
-				p.gold(not p.bot)
-				if p.action_pressed():
-					_grab_tag(p, n)
-				return true
 	return false
 
 ## Takes hold of tag line n where its end lies, with a little slack in it.
@@ -2783,21 +2797,21 @@ func _signal(p, dir: Vector2, vert: float, delta: float, slow := false, dog_all 
 		var err := leg_err(Vector2(lp.x, lp.z), spin)
 		var over := (Vector2(lp.x, lp.z) - Vector2(LAT_X, RUNWAY_Z)).length() < HANDS_R
 		if err < leg_tol():
-			text = "All four legs over their spots: hold A, \"lower down\""
+			text = "Legs on their spots: hold A, \"lower down\""
 			col = Color("7cd992")
 		elif over and not hands:
-			text = "Over the runway: hold A, bring it down so the crew can take it by hand"
+			text = "Over the runway: hold A, down to the crew"
 			col = Color("7cd992")
 		elif hands:
-			text = "Hands on: the crew are turning it square. Line it up, then lower."
+			text = "Hands on: crew squaring it. Line up, then lower"
 		else:
-			text = "Push the stick to a call (legs %.1f m off). Let go to call STOP." % err
+			text = "Stick: a call · let go: STOP · legs %.1f m off" % err
 	if slow and call_now != "STOP":
 		text += "  · EASY"
 	# The ghost's legs are on the spots: this is the moment to call STOP
 	if call_now in ["TROLLEY OUT", "TROLLEY IN", "SLEW LEFT", "SLEW RIGHT"] and stop_ghost_at != Vector3.INF and p != null and not p.bot:
 		if leg_err(Vector2(stop_ghost_at.x, stop_ghost_at.z), stop_ghost_yaw) < leg_tol():
-			text = "LET GO NOW: \"stop\" puts the legs on their spots"
+			text = "LET GO NOW: \"stop\" lands it on the spots"
 			col = Color("ffd23f")
 	if wind_gust >= WIND_STOP:
 		game.hud.set_signal("%s  ·  gusting over the limit" % text, Color("ff4d4d"))
@@ -3000,7 +3014,7 @@ func hud_task() -> Array:
 		"guide":
 			var err := leg_err(Vector2(load.position.x, load.position.z), spin)
 			var h := maxf(0.0, load.position.y - gap_bottom())
-			return ["Climb · four legs onto their spots  %.1f m off, %.1f m up" % [err, h], "", clampf(1.0 - err / 6.0, 0.0, 1.0)]
+			return ["Climb · legs %.1f m off, %.1f m up" % [err, h], "", clampf(1.0 - err / 6.0, 0.0, 1.0)]
 		"roll":
 			return ["Climb · roll it in", "", roll]
 		"pin":
