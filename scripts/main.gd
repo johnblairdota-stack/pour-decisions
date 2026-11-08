@@ -1646,7 +1646,10 @@ func _build_band() -> void:
 	layer.add_child(band_box)
 	band_view = SubViewport.new()
 	band_view.world_3d = get_viewport().world_3d
-	band_view.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	# (off till its frame's shown: the container turns it on and off with its
+	# own visibility from then on, but not for a view added while it's hidden,
+	# which would otherwise draw the whole scene every frame unseen)
+	band_view.render_target_update_mode = SubViewport.UPDATE_DISABLED
 	band_box.add_child(band_view)
 	band_cam = Camera3D.new()
 	band_cam.fov = 34.0
@@ -1785,7 +1788,8 @@ func _build_insets() -> void:
 		var view := SubViewport.new()
 		view.size = Vector2i(int(INSET.x), int(INSET.y))
 		view.world_3d = get_viewport().world_3d
-		view.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+		# (off till its frame's shown, as the street band's)
+		view.render_target_update_mode = SubViewport.UPDATE_DISABLED
 		box.add_child(view)
 		var cam := Camera3D.new()
 		cam.fov = 55.0
@@ -1864,7 +1868,8 @@ func _build_gauge_pop(layer: CanvasLayer) -> void:
 	var view := SubViewport.new()
 	view.size = Vector2i(int(GAUGE_POP.x), int(GAUGE_POP.y))
 	view.world_3d = get_viewport().world_3d
-	view.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	# (off till its frame's shown, as the street band's)
+	view.render_target_update_mode = SubViewport.UPDATE_DISABLED
 	gauge_pop.add_child(view)
 	_gauge_cam = Camera3D.new()
 	_gauge_cam.fov = 34.0
