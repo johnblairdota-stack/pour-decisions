@@ -8,11 +8,6 @@ extends RefCounted
 const F := preload("res://scripts/factory.gd")
 const LIB := "res://assets/cars/ute_kit.glb"
 const UTES := ["hilux", "ranger", "shark"]
-const ITEMS := ["bullbar", "winch", "spotlights", "snorkel", "lightbar", "mudtyres", "roofrack", "rooftent",
-	"awning", "canopy", "drawers", "fridge", "jerrycans", "swag"]
-
-## What each part needs fitted first
-const NEEDS := {"winch": "bullbar", "spotlights": "bullbar", "rooftent": "roofrack", "awning": "roofrack"}
 ## The mud tyres are this much taller than the standard ones (m)
 const MUD_UP := 0.045
 ## The swag lies on the tub floor; on top of the drawers it sits this much higher

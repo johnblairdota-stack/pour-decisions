@@ -46,7 +46,6 @@ const LOSS := Color("ff5a5f")
 ## medal, a step down when it falls short, so good players aren't held back
 ## and new ones aren't left behind.
 const MEDALS := ["Bronze", "Silver", "Gold"]
-const MEDAL_COLORS := [Color("d0884a"), Color("d6dde6"), Color("ffd23f")]
 const SILVER_Q := 85.0
 const GOLD_Q := 95.0
 ## Target pour times (s) for silver and gold, by kit. Pours get a little

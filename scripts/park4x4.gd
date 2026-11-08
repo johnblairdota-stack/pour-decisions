@@ -82,7 +82,6 @@ var boards: Array = []       # the records boards by the gates (Label3D)
 var _fords: Array = []       # {c, along (unit, the track's way), across, hl, hw}
 var _tgrid := {}             # 10 m cell -> [track index, segment index]
 var _rgrid := {}             # 10 m cell -> [a, b, half width]: the streets through the park's edge
-var _mud_mat: StandardMaterial3D
 var air_posts: Array = []    # where the FREE AIR posts stand, by each way in
 
 func build(d: Dictionary) -> void:
@@ -366,20 +365,19 @@ func _build_obstacles() -> void:
 		var yaw: float = o["yaw"]
 		var ax := Vector2(cos(yaw), sin(yaw))
 		var side := Vector2(-ax.y, ax.x)
-		if true:
-			var r := Rect2(c, Vector2.ZERO)
-			for sx: float in [-1.0, 1.0]:
-				for sy: float in [-1.0, 1.0]:
-					r = r.expand(c + ax * a * sx + side * b * sy)
-			var mi := _grid_mesh(r, 0.5, func(p: Vector2) -> Array:
-				var l := _local(o, p)
-				if absf(l.x) > a + 0.5 or absf(l.y) > b + 0.5:
-					return []
-				var h := height(p)
-				return [h + 0.03, DIRT.lerp(RUT, clampf(1.0 - h / float(o["size"]), 0.0, 1.0) * 0.6), 5])
-			mi.name = "Moguls" if o["kind"] == "moguls" else "LogStep"
-			if o["kind"] == "moguls":
-				continue
+		var r := Rect2(c, Vector2.ZERO)
+		for sx: float in [-1.0, 1.0]:
+			for sy: float in [-1.0, 1.0]:
+				r = r.expand(c + ax * a * sx + side * b * sy)
+		var mi := _grid_mesh(r, 0.5, func(p: Vector2) -> Array:
+			var l := _local(o, p)
+			if absf(l.x) > a + 0.5 or absf(l.y) > b + 0.5:
+				return []
+			var h := height(p)
+			return [h + 0.03, DIRT.lerp(RUT, clampf(1.0 - h / float(o["size"]), 0.0, 1.0) * 0.6), 5])
+		mi.name = "Moguls" if o["kind"] == "moguls" else "LogStep"
+		if o["kind"] == "moguls":
+			continue
 		# logs: two layers stacked across the track at each face
 		var bark := F.color_mat(Color("6b4a2f"))
 		var ends := F.color_mat(Color("c9a46b"))

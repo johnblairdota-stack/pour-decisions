@@ -275,6 +275,3 @@ func _arrow_for(key: String, j: Dictionary, lv: int, delta: float) -> void:
 	a.level = lv
 	a.t += delta
 	a.queue_redraw()
-
-func hide_all() -> void:
-	show_jobs([], 0.0)

@@ -84,7 +84,6 @@ var lost_t := 0.0         # seconds their job's waited while they were busy some
 var idle_in := 0.0        # seconds since this person last touched their controls
 var ring: MeshInstance3D  # a coloured disc under a person's feet
 var bubble: Label3D       # a short spoken line ("Clamp coming up!")
-var _bubble_t := 0.0
 var _balloons: Array = []   # {node, t, life, base, phase}: speech balloons floating up
 var pts_frac := 0.0       # fractional points still to be awarded (continuous work)
 
@@ -293,9 +292,6 @@ func set_driver(d: Dictionary) -> void:
 	_ai_prev = {"action": false, "alt": false, "slow": false, "leave": false}
 	hurry = false
 	refresh_tag()
-
-func is_human() -> bool:
-	return not bot
 
 ## Becomes one of the named crew (look and name).
 func set_char(id: String) -> void:

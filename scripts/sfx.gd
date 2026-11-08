@@ -116,6 +116,7 @@ var _master := 0.0
 var _bt := 0.0              # the beat clock (the pump's stroke runs on it)
 var _hp := 0.0              # last noise sample, for the hi-hat's high pass
 var _samples := {}          # lane -> AudioStreamPlayer for a recorded part
+var _recorded := PackedByteArray([0, 0, 0, 0, 0, 0])   # 1 for each of LANES that has one (so the band needn't look it up every sample)
 var _queued: Array = []     # [seconds from now, lane] recorded hits waiting to sound
 
 ## How loud each part is in the mix right now (0..1), for the crew bar.
@@ -148,6 +149,7 @@ func _load_samples() -> void:
 				pl.stream = load(path)
 				add_child(pl)
 				_samples[lane] = pl
+				_recorded[LANES.find(lane)] = 1
 				break
 
 ## Which eighth notes of the four-bar loop each part plays on (0..31).
@@ -178,34 +180,34 @@ func _band_sample(bt: float) -> float:
 	var x := fmod(b, 1.0) * BEAT                # s since the last beat
 	# Kick: a falling sine on every beat
 	var l := _lv[0]
-	if l > 0.005 and not _samples.has("pump"):
+	if l > 0.005 and _recorded[0] == 0:
 		s += sin(TAU * (48.0 + 70.0 * exp(-x * 30.0)) * x) * exp(-x * 9.0) * 0.32 * l
 	# Snare on 2 and 4: a noise burst with a body
 	l = _lv[1]
-	if l > 0.005 and not _samples.has("hose") and int(b) % 2 == 1:
+	if l > 0.005 and _recorded[1] == 0 and int(b) % 2 == 1:
 		s += ((randf() * 2.0 - 1.0) * exp(-x * 20.0) * 0.16 + sin(TAU * 190.0 * x) * exp(-x * 28.0) * 0.14) * l
 	# Bass: a soft triangle on the chord's root in eighths, up the octave on the off-beats
 	l = _lv[2]
-	if l > 0.005 and not _samples.has("poker"):
+	if l > 0.005 and _recorded[2] == 0:
 		var f: float = ROOTS[bar] * (2.0 if step % 4 == 3 else 1.0)
 		var ph := fmod(f * bt, 1.0)
 		s += (1.0 - 4.0 * absf(ph - 0.5)) * exp(-e8 * 5.0) * 0.17 * l
 	# Hi-hat: high-passed noise, the off-beats louder
 	l = _lv[3]
-	if l > 0.005 and not _samples.has("screed"):
+	if l > 0.005 and _recorded[3] == 0:
 		var n := randf() * 2.0 - 1.0
 		var hp := n - _hp
 		_hp = n
 		s += hp * exp(-e8 * 70.0) * (0.06 if step % 2 == 1 else 0.035) * l
 	# The hook, in the reversing beeper's square wave
 	l = _lv[4]
-	if l > 0.005 and not _samples.has("line"):
+	if l > 0.005 and _recorded[4] == 0:
 		var hf: float = HOOK[step % 16]
 		if hf > 0.0 and e8 < 0.3:
 			s += (1.0 if fmod(hf * bt, 1.0) < 0.5 else -1.0) * minf(1.0, e8 * 200.0) * exp(-e8 * 7.0) * 0.035 * l
 	# Pad: the chord, held, swelling in each bar
 	l = _lv[5]
-	if l > 0.005 and not _samples.has("boom"):
+	if l > 0.005 and _recorded[5] == 0:
 		var swell := minf(1.0, fmod(b, 4.0) * 1.5) * (1.0 - 0.3 * fmod(b, 4.0) / 4.0)
 		for cf in CHORDS[bar]:
 			s += sin(TAU * cf * bt) * 0.028 * swell * l
@@ -490,6 +492,10 @@ func _process(delta: float) -> void:
 	var n := _playback.get_frames_available()
 	if n <= 0:
 		return
+	_playback.push_buffer(_mix(n))
+
+## The next `n` samples of the made-up sounds and the band.
+func _mix(n: int) -> PackedVector2Array:
 	var buf := PackedVector2Array()
 	buf.resize(n)
 	var dt := 1.0 / RATE
@@ -502,6 +508,16 @@ func _process(delta: float) -> void:
 		tgt.append(clampf(float(band.get(lane, 0.0)), 0.0, 1.0))
 	# (what's already buffered plays before this stretch does)
 	_queue_samples(_bt, _bt + n * dt, maxf(0.0, (0.12 * RATE - n) / RATE))
+	# Each hit's kind is looked at once for the stretch, not every sample:
+	# [kind, age, a whistle, its code, an alert]. (A recorded hit's "~"
+	# marker makes no sound here, so it's left out.)
+	var hits: Array = []
+	for e in _events:
+		var kind: String = e[0]
+		if kind.begins_with("~"):
+			continue
+		var whistle := kind.begins_with("whistle:")
+		hits.append([kind, float(e[1]), whistle, kind.substr(8) if whistle else "", kind in ALERTS])
 	for f in n:
 		_t += dt
 		_bt += dt
@@ -539,14 +555,14 @@ func _process(delta: float) -> void:
 			var saw := fmod(_rph, 1.0) * 2.0 - 1.0
 			var chatter := 0.6 + 0.4 * sin(TAU * (23.0 - 9.0 * rumble_pitch) * _t)
 			s += (saw * 0.07 + (randf() * 2.0 - 1.0) * 0.025 * (1.0 - rumble_pitch)) * _rum * chatter
-		for e in _events:
+		for e in hits:
 			var a: float = e[1] + f * dt
 			var kind: String = e[0]
-			if kind.begins_with("whistle:"):
-				var wa := _whistle_on(kind.substr(8), a)
+			if e[2]:
+				var wa := _whistle_on(e[3], a)
 				if wa > 0.0:
 					var w := sin(TAU * (2850.0 + 60.0 * sin(TAU * 32.0 * a)) * a) * 0.07 * wa
-					if kind in ALERTS:
+					if e[4]:
 						sa += w
 					else:
 						s += w
@@ -622,7 +638,7 @@ func _process(delta: float) -> void:
 					var bl := 0.42 if kind == "bleep" else 0.2
 					if a < bl:
 						s += sin(TAU * 1000.0 * a) * minf(1.0, minf(a, bl - a) * 120.0) * 0.2
-			if kind in ALERTS:
+			if e[4]:
 				sa += s - s0
 				s = s0
 		var dip := 1.0 - DUCK * _duck
@@ -634,4 +650,4 @@ func _process(delta: float) -> void:
 	for e in _events:
 		e[1] += n * dt
 	_events = _events.filter(func(e): return e[1] < 2.0)
-	_playback.push_buffer(buf)
+	return buf

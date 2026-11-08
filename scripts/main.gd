@@ -65,7 +65,6 @@ const BIG_SLAB_LOAD := 1.3      # ...carrying up to this much more each
 const LS := 4.14
 const LW := 2.0
 const LAT_X := 12.0
-const HEAD_MIN := 4.0
 const HEAD_TARGET := 9.5
 const SHOULDER := 1.7
 const HOSE := 3.0
@@ -84,7 +83,6 @@ var HOIST_Z := 4.4
 const WALK_GAP := 0.15        # m between the slab edge and the walkway (the formwork)
 const WALK_W := 1.4           # m wide
 const WALK_MID := WALK_GAP + WALK_W * 0.5   # centreline, out from the slab edge
-const NPC_POKER_R := 1.1
 
 const DECK_STATIONS := {
 	"boom": {"pos": Vector3(8.85, 0, 2.85), "label": "BOOM REMOTE", "color": Color("ffc72c")},
@@ -118,10 +116,6 @@ const GROUND_STATIONS := {
 	"van": {"pos": Vector3(31.0, 0, 12.1), "label": "COFFEE VAN", "color": Color("f4f7fa")},
 }
 const PLAYER_COLORS := UI.P_COLORS
-const ACTION_NAMES := ["Space", "Enter", "A", "A"]
-const ALT_NAMES := ["E", "R-Ctrl", "X", "X"]
-const LEAVE_NAMES := ["Q", "R-Shift", "B", "B"]
-const SLOW_NAMES := ["F", "R-Alt", "RB", "RB"]
 
 var kit := ""
 var phase := "roles"
@@ -207,7 +201,6 @@ var tip_kick := Vector3.ZERO
 var pumping := false
 var pour_clock := 0.0
 var clamp_trigger := 0.5
-var clamp_used := false
 var shake := 0.0
 var work_y := 0.0
 var work_target := 0.0
@@ -364,7 +357,7 @@ func _setup_input() -> void:
 				jb.button_index = b
 				InputMap.action_add_event(act_name, jb)
 		device += 1
-	for pair in [["skyline", KEY_TAB], ["restart", KEY_R], ["dev_climb", KEY_F1], ["toggle_shake", KEY_F2], ["toggle_sound", KEY_F3], ["toggle_hud", KEY_H]]:
+	for pair in [["skyline", KEY_TAB], ["restart", KEY_R], ["dev_climb", KEY_F1], ["toggle_shake", KEY_F2], ["toggle_sound", KEY_F3]]:
 		if InputMap.has_action(pair[0]):
 			InputMap.erase_action(pair[0])
 		InputMap.add_action(pair[0])
@@ -1009,7 +1002,6 @@ const TUT_LAST := 3           # the tank wall and its roof slab
 const TUT_R := 5.8            # radius of the tank floor and roof slabs
 const SHAFT_R := 3.0
 var _rect_rails: Array = []
-var _tut_nodes: Array = []
 
 ## Deck stations sit a little further in on the round slab.
 const TUT_DECK := {
@@ -1400,11 +1392,6 @@ func walkway_point(s: float) -> Vector2:
 	s -= 2.0 * A
 	return c + Vector2(-A, B - s)
 
-func walkway_length() -> float:
-	if tutorial:
-		return TAU * (TUT_R + WALK_MID)
-	return 4.0 * (BW * 0.5 + WALK_MID + BD * 0.5 + WALK_MID)
-
 ## How far round the walkway the point nearest `q` is.
 func walkway_param(q: Vector2) -> float:
 	if tutorial:
@@ -1659,7 +1646,10 @@ func _build_band() -> void:
 	layer.add_child(band_box)
 	band_view = SubViewport.new()
 	band_view.world_3d = get_viewport().world_3d
-	band_view.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	# (off till its frame's shown: the container turns it on and off with its
+	# own visibility from then on, but not for a view added while it's hidden,
+	# which would otherwise draw the whole scene every frame unseen)
+	band_view.render_target_update_mode = SubViewport.UPDATE_DISABLED
 	band_box.add_child(band_view)
 	band_cam = Camera3D.new()
 	band_cam.fov = 34.0
@@ -1748,7 +1738,9 @@ func _update_band(delta: float, down: Array, mid: Array, split_e: float) -> void
 		band_cam.look_at(band_focus, Vector3.UP)
 		var col: Color = UI.ROLE.get(down[0].role, UI.ROLE["pump"]) if not down.is_empty() else UI.ROLE["pump"]
 		band_edge.color = col
-		(band_chip.get_theme_stylebox("panel") as StyleBoxFlat).bg_color = col
+		var chip_sb := band_chip.get_theme_stylebox("panel") as StyleBoxFlat
+		if chip_sb.bg_color != col:
+			chip_sb.bg_color = col
 		var names := []
 		for p in down:
 			names.append(_who(p))
@@ -1766,16 +1758,20 @@ func _update_band(delta: float, down: Array, mid: Array, split_e: float) -> void
 		sx = clampf(sx, 80.0, vs.x - 260.0)
 		var below: bool = p.global_position.y < work_y * 0.5
 		(mk["label"] as Label).text = "%s %s  %d m" % ["▼" if below else "▲", _who(p), int(round(p.global_position.y))]
-		(mk["style"] as StyleBoxFlat).bg_color = UI.ROLE.get(p.role, Color.WHITE)
+		var mk_col: Color = UI.ROLE.get(p.role, Color.WHITE)
+		if (mk["style"] as StyleBoxFlat).bg_color != mk_col:
+			(mk["style"] as StyleBoxFlat).bg_color = mk_col
 		panel.position = Vector2(sx - panel.size.x * 0.5, line_y - panel.size.y * 0.5)
 
 ## Two picture-in-picture cameras, bottom right, each framed in the colour of
 ## the job it's watching, with a small name chip.
 const INSET := Vector2(352, 198)
+var _inset_layer: CanvasLayer
 func _build_insets() -> void:
 	var layer := CanvasLayer.new()
 	layer.layer = 2
 	add_child(layer)
+	_inset_layer = layer
 	for i in 2:
 		var box := SubViewportContainer.new()
 		box.stretch = true
@@ -1794,7 +1790,8 @@ func _build_insets() -> void:
 		var view := SubViewport.new()
 		view.size = Vector2i(int(INSET.x), int(INSET.y))
 		view.world_3d = get_viewport().world_3d
-		view.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+		# (off till its frame's shown, as the street band's)
+		view.render_target_update_mode = SubViewport.UPDATE_DISABLED
 		box.add_child(view)
 		var cam := Camera3D.new()
 		cam.fov = 55.0
@@ -1873,7 +1870,8 @@ func _build_gauge_pop(layer: CanvasLayer) -> void:
 	var view := SubViewport.new()
 	view.size = Vector2i(int(GAUGE_POP.x), int(GAUGE_POP.y))
 	view.world_3d = get_viewport().world_3d
-	view.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	# (off till its frame's shown, as the street band's)
+	view.render_target_update_mode = SubViewport.UPDATE_DISABLED
 	gauge_pop.add_child(view)
 	_gauge_cam = Camera3D.new()
 	_gauge_cam.fov = 34.0
@@ -2005,7 +2003,9 @@ func _update_gauge_pop() -> void:
 				r.position.x = right_x
 	gauge_pop.position = r.position
 	var spike: bool = line.spike_on
-	_gauge_frame.border_color = UI.ALARM if spike or line.spike_warn else UI.ROLE["pump"]
+	var gauge_col: Color = UI.ALARM if spike or line.spike_warn else UI.ROLE["pump"]
+	if _gauge_frame.border_color != gauge_col:
+		_gauge_frame.border_color = gauge_col
 	_gauge_badge.dot_color = UI.ROLE["pump"]
 	_gauge_label.text = "PUMP GAUGE" if spike or line.spike_warn else "PUMP OFF"
 	var akey := "A"
@@ -2181,12 +2181,6 @@ func walk_bounds(zone: String) -> Rect2:
 		var x0 := SC.x - BW * 0.5 - 2.0
 		return Rect2(x0, SC.z - BD * 0.5 - 2.0, LAT_X + 2.6 - x0, BD + 4.0)
 	return Rect2(-9.6, -4.5, 43.6, 17.6)
-
-func _needs_climb() -> bool:
-	return head.position.y < pour_level() + HEAD_MIN
-
-func _climb_done() -> bool:
-	return head.position.y >= pour_level() + HEAD_TARGET
 
 func _filled_ratio() -> float:
 	if kit == "truck":
@@ -2417,7 +2411,6 @@ func _start_pour() -> void:
 		pour.reach_all()
 	pour_clock = 0.0
 	score.start_level()
-	clamp_used = false
 	clamp_trigger = randf_range(0.2, 0.55)
 	_incidents = _plan_incidents()
 	# (and the trucks come closer together and carry more, so the pump
@@ -2773,8 +2766,6 @@ func _process(delta: float) -> void:
 		return
 	if Input.is_action_just_pressed("dev_climb") and kit == "tower":
 		_dev_skip(CLIMB_LEVELS[0])
-	if Input.is_action_just_pressed("toggle_hud"):
-		hud_off = not hud_off
 	if Input.is_action_just_pressed("toggle_shake"):
 		shake_on = not shake_on
 		hud.toast("Screen shake %s" % ("on" if shake_on else "off"), 1.2)
@@ -3067,7 +3058,6 @@ func _join_players() -> void:
 			var p = crew.join(false, i)
 			if p != null:
 				hud.toast("P%d joined: %s, %s" % [i, p.char_name, UI.ROLE_NAME[p.role].to_lower()], 2.0)
-	hud.show_join(false)
 	var open_slots: bool = crew.humans().size() < crew.MAX_PEOPLE and not autotest
 	hud.set_join(_join_text() if phase != "topout" and phase != "select" and phase != "roles" else "", phones.url() if phones.running and open_slots and phase != "topout" else "")
 
@@ -3171,7 +3161,6 @@ func _update_pour(delta: float) -> void:
 	# till the line's sound again.
 	if not _incidents.is_empty() and _filled_ratio() >= float(_incidents[0]["at"]) and line.fail_i < 0 and line.fix_i < 0 and not line.blocked and not line.burst:
 		var inc: Dictionary = _incidents.pop_front()
-		clamp_used = true
 		if inc["kind"] == "block" or (autotest and OS.get_cmdline_user_args().has("--blocktest")):
 			line._block(false)
 		else:
@@ -4264,7 +4253,6 @@ func _cover(p, delta: float) -> void:
 		_start_cover(p, true)
 
 func _start_cover(p, firm: bool) -> void:
-	_covers += 1
 	if autotest:
 		print("[autotest]   %s covers P%d (%s)%s" % [lead_hand.lh_name(), p.index, p.role, " (lost)" if firm else ""])
 	p.covering = true
@@ -4284,7 +4272,6 @@ func _start_cover(p, firm: bool) -> void:
 ## spike (which follows them about) don't count: those are on them wherever
 ## they are.
 const COVER_LOST := 40.0
-var _covers := 0
 var _jobs_now: Array = []   # this frame's jobs (_update_signs)
 const LOST_FAR := 6.0       # m from the job that counts as not at it
 func _lost_check(p, delta: float) -> void:
@@ -4722,6 +4709,7 @@ func _update_stations() -> void:
 	if phase == "pour" and hose_holder == null:
 		needed.append("hose")
 	var pulse := 1.0 + 0.18 * sin(phase_t * 6.0)
+	var hs := humans()   # (once, not once per station)
 	for key in stations:
 		var st: Dictionary = stations[key]
 		var n: Node3D = st["node"]
@@ -4735,7 +4723,7 @@ func _update_stations() -> void:
 		# The station's name only shows when it's wanted or someone's close
 		# by: the hand signs say where the work is, so the site stays clean
 		var near := false
-		for h in humans():
+		for h in hs:
 			if h.zone == st["zone"] and Vector2(h.global_position.x - n.global_position.x, h.global_position.z - n.global_position.z).length() < 5.0:
 				near = true
 		(st["label"] as Node3D).visible = n.visible and (on or near)
@@ -4748,8 +4736,14 @@ func _update_stations() -> void:
 		if key == "poker" and phase == "pour" and ops.busy():
 			fade = 0.0
 		ring.visible = fade > 0.01
-		m.albedo_color = Color(col, (0.9 if on else 0.4) * fade)
-		(st["xmat"] as StandardMaterial3D).albedo_color = Color(col, (0.35 if on else 0.15) * fade)
+		# (only when it changes: each set is a call into the renderer)
+		var c := Color(col, (0.9 if on else 0.4) * fade)
+		if m.albedo_color != c:
+			m.albedo_color = c
+		var xm: StandardMaterial3D = st["xmat"]
+		var xc := Color(col, (0.35 if on else 0.15) * fade)
+		if xm.albedo_color != xc:
+			xm.albedo_color = xc
 
 func _update_npcs(delta: float) -> void:
 	var on := phase == "pour"
@@ -4939,11 +4933,25 @@ func _tickets() -> Array:
 	out.sort_custom(func(a, b): return (1 if a.get("urgent", false) else 0) > (1 if b.get("urgent", false) else 0))
 	return out.slice(0, MAX_TICKETS)
 
-## H hides the HUD (for a clean look at the site, or a photo) and brings it back.
+## H hides the HUD and the close-ups (for a clean look at the site, or a
+## photo) and brings them back. The key's read by the pause menu, which runs
+## when the game's paused too (pause.gd), so it works on every screen.
 var hud_off := false
 
-func _update_hud() -> void:
+func toggle_hud() -> void:
+	hud_off = not hud_off
+	# (straight away, not next frame: the game may be paused. Knocked off,
+	# the wander's hidden them already and puts them back on the way out)
+	if explore == null or not explore.active:
+		_update_hud_shown()
+
+func _update_hud_shown() -> void:
 	hud.visible = phase != "roles" and phase != "select" and not EXT_SHOTS.has(_shot_key_now) and not hud_off
+	if _inset_layer != null:
+		_inset_layer.visible = not hud_off
+
+func _update_hud() -> void:
+	_update_hud_shown()
 	hud.set_tickets(_tickets(), phase_t)
 	# (no docket card: the slump test and its reading are in the close-up)
 	hud.show_docket({})
@@ -5143,6 +5151,8 @@ var _close_targets: Array = []   # what the close-ups looked at this frame
 const TOON_CUT := preload("res://shaders/toon_cut.gdshader")
 const OUTLINE_CUT := preload("res://shaders/outline_cut.gdshader")
 var _cut_mats := {}           # a part's own material -> its cut-away copy
+var _cut_made := {}           # the cut-away copies themselves (for a quick look-up)
+var _cut_sent: Array = []     # the circles last sent to them, and how many there were
 var _cut_t := 0.0
 
 func _update_see_through(delta: float) -> void:
@@ -5204,6 +5214,11 @@ func _update_see_through(delta: float) -> void:
 	var n := ps.size()
 	while ps.size() < 6:
 		ps.append(Vector4.ZERO)
+	# (only when the circles have moved, or there are new parts to tell)
+	var sent := [n, ps, _cut_made.size()]
+	if sent == _cut_sent:
+		return
+	_cut_sent = sent
 	for m in _cut_mats.values():
 		(m as ShaderMaterial).set_shader_parameter("cut_n", n)
 		(m as ShaderMaterial).set_shader_parameter("cut_p", ps)
@@ -5257,7 +5272,7 @@ func _give_cut(n: Node) -> void:
 func _cut_of(src: Material) -> Material:
 	if src == null:
 		return null
-	if _cut_mats.values().has(src):
+	if _cut_made.has(src):
 		return src
 	if _cut_mats.has(src):
 		return _cut_mats[src]
@@ -5279,7 +5294,9 @@ func _cut_of(src: Material) -> Material:
 				o.set_shader_parameter(k, v)
 		m.next_pass = o
 		_cut_mats[nxt] = o
+		_cut_made[o] = true
 	_cut_mats[src] = m
+	_cut_made[m] = true
 	return m
 
 ## Render layer for words only the close-ups show (the slump reading): the
@@ -5597,8 +5614,11 @@ func _update_camera(delta: float) -> void:
 		# Framed in the colour of the job it's watching (the pump operator's colour, who fixes it, for a
 		# failing clamp or pipe)
 		var role_col: Color = UI.ROLE.get(p.role, Color.WHITE) if p != null else UI.ROLE["pump"]
-		(inset["frame"] as StyleBoxFlat).border_color = role_col
-		(inset["chip"] as StyleBoxFlat).bg_color = role_col
+		# (only when it changes: setting a style box re-lays its panel out)
+		if (inset["frame"] as StyleBoxFlat).border_color != role_col:
+			(inset["frame"] as StyleBoxFlat).border_color = role_col
+		if (inset["chip"] as StyleBoxFlat).bg_color != role_col:
+			(inset["chip"] as StyleBoxFlat).bg_color = role_col
 		(inset["icon"] as TextureRect).texture = Icons.texture(p.role if p != null else "pump", 64)
 		# The player's own button cue, for timing what they see in here
 		var badge = inset["badge"]

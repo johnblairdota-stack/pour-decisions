@@ -606,13 +606,6 @@ func vibrate(p, pattern: String) -> void:
 		if c["player"] == p:
 			(c["ws"] as WebSocketPeer).send_text("v " + pattern)
 
-func connected_count() -> int:
-	var n := 0
-	for c in clients:
-		if c["player"] != null:
-			n += 1
-	return n
-
 # ------------------------------------------------------------------ the wallet shop's turning ute
 
 ## Shows this phone's turning ute: on the Utes tab the one they've picked

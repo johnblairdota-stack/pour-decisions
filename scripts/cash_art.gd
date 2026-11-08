@@ -157,30 +157,6 @@ static func _mat(role: String, denom: int) -> Material:
 static func _hex(c: Color) -> String:
 	return "#" + c.to_html(false)
 
-## The note as an SVG (300 x 150), the amount in its middle panel
-static func bill_svg(amount: int) -> String:
-	var paper := _hex(color_for(amount))
-	var ink := _hex(INK)
-	var waves := ""
-	for k in 5:
-		var y := 30 + k * 22
-		waves += "<path d='M196 %d q8 -6 16 0 t16 0 t16 0 t16 0' fill='none' stroke='%s' stroke-width='1.2' opacity='.7'/>" % [y, ink]
-	return ("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 150' width='300' height='150'>"
-		+ "<rect x='1' y='1' width='298' height='148' rx='7' fill='%s' stroke='%s' stroke-width='2'/>" % [paper, ink]
-		+ "<rect x='8' y='8' width='284' height='134' rx='3' fill='none' stroke='%s' stroke-width='3'/>" % ink
-		+ "<rect x='14' y='14' width='272' height='122' rx='2' fill='none' stroke='%s' stroke-width='1.2'/>" % ink
-		+ "<rect x='17' y='40' width='42' height='70' rx='10' fill='#dcecf2'/>"
-		+ "<path d='M25 80 a13 13 0 0 1 26 0 z M19 80 h38 v4 h-38 z' fill='#e8c45a'/>"
-		+ waves
-		+ "<g fill='%s'><rect x='265' y='45' width='6' height='80'/><rect x='238' y='42' width='46' height='4'/>" % ink
-		+ "<rect x='266' y='34' width='4' height='10'/><rect x='245' y='46' width='1.5' height='30'/>"
-		+ "<rect x='240' y='76' width='11' height='8'/></g>"
-		+ "<circle cx='272' cy='20' r='5.5' fill='#e8c45a'/><circle cx='272' cy='130' r='5.5' fill='#e8c45a'/>"
-		+ "<rect x='80' y='31' width='150' height='88' rx='12' fill='%s'/>" % _hex(PANEL)
-		+ "<text x='155' y='92' text-anchor='middle' font-family='Barlow Condensed, Arial Narrow, sans-serif' "
-		+ "font-weight='800' font-size='54' fill='%s'>$%d</text>" % [ink, amount]
-		+ "</svg>")
-
 ## A closed leather wallet as an SVG (220 x 200): the fatter (`fat` 0 to
 ## 1), the more notes poke out of the top and the thicker its edge
 static func wallet_svg(fat := 0.0) -> String:

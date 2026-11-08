@@ -61,7 +61,6 @@ func build(owner_game) -> void:
 		var h := F.prop("ScreedHandle")
 		h.position = Vector3(x, 0.055, 0.0)
 		board.add_child(h)
-	_rest()
 	roll = F.cylinder(1.0, BOARD - 0.2, F.color_mat(Color("767a7e")), Vector3.ZERO, 10)
 	roll.rotation.z = PI * 0.5
 	roll.visible = false
@@ -89,11 +88,6 @@ func build(owner_game) -> void:
 	float_node.visible = false
 	add_child(float_node)
 	_float_pole = float_node.find_child("BullFloatPole", true, false) as Node3D
-
-## The board always goes with the screeder: upright at their side like a
-## staff when they're not using it, and down in front when they screed.
-func _rest() -> void:
-	pass
 
 ## Deck position (rig-local) of the old screed rack (kept for the station).
 func station_local() -> Vector3:
