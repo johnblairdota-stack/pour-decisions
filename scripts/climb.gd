@@ -223,6 +223,12 @@ var stop_ghost: Node3D                   # the white see-through section: where 
 var stop_ghost_mat: StandardMaterial3D
 var stop_ghost_at := Vector3.INF        # its bottom centre (INF: not shown)
 var stop_ghost_yaw := 0.0
+var _ghost_at := Vector3.ZERO           # the ghost as drawn, eased onto the guess
+var _ghost_yaw := 0.0
+var _ghost_ahead := 1.2                 # s the ghost looks ahead (eased)
+var _jit_raw := 0.0                     # (test only: the worst frame-to-frame shake of the guess...
+var _jit_drawn := 0.0                   # ...and of the ghost as drawn, m)
+var _jit_p := [Vector3.ZERO, Vector3.ZERO, Vector3.ZERO, Vector3.ZERO]
 var leg_marks: Array[Node3D] = []       # the four spots on the runway the legs go on
 var leg_mats: Array[StandardMaterial3D] = []
 var zone_ring: MeshInstance3D
@@ -822,6 +828,9 @@ func update(delta: float) -> void:
 			if game.autotest and fmod(stage_t, 4.0) < delta:
 				var lx := trolley_xz + swing
 				print("[autotest]   guiding %.0fs: load (%.1f, %.1f) %.1f m up, legs %.2f m off, turn %.2f, lines %s/%s %.0f/%.0f N, %.1f/%.1f m out" % [stage_t, lx.x - LAT_X, lx.y - RUNWAY_Z, _load_bottom() - gap_bottom(), leg_err(lx, spin), spin, tag_hands[0].char_name if tag_hands[0] else "-", tag_hands[1].char_name if tag_hands[1] else "-", tag_t[0], tag_t[1], tag_len[0], tag_len[1]])
+				print("[autotest]   ghost shake: guess %.3f m, drawn %.3f m" % [_jit_raw, _jit_drawn])
+				_jit_raw = 0.0
+				_jit_drawn = 0.0
 		"roll":
 			load.position.z = lerpf(RUNWAY_Z, 0.0, ease(roll, -1.6))
 			if roll >= 1.0:
@@ -2638,18 +2647,30 @@ func predict_pose() -> Array:
 	var hv := hoist_v
 	var cl := cable_len
 	var lens := tag_len.duplicate()
+	# (each line's span as it is now, so the guess starts with no jerk in it:
+	# a hand's step since the last physics step isn't a yank on the load)
 	var prev := _tag_d.duplicate()
+	for n in 2:
+		if tag_on[n]:
+			var k := 1.0 if n == 0 else -1.0
+			var c := Vector3(txz.x + sw.x, _load_bottom(), txz.y + sw.y) + Vector3(LW * 0.5 * k, 0.3, LW * 0.5 * k).rotated(Vector3.UP, yaw)
+			prev[n] = (tag_from[n] as Vector3).distance_to(c)
 	var drive := _op_dir * _drive_speed()
 	var vert := _op_vert * (0.2 if _op_slow else 0.45)
 	var w_acc := wind_dir * 0.00012 * wind_gust * wind_gust
 	var damp := _swing_damp()
 	# (the STOP takes the driver's reaction time to reach them)
 	var lag := _op_delay() + _coast_max() * 0.5
-	var ahead := clampf(lag + maxf(tv.length(), drive.length()) / 0.7 + 1.0, 1.2, 3.0)
-	var dt := 1.0 / 30.0
+	# (how far ahead eases toward its new length as calls come and go, so the
+	# ghost doesn't jump the moment a call starts or stops)
+	var want_ahead := clampf(lag + maxf(tv.length(), drive.length()) / 0.7 + 1.0, 1.2, 3.0)
+	_ghost_ahead = move_toward(_ghost_ahead, want_ahead, get_process_delta_time() * 1.2)
+	var ahead := _ghost_ahead
 	var t := 0.0
 	var floor_cl: float = CRANE_H - SLING - LS - (game.work_y + 0.4)
-	while t < ahead:
+	while t < ahead - 0.0001:
+		# (the last step's only what's left, so the time looked ahead is exact)
+		var dt := minf(1.0 / 30.0, ahead - t)
 		var on := t < lag
 		var tv0 := tv
 		tv += ((drive if on else Vector2.ZERO) - tv).limit_length(0.7 * dt)
@@ -2898,14 +2919,33 @@ func _update_guides(delta: float) -> void:
 	# swing and its turn too). It warms to gold as its legs come over their
 	# spots and goes green when all four are on.
 	stop_ghost.visible = guiding
+	var was_on := stop_ghost_at != Vector3.INF
 	stop_ghost_at = Vector3.INF
 	for mk in leg_marks:
 		mk.visible = guiding
 	if guiding:
 		var pose := predict_pose()
-		var at: Vector3 = pose[0]
+		# Eased onto the guess, so the little frame-to-frame changes in it
+		# (a hand's step on a tag line, the driver picking up a call) don't
+		# shake it; a big change (a new load) snaps
+		var want_at: Vector3 = pose[0]
+		var ease_k := 1.0 - exp(-8.0 * delta)
+		if not was_on or _ghost_at.distance_to(want_at) > 4.0:
+			_ghost_at = want_at
+			_ghost_yaw = pose[1]
+		else:
+			_ghost_at = _ghost_at.lerp(want_at, ease_k)
+			_ghost_yaw = lerp_angle(_ghost_yaw, float(pose[1]), ease_k)
+		var at: Vector3 = _ghost_at
+		if game.autotest:
+			# (test: how much the guess and the drawn ghost shake, frame to frame)
+			if not was_on:
+				_jit_p = [want_at, want_at, at, at]
+			_jit_raw = maxf(_jit_raw, (want_at - 2.0 * _jit_p[0] + _jit_p[1]).length() if was_on else 0.0)
+			_jit_drawn = maxf(_jit_drawn, (at - 2.0 * _jit_p[2] + _jit_p[3]).length() if was_on else 0.0)
+			_jit_p = [want_at, _jit_p[0], at, _jit_p[2]]
 		stop_ghost_at = at
-		stop_ghost_yaw = pose[1]
+		stop_ghost_yaw = _ghost_yaw
 		stop_ghost.position = at
 		stop_ghost.rotation = Vector3(0, stop_ghost_yaw, 0)
 		var tol := leg_tol()
