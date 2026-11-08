@@ -364,7 +364,7 @@ func _setup_input() -> void:
 				jb.button_index = b
 				InputMap.action_add_event(act_name, jb)
 		device += 1
-	for pair in [["skyline", KEY_TAB], ["restart", KEY_R], ["dev_climb", KEY_F1], ["toggle_shake", KEY_F2], ["toggle_sound", KEY_F3], ["toggle_hud", KEY_H]]:
+	for pair in [["skyline", KEY_TAB], ["restart", KEY_R], ["dev_climb", KEY_F1], ["toggle_shake", KEY_F2], ["toggle_sound", KEY_F3]]:
 		if InputMap.has_action(pair[0]):
 			InputMap.erase_action(pair[0])
 		InputMap.add_action(pair[0])
@@ -1772,10 +1772,12 @@ func _update_band(delta: float, down: Array, mid: Array, split_e: float) -> void
 ## Two picture-in-picture cameras, bottom right, each framed in the colour of
 ## the job it's watching, with a small name chip.
 const INSET := Vector2(352, 198)
+var _inset_layer: CanvasLayer
 func _build_insets() -> void:
 	var layer := CanvasLayer.new()
 	layer.layer = 2
 	add_child(layer)
+	_inset_layer = layer
 	for i in 2:
 		var box := SubViewportContainer.new()
 		box.stretch = true
@@ -2773,8 +2775,6 @@ func _process(delta: float) -> void:
 		return
 	if Input.is_action_just_pressed("dev_climb") and kit == "tower":
 		_dev_skip(CLIMB_LEVELS[0])
-	if Input.is_action_just_pressed("toggle_hud"):
-		hud_off = not hud_off
 	if Input.is_action_just_pressed("toggle_shake"):
 		shake_on = not shake_on
 		hud.toast("Screen shake %s" % ("on" if shake_on else "off"), 1.2)
@@ -4939,11 +4939,25 @@ func _tickets() -> Array:
 	out.sort_custom(func(a, b): return (1 if a.get("urgent", false) else 0) > (1 if b.get("urgent", false) else 0))
 	return out.slice(0, MAX_TICKETS)
 
-## H hides the HUD (for a clean look at the site, or a photo) and brings it back.
+## H hides the HUD and the close-ups (for a clean look at the site, or a
+## photo) and brings them back. The key's read by the pause menu, which runs
+## when the game's paused too (pause.gd), so it works on every screen.
 var hud_off := false
 
-func _update_hud() -> void:
+func toggle_hud() -> void:
+	hud_off = not hud_off
+	# (straight away, not next frame: the game may be paused. Knocked off,
+	# the wander's hidden them already and puts them back on the way out)
+	if explore == null or not explore.active:
+		_update_hud_shown()
+
+func _update_hud_shown() -> void:
 	hud.visible = phase != "roles" and phase != "select" and not EXT_SHOTS.has(_shot_key_now) and not hud_off
+	if _inset_layer != null:
+		_inset_layer.visible = not hud_off
+
+func _update_hud() -> void:
+	_update_hud_shown()
 	hud.set_tickets(_tickets(), phase_t)
 	# (no docket card: the slump test and its reading are in the close-up)
 	hud.show_docket({})
