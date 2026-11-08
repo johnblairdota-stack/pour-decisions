@@ -338,7 +338,7 @@ func _setup_input() -> void:
 		"p4_": {"left": [], "right": [], "up": [], "down": [], "action": [], "alt": [], "slow": [], "leave": []},
 	}
 	var axes := {"left": [JOY_AXIS_LEFT_X, -1.0], "right": [JOY_AXIS_LEFT_X, 1.0], "up": [JOY_AXIS_LEFT_Y, -1.0], "down": [JOY_AXIS_LEFT_Y, 1.0]}
-	var pad := {"left": JOY_BUTTON_DPAD_LEFT, "right": JOY_BUTTON_DPAD_RIGHT, "up": JOY_BUTTON_DPAD_UP, "down": JOY_BUTTON_DPAD_DOWN, "action": JOY_BUTTON_A, "alt": JOY_BUTTON_X, "slow": JOY_BUTTON_RIGHT_SHOULDER, "leave": JOY_BUTTON_B}
+	var pad := {"left": JOY_BUTTON_DPAD_LEFT, "right": JOY_BUTTON_DPAD_RIGHT, "up": JOY_BUTTON_DPAD_UP, "down": JOY_BUTTON_DPAD_DOWN, "action": JOY_BUTTON_A, "alt": JOY_BUTTON_X, "slow": [JOY_BUTTON_Y, JOY_BUTTON_RIGHT_SHOULDER], "leave": JOY_BUTTON_B}
 	var device := 0
 	for prefix in keys:
 		var map: Dictionary = keys[prefix]
@@ -357,10 +357,12 @@ func _setup_input() -> void:
 				jm.axis = axes[act][0]
 				jm.axis_value = axes[act][1]
 				InputMap.action_add_event(act_name, jm)
-			var jb := InputEventJoypadButton.new()
-			jb.device = device
-			jb.button_index = pad[act]
-			InputMap.action_add_event(act_name, jb)
+			# (Y, as every prompt says; RB too, as it always was)
+			for b in (pad[act] if pad[act] is Array else [pad[act]]):
+				var jb := InputEventJoypadButton.new()
+				jb.device = device
+				jb.button_index = b
+				InputMap.action_add_event(act_name, jb)
 		device += 1
 	for pair in [["skyline", KEY_TAB], ["restart", KEY_R], ["dev_climb", KEY_F1], ["toggle_shake", KEY_F2], ["toggle_sound", KEY_F3], ["toggle_hud", KEY_H]]:
 		if InputMap.has_action(pair[0]):
@@ -5388,7 +5390,7 @@ func _update_camera(delta: float) -> void:
 			# back far enough that none of them ever leaves the shot
 			var fr: Array = climb.guide_frame()
 			focus = fr[0]
-			dist = clampf(float(fr[1]) * 2.4 + 9.0, 18.0, 34.0)
+			dist = clampf(float(fr[1]) * 2.4 + 9.0, 18.0, 42.0)
 		else:
 			cam_yaw = _yaw_before
 			cam_pitch = _pitch_before
@@ -5676,6 +5678,10 @@ func _maybe_shot() -> void:
 		key = "tutorial"
 	elif "tag2" in _shot_only and climb.active and climb.stage == "guide" and climb._steady_t > 1.0 and not _shots_taken.has("tag2"):
 		key = "tag2"
+	elif "dogin" in _shot_only and climb.active and climb.stage == "guide" and climb.stage_t > 9.0 and not _shots_taken.has("dogin"):
+		key = "dogin"
+	elif "handson" in _shot_only and climb.active and climb.stage == "guide" and climb.hands and not _shots_taken.has("handson"):
+		key = "handson"
 	elif "smokovan" in _shot_only and climb.active and climb.smoko._buy > 0.8 and not _shots_taken.has("smokovan"):
 		key = "smokovan"
 	elif "smokohand" in _shot_only and climb.active and climb.smoko.stage == "back" and sc.zone == "deck" and climb.smoko.owed.size() < 5 and not _shots_taken.has("smokohand"):

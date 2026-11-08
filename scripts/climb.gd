@@ -41,7 +41,7 @@ const WRECK_V := 0.8        # m/s: a knock harder than this wrecks the section
 const REFETCH_T := 9.0      # s for the crane to rig and bring another section
 const PLATFORM_DROP := 0.85 # work platform this far below the joint: the pins sit at a chibi's chest
 const WIND_GRACE := 2.0     # s the driver waits for "dog everything" before holding anyway
-const ZONE_R := 9.0         # m: the crane's zoning keeps the hook this close to the landing while it's dogged
+const ZONE_R := 14.0        # m: the crane's zoning keeps the hook this close to the landing while it's dogged
 const LAYDOWN := Vector3(1.0, 0.0, 10.5)   # where the next section stands on the street, waiting to be slung
 const SLING_TIME := 2.2     # s of slinging: four legs onto the section's top lugs
 const LIFT_K := 2.8         # the crane hoists this much faster lifting off the laydown
@@ -188,6 +188,9 @@ var _swing_avg := Vector2.ZERO  # (the bot dogman's idea of where it hangs on av
 # Landing: the section's four legs onto the four spots on the runway
 const LEG_TOL := [0.35, 0.25, 0.18]   # m every leg has to be within its spot to seat (by help)
 const LOCK_H := 0.5         # m: this close above the runway, a lined-up load locks in
+const HANDS_H := 1.4        # m: this low over the runway the platform crew can take it by hand...
+const HANDS_R := 1.3        # m: ...if it's this close in over it (the tag lines come off then)
+var hands := false          # the platform crew have their hands on the load
 var _steady_t := 0.0        # s both lines have been on this lift
 var _steady_said := false
 var smoko: Node3D            # the screeder's coffee run (scripts/smoko_run.gd)
@@ -636,7 +639,7 @@ func _make_load() -> void:
 		load.queue_free()
 	load = F.lattice_section(LS, LW)
 	add_child(load)
-	# The crane brings it just in over the slab's corner nearest the tower and
+	# The crane brings it straight in over the slab's edge from the laydown and
 	# no further: from there it's the dogman's, and the tag lines hang to the
 	# deck where the two hands can pick them up
 	_hand_off = hand_off_point() + Vector2(randf_range(-0.8, 0.8), randf_range(-0.8, 0.8))
@@ -644,6 +647,7 @@ func _make_load() -> void:
 	spin_rest = randf_range(0.25, 0.6) * (1.0 if randf() < 0.5 else -1.0)
 	tag_len = [0.0, 0.0]
 	_tag_gone = [false, false]
+	hands = false
 	# Every section is picked off the laydown on the street: the crane drops
 	# its hook over it and waits for the slinger (the truck hand on climb
 	# days) to sling it before it lifts
@@ -662,12 +666,14 @@ func _make_load() -> void:
 	_op_vert = 0.0
 	_spike_at = randf_range(5.0, 12.0) if randf() < 0.6 else -1.0
 
-## Where the crane hands the load over: just in over the slab, 1.6 m in from
-## its corner nearest the tower (on the deck side of the scaffold).
+## Where the crane hands the load over: just in over the slab's edge nearest
+## the laydown, 1.6 m in, where the tag hands on the deck can reach it.
 func hand_off_point() -> Vector2:
-	var sx: float = minf(game.SC.x + game.BW * 0.5, LAT_X - 3.0) - 1.6
-	var sz: float = minf(game.SC.z + game.BD * 0.5, RUNWAY_Z) - 1.6
-	return Vector2(sx, sz)
+	# (the slab's edge nearest the laydown, straight in from where it was
+	# lifted, then 1.6 m in over the deck)
+	var hx: float = game.BW * 0.5 - 1.6
+	var hz: float = game.BD * 0.5 - 1.6
+	return Vector2(clampf(LAYDOWN.x, game.SC.x - hx, game.SC.x + hx), clampf(LAYDOWN.z, game.SC.z - hz, game.SC.z + hz))
 
 ## The crane driver lifts the load straight up off the laydown, then flies it
 ## to the hand-off point just in over the slab, a couple of metres above the
@@ -1099,6 +1105,7 @@ func _update_load(delta: float, trolley_acc: Vector2) -> void:
 		spin_v += (_twist_at(spin, spin_v, _t) + float(f[1])) * h
 		spin += spin_v * h
 	if stage == "guide":
+		_hands_on(delta)
 		_lock_in(delta)
 	_place_load()
 	_collide()
@@ -1167,6 +1174,26 @@ func leg_err(xz: Vector2, yaw: float) -> float:
 ## How close the legs have to be to seat, by the help setting.
 func leg_tol() -> float:
 	return LEG_TOL[clampi(help(), 0, 2)]
+
+## Close in, the way it's really done: once the dogman has the load down low
+## over the runway, the tag lines come off and the crew on the climbing
+## frame's platform take it by hand, turning it square and steadying it. The
+## dogman still puts it where it goes; the hands only turn and steady it.
+func _hands_on(delta: float) -> void:
+	var low := _load_bottom() - gap_bottom()
+	var xz := trolley_xz + swing
+	var close := (xz - Vector2(LAT_X, RUNWAY_Z)).length()
+	var was := hands
+	hands = low < HANDS_H and low > -0.1 and close < HANDS_R
+	if hands and not was:
+		game.pop("Hands on!", load.global_position + Vector3(0, LS + 0.6, 0), Color("ffc72c"))
+		game.sfx.hit("tink")
+	if not hands:
+		return
+	var k: float = [1.0, 0.75, 0.55][clampi(help(), 0, 2)]
+	var square := roundf(spin / (PI * 0.5)) * PI * 0.5
+	spin_v += (-(spin - square) * 3.0 - spin_v * 2.5) * k * delta
+	swing_v *= maxf(0.0, 1.0 - 1.2 * k * delta)
 
 ## The very last moment: lowered to within LOCK_H of the runway with every
 ## leg inside its spot, the riggers on the platform get their hands on it and
@@ -2169,7 +2196,7 @@ func work_focus(p) -> Vector3:
 ## The tag line's there to take: the load's handed over to the dogman, up
 ## over the deck, and the line's end hangs down where someone can reach it.
 func tag_ready(n := 0) -> bool:
-	if load == null or stage != "guide" or load_state != "" or not crane_busy():
+	if load == null or stage != "guide" or load_state != "" or not crane_busy() or hands:
 		return false
 	if _load_bottom() < game.work_y + 0.5 or _tag_corner(n).y - game.work_y > TAG_LEN:
 		return false
@@ -2183,9 +2210,23 @@ func tag_spot(n := 0) -> Vector3:
 	if load != null and load_state == "" and stage in ["fly", "guide"]:
 		var c := _tag_corner(n)
 		var out := Vector3(c.x - load.position.x, 0, c.z - load.position.z).normalized()
-		return Vector3(c.x, game.work_y, c.z) + out * 0.8
+		return _on_deck(Vector3(c.x, game.work_y, c.z) + out * 0.8)
 	var at := _hand_off if _hand_off != Vector2.ZERO else hand_off_point()
 	return Vector3(at.x + k * 1.6, game.work_y, at.y + k * 1.6)
+
+## The nearest point to `at` someone can stand on (deck or scaffold), up to
+## TAG_EDGE away: a line's end swung out past the edge is taken from there.
+func _on_deck(at: Vector3) -> Vector3:
+	if game._walkable(at, "deck"):
+		return at
+	for ring in 6:
+		var r := 0.45 * (ring + 1)
+		for i in 12:
+			var a := float(i) / 12.0 * TAU
+			var q := at + Vector3(cos(a), 0, sin(a)) * r
+			if game._walkable(q, "deck"):
+				return q
+	return at
 
 ## True if there's deck or scaffold walkway within `r` m (across) of `at`.
 func _deck_within(at: Vector3, r: float) -> bool:
@@ -2231,23 +2272,30 @@ func needed() -> Array:
 			out.append(TAG_KEYS[n])
 	return out
 
-## While the load's being dogged: the middle of the dogman, the load and the
+## While the load's being dogged: the middle of the dogman, the tag hands, the load and the
 ## landing, and how far the camera has to stand back to keep all three in
 ## shot. [centre, radius]
 func guide_frame() -> Array:
 	var pts := [Vector3(LAT_X, gap_bottom() + LS * 0.5, RUNWAY_Z)]
 	if load:
-		pts.append(load.position + Vector3(0, LS * 0.5, 0))
+		# (the whole of it, top to bottom: the top's what goes under the HUD)
+		pts.append(load.position)
+		pts.append(load.position + Vector3(0, LS + 0.8, 0))
 	var dm = _dogman if _dogman != null else dog_bot
 	if dm != null:
 		pts.append(dm.global_position + Vector3(0, 1.5, 0))
+	# ...and the tag hands walking it in
+	for h in tag_hands:
+		if h != null and is_instance_valid(h):
+			pts.append(h.global_position + Vector3(0, 1.5, 0))
 	var lo: Vector3 = pts[0]
 	var hi: Vector3 = pts[0]
 	for q in pts:
 		lo = lo.min(q)
 		hi = hi.max(q)
-	var c := (lo + hi) * 0.5
-	return [c, (hi - lo).length() * 0.5]
+	# (aimed a little high, so the load's top clears the HUD along the top)
+	var c := (lo + hi) * 0.5 + Vector3(0, 1.5, 0)
+	return [c, (hi - lo).length() * 0.5 + 1.0]
 
 ## Where the camera should look during the climb.
 func focus_point() -> Vector3:
@@ -2356,6 +2404,11 @@ func handle_player(p, delta: float, near: String, act: String, alt: String, leav
 		# B lets go of the line (and the load's landing, or gone, ends it)
 		if not active or load == null or stage != "guide" or p.leave_pressed():
 			_drop_tag(p, n)
+			return false
+		# Close in, the platform crew take it by hand: the lines come off
+		if hands:
+			_drop_tag(p, n)
+			p.say("hands on: line off")
 			return false
 		# Run out of line: it's gone through their hands, and the load turns free
 		if _tag_gone[n]:
@@ -2473,6 +2526,17 @@ func handle_player(p, delta: float, near: String, act: String, alt: String, leav
 				deliver(p)
 			return true
 		return false
+	# A tag line's end within reach comes first (it moves with the load, so
+	# it can lie by another station's spot)
+	for n in 2:
+		if tag_hands[n] == null and p.busy == "" and p.zone == "deck" and tag_ready(n):
+			var s := tag_spot(n)
+			if Vector2(s.x - p.position.x, s.z - p.position.z).length() < TAG_GRAB:
+				p.cue("action", "grab the tag line", -1.0, true)
+				p.gold(not p.bot)
+				if p.action_pressed():
+					_grab_tag(p, n)
+				return true
 	match near:
 		"sling":
 			if needs_sling():
@@ -2516,17 +2580,6 @@ func handle_player(p, delta: float, near: String, act: String, alt: String, leav
 					if p.action_pressed():
 						_grab_tag(p, n)
 			return true
-	# A tag line's end within reach (it moves with the load, so it's not
-	# always on the station spot)
-	for n in 2:
-		if tag_hands[n] == null and p.busy == "" and p.zone == "deck" and tag_ready(n):
-			var s := tag_spot(n)
-			if Vector2(s.x - p.position.x, s.z - p.position.z).length() < TAG_GRAB:
-				p.cue("action", "grab the tag line", -1.0, true)
-				p.gold(not p.bot)
-				if p.action_pressed():
-					_grab_tag(p, n)
-				return true
 	return false
 
 ## Takes hold of tag line n where its end lies, with a little slack in it.
@@ -2540,13 +2593,23 @@ func _grab_tag(p, n: int) -> void:
 	p.bounce()
 	game.sfx.hit("tink")
 
-## A crew bot on a tag line: walks along under its corner, out from the load,
-## and keeps the line just taut, hauling in when its pull would turn the load
-## square (and calm its turning), letting it go slack when it wouldn't.
+## A crew bot on a tag line: walks along off to the side of its corner (a
+## line pulled straight out from the load can't turn it; from the side it
+## has leverage), the two hands on opposite sides so between them they can
+## turn it either way. Keeps the line just taut, hauling in when its pull
+## would turn the load square (and calm its turning), slack when it wouldn't.
 func _tag_bot(p, n: int, delta: float, corner: Vector3, span: float) -> void:
+	# (test only: line 1 played like a new player who stands where they
+	# grabbed it, or one who hauls on it the whole time)
+	if n == 0 and _tag_test == "still":
+		return
+	if n == 0 and _tag_test == "hard":
+		tag_len[0] = maxf(1.0, float(tag_len[0]) - TAG_IN * delta)
+		return
 	var c := load.position
 	var out := Vector3(corner.x - c.x, 0, corner.z - c.z).normalized()
-	var want := Vector3(corner.x, p.position.y, corner.z) + out * 3.0
+	var side := Vector3(out.z, 0, -out.x) * (1.0 if n == 0 else -1.0)
+	var want := Vector3(corner.x, p.position.y, corner.z) + side * 2.6 + out * 1.2
 	if Vector2(want.x - p.position.x, want.z - p.position.z).length() > 0.4:
 		p.run_to = want
 	var square := roundf(spin / (PI * 0.5)) * PI * 0.5
@@ -2558,9 +2621,9 @@ func _tag_bot(p, n: int, delta: float, corner: Vector3, span: float) -> void:
 	var turns := r.z * u.x - r.x * u.z
 	# Just taut, pulling as hard as the turn wants, or slack if its pull
 	# would turn it the wrong way
-	var want_t := 60.0
+	var want_t := 80.0
 	if turns * need > 0.0:
-		want_t = clampf(absf(need) * 400.0, 60.0, 260.0)
+		want_t = clampf(absf(need) * 700.0, 80.0, 330.0)
 	elif absf(need) > 0.05:
 		want_t = 0.0
 	var target := span - want_t / TAG_K if want_t > 0.0 else span + 0.3
@@ -2732,17 +2795,23 @@ func _signal(p, dir: Vector2, vert: float, delta: float, slow := false, dog_all 
 		# Nothing being signalled: say what to do next, not "stop"
 		var lp := load.position if load else Vector3.ZERO
 		var err := leg_err(Vector2(lp.x, lp.z), spin)
+		var over := (Vector2(lp.x, lp.z) - Vector2(LAT_X, RUNWAY_Z)).length() < HANDS_R
 		if err < leg_tol():
-			text = "All four legs over their spots: hold A, \"lower down\""
+			text = "Legs on their spots: hold A, \"lower down\""
 			col = Color("7cd992")
+		elif over and not hands:
+			text = "Over the runway: hold A, down to the crew"
+			col = Color("7cd992")
+		elif hands:
+			text = "Hands on: crew squaring it. Line up, then lower"
 		else:
-			text = "Push the stick to a call (legs %.1f m off). Let go to call STOP." % err
+			text = "Stick: a call · let go: STOP · legs %.1f m off" % err
 	if slow and call_now != "STOP":
 		text += "  · EASY"
 	# The ghost's legs are on the spots: this is the moment to call STOP
 	if call_now in ["TROLLEY OUT", "TROLLEY IN", "SLEW LEFT", "SLEW RIGHT"] and stop_ghost_at != Vector3.INF and p != null and not p.bot:
 		if leg_err(Vector2(stop_ghost_at.x, stop_ghost_at.z), stop_ghost_yaw) < leg_tol():
-			text = "LET GO NOW: \"stop\" puts the legs on their spots"
+			text = "LET GO NOW: \"stop\" lands it on the spots"
 			col = Color("ffd23f")
 	if wind_gust >= WIND_STOP:
 		game.hud.set_signal("%s  ·  gusting over the limit" % text, Color("ff4d4d"))
@@ -2945,7 +3014,7 @@ func hud_task() -> Array:
 		"guide":
 			var err := leg_err(Vector2(load.position.x, load.position.z), spin)
 			var h := maxf(0.0, load.position.y - gap_bottom())
-			return ["Climb · four legs onto their spots  %.1f m off, %.1f m up" % [err, h], "", clampf(1.0 - err / 6.0, 0.0, 1.0)]
+			return ["Climb · legs %.1f m off, %.1f m up" % [err, h], "", clampf(1.0 - err / 6.0, 0.0, 1.0)]
 		"roll":
 			return ["Climb · roll it in", "", roll]
 		"pin":
@@ -2971,6 +3040,8 @@ func hud_meter() -> void:
 ## bots work through the normal buttons.)
 var _test_wreck := OS.get_cmdline_user_args().has("--wreck")
 var _collide_test := OS.get_cmdline_user_args().has("--collidetest")
+## Test only (`--tagstill` / `--taghard`): the first tag line played badly.
+var _tag_test := "still" if OS.get_cmdline_user_args().has("--tagstill") else ("hard" if OS.get_cmdline_user_args().has("--taghard") else "")
 
 ## Test only (`--collidetest`): sets the load down against the side of the
 ## tower, drifting in slowly with the driver still pushing, and logs whether
@@ -3003,15 +3074,23 @@ func bot(delta: float) -> void:
 	# (where it hangs on average, swing and the tag lines' steady pull and all)
 	_swing_avg = _swing_avg.lerp(swing, minf(1.0, delta * 0.6))
 	var want := Vector2(LAT_X, RUNWAY_Z) - _swing_avg
-	# From the slab side, out level with the runway first, then across: the
-	# boom head's in the way of a straight line
-	if load_xz.x < LAT_X - 2.6 and load_xz.y < RUNWAY_Z - 0.6:
-		want = Vector2(LAT_X - 3.6, RUNWAY_Z) - _swing_avg
+	# The boom head's in the way of a straight line in from the slab: out to
+	# a staging spot off the runway's open side first, then straight in
+	var stage_at := Vector2(LAT_X, RUNWAY_Z + 2.6)
+	var in_line := absf(load_xz.x - LAT_X) < 0.9 and load_xz.y > RUNWAY_Z - 0.4
+	if not in_line:
+		want = stage_at - _swing_avg
 	var dir := ((want - trolley_xz) * 0.5).limit_length(1.0)
 	var err := (Vector2(LAT_X, RUNWAY_Z) - load_xz).length()
+	var low := _load_bottom() - gap_bottom()
 	var vert := 0.0
-	if err < 0.22 and swing_v.length() < 0.3 and wind_gust < WIND_STOP and leg_err(load_xz, spin) < leg_tol() * 0.8:
-		vert = -1.0
+	if wind_gust < WIND_STOP and swing_v.length() < 0.35:
+		# Down to where the platform crew can get their hands on it, then
+		# the last bit once the legs are over their spots
+		if err < 0.5 and low > HANDS_H * 0.8:
+			vert = -1.0
+		elif err < 0.22 and leg_err(load_xz, spin) < leg_tol() * 0.8:
+			vert = -1.0
 	var slow := err < 1.2
 	var dog := wind_gust >= WIND_STOP * 0.95
 	if dog:
