@@ -832,12 +832,6 @@ func height_at(local: Vector3) -> float:
 		return 0.0
 	return h[iz * NX + ix]
 
-func peak() -> float:
-	var m := 0.0
-	for v in h:
-		m = maxf(m, v)
-	return m
-
 ## Local x/z of the lowest reachable point, sampled coarsely (used by the test
 ## bot). With `bay` >= 0 it only looks inside that bay.
 func lowest_point(bay := -1) -> Vector3:
