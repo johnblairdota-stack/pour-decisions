@@ -45,7 +45,6 @@ var game = null
 var page := "crew"
 var index := 0                # the kit picked (into KITS)
 var start_level := 1          # the floor picked on the site page (1-based)
-var _roles := true            # (kept for the dev autotest hooks)
 var _done := false
 var _cool := 0.0
 var _pcool := {}
@@ -805,7 +804,6 @@ func _process(delta: float) -> void:
 
 func _show_page(which: String) -> void:
 	page = which
-	_roles = which == "crew"
 	_crew_page.visible = which == "crew"
 	_site_page.visible = which == "site"
 	if which == "crew":

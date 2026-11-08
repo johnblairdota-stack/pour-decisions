@@ -112,8 +112,6 @@ var _vert := 0.0
 var _dogman = null
 var _op_slow := false
 var _op_dog := false
-var _slow := false
-var _dog_all := false
 var _estop_t := 0.0
 var _flinch_t := 0.0
 var _touching := false
@@ -148,7 +146,6 @@ var _strike_from := 0.0
 var _theta := 0.45
 var _cam_side := Vector3.ZERO
 var _pinning: Node3D = null  # the section being pinned, off the hook (the crane's free for the next)
-var _crane_ahead := false   # the crane fetched the next section during the pinning
 var _early_fly := false     # the crane is already flying the next section in during the jacking
 var _fly_arrived := false
 var _lever := 0.0           # how hard the rigger's levering the podger, -1..1
@@ -210,7 +207,6 @@ var haul_prog := 0.0
 var bundle: Node3D
 var haul_rope: MeshInstance3D
 var laydown_mark: Node3D
-var _pin_split_t := -1.0
 
 # Guide visuals
 var ghost: MeshInstance3D
@@ -240,7 +236,6 @@ var ram_state := "ready"
 var stall_t := 0.0
 var lifted := 0.0
 var pin_i := 0
-var hit_i := 0
 var pin_sub := ""           # "align", "podger", "drive", "clip"
 var hole_off := 0.0         # m the section's holes sit off the frame's
 var power := 0.0            # hammer wind-up, 0..1
@@ -647,7 +642,6 @@ func _make_load() -> void:
 	# Every section is picked off the laydown on the street: the crane drops
 	# its hook over it and waits for the slinger (the truck hand on climb
 	# days) to sling it before it lifts
-	_crane_ahead = false
 	load_state = "laydown"
 	sling_prog = 0.0
 	load.position = LAYDOWN
@@ -784,7 +778,6 @@ func _finish_section() -> void:
 	game.pop("Section %d on!" % game.section_count, Vector3(LAT_X, game.head.position.y + 1.0, 0), Color("ffc72c"))
 	game.hud.toast("Section %d pinned off" % game.section_count, 1.6)
 	if sections_left > 0:
-		_crane_ahead = true
 		_begin_section()
 	else:
 		active = false
@@ -1782,7 +1775,6 @@ func _corner(i: int) -> Vector3:
 
 func _start_pins() -> void:
 	pin_i = 0
-	hit_i = 0
 	depth = 0.0
 	power = 0.0
 	winding = false
@@ -1799,7 +1791,6 @@ func _split_set() -> void:
 		pin_sub = "wait"
 		return
 	pinsets -= 1
-	_pin_split_t = 0.0
 	pin_sub = "align"
 	game.sfx.hit("tink")
 	# (the rigger pulls the clip off as they take the pin: no button for it)
@@ -1826,7 +1817,6 @@ func _podger() -> void:
 	_podger_t = 0.0
 	pin_sub = "drive"
 	depth = 0.0
-	hit_i = 0
 	power = 0.0
 	(lugs[pin_i]["pin"] as Node3D).visible = true
 	_set_pin_depth(pin_i, 0.0)
@@ -1857,7 +1847,6 @@ func _land_blow(pw: float, at_pin: int) -> void:
 	var head_at: Vector3 = (l["pin"] as Node3D).global_position + (l["dir"] as Vector3) * 0.08
 	if pw >= SWEET and pw <= SWEET + SWEET_W:
 		depth += 1.0 / HITS
-		hit_i += 1
 		game.pop("CLANG!", head_at + Vector3(0, 0.4, 0), Color("ffd36b"))
 		game.sfx.hit("clang")
 		if _rigger != null:
@@ -2730,8 +2719,6 @@ func _emergency() -> void:
 	game.hud.toast("EMERGENCY STOP", 1.2)
 
 func _signal(p, dir: Vector2, vert: float, delta: float, slow := false, dog_all := false) -> void:
-	_slow = slow
-	_dog_all = dog_all
 	_estop_t = maxf(0.0, _estop_t - delta)
 	var call_name := "STOP"
 	var code := "stop"

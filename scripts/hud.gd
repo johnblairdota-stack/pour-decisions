@@ -88,7 +88,6 @@ var facts_label: Label
 # joining (shown on the pause menu, not over the game)
 var join_text := ""
 var join_url := ""
-var join_hint := ""
 
 func _ready() -> void:
 	_root = Control.new()
@@ -704,11 +703,6 @@ func show_meter(on: bool, title := "", _hint := "", zone_from := 0.6, zone_w := 
 	bolt_marker.position.x = BOLT_W * clampf(marker, 0.0, 1.0) - 2.5
 
 # ------------------------------------------------------------------ joining
-
-## Phone joining lives on the pause menu (and the front end), not over the game.
-func show_join(_on: bool, text := "") -> void:
-	if text != "":
-		join_hint = text
 
 func set_join(text: String, url := "") -> void:
 	join_text = text

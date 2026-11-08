@@ -79,7 +79,6 @@ var mask := PackedByteArray()        # 1 where there's slab (a round slab leaves
 var mask_n := NX * NZ
 var round_r := 0.0                   # > 0: a round slab of this radius (the water tower)
 var _rect_parts: Array = []
-var _columns: Array = []
 var _flip := false
 var _coverage := 0.0
 var _reach_cov := 0.0
@@ -144,7 +143,6 @@ func build(width: float, depth: float, columns: Array) -> void:
 
 	rebar = Node3D.new()
 	add_child(rebar)
-	_columns = columns
 	_build_rebar(columns)
 
 	# The concrete surface: a fine plane displaced by the heightfield, coloured

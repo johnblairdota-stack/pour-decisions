@@ -201,7 +201,6 @@ var tip_kick := Vector3.ZERO
 var pumping := false
 var pour_clock := 0.0
 var clamp_trigger := 0.5
-var clamp_used := false
 var shake := 0.0
 var work_y := 0.0
 var work_target := 0.0
@@ -2399,7 +2398,6 @@ func _start_pour() -> void:
 		pour.reach_all()
 	pour_clock = 0.0
 	score.start_level()
-	clamp_used = false
 	clamp_trigger = randf_range(0.2, 0.55)
 	_incidents = _plan_incidents()
 	# (and the trucks come closer together and carry more, so the pump
@@ -3049,7 +3047,6 @@ func _join_players() -> void:
 			var p = crew.join(false, i)
 			if p != null:
 				hud.toast("P%d joined: %s, %s" % [i, p.char_name, UI.ROLE_NAME[p.role].to_lower()], 2.0)
-	hud.show_join(false)
 	var open_slots: bool = crew.humans().size() < crew.MAX_PEOPLE and not autotest
 	hud.set_join(_join_text() if phase != "topout" and phase != "select" and phase != "roles" else "", phones.url() if phones.running and open_slots and phase != "topout" else "")
 
@@ -3153,7 +3150,6 @@ func _update_pour(delta: float) -> void:
 	# till the line's sound again.
 	if not _incidents.is_empty() and _filled_ratio() >= float(_incidents[0]["at"]) and line.fail_i < 0 and line.fix_i < 0 and not line.blocked and not line.burst:
 		var inc: Dictionary = _incidents.pop_front()
-		clamp_used = true
 		if inc["kind"] == "block" or (autotest and OS.get_cmdline_user_args().has("--blocktest")):
 			line._block(false)
 		else:
@@ -4246,7 +4242,6 @@ func _cover(p, delta: float) -> void:
 		_start_cover(p, true)
 
 func _start_cover(p, firm: bool) -> void:
-	_covers += 1
 	if autotest:
 		print("[autotest]   %s covers P%d (%s)%s" % [lead_hand.lh_name(), p.index, p.role, " (lost)" if firm else ""])
 	p.covering = true
@@ -4266,7 +4261,6 @@ func _start_cover(p, firm: bool) -> void:
 ## spike (which follows them about) don't count: those are on them wherever
 ## they are.
 const COVER_LOST := 40.0
-var _covers := 0
 var _jobs_now: Array = []   # this frame's jobs (_update_signs)
 const LOST_FAR := 6.0       # m from the job that counts as not at it
 func _lost_check(p, delta: float) -> void:

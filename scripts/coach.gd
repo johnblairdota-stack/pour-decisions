@@ -13,7 +13,6 @@ var _title: Label
 var _story: Label
 var _rows: VBoxContainer
 var _key := ""
-var _intro_t := 0.0
 
 func setup(owner_game) -> void:
 	game = owner_game
@@ -38,14 +37,12 @@ func setup(owner_game) -> void:
 
 func start() -> void:
 	_panel.visible = true
-	_intro_t = 0.0
 
 func update(delta: float) -> void:
 	if not game.tutorial or game.phase in ["roles", "select", "topout"]:
 		_panel.visible = false
 		return
 	_panel.visible = not game.skyline
-	_intro_t += delta
 	var head := _story_now()
 	var tips: Array = []
 	var people: Array = game.humans()

@@ -127,7 +127,6 @@ var _radio_t = null           # the load being radioed (the truck)
 var _radio_left := 0.0
 var _radio_ready := false     # the stick's come back to the middle since the call
 var radio_label: Label3D
-var last_radio := ""          # what was radioed about the load going in now
 # Reading the creep: a stiff (or old) load in the line on high output pushes
 # the pressure up for a few seconds before it packs solid. Dropping to LOW
 # while it creeps lets it through: CAUGHT EARLY, worth more than a fast kill.
@@ -285,13 +284,10 @@ var hook := {"kind": "", "node": null, "y": 0.0, "to": 0.0, "state": "down"}
 var hook_node: Node3D
 var haul_rope: MeshInstance3D
 var _worker = null           # whoever did the last repair step
-var _step_t := 0.0           # how long the current repair step has waited
 var _job_t := 0.0            # how long the current repair has run
 var _blocked_t := 0.0        # how long the current blockage has gone unfound
 var _block_burst := false    # this blockage has already blown a joint once
 var _nagged := false
-var _bled := false
-var _reverser = null         # whoever's on the pump panel reversing
 
 # ------------------------------------------------------------------ build
 
@@ -848,7 +844,6 @@ func start_pour(need: float, cfg: Dictionary) -> void:
 	_spill_t = 0.0
 	_creep_caught = false
 	_radio_t = null
-	last_radio = ""
 	if wash:
 		wash.reset()
 	streak = 0
@@ -1047,7 +1042,6 @@ func _clear_job() -> void:
 	fix_step = 0
 	fix_i = -1
 	fix_prog = 0.0
-	_step_t = 0.0
 	_job_t = 0.0
 
 ## Runs the pump for one frame. `want` is the boom remote's pump button.
@@ -1240,10 +1234,8 @@ func _start_job(kind: String, j: int) -> void:
 	job_kind = kind
 	fix_step = 0
 	fix_prog = 0.0
-	_step_t = 0.0
 	_job_t = 0.0
 	_nagged = false
-	_bled = false
 	match kind:
 		"burst":
 			job_steps = [["clean", j], ["kit", j], ["close", j], ["pin", j]]
@@ -1263,7 +1255,6 @@ func _step_name() -> String:
 func _advance() -> void:
 	fix_step += 1
 	fix_prog = 0.0
-	_step_t = 0.0
 	if fix_step >= job_steps.size():
 		_finish_job()
 	else:
@@ -1308,7 +1299,6 @@ func _watchdog(delta: float) -> void:
 			_start_job("block", block_s)
 	if job_kind == "":
 		return
-	_step_t += delta
 	_job_t += delta
 	if _job_t > JOB_MAX:
 		game.hud.toast("The leading hand jumps in to finish the joint", 2.2)
@@ -2107,7 +2097,6 @@ func _radio(p, _delta: float) -> void:
 ## The radio goes out: a pill over the pump operator and the boom operator,
 ## and a buzz on the pump operator's phone. Right pays both.
 func _send_radio(p, t: Dictionary, said: String) -> void:
-	last_radio = said
 	var col := Color("7cd992") if said == RADIO["up"] else (Color("ffc23d") if said in [RADIO["left"], RADIO["down"]] else Color("6cc6ff"))
 	var crew = game.crew.crew if game.crew else {}
 	var shown := false
@@ -2386,8 +2375,6 @@ func update(delta: float, in_pour: bool) -> void:
 			gauge_label.text = "%d bar" % int(pressure)
 			gauge_label.modulate = Color("ff5a5f") if pressure > 180.0 else Color.WHITE
 
-	if not reversing:
-		_reverser = null
 	if wash:
 		wash.update(delta)
 	# The chute signals' close-up only shows while someone's holding Y
