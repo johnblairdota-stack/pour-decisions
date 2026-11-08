@@ -5132,6 +5132,8 @@ var _close_targets: Array = []   # what the close-ups looked at this frame
 const TOON_CUT := preload("res://shaders/toon_cut.gdshader")
 const OUTLINE_CUT := preload("res://shaders/outline_cut.gdshader")
 var _cut_mats := {}           # a part's own material -> its cut-away copy
+var _cut_made := {}           # the cut-away copies themselves (for a quick look-up)
+var _cut_sent: Array = []     # the circles last sent to them, and how many there were
 var _cut_t := 0.0
 
 func _update_see_through(delta: float) -> void:
@@ -5193,6 +5195,11 @@ func _update_see_through(delta: float) -> void:
 	var n := ps.size()
 	while ps.size() < 6:
 		ps.append(Vector4.ZERO)
+	# (only when the circles have moved, or there are new parts to tell)
+	var sent := [n, ps, _cut_made.size()]
+	if sent == _cut_sent:
+		return
+	_cut_sent = sent
 	for m in _cut_mats.values():
 		(m as ShaderMaterial).set_shader_parameter("cut_n", n)
 		(m as ShaderMaterial).set_shader_parameter("cut_p", ps)
@@ -5246,7 +5253,7 @@ func _give_cut(n: Node) -> void:
 func _cut_of(src: Material) -> Material:
 	if src == null:
 		return null
-	if _cut_mats.values().has(src):
+	if _cut_made.has(src):
 		return src
 	if _cut_mats.has(src):
 		return _cut_mats[src]
@@ -5268,7 +5275,9 @@ func _cut_of(src: Material) -> Material:
 				o.set_shader_parameter(k, v)
 		m.next_pass = o
 		_cut_mats[nxt] = o
+		_cut_made[o] = true
 	_cut_mats[src] = m
+	_cut_made[m] = true
 	return m
 
 ## Render layer for words only the close-ups show (the slump reading): the
