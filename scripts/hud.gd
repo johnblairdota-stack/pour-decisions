@@ -693,6 +693,10 @@ func toast(text: String, seconds := 2.2) -> void:
 	toast_panel.modulate.a = 1.0
 
 func set_signal(text: String, color := Color.WHITE) -> void:
+	# (a long line wraps in the middle, clear of the crew badges in the corner)
+	var long := text.length() > 46
+	signal_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART if long else TextServer.AUTOWRAP_OFF
+	signal_label.custom_minimum_size.x = 620.0 if long else 0.0
 	signal_label.text = text
 	UI.font_color(signal_label, color)
 	signal_panel.visible = text != ""

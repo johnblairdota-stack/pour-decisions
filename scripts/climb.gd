@@ -18,6 +18,24 @@ signal finished
 const F := preload("res://scripts/factory.gd")
 const SmokoRun := preload("res://scripts/smoko_run.gd")
 const Settings := preload("res://scripts/settings.gd")
+## The dogman's ghost: see-through and dashed (bands round it), so it never
+## reads as the real load.
+var GHOST_SHADER := _ghost_shader()
+static func _ghost_shader() -> Shader:
+	var sh := Shader.new()
+	sh.code = """
+shader_type spatial;
+render_mode unshaded, cull_disabled, depth_draw_never, blend_mix;
+uniform vec4 col : source_color = vec4(1.0, 1.0, 1.0, 0.35);
+varying vec3 wp;
+void vertex() { wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }
+void fragment() {
+	if (fract((wp.y + 0.35 * (wp.x + wp.z)) * 2.2) > 0.6) { discard; }
+	ALBEDO = col.rgb;
+	ALPHA = col.a;
+}
+"""
+	return sh
 
 const LAT_X := 12.0
 const LS := 4.14
@@ -79,6 +97,10 @@ var hook: Node3D
 var slings: Array[MeshInstance3D] = []
 var tag_ropes: Array[MeshInstance3D] = []   # [poker hand's line, hose hand's line]: the tail at the hands
 var tag_segs: Array = []                    # per line: the span to the corner, TAG_SEGS pieces
+var tag_mats: Array[ShaderMaterial] = []
+var tag_cols: Array[Color] = []
+var tag_nums: Array[Label3D] = []           # 1 / 2 at each line's corner
+var tag_gauges: Array[Label3D] = []         # SLACK / WORKING / TOO TIGHT over each holder
 const TAG_SEGS := 10
 ## Whoever else is using the crane while the climb isn't (the west wing's
 ## bar lifts): called each frame it's free, true while it has the hook
@@ -220,7 +242,9 @@ var dog_arrow: Node3D
 var dog_stop: Label3D
 var call_labels: Array[Label3D] = []    # the call by each stick arrow
 var stop_ghost: Node3D                   # the white see-through section: where the load's headed
-var stop_ghost_mat: StandardMaterial3D
+var stop_ghost_mat: ShaderMaterial      # dashed, so it never reads as the real load
+var ghost_nums: Array[Label3D] = []     # 1-4 on the ghost's legs (matching the spot each is headed for)
+var leg_arrows: Array[MeshInstance3D] = []   # each ghost leg to its spot, close in
 var stop_ghost_at := Vector3.INF        # its bottom centre (INF: not shown)
 var stop_ghost_yaw := 0.0
 var _ghost_at := Vector3.ZERO           # the ghost as drawn, eased onto the guess
@@ -340,6 +364,19 @@ func build(owner_game) -> void:
 
 	for c in [Color("d9c27a"), Color("c9d97a")]:
 		var m := F.color_mat(c)
+		tag_mats.append(m)
+		tag_cols.append(c)
+		# (its number at the corner, and how it's working over the holder's head)
+		var en := F.label3d(str(tag_mats.size()), 38, c)
+		en.no_depth_test = true
+		en.visible = false
+		add_child(en)
+		tag_nums.append(en)
+		var ga := F.label3d("", 30, Color.WHITE)
+		ga.no_depth_test = true
+		ga.visible = false
+		add_child(ga)
+		tag_gauges.append(ga)
 		# (the line's tail, from the hands down to the coil at their feet)
 		var r := F.cylinder(0.025, 1.0, m, Vector3.ZERO, 5)
 		r.visible = false
@@ -459,9 +496,22 @@ func _build_guides() -> void:
 	# The dogman's ghost: the section itself, white and see-through, where the
 	# load's headed (its swing and its turn too)
 	stop_ghost = F.lattice_section(LS, LW)
-	stop_ghost_mat = _overlay_mat(Color(1, 1, 1, 0.3))
-	stop_ghost_mat.no_depth_test = false
+	stop_ghost_mat = ShaderMaterial.new()
+	stop_ghost_mat.shader = GHOST_SHADER
+	stop_ghost_mat.render_priority = 10
+	stop_ghost_mat.set_shader_parameter("col", Color(1, 1, 1, 0.35))
 	_ghostify(stop_ghost, stop_ghost_mat)
+	for i in 4:
+		var gn := F.label3d(str(i + 1), 40, Color.WHITE)
+		gn.no_depth_test = true
+		gn.visible = false
+		add_child(gn)
+		ghost_nums.append(gn)
+		var ar := F.cylinder(0.035, 1.0, _overlay_mat(Color(1, 1, 1, 0.8)), Vector3.ZERO, 6)
+		ar.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		ar.visible = false
+		add_child(ar)
+		leg_arrows.append(ar)
 	stop_ghost.visible = false
 	add_child(stop_ghost)
 	# The four spots on the runway the section's legs have to come down on
@@ -490,6 +540,10 @@ func _build_guides() -> void:
 		var post := F.cylinder(0.03, 0.9, lm, Vector3(0, 0.45, 0), 6)
 		post.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		mk.add_child(post)
+		var num := F.label3d(str(i + 1), 44, Color.WHITE)
+		num.position = Vector3(0, 1.2, 0)
+		num.no_depth_test = true
+		mk.add_child(num)
 		mk.visible = false
 		add_child(mk)
 		leg_marks.append(mk)
@@ -911,8 +965,35 @@ func _draw_tag_lines(crane_on: bool) -> void:
 			for s in segs:
 				(s as MeshInstance3D).visible = false
 			tail.visible = false
+			tag_nums[n].visible = false
+			tag_gauges[n].visible = false
 			continue
 		var corner := _tag_corner(n)
+		# Whose line it is: a player's line is drawn in their colour, its
+		# number at both ends, and how it's working over their head
+		var h = tag_hands[n] if tag_on[n] else null
+		var mine: bool = h != null and is_instance_valid(h) and not h.bot
+		var line_col: Color = (h.tag_color as Color).lightened(0.15) if mine else tag_cols[n]
+		tag_mats[n].set_shader_parameter("albedo", line_col)
+		tag_nums[n].visible = true
+		tag_nums[n].position = corner + Vector3(0, 0.55, 0)
+		tag_nums[n].modulate = line_col
+		tag_gauges[n].visible = h != null and is_instance_valid(h)
+		if tag_gauges[n].visible:
+			var grip: float = TAG_GRIP[clampi(help(), 0, 2)]
+			var slack: float = float(tag_len[n]) - (tag_from[n] as Vector3).distance_to(corner)
+			var word := "SLACK"
+			var gc := Color("b9c0cb")
+			if float(tag_t[n]) > grip * 0.85:
+				word = "TOO TIGHT"
+				gc = Color("ff4d4d")
+			elif float(tag_t[n]) > 0.0 or slack < 0.3:
+				word = "WORKING"
+				gc = Color("7cd992")
+			tag_gauges[n].text = "LINE %d · %s" % [n + 1, word]
+			tag_gauges[n].modulate = gc
+			tag_gauges[n].position = h.global_position + Vector3(0, 3.1 if mine else 2.6, 0)
+			tag_gauges[n].font_size = 34 if mine else 24
 		var pts: Array[Vector3] = []
 		if tag_on[n]:
 			var a: Vector3 = tag_from[n]
@@ -2381,7 +2462,8 @@ func handle_player(p, delta: float, near: String, act: String, alt: String, leav
 		# Close in, the platform crew take it by hand: the lines come off
 		if hands:
 			_drop_tag(p, n)
-			p.say("hands on: line off")
+			# (said where they're looking, so the controls going isn't a mystery)
+			game.pop("LINE %d released: crew have it" % (n + 1), p.global_position + Vector3(0, 2.8, 0), Color("ffc72c"))
 			return false
 		# Run out of line: it's gone through their hands, and the load turns free
 		if _tag_gone[n]:
@@ -2405,6 +2487,8 @@ func handle_player(p, delta: float, near: String, act: String, alt: String, leav
 		elif p.alt_held():
 			tag_len[n] = minf(TAG_LEN, float(tag_len[n]) + TAG_OUT * delta)
 		tag_on[n] = true
+		if wind_gust >= WIND_STOP and not p.bot:
+			p.say("crane wind-stopped: hold your line")
 		tag_from[n] = hand
 		p.face(corner)
 		var slack := float(tag_len[n]) - span
@@ -2797,7 +2881,7 @@ func _signal(p, dir: Vector2, vert: float, delta: float, slow := false, dog_all 
 			text = "LET GO NOW: \"stop\" lands it on the spots"
 			col = Color("ffd23f")
 	if wind_gust >= WIND_STOP:
-		game.hud.set_signal("%s  ·  gusting over the limit" % text, Color("ff4d4d"))
+		game.hud.set_signal("%s  ·  WIND STOP" % text, Color("ff4d4d"))
 	else:
 		game.hud.set_signal(text, col)
 	_gesture(p, call_now, dir, slow)
@@ -2919,6 +3003,11 @@ func _update_guides(delta: float) -> void:
 	# swing and its turn too). It warms to gold as its legs come over their
 	# spots and goes green when all four are on.
 	stop_ghost.visible = guiding
+	if not guiding:
+		for n in ghost_nums:
+			n.visible = false
+		for a in leg_arrows:
+			a.visible = false
 	var was_on := stop_ghost_at != Vector3.INF
 	stop_ghost_at = Vector3.INF
 	for mk in leg_marks:
@@ -2950,19 +3039,34 @@ func _update_guides(delta: float) -> void:
 		stop_ghost.rotation = Vector3(0, stop_ghost_yaw, 0)
 		var tol := leg_tol()
 		var err := leg_err(Vector2(at.x, at.z), stop_ghost_yaw)
-		stop_ghost_mat.albedo_color = _near_colour(err, tol, 0.3)
+		stop_ghost_mat.set_shader_parameter("col", _near_colour(err, tol, 0.35))
 		# Each spot lights for the ghost leg nearest it
 		var legs: Array[Vector2] = []
 		for k in [Vector2(1, 1), Vector2(1, -1), Vector2(-1, 1), Vector2(-1, -1)]:
 			legs.append(Vector2(at.x, at.z) + (k * LW * 0.5).rotated(-stop_ghost_yaw))
+		# Spot n and the ghost leg headed for it share a number; close in, a
+		# line from the leg to its spot shows which way it still has to go
 		var i := 0
 		for k in [Vector2(1, 1), Vector2(1, -1), Vector2(-1, 1), Vector2(-1, -1)]:
 			var spot: Vector2 = Vector2(LAT_X, RUNWAY_Z) + k * LW * 0.5
 			var near := INF
+			var best := Vector2.ZERO
 			for g in legs:
-				near = minf(near, g.distance_to(spot))
+				if g.distance_to(spot) < near:
+					near = g.distance_to(spot)
+					best = g
 			leg_marks[i].position = Vector3(spot.x, gb + 0.03, spot.y)
-			leg_mats[i].albedo_color = _near_colour(near, tol, 0.6)
+			var c := _near_colour(near, tol, 0.6)
+			leg_mats[i].albedo_color = c
+			var leg3 := Vector3(best.x, at.y + 0.05, best.y)
+			ghost_nums[i].visible = true
+			ghost_nums[i].position = leg3 + Vector3(0, -0.45, 0)
+			ghost_nums[i].modulate = Color(c, 1.0)
+			(leg_marks[i].get_child(3) as Label3D).modulate = Color(c, 1.0)
+			leg_arrows[i].visible = near > 0.05 and near < 3.0
+			if leg_arrows[i].visible:
+				F.stretch(leg_arrows[i], leg3, Vector3(spot.x, gb + 0.05, spot.y))
+				(leg_arrows[i].material_override as StandardMaterial3D).albedo_color = Color(c, 0.85)
 			i += 1
 	# The zoning ring, brighter (and red) as the hook nears it
 	zone_ring.visible = guiding

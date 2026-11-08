@@ -358,7 +358,7 @@ func _build_right() -> void:
 	if a == "join":
 		_right.add_child(_join_card())
 		return
-	var climb: bool = game.k in game.climb_levels() if game.has_method("climb_levels") else false
+	var climb: bool = (game.climb != null and game.climb.active) or (game.k in game.climb_levels() if game.has_method("climb_levels") else false)
 	var people: Array = game.crew.humans()
 	if _page == "swap" and a.begins_with("role:"):
 		var role := a.substr(5)
@@ -376,7 +376,7 @@ func _build_right() -> void:
 	_right.add_child(grid)
 	var compact: bool = people.size() > 2
 	for p in people.slice(0, 4):
-		grid.add_child(UI.job_ticket(p.role, p.char_name, 0 if p.bot else p.index, compact, climb and people.size() == 1, 400 if people.size() == 1 else 300))
+		grid.add_child(UI.job_ticket(p.role, p.char_name, 0 if p.bot else p.index, compact, climb, 400 if people.size() == 1 else 300, p.key_names()))
 	if people.size() > 4:
 		_right.add_child(UI.label("+%d more on the crew" % (people.size() - 4), 14, UI.DIM, 0))
 
