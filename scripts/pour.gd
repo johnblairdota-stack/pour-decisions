@@ -79,7 +79,6 @@ var mask := PackedByteArray()        # 1 where there's slab (a round slab leaves
 var mask_n := NX * NZ
 var round_r := 0.0                   # > 0: a round slab of this radius (the water tower)
 var _rect_parts: Array = []
-var _columns: Array = []
 var _flip := false
 var _coverage := 0.0
 var _reach_cov := 0.0
@@ -144,7 +143,6 @@ func build(width: float, depth: float, columns: Array) -> void:
 
 	rebar = Node3D.new()
 	add_child(rebar)
-	_columns = columns
 	_build_rebar(columns)
 
 	# The concrete surface: a fine plane displaced by the heightfield, coloured
@@ -521,16 +519,56 @@ func step(dt: float) -> void:
 	var seep := SEEP_K * dt
 	var inv := 1.0 / dx
 	_flip = not _flip
-	for r in NZ:
-		var iz := r if _flip else NZ - 1 - r
-		var row := iz * NX
-		for q in NX:
-			var ix := q if _flip else NX - 1 - q
-			var i := row + ix
-			if ix + 1 < NX:
-				_pair(i, i + 1, slump, seep, inv)
-			if iz + 1 < NZ:
-				_pair(i, i + NX, slump, seep, inv)
+	var nx := NX
+	var nz := NZ
+	var flip := _flip
+	for r in nz:
+		var iz := r if flip else nz - 1 - r
+		var row := iz * nx
+		for q in nx:
+			var ix := q if flip else nx - 1 - q
+			var ia := row + ix
+			# Each cell with its neighbour across (side 0) and down (side 1).
+			# (This was a _pair() call per pair: inlined, as it runs ~8000
+			# times a frame and the call was most of its cost)
+			for side in 2:
+				var ib := ia + 1
+				if side == 0:
+					if ix + 1 >= nx:
+						continue
+				else:
+					if iz + 1 >= nz:
+						continue
+					ib = ia + nx
+				var ha := h[ia]
+				var hb := h[ib]
+				if ha <= 0.0005 and hb <= 0.0005:
+					continue
+				if set_h[ia] >= 0.0 or set_h[ib] >= 0.0:
+					continue   # fresh concrete just banks up against a face that's gone off
+				if mask[ia] == 0 or mask[ib] == 0:
+					continue   # the edge form of a round slab
+				var d := ha - hb
+				var ad := absf(d)
+				var m := 0.0
+				var sl := ad * inv
+				if sl > REPOSE:
+					m = slump * (sl - REPOSE)
+				if maxf(ha, hb) > SEEP_MIN:
+					m += seep * ad
+				m = minf(m, ad * 0.25)
+				if m <= 0.0:
+					continue
+				var src := ia if d > 0.0 else ib
+				var dst := ib if d > 0.0 else ia
+				var hd := h[dst]
+				if hd + m > 0.0:
+					age[dst] = (age[dst] * hd + age[src] * m) / (hd + m)
+					# A trickle of raw concrete seeping in doesn't undo vibrated concrete
+					if vib[dst] < DONE or hd < 0.06:
+						vib[dst] = (vib[dst] * hd + vib[src] * m) / (hd + m)
+				h[src] -= m
+				h[dst] = hd + m
 	# Ageing: past the open time a placed patch goes off
 	for i in NX * NZ:
 		var hi := h[i]
@@ -549,39 +587,6 @@ func step(dt: float) -> void:
 		_spill(iz * NX, dt, area)
 		_spill(iz * NX + NX - 1, dt, area)
 	_upload()
-
-func _pair(a: int, b: int, slump: float, seep: float, inv: float) -> void:
-	var ha := h[a]
-	var hb := h[b]
-	if ha <= 0.0005 and hb <= 0.0005:
-		return
-	if mask[a] == 0 or mask[b] == 0:
-		return   # the edge form of a round slab
-	var d := ha - hb
-	var src := a if d > 0.0 else b
-	if set_h[src] >= 0.0:
-		return
-	if set_h[b if d > 0.0 else a] >= 0.0:
-		return   # fresh concrete just banks up against a face that's gone off
-	var ad := absf(d)
-	var m := 0.0
-	var s := ad * inv
-	if s > REPOSE:
-		m = slump * (s - REPOSE)
-	if maxf(ha, hb) > SEEP_MIN:
-		m += seep * ad
-	m = minf(m, ad * 0.25)
-	if m <= 0.0:
-		return
-	var dst := b if d > 0.0 else a
-	var hd := h[dst]
-	if set_h[dst] < 0.0 and hd + m > 0.0:
-		age[dst] = (age[dst] * hd + age[src] * m) / (hd + m)
-		# A trickle of raw concrete seeping in doesn't undo vibrated concrete
-		if vib[dst] < DONE or hd < 0.06:
-			vib[dst] = (vib[dst] * hd + vib[src] * m) / (hd + m)
-	h[src] -= m
-	h[dst] = hd + m
 
 func _spill(i: int, dt: float, area: float) -> void:
 	if h[i] > FORM_H:
@@ -603,20 +608,27 @@ func _upload() -> void:
 	var oldest := 0.0
 	var edge_oldest := 0.0
 	var risky := 0
+	# (each column's bay, worked out once rather than per cell)
+	var col_bay := PackedInt32Array()
+	col_bay.resize(NX)
+	for ix in NX:
+		col_bay[ix] = bay_of_col(ix)
 	for i in h.size():
 		var full := h[i] >= need
 		if full and mask[i] == 1:
 			n += 1
 		if reach[i] == 1:
 			rcount += 1
-			bt[bay_of_col(i % NX)] += 1
+			var cb := col_bay[i % NX]
+			bt[cb] += 1
 			if full:
 				nr += 1
-				bn[bay_of_col(i % NX)] += 1
+				bn[cb] += 1
 		var k := i * 4
 		var a := 255 if set_h[i] >= 0.0 else int(clampf(age[i] / open_time, 0.0, 1.0) * 254.0)
 		_state[k] = a
-		var we := _wet_edge(i)
+		# (_wet_edge's own first test, here to save the call on most cells)
+		var we := set_h[i] < 0.0 and h[i] >= 0.08 and _wet_edge(i)
 		if we:
 			edge_oldest = maxf(edge_oldest, age[i])
 		_state[k + 1] = 255 if cold[i] == 1 else (128 if bleed[i] == 1 else (64 if we else 0))
@@ -642,6 +654,7 @@ func _upload() -> void:
 	# The finish: how shiny the screeded concrete still is, floated, and
 	# matt and waiting for the float
 	var mt := matt_t()
+	var win := float_win()
 	var ready_n := 0
 	for i in h.size():
 		var k := i * 4
@@ -650,7 +663,7 @@ func _upload() -> void:
 		if scr_t[i] >= 0.0:
 			var el := _t - scr_t[i]
 			sh = 1.0 - clampf(el / mt, 0.0, 1.0)
-			if flt[i] == 0 and el >= mt * 0.7 and el <= mt + float_win():
+			if flt[i] == 0 and el >= mt * 0.7 and el <= mt + win:
 				ready = 255
 				ready_n += 1
 		_fin[k] = int(sh * 255.0)
@@ -670,7 +683,7 @@ func _wet_edge(i: int) -> bool:
 	var ix := i % NX
 	var iz := i / NX
 	# Two cells deep, so the band reads from across the site
-	for d in [1, 2]:
+	for d in range(1, 3):
 		if ix - d >= 0 and h[i - d] < PLACED and reach[i - d] == 1:
 			return true
 		if ix + d < NX and h[i + d] < PLACED and reach[i + d] == 1:
@@ -818,12 +831,6 @@ func height_at(local: Vector3) -> float:
 	if ix < 0 or ix >= NX or iz < 0 or iz >= NZ:
 		return 0.0
 	return h[iz * NX + ix]
-
-func peak() -> float:
-	var m := 0.0
-	for v in h:
-		m = maxf(m, v)
-	return m
 
 ## Local x/z of the lowest reachable point, sampled coarsely (used by the test
 ## bot). With `bay` >= 0 it only looks inside that bay.
@@ -1207,8 +1214,8 @@ func _fill_gaps() -> void:
 				continue
 			var n := 0
 			var done := 0
-			for oz in [-1, 0, 1]:
-				for ox in [-1, 0, 1]:
+			for oz in range(-1, 2):
+				for ox in range(-1, 2):
 					if ox == 0 and oz == 0:
 						continue
 					var jx: int = ix + ox
@@ -1343,16 +1350,6 @@ func float_line(a: Vector3, b: Vector3) -> Vector3i:
 			flt[i] = 1
 			good += 1
 	return Vector3i(good, early, late)
-
-## Share of the screeded slab that's been floated.
-func float_share() -> float:
-	var n := 0
-	var ok := 0
-	for i in h.size():
-		if scr_t[i] >= 0.0:
-			n += 1
-			ok += flt[i]
-	return float(ok) / maxf(1.0, n)
 
 ## Vibrated enough to screed: this cell, or most of the cells round it.
 func vib_ok(i: int) -> bool:

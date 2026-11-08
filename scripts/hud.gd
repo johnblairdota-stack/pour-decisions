@@ -88,7 +88,6 @@ var facts_label: Label
 # joining (shown on the pause menu, not over the game)
 var join_text := ""
 var join_url := ""
-var join_hint := ""
 
 func _ready() -> void:
 	_root = Control.new()
@@ -525,7 +524,7 @@ func set_task(title: String, sub := "", role := "") -> void:
 	task_box.visible = title != ""
 	sub_label.text = sub
 	sub_label.visible = sub != ""
-	sub_label.add_theme_color_override("font_color", UI.ROLE.get(role, UI.WHITE) if role != "" else UI.WHITE)
+	UI.font_color(sub_label, UI.ROLE.get(role, UI.WHITE) if role != "" else UI.WHITE)
 
 func set_progress(p: float) -> void:
 	UI.set_bar(prog_fill, p)
@@ -534,7 +533,7 @@ func set_progress(p: float) -> void:
 func set_stats(timer_text: String, pressure: float, warn := false) -> void:
 	clock_label.text = timer_text
 	line_label.text = "LINE  %d bar" % int(pressure)
-	line_label.add_theme_color_override("font_color", UI.RED if warn else UI.MUTED)
+	UI.font_color(line_label, UI.RED if warn else UI.MUTED)
 	gauge.bar = pressure
 
 ## Lifts everything along the bottom of the screen clear of the street band
@@ -611,7 +610,7 @@ func set_pump(on: bool, info := {}) -> void:
 	hopper_fill.color = c
 	UI.set_bar(hopper_fill, fill)
 	hopper_pct.text = "%d%%   ·   pump %s" % [int(fill * 100.0), "HIGH" if info.get("high", true) else "LOW"]
-	hopper_pct.add_theme_color_override("font_color", c)
+	UI.font_color(hopper_pct, c)
 	# Just the counts: what each truck needs doing is on the job list
 	var bits := []
 	var at := int(info.get("bay", "") != "") + int(info.get("standby", "") != "")
@@ -630,7 +629,7 @@ func set_wind(gust_kmh: float, mean_kmh: float, stop_kmh: float, show := true) -
 		c = UI.RED
 	elif gust_kmh >= stop_kmh * 0.75:
 		c = UI.YELLOW
-	wind_label.add_theme_color_override("font_color", c)
+	UI.font_color(wind_label, c)
 	wind_bar.color = c
 	wind_bar.size.x = 190.0 * clampf(gust_kmh / 80.0, 0.0, 1.0)
 
@@ -645,7 +644,11 @@ func set_tickets(list: Array, t: float) -> void:
 		var tk: Dictionary = list[i]
 		var icon: PanelContainer = slot["icon"]
 		var col: Color = tk.get("color", ORANGE)
-		UI.style(icon).bg_color = col
+		# (a style box re-lays its panel out whenever it's set, even to the
+		# same colour: only set what's changed)
+		var isb := UI.style(icon)
+		if isb.bg_color != col:
+			isb.bg_color = col
 		(icon.get_meta("label") as Label).text = tk.get("icon", "!")
 		# Whose job it is: that job's icon in its colour; anything else keeps a letter
 		var role: String = tk.get("role", "")
@@ -662,8 +665,12 @@ func set_tickets(list: Array, t: float) -> void:
 		fill.color = tk["bar"] if tk.has("bar") else (UI.RED if frac < 0.25 else (UI.YELLOW if frac < 0.5 else UI.GREEN))
 		var urgent: bool = tk.get("urgent", false)
 		var sb := UI.style(panel)
-		sb.border_color = col if urgent else UI.EDGE
-		sb.set_border_width_all(2 if urgent else 1)
+		var bc: Color = col if urgent else UI.EDGE
+		if sb.border_color != bc:
+			sb.border_color = bc
+		var bw := 2 if urgent else 1
+		if sb.border_width_left != bw or sb.border_width_top != bw or sb.border_width_right != bw or sb.border_width_bottom != bw:
+			sb.set_border_width_all(bw)
 		panel.modulate = Color(1, 1, 1, 1) if not urgent else Color(1, 0.9 + 0.1 * sin(t * 10.0), 0.9 + 0.1 * sin(t * 10.0), 1)
 
 # ------------------------------------------------------------------ call-outs
@@ -672,7 +679,7 @@ func set_alert(text: String) -> void:
 	_alert = text
 	if text != "":
 		toast_label.text = text
-		toast_label.add_theme_color_override("font_color", UI.RED)
+		UI.font_color(toast_label, UI.RED)
 	elif _toast_t <= 0.0:
 		toast_panel.visible = false
 
@@ -687,11 +694,8 @@ func toast(text: String, seconds := 2.2) -> void:
 
 func set_signal(text: String, color := Color.WHITE) -> void:
 	signal_label.text = text
-	signal_label.add_theme_color_override("font_color", color)
+	UI.font_color(signal_label, color)
 	signal_panel.visible = text != ""
-
-func show_bolt(on: bool, bolt := 1, total := 4, zone_from := 0.6, zone_w := 0.18, marker := 0.0) -> void:
-	show_meter(on, "BOLT %d / %d" % [bolt, total], "", zone_from, zone_w, marker)
 
 func show_meter(on: bool, title := "", _hint := "", zone_from := 0.6, zone_w := 0.18, marker := 0.0, button := "A") -> void:
 	bolt_panel.visible = on
@@ -707,11 +711,6 @@ func show_meter(on: bool, title := "", _hint := "", zone_from := 0.6, zone_w := 
 	bolt_marker.position.x = BOLT_W * clampf(marker, 0.0, 1.0) - 2.5
 
 # ------------------------------------------------------------------ joining
-
-## Phone joining lives on the pause menu (and the front end), not over the game.
-func show_join(_on: bool, text := "") -> void:
-	if text != "":
-		join_hint = text
 
 func set_join(text: String, url := "") -> void:
 	join_text = text
@@ -1161,11 +1160,6 @@ func show_topout(text: String) -> void:
 	banner.visible = true
 	facts.visible = true
 	facts_label.text = text
-
-func hide_topout() -> void:
-	banner.visible = false
-	facts.visible = false
-
 
 ## At big screen-text sizes the job tickets drop below the task bar, so the
 ## three panels along the top never collide.

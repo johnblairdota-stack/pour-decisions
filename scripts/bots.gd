@@ -9,6 +9,7 @@ var _boom_goal := Vector3.ZERO
 var _boom_goal_t := 0.0
 var _heap_t := 0.0
 var _boom_ok := true    # the boom bot's own say on pumping now
+var _knocktest: bool = OS.get_cmdline_user_args().has("--knocktest")   # (dev: read once, not every frame of a guide)
 var _tap_y := -1.0
 var _scr := {"mode": "seek", "x": 0.0, "dir": 1.0, "end": 0.0, "t": 0.0}
 var _spot_tries := {}   # patch -> {n, at, p}: spot pulls tried on it
@@ -1103,7 +1104,7 @@ func _dog_like_a_person(p) -> void:
 	var lp: Vector3 = c.load.position
 	var to := Vector3(c.LAT_X - lp.x, 0, c.RUNWAY_Z - lp.z)
 	# Test only (`--knocktest`): steer it gently into the tower first
-	if OS.get_cmdline_user_args().has("--knocktest") and c.stage_t < 9.0:
+	if _knocktest and c.stage_t < 9.0:
 		to = Vector3(c.LAT_X - lp.x, 0, 0.0 - lp.z)
 		p.ai_slow = true
 		var local0 := to.normalized().rotated(Vector3.UP, -game.cam_yaw)

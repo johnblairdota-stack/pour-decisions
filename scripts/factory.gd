@@ -143,6 +143,20 @@ static func beam(a: Vector3, b: Vector3, thickness: float, material: Material) -
 	mi.transform = Transform3D(Basis.looking_at(dir, up), (a + b) * 0.5)
 	return mi
 
+## Stretches a 1 m tall (along y) mesh between two points, for a rope, a
+## sling or a pipe; hidden while it's shorter than `min_len`.
+static func stretch(m: MeshInstance3D, a: Vector3, b: Vector3, min_len := 0.01) -> void:
+	var d := b - a
+	var ln := d.length()
+	if ln < min_len:
+		m.visible = false
+		return
+	m.visible = true
+	var dir := d / ln
+	var up := Vector3.UP if absf(dir.dot(Vector3.UP)) < 0.99 else Vector3.RIGHT
+	m.transform = Transform3D(Basis.looking_at(dir, up) * Basis(Vector3.RIGHT, -PI * 0.5), (a + b) * 0.5)
+	m.scale = Vector3(1, ln, 1)
+
 ## One free-standing lattice tower section (SCP-style), base at y = 0.
 ## Modelled 2.0 m square and 4.14 m tall (tools/blender/towers.py); its four
 ## chords and four faces are separate parts, so a dropped one bends apart.

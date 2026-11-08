@@ -33,10 +33,7 @@ const S := 2.6               # the rig's scale in the world
 const R_BASE := 0.1          # half of the 200 mm base
 const R_TOP := 0.05          # half of the 100 mm top
 const MARKS := [0.07, 0.16, 0.315]   # fill heights for the three layers (the last heaped)
-const MARK_TOL := 0.02      # m either side of a mark that counts as on it
-const FILL_RATE := 0.3      # m a second while A's held
 const RODS := 25
-const ROD_RATE := 11.0      # strokes a second while A's held (it stops itself on 25)
 const FILLROD_T := 3.2      # s: the one hold that fills, rods and strikes off all three layers
 const FILL_SHARE := 0.35    # of each layer's share of that hold: the filling (the rest is rodding)
 const STRIKE_FROM := 0.92   # the last bit of the hold strikes off the top
@@ -202,10 +199,6 @@ func step_of(t) -> String:
 ## The actual slump of this sample (shear: worse and lopsided).
 func _true(t: Dictionary) -> float:
 	return float(t["slump"])
-
-## Height of the slumped top's centre above the plate, m.
-func _top_y(t: Dictionary) -> float:
-	return 0.03 + CONE_H - _true(t) / 1000.0
 
 ## One frame of the test. Returns true when the measurement's been taken.
 ## Four presses: A to go and get a sample (you walk to the chute with the

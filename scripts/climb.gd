@@ -84,7 +84,6 @@ const TAG_SEGS := 10
 ## bar lifts): called each frame it's free, true while it has the hook
 var borrow: Callable
 var load: Node3D
-var pin_meshes: Array[MeshInstance3D] = []
 
 var trolley_xz := Vector2(-2.0, 10.0)
 var trolley_v := Vector2.ZERO
@@ -113,8 +112,6 @@ var _vert := 0.0
 var _dogman = null
 var _op_slow := false
 var _op_dog := false
-var _slow := false
-var _dog_all := false
 var _estop_t := 0.0
 var _flinch_t := 0.0
 var _touching := false
@@ -149,7 +146,6 @@ var _strike_from := 0.0
 var _theta := 0.45
 var _cam_side := Vector3.ZERO
 var _pinning: Node3D = null  # the section being pinned, off the hook (the crane's free for the next)
-var _crane_ahead := false   # the crane fetched the next section during the pinning
 var _early_fly := false     # the crane is already flying the next section in during the jacking
 var _fly_arrived := false
 var _lever := 0.0           # how hard the rigger's levering the podger, -1..1
@@ -211,7 +207,6 @@ var haul_prog := 0.0
 var bundle: Node3D
 var haul_rope: MeshInstance3D
 var laydown_mark: Node3D
-var _pin_split_t := -1.0
 
 # Guide visuals
 var ghost: MeshInstance3D
@@ -241,7 +236,6 @@ var ram_state := "ready"
 var stall_t := 0.0
 var lifted := 0.0
 var pin_i := 0
-var hit_i := 0
 var pin_sub := ""           # "align", "podger", "drive", "clip"
 var hole_off := 0.0         # m the section's holes sit off the frame's
 var power := 0.0            # hammer wind-up, 0..1
@@ -559,20 +553,6 @@ func gap_bottom() -> float:
 func head_y() -> float:
 	return game.head.position.y
 
-func wind_at_head() -> float:
-	return wind_gust
-
-func _line(m: MeshInstance3D, a: Vector3, b: Vector3) -> void:
-	var d := b - a
-	var ln := d.length()
-	if ln < 0.01:
-		m.visible = false
-		return
-	m.visible = true
-	var dir := d / ln
-	var up := Vector3.UP if absf(dir.dot(Vector3.UP)) < 0.99 else Vector3.RIGHT
-	m.transform = Transform3D(Basis.looking_at(dir, up) * Basis(Vector3.RIGHT, -PI * 0.5), (a + b) * 0.5)
-	m.scale = Vector3(1, ln, 1)
 
 func _place_frame() -> void:
 	var gb := gap_bottom()
@@ -651,7 +631,6 @@ func _make_load() -> void:
 	# Every section is picked off the laydown on the street: the crane drops
 	# its hook over it and waits for the slinger (the truck hand on climb
 	# days) to sling it before it lifts
-	_crane_ahead = false
 	load_state = "laydown"
 	sling_prog = 0.0
 	load.position = LAYDOWN
@@ -788,7 +767,6 @@ func _finish_section() -> void:
 	game.pop("Section %d on!" % game.section_count, Vector3(LAT_X, game.head.position.y + 1.0, 0), Color("ffc72c"))
 	game.hud.toast("Section %d pinned off" % game.section_count, 1.6)
 	if sections_left > 0:
-		_crane_ahead = true
 		_begin_section()
 	else:
 		active = false
@@ -936,7 +914,7 @@ func _draw_tag_lines(crane_on: bool) -> void:
 			for i in TAG_SEGS + 1:
 				var u := float(i) / TAG_SEGS
 				pts.append(corner.lerp(a, u) + Vector3(0, -sag * 4.0 * u * (1.0 - u), 0))
-			_line(tail, a, Vector3(a.x, game.work_y + 0.05, a.z) + (a - corner).normalized() * Vector3(0.3, 0, 0.3))
+			F.stretch(tail, a, Vector3(a.x, game.work_y + 0.05, a.z) + (a - corner).normalized() * Vector3(0.3, 0, 0.3))
 		else:
 			# Hanging free: down from the corner, swaying with the load, the
 			# end lying on the deck if it reaches
@@ -951,11 +929,11 @@ func _draw_tag_lines(crane_on: bool) -> void:
 			var left := TAG_LEN - drop
 			if left > 0.3 and _over_deck(corner):
 				var away := (Vector3(foot.x, 0, foot.z) - Vector3(load.position.x, 0, load.position.z)).normalized()
-				_line(tail, foot, foot + away * minf(left, 2.5))
+				F.stretch(tail, foot, foot + away * minf(left, 2.5))
 			else:
 				tail.visible = false
 		for i in TAG_SEGS:
-			_line(segs[i], pts[i], pts[i + 1])
+			F.stretch(segs[i], pts[i], pts[i + 1])
 
 ## Deck (or scaffold) under this point, to stand on or for a line to lie on.
 func _over_deck(at: Vector3) -> bool:
@@ -1397,16 +1375,6 @@ func _bend(k: float) -> void:
 		if c is Node3D and c.has_meta("bend"):
 			c.rotation = (c.get_meta("rot0") as Vector3) + (c.get_meta("bend") as Vector3) * k
 
-func _push_out(c: Vector2, from: Vector2, dist: float) -> void:
-	var n := (c - from)
-	if n.length() < 0.01:
-		n = Vector2(0, 1)
-	n = n.normalized()
-	var want := from + n * dist if dist > 0.0 else c + n * 0.3
-	swing += want - c
-	swing_v = swing_v - n * 1.4 * swing_v.dot(n)
-	_place_load()
-
 ## The crane slews over the laydown and lowers its hook to the section's top,
 ## then waits there for the slinger.
 func _hold_at_laydown(delta: float) -> void:
@@ -1494,7 +1462,7 @@ func _update_bundle(_delta: float) -> void:
 				add_child(bundle)
 			bundle.position = at
 			bundle.rotation = Vector3(0, 0, 0.05 * sin(_t * 3.0) * haul_prog)
-			_line(haul_rope, top, at + Vector3(0, 0.62, 0))
+			F.stretch(haul_rope, top, at + Vector3(0, 0.62, 0))
 		"up":
 			bundle.visible = pinsets > 0
 			if bundle.get_parent() != self:
@@ -1624,19 +1592,19 @@ func _draw_crane() -> void:
 		for i in 4:
 			if i < legs:
 				var cpt0: Vector3 = load.global_transform * (corners0[i] * (LW * 0.5) + Vector3(0, LS, 0))
-				_line(slings[i], hook_pos, cpt0)
+				F.stretch(slings[i], hook_pos, cpt0)
 			else:
-				_line(slings[i], hook_pos, hook_pos + Vector3(0.12 * (corners0[i] as Vector3).x, -1.2, 0.12 * (corners0[i] as Vector3).z))
+				F.stretch(slings[i], hook_pos, hook_pos + Vector3(0.12 * (corners0[i] as Vector3).x, -1.2, 0.12 * (corners0[i] as Vector3).z))
 	elif crane_busy():
 		hook_pos = Vector3(load.position.x, load.position.y + LS + SLING, load.position.z)
 		var corners := [Vector3(-1, 0, -1), Vector3(1, 0, -1), Vector3(1, 0, 1), Vector3(-1, 0, 1)]
 		for i in 4:
 			var cpt: Vector3 = load.global_transform * (corners[i] * (LW * 0.5) + Vector3(0, LS, 0))
-			_line(slings[i], hook_pos, cpt)
+			F.stretch(slings[i], hook_pos, cpt)
 	else:
 		for s in slings:
 			s.visible = false
-	_line(cable, top, hook_pos + Vector3(0, 0.4, 0))
+	F.stretch(cable, top, hook_pos + Vector3(0, 0.4, 0))
 	hook.position = hook_pos + Vector3(0, 0.4, 0)
 
 # ------------------------------------------------------------------ rigger
@@ -1796,7 +1764,6 @@ func _corner(i: int) -> Vector3:
 
 func _start_pins() -> void:
 	pin_i = 0
-	hit_i = 0
 	depth = 0.0
 	power = 0.0
 	winding = false
@@ -1813,7 +1780,6 @@ func _split_set() -> void:
 		pin_sub = "wait"
 		return
 	pinsets -= 1
-	_pin_split_t = 0.0
 	pin_sub = "align"
 	game.sfx.hit("tink")
 	# (the rigger pulls the clip off as they take the pin: no button for it)
@@ -1840,7 +1806,6 @@ func _podger() -> void:
 	_podger_t = 0.0
 	pin_sub = "drive"
 	depth = 0.0
-	hit_i = 0
 	power = 0.0
 	(lugs[pin_i]["pin"] as Node3D).visible = true
 	_set_pin_depth(pin_i, 0.0)
@@ -1871,7 +1836,6 @@ func _land_blow(pw: float, at_pin: int) -> void:
 	var head_at: Vector3 = (l["pin"] as Node3D).global_position + (l["dir"] as Vector3) * 0.08
 	if pw >= SWEET and pw <= SWEET + SWEET_W:
 		depth += 1.0 / HITS
-		hit_i += 1
 		game.pop("CLANG!", head_at + Vector3(0, 0.4, 0), Color("ffd36b"))
 		game.sfx.hit("clang")
 		if _rigger != null:
@@ -2744,8 +2708,6 @@ func _emergency() -> void:
 	game.hud.toast("EMERGENCY STOP", 1.2)
 
 func _signal(p, dir: Vector2, vert: float, delta: float, slow := false, dog_all := false) -> void:
-	_slow = slow
-	_dog_all = dog_all
 	_estop_t = maxf(0.0, _estop_t - delta)
 	var call_name := "STOP"
 	var code := "stop"
@@ -2882,7 +2844,7 @@ func _update_guides(delta: float) -> void:
 	if guiding:
 		var lp := load.position
 		drop_mat.albedo_color = Color(1, 1, 1, 0.35)
-		_line(plumb, Vector3(lp.x, lp.y, lp.z), Vector3(lp.x, gb + 0.03, lp.z))
+		F.stretch(plumb, Vector3(lp.x, lp.y, lp.z), Vector3(lp.x, gb + 0.03, lp.z))
 
 	# The crane's four calls round the load, each arrow the way that call
 	# takes it and named for it, plus hoist / lower

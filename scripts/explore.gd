@@ -40,16 +40,13 @@ const RAMP := 6.0            # m of ramp from the terminal's landing down to the
 
 ## The ute's engine and chassis (m/s, m/s²): an arcade feel, but with weight
 const TOP := 41.0            # ~150 km/h
-const PULL := 8.2            # off the line
 const BRAKE := 15.0
 const REVERSE := 9.0
 const REV_ACC := 6.0
-const ENGINE_DRAG := 1.4
 const GRIP := 13.0           # how hard the tyres pull the car back onto its heading
 const MU := 10.5             # most sideways the tyres can hold (m/s²) before it slides
 const MU_HANDBRAKE := 3.2
 const COM_H := 0.85          # a ute's centre of mass above the ground (m)
-const GEARS := [0.0, 8.0, 15.5, 23.0, 30.5, 37.0, 99.0]
 
 var game
 var active := false
@@ -3531,8 +3528,9 @@ func _update_ui(dt: float) -> void:
 		_prompt_key.text = _key_name(key)
 		var ks := _prompt_key.get_theme_stylebox("normal") as StyleBoxFlat
 		if key != "":
-			ks.bg_color = UI.GLYPH[key]
-			_prompt_key.add_theme_color_override("font_color", UI.GLYPH_INK[key])
+			if ks.bg_color != UI.GLYPH[key]:
+				ks.bg_color = UI.GLYPH[key]
+			UI.font_color(_prompt_key, UI.GLYPH_INK[key])
 		_prompt_text.text = text
 		_prompt.reset_size()
 		_prompt.position = Vector2((view.x - _prompt.size.x) * 0.5, view.y - _prompt.size.y - 70.0)
@@ -3596,7 +3594,7 @@ func _update_ui(dt: float) -> void:
 		if car.get("drowned", false):
 			bits.append("DROWNED")
 		_drive_label.text = "  ·  ".join(bits) + "   [%s]" % dk
-		_drive_label.add_theme_color_override("font_color", Color("ff4a3d") if car["flat"] != "" or car.get("drowned", false) else UI.YELLOW)
+		UI.font_color(_drive_label, Color("ff4a3d") if car["flat"] != "" or car.get("drowned", false) else UI.YELLOW)
 		var dm: float = car["dmg"]
 		_dmg_fill.size = Vector2(160.0 * dm, 10)
 		_dmg_fill.color = UI.YELLOW.lerp(Color("ff4a3d"), dm)
