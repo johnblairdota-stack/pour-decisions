@@ -304,6 +304,13 @@ static func panel(bg := GLASS, radius := 12, border := EDGE, border_w := 1, pad 
 static func style(p: Control) -> StyleBoxFlat:
 	return p.get_theme_stylebox("panel") as StyleBoxFlat
 
+## Sets a control's font colour, only when it changes: putting the same
+## override on again still re-lays the control (and its text) out, which
+## adds up for the HUD's labels that are set every frame.
+static func font_color(c: Control, col: Color) -> void:
+	if not c.has_theme_color_override("font_color") or c.get_theme_color("font_color") != col:
+		c.add_theme_color_override("font_color", col)
+
 static func label(text: String, size: int, color := WHITE, outline := 5) -> Label:
 	var l := Label.new()
 	l.text = text

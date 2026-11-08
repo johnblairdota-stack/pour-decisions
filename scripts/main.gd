@@ -1735,7 +1735,9 @@ func _update_band(delta: float, down: Array, mid: Array, split_e: float) -> void
 		band_cam.look_at(band_focus, Vector3.UP)
 		var col: Color = UI.ROLE.get(down[0].role, UI.ROLE["pump"]) if not down.is_empty() else UI.ROLE["pump"]
 		band_edge.color = col
-		(band_chip.get_theme_stylebox("panel") as StyleBoxFlat).bg_color = col
+		var chip_sb := band_chip.get_theme_stylebox("panel") as StyleBoxFlat
+		if chip_sb.bg_color != col:
+			chip_sb.bg_color = col
 		var names := []
 		for p in down:
 			names.append(_who(p))
@@ -1753,7 +1755,9 @@ func _update_band(delta: float, down: Array, mid: Array, split_e: float) -> void
 		sx = clampf(sx, 80.0, vs.x - 260.0)
 		var below: bool = p.global_position.y < work_y * 0.5
 		(mk["label"] as Label).text = "%s %s  %d m" % ["▼" if below else "▲", _who(p), int(round(p.global_position.y))]
-		(mk["style"] as StyleBoxFlat).bg_color = UI.ROLE.get(p.role, Color.WHITE)
+		var mk_col: Color = UI.ROLE.get(p.role, Color.WHITE)
+		if (mk["style"] as StyleBoxFlat).bg_color != mk_col:
+			(mk["style"] as StyleBoxFlat).bg_color = mk_col
 		panel.position = Vector2(sx - panel.size.x * 0.5, line_y - panel.size.y * 0.5)
 
 ## Two picture-in-picture cameras, bottom right, each framed in the colour of
@@ -1992,7 +1996,9 @@ func _update_gauge_pop() -> void:
 				r.position.x = right_x
 	gauge_pop.position = r.position
 	var spike: bool = line.spike_on
-	_gauge_frame.border_color = UI.ALARM if spike or line.spike_warn else UI.ROLE["pump"]
+	var gauge_col: Color = UI.ALARM if spike or line.spike_warn else UI.ROLE["pump"]
+	if _gauge_frame.border_color != gauge_col:
+		_gauge_frame.border_color = gauge_col
 	_gauge_badge.dot_color = UI.ROLE["pump"]
 	_gauge_label.text = "PUMP GAUGE" if spike or line.spike_warn else "PUMP OFF"
 	var akey := "A"
@@ -4698,6 +4704,7 @@ func _update_stations() -> void:
 	if phase == "pour" and hose_holder == null:
 		needed.append("hose")
 	var pulse := 1.0 + 0.18 * sin(phase_t * 6.0)
+	var hs := humans()   # (once, not once per station)
 	for key in stations:
 		var st: Dictionary = stations[key]
 		var n: Node3D = st["node"]
@@ -4711,7 +4718,7 @@ func _update_stations() -> void:
 		# The station's name only shows when it's wanted or someone's close
 		# by: the hand signs say where the work is, so the site stays clean
 		var near := false
-		for h in humans():
+		for h in hs:
 			if h.zone == st["zone"] and Vector2(h.global_position.x - n.global_position.x, h.global_position.z - n.global_position.z).length() < 5.0:
 				near = true
 		(st["label"] as Node3D).visible = n.visible and (on or near)
@@ -4724,8 +4731,14 @@ func _update_stations() -> void:
 		if key == "poker" and phase == "pour" and ops.busy():
 			fade = 0.0
 		ring.visible = fade > 0.01
-		m.albedo_color = Color(col, (0.9 if on else 0.4) * fade)
-		(st["xmat"] as StandardMaterial3D).albedo_color = Color(col, (0.35 if on else 0.15) * fade)
+		# (only when it changes: each set is a call into the renderer)
+		var c := Color(col, (0.9 if on else 0.4) * fade)
+		if m.albedo_color != c:
+			m.albedo_color = c
+		var xm: StandardMaterial3D = st["xmat"]
+		var xc := Color(col, (0.35 if on else 0.15) * fade)
+		if xm.albedo_color != xc:
+			xm.albedo_color = xc
 
 func _update_npcs(delta: float) -> void:
 	var on := phase == "pour"
@@ -5573,8 +5586,11 @@ func _update_camera(delta: float) -> void:
 		# Framed in the colour of the job it's watching (the pump operator's colour, who fixes it, for a
 		# failing clamp or pipe)
 		var role_col: Color = UI.ROLE.get(p.role, Color.WHITE) if p != null else UI.ROLE["pump"]
-		(inset["frame"] as StyleBoxFlat).border_color = role_col
-		(inset["chip"] as StyleBoxFlat).bg_color = role_col
+		# (only when it changes: setting a style box re-lays its panel out)
+		if (inset["frame"] as StyleBoxFlat).border_color != role_col:
+			(inset["frame"] as StyleBoxFlat).border_color = role_col
+		if (inset["chip"] as StyleBoxFlat).bg_color != role_col:
+			(inset["chip"] as StyleBoxFlat).bg_color = role_col
 		(inset["icon"] as TextureRect).texture = Icons.texture(p.role if p != null else "pump", 64)
 		# The player's own button cue, for timing what they see in here
 		var badge = inset["badge"]
