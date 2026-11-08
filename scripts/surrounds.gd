@@ -534,6 +534,17 @@ static func _bus_stop(d: Dictionary, roads: Dictionary, taken: Dictionary, items
 
 ## Along the park paths: post-top lights one side, benches and bins the other.
 static func _park_paths(d: Dictionary, roads: Dictionary, taken: Dictionary, items: Array, rng: RandomNumberGenerator) -> void:
+	# (none out over the river: the map's footway to the CityCat pontoon
+	# runs out over the water, where the game's own gangway is)
+	var river: Array = []
+	for a in d["areas"]:
+		if a["kind"] == "water":
+			river.append(_v2(a["pts"]))
+	var dry := func(p: Vector2) -> bool:
+		for poly: PackedVector2Array in river:
+			if Geometry2D.is_point_in_polygon(p, poly):
+				return false
+		return true
 	for r in d["paths"]:
 		var pts := _v2(r["pts"])
 		var hw := float(r["w"]) * 0.5
@@ -552,7 +563,8 @@ static func _park_paths(d: Dictionary, roads: Dictionary, taken: Dictionary, ite
 			var nrm := Vector2(-dir.y, dir.x)
 			while light < ln:
 				var p := a + dir * light + nrm * (hw + 0.7)
-				if p.length() < PARK_R and _street_ok(p) and not _on_road(p, roads, 0.2) and not _is_taken(p, taken, 5.0):
+				if p.length() < PARK_R and _street_ok(p) and not _on_road(p, roads, 0.2) and not _is_taken(p, taken, 5.0) \
+						and dry.call(p):
 					items.append(["ParkLight", Street.at(p, -nrm)])
 					_take(p, taken)
 				light += rng.randf_range(34.0, 44.0)
@@ -560,7 +572,8 @@ static func _park_paths(d: Dictionary, roads: Dictionary, taken: Dictionary, ite
 			while seat < ln:
 				var p := a + dir * seat - nrm * (hw + 0.9)
 				var q := p + dir * 1.6
-				if p.length() < PARK_R and _street_ok(p) and not _on_road(p, roads, 0.4) and not _is_taken(p, taken, 4.0):
+				if p.length() < PARK_R and _street_ok(p) and not _on_road(p, roads, 0.4) and not _is_taken(p, taken, 4.0) \
+						and dry.call(p) and dry.call(q):
 					items.append(["ParkBench", Street.at(p, nrm)])
 					if rng.randf() < 0.6:
 						items.append(["ParkBin", Street.at(q, nrm)])

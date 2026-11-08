@@ -131,8 +131,16 @@ def flat_ground(out, order):
                            for r in out["roads"] if r["name"] and not r["bridge"] and len(r["pts"]) > 1] + [site_road])
     aisles = [LineString(a["pts"]).buffer(a["w"] / 2, cap_style=2, quad_segs=2)
               for a in out["aisles"] if len(a["pts"]) > 1]
-    layers.append(("path", unary_union([LineString(p["pts"]).buffer(p["w"] / 2, quad_segs=2)
-                                        for p in out["paths"] if len(p["pts"]) > 1])))
+    paths = unary_union([LineString(p["pts"]).buffer(p["w"] / 2, quad_segs=2)
+                         for p in out["paths"] if len(p["pts"]) > 1])
+    # (the map's footway out over the river to the CityCat pontoon is the
+    # game's own gangway: laid flat at ground height it stood up out of the
+    # water as a slab, its sides walled by the banks, through the gangway)
+    river = unary_union([Polygon(a["pts"], [h for h in a.get("holes", []) if len(h) > 3]).buffer(0)
+                         for a in out["areas"] if a["kind"] == "water" and len(a["pts"]) > 3])
+    for fe in out["ferry"]:
+        paths = paths.difference(river.intersection(Point(fe["at"]).buffer(60.0)))
+    layers.append(("path", paths))
     layers.append(("drain", unary_union([LineString(d["pts"]).buffer(d["w"] / 2, quad_segs=2)
                                          for d in out["drains"] if len(d["pts"]) > 1])))
     for kind in reversed(order):
