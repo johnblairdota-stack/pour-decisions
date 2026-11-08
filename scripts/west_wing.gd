@@ -806,19 +806,8 @@ func _slings_to(node: Node3D, on: float) -> void:
 	for i in 2:
 		var end := node.global_transform * Vector3(-1.0 if i == 0 else 1.0, float(node.get_meta("lug_y", 0.3)), 0)
 		var dangle := hook + Vector3(-0.15 if i == 0 else 0.15, -1.0, 0)
-		_line(_slings[i], hook, dangle.lerp(end, on))
+		F.stretch(_slings[i], hook, dangle.lerp(end, on))
 
-static func _line(m: MeshInstance3D, a: Vector3, b: Vector3) -> void:
-	var d := b - a
-	var ln := d.length()
-	if ln < 0.01:
-		m.visible = false
-		return
-	m.visible = true
-	var dir := d / ln
-	var up := Vector3.UP if absf(dir.dot(Vector3.UP)) < 0.99 else Vector3.RIGHT
-	m.transform = Transform3D(Basis.looking_at(dir, up) * Basis(Vector3.RIGHT, -PI * 0.5), (a + b) * 0.5)
-	m.scale = Vector3(1, ln, 1)
 
 func _draw_dogman(l: Dictionary) -> void:
 	var dog := _crew[0]

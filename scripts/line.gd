@@ -760,16 +760,7 @@ func _line(m: MeshInstance3D, a: Vector3, b: Vector3, r: float) -> void:
 		cm.radial_segments = 10
 		m.mesh = cm
 		m.material_override = F.mat("pipe")
-	var d := b - a
-	var ln := d.length()
-	if ln < 0.05:
-		m.visible = false
-		return
-	m.visible = true
-	var dir := d / ln
-	var up := Vector3.UP if absf(dir.dot(Vector3.UP)) < 0.99 else Vector3.RIGHT
-	m.transform = Transform3D(Basis.looking_at(dir, up) * Basis(Vector3.RIGHT, -PI * 0.5), (a + b) * 0.5)
-	m.scale = Vector3(1, ln, 1)
+	F.stretch(m, a, b, 0.05)
 
 func _truck_mesh() -> Node3D:
 	# The agitator, modelled (tools/blender/plant.py): cab-over cab, twin

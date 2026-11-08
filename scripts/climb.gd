@@ -553,17 +553,6 @@ func gap_bottom() -> float:
 func head_y() -> float:
 	return game.head.position.y
 
-func _line(m: MeshInstance3D, a: Vector3, b: Vector3) -> void:
-	var d := b - a
-	var ln := d.length()
-	if ln < 0.01:
-		m.visible = false
-		return
-	m.visible = true
-	var dir := d / ln
-	var up := Vector3.UP if absf(dir.dot(Vector3.UP)) < 0.99 else Vector3.RIGHT
-	m.transform = Transform3D(Basis.looking_at(dir, up) * Basis(Vector3.RIGHT, -PI * 0.5), (a + b) * 0.5)
-	m.scale = Vector3(1, ln, 1)
 
 func _place_frame() -> void:
 	var gb := gap_bottom()
@@ -925,7 +914,7 @@ func _draw_tag_lines(crane_on: bool) -> void:
 			for i in TAG_SEGS + 1:
 				var u := float(i) / TAG_SEGS
 				pts.append(corner.lerp(a, u) + Vector3(0, -sag * 4.0 * u * (1.0 - u), 0))
-			_line(tail, a, Vector3(a.x, game.work_y + 0.05, a.z) + (a - corner).normalized() * Vector3(0.3, 0, 0.3))
+			F.stretch(tail, a, Vector3(a.x, game.work_y + 0.05, a.z) + (a - corner).normalized() * Vector3(0.3, 0, 0.3))
 		else:
 			# Hanging free: down from the corner, swaying with the load, the
 			# end lying on the deck if it reaches
@@ -940,11 +929,11 @@ func _draw_tag_lines(crane_on: bool) -> void:
 			var left := TAG_LEN - drop
 			if left > 0.3 and _over_deck(corner):
 				var away := (Vector3(foot.x, 0, foot.z) - Vector3(load.position.x, 0, load.position.z)).normalized()
-				_line(tail, foot, foot + away * minf(left, 2.5))
+				F.stretch(tail, foot, foot + away * minf(left, 2.5))
 			else:
 				tail.visible = false
 		for i in TAG_SEGS:
-			_line(segs[i], pts[i], pts[i + 1])
+			F.stretch(segs[i], pts[i], pts[i + 1])
 
 ## Deck (or scaffold) under this point, to stand on or for a line to lie on.
 func _over_deck(at: Vector3) -> bool:
@@ -1473,7 +1462,7 @@ func _update_bundle(_delta: float) -> void:
 				add_child(bundle)
 			bundle.position = at
 			bundle.rotation = Vector3(0, 0, 0.05 * sin(_t * 3.0) * haul_prog)
-			_line(haul_rope, top, at + Vector3(0, 0.62, 0))
+			F.stretch(haul_rope, top, at + Vector3(0, 0.62, 0))
 		"up":
 			bundle.visible = pinsets > 0
 			if bundle.get_parent() != self:
@@ -1603,19 +1592,19 @@ func _draw_crane() -> void:
 		for i in 4:
 			if i < legs:
 				var cpt0: Vector3 = load.global_transform * (corners0[i] * (LW * 0.5) + Vector3(0, LS, 0))
-				_line(slings[i], hook_pos, cpt0)
+				F.stretch(slings[i], hook_pos, cpt0)
 			else:
-				_line(slings[i], hook_pos, hook_pos + Vector3(0.12 * (corners0[i] as Vector3).x, -1.2, 0.12 * (corners0[i] as Vector3).z))
+				F.stretch(slings[i], hook_pos, hook_pos + Vector3(0.12 * (corners0[i] as Vector3).x, -1.2, 0.12 * (corners0[i] as Vector3).z))
 	elif crane_busy():
 		hook_pos = Vector3(load.position.x, load.position.y + LS + SLING, load.position.z)
 		var corners := [Vector3(-1, 0, -1), Vector3(1, 0, -1), Vector3(1, 0, 1), Vector3(-1, 0, 1)]
 		for i in 4:
 			var cpt: Vector3 = load.global_transform * (corners[i] * (LW * 0.5) + Vector3(0, LS, 0))
-			_line(slings[i], hook_pos, cpt)
+			F.stretch(slings[i], hook_pos, cpt)
 	else:
 		for s in slings:
 			s.visible = false
-	_line(cable, top, hook_pos + Vector3(0, 0.4, 0))
+	F.stretch(cable, top, hook_pos + Vector3(0, 0.4, 0))
 	hook.position = hook_pos + Vector3(0, 0.4, 0)
 
 # ------------------------------------------------------------------ rigger
@@ -2855,7 +2844,7 @@ func _update_guides(delta: float) -> void:
 	if guiding:
 		var lp := load.position
 		drop_mat.albedo_color = Color(1, 1, 1, 0.35)
-		_line(plumb, Vector3(lp.x, lp.y, lp.z), Vector3(lp.x, gb + 0.03, lp.z))
+		F.stretch(plumb, Vector3(lp.x, lp.y, lp.z), Vector3(lp.x, gb + 0.03, lp.z))
 
 	# The crane's four calls round the load, each arrow the way that call
 	# takes it and named for it, plus hoist / lower
