@@ -111,6 +111,23 @@ func setup(owner_game) -> void:
 	UI.place(_stats, Vector2(0.5, 1.0), Vector2(0, -28))
 	_build_page("main")
 
+## H: hide or show the HUD, from any screen, paused or not (main.toggle_hud).
+## Read before the menus and buttons get the key, but not while someone's
+## typing into a text box.
+func _input(event: InputEvent) -> void:
+	if game == null or game.autotest or visible:
+		return
+	if not (event is InputEventKey and event.pressed and not event.echo):
+		return
+	var k := event as InputEventKey
+	if k.keycode != KEY_H and k.physical_keycode != KEY_H:
+		return
+	var focus := get_viewport().gui_get_focus_owner()
+	if focus is LineEdit or focus is TextEdit:
+		return
+	game.toggle_hud()
+	get_viewport().set_input_as_handled()
+
 func _unhandled_input(event: InputEvent) -> void:
 	if game == null or game.autotest:
 		return
