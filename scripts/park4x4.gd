@@ -82,7 +82,6 @@ var boards: Array = []       # the records boards by the gates (Label3D)
 var _fords: Array = []       # {c, along (unit, the track's way), across, hl, hw}
 var _tgrid := {}             # 10 m cell -> [track index, segment index]
 var _rgrid := {}             # 10 m cell -> [a, b, half width]: the streets through the park's edge
-var _mud_mat: StandardMaterial3D
 var air_posts: Array = []    # where the FREE AIR posts stand, by each way in
 
 func build(d: Dictionary) -> void:

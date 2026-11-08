@@ -1344,16 +1344,6 @@ func float_line(a: Vector3, b: Vector3) -> Vector3i:
 			good += 1
 	return Vector3i(good, early, late)
 
-## Share of the screeded slab that's been floated.
-func float_share() -> float:
-	var n := 0
-	var ok := 0
-	for i in h.size():
-		if scr_t[i] >= 0.0:
-			n += 1
-			ok += flt[i]
-	return float(ok) / maxf(1.0, n)
-
 ## Vibrated enough to screed: this cell, or most of the cells round it.
 func vib_ok(i: int) -> bool:
 	if vib[i] >= 0.5:

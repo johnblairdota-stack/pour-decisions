@@ -84,7 +84,6 @@ const TAG_SEGS := 10
 ## bar lifts): called each frame it's free, true while it has the hook
 var borrow: Callable
 var load: Node3D
-var pin_meshes: Array[MeshInstance3D] = []
 
 var trolley_xz := Vector2(-2.0, 10.0)
 var trolley_v := Vector2.ZERO
@@ -558,9 +557,6 @@ func gap_bottom() -> float:
 
 func head_y() -> float:
 	return game.head.position.y
-
-func wind_at_head() -> float:
-	return wind_gust
 
 func _line(m: MeshInstance3D, a: Vector3, b: Vector3) -> void:
 	var d := b - a
@@ -1396,16 +1392,6 @@ func _bend(k: float) -> void:
 	for c in load.get_children():
 		if c is Node3D and c.has_meta("bend"):
 			c.rotation = (c.get_meta("rot0") as Vector3) + (c.get_meta("bend") as Vector3) * k
-
-func _push_out(c: Vector2, from: Vector2, dist: float) -> void:
-	var n := (c - from)
-	if n.length() < 0.01:
-		n = Vector2(0, 1)
-	n = n.normalized()
-	var want := from + n * dist if dist > 0.0 else c + n * 0.3
-	swing += want - c
-	swing_v = swing_v - n * 1.4 * swing_v.dot(n)
-	_place_load()
 
 ## The crane slews over the laydown and lowers its hook to the section's top,
 ## then waits there for the slinger.

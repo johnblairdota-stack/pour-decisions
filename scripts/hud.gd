@@ -690,9 +690,6 @@ func set_signal(text: String, color := Color.WHITE) -> void:
 	signal_label.add_theme_color_override("font_color", color)
 	signal_panel.visible = text != ""
 
-func show_bolt(on: bool, bolt := 1, total := 4, zone_from := 0.6, zone_w := 0.18, marker := 0.0) -> void:
-	show_meter(on, "BOLT %d / %d" % [bolt, total], "", zone_from, zone_w, marker)
-
 func show_meter(on: bool, title := "", _hint := "", zone_from := 0.6, zone_w := 0.18, marker := 0.0, button := "A") -> void:
 	bolt_panel.visible = on
 	if not on:
@@ -1161,11 +1158,6 @@ func show_topout(text: String) -> void:
 	banner.visible = true
 	facts.visible = true
 	facts_label.text = text
-
-func hide_topout() -> void:
-	banner.visible = false
-	facts.visible = false
-
 
 ## At big screen-text sizes the job tickets drop below the task bar, so the
 ## three panels along the top never collide.

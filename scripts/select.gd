@@ -830,10 +830,6 @@ func set_join(text: String, url := "") -> void:
 	if _qr_rect != null:
 		(_qr_rect.get_parent() as Control).visible = _qr_rect.texture != null
 
-## (Older entry point, kept for the main script.)
-func show_roles() -> void:
-	_show_page("crew")
-
 # ------------------------------------------------------------------ pictures
 
 ## A countdown ring: a gold arc that runs down, with the seconds in the middle.

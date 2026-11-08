@@ -92,21 +92,6 @@ static func ptag(i: int, size := 18, bot := false) -> PanelContainer:
 	p.add_child(l)
 	return p
 
-## The verb tag: a dark pill with the job's dot, then the words.
-static func verb_tag(text: String, dot: Color, size := 20, col := BONE) -> PanelContainer:
-	var p := pill(Color(TRACK, 0.92), Vector4(10, 4, 14, 4))
-	var h := HBoxContainer.new()
-	h.add_theme_constant_override("separation", 8)
-	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	p.add_child(h)
-	var d := Hat.new()
-	d.dot = true
-	d.color = dot
-	d.custom_minimum_size = Vector2(size * 0.55, size * 0.55)
-	d.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	h.add_child(d)
-	h.add_child(head(text, size, col))
-	return p
 ## Job colours: the same as the hard hats, so a colour always means a job
 const ROLE := {"boom": Color("ffc72c"), "line": Color("7cd992"), "pump": Color("ff7a1a"), "poker": Color("c49bff"), "screed": Color("f4f7fa"), "hose": Color("2fd3e8")}
 const ROLE_NAME := {"boom": "Boom operator", "line": "Truck hand", "pump": "Pump operator", "poker": "Poker hand", "screed": "Screeder", "hose": "Hose hand"}

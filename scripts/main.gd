@@ -65,7 +65,6 @@ const BIG_SLAB_LOAD := 1.3      # ...carrying up to this much more each
 const LS := 4.14
 const LW := 2.0
 const LAT_X := 12.0
-const HEAD_MIN := 4.0
 const HEAD_TARGET := 9.5
 const SHOULDER := 1.7
 const HOSE := 3.0
@@ -84,7 +83,6 @@ var HOIST_Z := 4.4
 const WALK_GAP := 0.15        # m between the slab edge and the walkway (the formwork)
 const WALK_W := 1.4           # m wide
 const WALK_MID := WALK_GAP + WALK_W * 0.5   # centreline, out from the slab edge
-const NPC_POKER_R := 1.1
 
 const DECK_STATIONS := {
 	"boom": {"pos": Vector3(8.85, 0, 2.85), "label": "BOOM REMOTE", "color": Color("ffc72c")},
@@ -118,10 +116,6 @@ const GROUND_STATIONS := {
 	"van": {"pos": Vector3(31.0, 0, 12.1), "label": "COFFEE VAN", "color": Color("f4f7fa")},
 }
 const PLAYER_COLORS := UI.P_COLORS
-const ACTION_NAMES := ["Space", "Enter", "A", "A"]
-const ALT_NAMES := ["E", "R-Ctrl", "X", "X"]
-const LEAVE_NAMES := ["Q", "R-Shift", "B", "B"]
-const SLOW_NAMES := ["F", "R-Alt", "RB", "RB"]
 
 var kit := ""
 var phase := "roles"
@@ -1009,7 +1003,6 @@ const TUT_LAST := 3           # the tank wall and its roof slab
 const TUT_R := 5.8            # radius of the tank floor and roof slabs
 const SHAFT_R := 3.0
 var _rect_rails: Array = []
-var _tut_nodes: Array = []
 
 ## Deck stations sit a little further in on the round slab.
 const TUT_DECK := {
@@ -1399,11 +1392,6 @@ func walkway_point(s: float) -> Vector2:
 		return c + Vector2(A - s, B)
 	s -= 2.0 * A
 	return c + Vector2(-A, B - s)
-
-func walkway_length() -> float:
-	if tutorial:
-		return TAU * (TUT_R + WALK_MID)
-	return 4.0 * (BW * 0.5 + WALK_MID + BD * 0.5 + WALK_MID)
 
 ## How far round the walkway the point nearest `q` is.
 func walkway_param(q: Vector2) -> float:
@@ -2181,12 +2169,6 @@ func walk_bounds(zone: String) -> Rect2:
 		var x0 := SC.x - BW * 0.5 - 2.0
 		return Rect2(x0, SC.z - BD * 0.5 - 2.0, LAT_X + 2.6 - x0, BD + 4.0)
 	return Rect2(-9.6, -4.5, 43.6, 17.6)
-
-func _needs_climb() -> bool:
-	return head.position.y < pour_level() + HEAD_MIN
-
-func _climb_done() -> bool:
-	return head.position.y >= pour_level() + HEAD_TARGET
 
 func _filled_ratio() -> float:
 	if kit == "truck":

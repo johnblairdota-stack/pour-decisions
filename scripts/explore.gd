@@ -40,16 +40,13 @@ const RAMP := 6.0            # m of ramp from the terminal's landing down to the
 
 ## The ute's engine and chassis (m/s, m/s²): an arcade feel, but with weight
 const TOP := 41.0            # ~150 km/h
-const PULL := 8.2            # off the line
 const BRAKE := 15.0
 const REVERSE := 9.0
 const REV_ACC := 6.0
-const ENGINE_DRAG := 1.4
 const GRIP := 13.0           # how hard the tyres pull the car back onto its heading
 const MU := 10.5             # most sideways the tyres can hold (m/s²) before it slides
 const MU_HANDBRAKE := 3.2
 const COM_H := 0.85          # a ute's centre of mass above the ground (m)
-const GEARS := [0.0, 8.0, 15.5, 23.0, 30.5, 37.0, 99.0]
 
 var game
 var active := false
