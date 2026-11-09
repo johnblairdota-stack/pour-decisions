@@ -126,6 +126,19 @@ body.roam.drive #pedals{display:block}
 #brake small{font-size:1.9vmin;letter-spacing:0}
 #gas{--pc:#7cd992;left:82vw;width:15vw;top:16vh;bottom:4vh}
 body.roam #ticket,body.roam #helping{display:none}
+/* --- climb days: the dogman's landing view, a tag hand's line gauge (over the ticket's top) */
+#climbp{position:absolute;left:34vw;width:33vw;top:2.6vmin;z-index:6;display:none;background:#0c0e12;border:2px solid #23262e;border-radius:4vmin;padding:2vmin;box-sizing:border-box}
+#climbp.on{display:block}
+#dialbox{display:flex;align-items:center;gap:2vmin}
+#dial{display:none;width:28vmin;height:28vmin}
+#dialv{font-size:5vmin;color:#ffd23f}
+#tagg{display:none}
+#tagg .row{display:flex;justify-content:space-between;font-size:5vmin}
+#tagtrack{position:relative;height:4vmin;border-radius:2vmin;overflow:hidden;display:flex;margin:1.6vmin 0}
+#tagtrack i{display:block;height:100%}
+#tagtrack .s{width:30%;background:#5a6170}#tagtrack .w{width:45%;background:#4fb36b}#tagtrack .t{width:25%;background:#ff3b2f}
+#tagbar{position:absolute;top:-0.5vmin;bottom:-0.5vmin;width:1.2vmin;margin-left:-0.6vmin;background:#fff;border-radius:1vmin}
+#tagleft{font-size:3.2vmin;color:#b9b6ad}
 /* --- play: the ticket */
 #ticket{position:absolute;left:34vw;width:33vw;top:2.6vmin;bottom:2.6vmin;border-radius:4.6vmin;background:var(--paper);color:#1b1a17;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 3vmin 7vmin rgba(0,0,0,.5);transition:transform .45s cubic-bezier(.3,1.3,.5,1)}
 #thead{display:flex;align-items:center;gap:2.4vmin;background:var(--job);color:#111;padding:2.2vmin 2.8vmin;text-align:left;width:100%}
@@ -384,6 +397,10 @@ body.roam #ticket,body.roam #helping{display:none}
     <div class="pedal" id="brake"><div class="pf"></div><b>BRAKE/<wbr>REVERSE</b><small>HOLD AT A STOP TO BACK UP</small></div>
     <div class="pedal" id="gas"><div class="pf"></div><b>GAS</b><small>SLIDE UP = MORE</small></div>
   </div>
+  <div id="climbp"><div id="dialbox"><svg id="dial" viewBox="0 0 100 100"></svg><div id="dialv" class="hd"></div></div>
+    <div id="tagg"><div class="row"><span class="hd" id="tagn">LINE 1</span><span class="hd" id="tagw">SLACK</span></div>
+      <div id="tagtrack"><i class="s"></i><i class="w"></i><i class="t"></i><b id="tagbar"></b></div>
+      <div id="tagleft"></div></div></div>
   <div id="ticket">
     <button id="thead" aria-label="Your job, tap to swap">
       <svg class="hat" id="thhat" viewBox="0 0 24 20"><path d="M1 16h22v2H1z M3.5 16v-3a8.5 8.5 0 0 1 17 0v3z" fill="currentColor"/></svg>
@@ -544,6 +561,7 @@ function onJson(j) {
   else if (j.t === 'nudge') { setNudge(j.lvl); setSpray(j); }
   else if (j.t === 'toast') toast(j.msg);
   else if (j.t === 'dog') drawDog(j);
+  else if (j.t === 'tagline') drawTagLine(j);
   else if (j.t === 'smoko') drawSmoko(j);
   else if (j.t === 'wallet') onWallet(j);
   else if (j.t === 'shop') { shop = j; if (walletOpen) drawWallet(); }
@@ -562,6 +580,7 @@ function drawSmoko(j) {
 // The dogman: each crane call sits round the stick the way you push for it
 let dogLit = '';
 function drawDog(j) {
+  drawDial(j);
   const z = $('zone');
   z.classList.toggle('dog', !!j.on);
   z.querySelector('.lbl').textContent = j.on ? 'Let go = STOP' : 'Stick';
@@ -574,6 +593,39 @@ function drawDog(j) {
   });
   if (j.lit && j.lit !== dogLit) buzz(BUZZ.press);
   dogLit = j.lit || '';
+}
+// Climb days: the dogman's landing seen from above (spots, and the load's legs
+// where they are now), and a tag hand's line gauge. Over the top of the ticket.
+const LEG_COL = ['#ffffff', '#ffd23f', '#7cd992'];
+function drawDial(j) {
+  const p = $('climbp'), d = $('dial');
+  const on = !!j.on && !!j.legs;
+  p.classList.toggle('on', on || p.classList.contains('tag'));
+  d.style.display = on ? 'block' : 'none';
+  $('dialv').style.display = on ? 'block' : 'none';
+  if (!on) return;
+  const k = 26; // px per metre in the 100 x 100 view
+  let h = '<rect x="0" y="0" width="100" height="100" rx="8" fill="#1a1d24"/>';
+  j.spots.forEach((s, i) => { h += '<circle cx="' + (50 + s[0] * k).toFixed(1) + '" cy="' + (50 + s[1] * k).toFixed(1) + '" r="10" fill="none" stroke="#5a6170" stroke-width="2.5"/><text x="' + (50 + s[0] * k).toFixed(1) + '" y="' + (53.5 + s[1] * k).toFixed(1) + '" font-size="10" text-anchor="middle" fill="#9aa3ae">' + (i + 1) + '</text>'; });
+  j.legs.forEach((l) => {
+    const x = Math.max(4, Math.min(96, 50 + l[0] * k)), y = Math.max(4, Math.min(96, 50 + l[1] * k));
+    h += '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="6" fill="' + LEG_COL[l[3]] + '" opacity="0.9"/>';
+  });
+  d.innerHTML = h;
+  $('dialv').textContent = j.v > 0 ? 'HOIST' : (j.v < 0 ? 'LOWER' : '');
+}
+function drawTagLine(j) {
+  const p = $('climbp');
+  p.classList.toggle('tag', !!j.on);
+  p.classList.toggle('on', !!j.on || $('dial').style.display === 'block');
+  $('tagg').style.display = j.on ? 'block' : 'none';
+  if (!j.on) return;
+  $('tagn').textContent = 'LINE ' + j.n;
+  const w = $('tagw');
+  w.textContent = j.word;
+  w.style.color = j.word === 'TOO TIGHT' ? '#ff3b2f' : (j.word === 'WORKING' ? '#7cd992' : '#b9b6ad');
+  $('tagbar').style.left = (Math.round(j.f * 100)) + '%';
+  $('tagleft').textContent = j.left + ' m of line left' + (j.slack > 0.3 ? ' · ' + j.slack.toFixed(1) + ' m slack' : '');
 }
 function showScreen() {
   const lobby = screen === 'lobby';

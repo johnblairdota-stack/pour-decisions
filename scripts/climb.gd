@@ -596,6 +596,7 @@ func _build_guides() -> void:
 		r.visible = false
 		add_child(r)
 		rings.append(r)
+	_build_ring()
 	# A crew member on the tag line when no player is
 	tag_npc = F.chibi(Color("ff7a1a"), Color("f4f7fa"))
 	F.kit(tag_npc, "dogman")
@@ -2957,6 +2958,124 @@ func _gesture(p, call_name: String, dir: Vector2, slow: bool) -> void:
 		left = Vector3(-1.35, 0, 0.1)
 	p.pose_arms(left, right)
 
+# ------------------------------------------------------------------ the dogman's ring
+
+## A flat ring that hovers under the load at the height it lands on, so it
+## never runs into anything and always sits level with the runway's spots.
+## Outer ring: the crane's four calls, each an arrow the way it takes the
+## load, its name painted by it (the one being called gold). Inner ring: the
+## load's own four legs, where they are now, turning with it, each numbered
+## and coloured for the spot it's nearest. HOIST / LOWER in the middle.
+var ring_root: Node3D
+var ring_arrows: Array[Node3D] = []
+var ring_words: Array[Label3D] = []
+var ring_legs: Array[MeshInstance3D] = []
+var ring_leg_nums: Array[Label3D] = []
+var ring_vert: Label3D
+const RING_OUT := 3.0       # m: the calls' ring
+const RING_IN := 1.6        # m: the legs' ring (the legs sit just inside it)
+
+func _flat_label(text: String, size: int) -> Label3D:
+	var l := F.label3d(text, size, Color.WHITE)
+	l.billboard = BaseMaterial3D.BILLBOARD_DISABLED
+	l.pixel_size = 0.009
+	l.outline_size = 8
+	l.render_priority = 13
+	l.outline_render_priority = 12
+	return l
+
+func _build_ring() -> void:
+	ring_root = Node3D.new()
+	ring_root.visible = false
+	add_child(ring_root)
+	for r in [RING_OUT, RING_IN]:
+		var t := MeshInstance3D.new()
+		var tm := TorusMesh.new()
+		tm.inner_radius = r - 0.04
+		tm.outer_radius = r + 0.04
+		tm.rings = 48
+		t.mesh = tm
+		t.scale = Vector3(1, 0.3, 1)
+		t.material_override = _overlay_mat(Color(1, 1, 1, 0.35))
+		t.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		ring_root.add_child(t)
+	for i in 4:
+		var a := _arrow(Color(1, 1, 1, 0.55), 1.1)
+		a.visible = true
+		remove_child(a)
+		ring_root.add_child(a)
+		ring_arrows.append(a)
+		var w := _flat_label("", 40)
+		w.pixel_size = 0.012
+		ring_root.add_child(w)
+		ring_words.append(w)
+		var d := MeshInstance3D.new()
+		var dm := CylinderMesh.new()
+		dm.top_radius = 0.27
+		dm.bottom_radius = 0.27
+		dm.height = 0.03
+		dm.radial_segments = 16
+		d.mesh = dm
+		d.material_override = _overlay_mat(Color(1, 1, 1, 0.8))
+		d.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		ring_root.add_child(d)
+		ring_legs.append(d)
+		var n := _flat_label("", 40)
+		n.modulate = Color("1d1a14")
+		n.outline_size = 0
+		ring_root.add_child(n)
+		ring_leg_nums.append(n)
+	ring_vert = _flat_label("", 40)
+	ring_vert.pixel_size = 0.012
+	ring_root.add_child(ring_vert)
+
+func _update_ring(show: bool, gb: float) -> void:
+	ring_root.visible = show
+	if not show:
+		return
+	var c := Vector2(load.position.x, load.position.z)
+	ring_root.position = Vector3(c.x, gb + 0.08, c.y)
+	var read := Vector3(-PI * 0.5, game.cam_yaw, 0)   # (flat words turned to read from the camera)
+	var cd := call_dirs()
+	var keys := cd.keys()
+	for i in 4:
+		var w: Vector2 = cd[keys[i]]
+		var d := Vector3(w.x, 0, w.y)
+		var lit: bool = _call == keys[i]
+		var a := ring_arrows[i]
+		a.position = d * (RING_OUT - 0.2)
+		_point(a, d)
+		(a.get_meta("mat") as StandardMaterial3D).albedo_color = Color(1.0, 0.78, 0.17, 1.0) if lit else Color(1, 1, 1, 0.55)
+		var lw := ring_words[i]
+		lw.text = keys[i]
+		lw.position = d * (RING_OUT + 1.6)
+		lw.rotation = read
+		lw.modulate = Color(1.0, 0.82, 0.25) if lit else Color(1, 1, 1, 0.85)
+	# The load's legs, where they are now, numbered for the spot each is
+	# nearest (the same numbers as the spots painted on the runway)
+	var tol := leg_tol()
+	var spots: Array[Vector2] = []
+	for k in [Vector2(1, 1), Vector2(1, -1), Vector2(-1, 1), Vector2(-1, -1)]:
+		spots.append(Vector2(LAT_X, RUNWAY_Z) + k * LW * 0.5)
+	var i := 0
+	for k in [Vector2(1, 1), Vector2(1, -1), Vector2(-1, 1), Vector2(-1, -1)]:
+		var off: Vector2 = (k * LW * 0.5).rotated(-spin)
+		var leg := c + off
+		var best := 0
+		for s in 4:
+			if leg.distance_to(spots[s]) < leg.distance_to(spots[best]):
+				best = s
+		var col := _near_colour(leg.distance_to(spots[best]), tol, 0.85)
+		ring_legs[i].position = Vector3(off.x, 0.02, off.y)
+		(ring_legs[i].material_override as StandardMaterial3D).albedo_color = col
+		ring_leg_nums[i].text = str(best + 1)
+		ring_leg_nums[i].position = Vector3(off.x, 0.05, off.y)
+		ring_leg_nums[i].rotation = read
+		i += 1
+	ring_vert.text = "HOIST" if _vert > 0.0 else ("LOWER" if _vert < 0.0 else "")
+	ring_vert.rotation = read
+	ring_vert.modulate = Color(1.0, 0.82, 0.25)
+
 ## White when it's far off its spot, warming through gold as it closes in,
 ## green once it's inside `tol`.
 func _near_colour(d: float, tol: float, alpha: float) -> Color:
@@ -2980,55 +3099,15 @@ func _update_guides(delta: float) -> void:
 		drop_mat.albedo_color = Color(1, 1, 1, 0.35)
 		F.stretch(plumb, Vector3(lp.x, lp.y, lp.z), Vector3(lp.x, gb + 0.03, lp.z))
 
-	# The crane's four calls round the load, each arrow the way that call
-	# takes it and named for it, plus hoist / lower
+	# Nothing floats round the load any more: the calls and the legs are on
+	# the ring under it, at the height it lands (_update_ring)
 	var yaw: float = game.cam_yaw
-	var cd := call_dirs()
-	var keys := cd.keys()
 	for i in 6:
-		var a := guide_arrows[i]
-		# (a bot dogman's arrows show only in a test run, for its screenshots)
-		a.visible = guiding and (_dogman != null or (game.autotest and dog_bot != null))
-		call_labels[i].visible = a.visible
-		if not a.visible:
-			continue
-		var lit := false
-		var lc := load.position + Vector3(0, LS * 0.5, 0)
-		if i < 4:
-			var w: Vector2 = cd[keys[i]]
-			var d := Vector3(w.x, 0, w.y)
-			a.position = lc + d * 1.4
-			_point(a, d)
-			lit = _call == keys[i]
-			call_labels[i].text = keys[i]
-			call_labels[i].position = a.position + d * 0.75
-		elif i == 4:
-			a.position = load.position + Vector3(0, LS + 0.3, 0)
-			_point(a, Vector3.UP)
-			lit = _vert > 0.0
-			call_labels[i].position = a.position + Vector3(0, 0.75, 0)
-		else:
-			a.position = load.position + Vector3(0, -0.3, 0)
-			_point(a, Vector3.DOWN)
-			lit = _vert < 0.0
-			call_labels[i].position = a.position + Vector3(0, -0.75, 0)
-		# (the words on the arrow's shaft: dark ink on a white edge, so they
-		# read on the white arrow and on the gold one it turns when it's the call)
-		call_labels[i].modulate = Color(0.04, 0.07, 0.12, 1.0)
-		call_labels[i].outline_modulate = Color(1.0, 0.86, 0.35, 0.95) if lit else Color(1, 1, 1, 0.9)
-		var m: StandardMaterial3D = a.get_meta("mat")
-		m.albedo_color = Color(1.0, 0.78, 0.17, 1.0) if lit else Color(1, 1, 1, 0.45)
-		a.scale = Vector3.ONE * (1.25 if lit else 1.0)
-
-	# What the crane is actually doing right now (it lags the whistle)
-	var moving := trolley_v.length() > 0.08 or absf(hoist_v) > 0.06
-	motion_arrow.visible = guiding and moving
-	if motion_arrow.visible:
-		motion_arrow.position = hook.position + Vector3(0, 0.9, 0)
-		if trolley_v.length() > 0.08:
-			_point(motion_arrow, Vector3(trolley_v.x, 0, trolley_v.y).normalized())
-		else:
-			_point(motion_arrow, Vector3.UP if hoist_v > 0.0 else Vector3.DOWN)
+		guide_arrows[i].visible = false
+		call_labels[i].visible = false
+	motion_arrow.visible = false
+	# (a bot dogman's ring shows only in a test run, for its screenshots)
+	_update_ring(guiding and (_dogman != null or (game.autotest and dog_bot != null)), gb)
 
 	# The ghost, always on while it's dogged: the section, white and
 	# see-through, where it'll be in a moment if the call's STOP now (its
@@ -3091,7 +3170,7 @@ func _update_guides(delta: float) -> void:
 			var c := _near_colour(near, tol, 0.6)
 			leg_mats[i].albedo_color = c
 			var leg3 := Vector3(best.x, at.y + 0.05, best.y)
-			ghost_nums[i].visible = true
+			ghost_nums[i].visible = false   # (the ring under the load carries the legs now)
 			# (up the ghost's leg, where it reads against the lattice)
 			ghost_nums[i].position = leg3 + Vector3(0, 1.4, 0)
 			ghost_nums[i].modulate = Color(c, 1.0)
@@ -3099,7 +3178,7 @@ func _update_guides(delta: float) -> void:
 			spot_num.modulate = Color(c, 1.0)
 			# (turned to read the right way up from the camera)
 			spot_num.rotation = Vector3(-PI * 0.5, game.cam_yaw, 0)
-			leg_arrows[i].visible = near > 0.05 and near < 3.0
+			leg_arrows[i].visible = false
 			if leg_arrows[i].visible:
 				F.stretch(leg_arrows[i], leg3, Vector3(spot.x, gb + 0.05, spot.y))
 				(leg_arrows[i].material_override as StandardMaterial3D).albedo_color = Color(c, 0.85)

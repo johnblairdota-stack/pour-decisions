@@ -502,8 +502,45 @@ func _send_state(c: Dictionary) -> void:
 		for k in dirs:
 			var s: Vector2 = cl.stick_of(dirs[k])
 			calls.append([k, int(round(rad_to_deg(atan2(s.y, s.x)) / 5.0)) * 5])
-		dog = {"t": "dog", "on": true, "c": calls, "lit": cl._call}
+		dog = {"t": "dog", "on": true, "c": calls, "lit": cl._call, "v": int(signf(cl._vert))}
+		# The landing from above, turned to match the stick: the four spots and
+		# where the load's four legs are now (each with the spot it's nearest)
+		if cl.load != null:
+			var lp: Vector3 = cl.load.position
+			var land := Vector2(cl.LAT_X, cl.RUNWAY_Z)
+			var spots := []
+			var legs := []
+			for k in [Vector2(1, 1), Vector2(1, -1), Vector2(-1, 1), Vector2(-1, -1)]:
+				var sp: Vector2 = cl.stick_of(k * cl.LW * 0.5)
+				spots.append([snappedf(sp.x, 0.05), snappedf(sp.y, 0.05)])
+			for k in [Vector2(1, 1), Vector2(1, -1), Vector2(-1, 1), Vector2(-1, -1)]:
+				var leg: Vector2 = Vector2(lp.x, lp.z) + (k * cl.LW * 0.5).rotated(-cl.spin)
+				var best := 0
+				var bd := INF
+				var i := 0
+				for k2 in [Vector2(1, 1), Vector2(1, -1), Vector2(-1, 1), Vector2(-1, -1)]:
+					var d: float = leg.distance_to(land + k2 * cl.LW * 0.5)
+					if d < bd:
+						bd = d
+						best = i
+					i += 1
+				var rel: Vector2 = cl.stick_of(leg - land)
+				legs.append([snappedf(rel.x, 0.05), snappedf(rel.y, 0.05), best + 1, 2 if bd < cl.leg_tol() else (1 if bd < cl.leg_tol() + 1.5 else 0)])
+			dog["spots"] = spots
+			dog["legs"] = legs
 	_json(c, "dog", dog)
+	# A tag hand: how their line's working
+	var tg := {"t": "tagline", "on": false}
+	if cl != null and cl.active and p.busy in cl.TAG_KEYS:
+		var n: int = cl.TAG_KEYS.find(p.busy)
+		var grip: float = cl.TAG_GRIP[clampi(cl.help(), 0, 2)]
+		var tension: float = cl.tag_t[n]
+		var corner: Vector3 = cl._tag_corner(n) if cl.load != null else Vector3.ZERO
+		var slack: float = float(cl.tag_len[n]) - (cl.tag_from[n] as Vector3).distance_to(corner)
+		var word := "TOO TIGHT" if tension > grip * 0.85 else ("WORKING" if tension > 0.0 or slack < 0.3 else "SLACK")
+		tg = {"t": "tagline", "on": true, "n": n + 1, "word": word, "f": snappedf(clampf(tension / grip, 0.0, 1.0), 0.05),
+			"slack": snappedf(maxf(0.0, slack), 0.1), "left": int(cl.TAG_LEN - float(cl.tag_len[n]))}
+	_json(c, "tagline", tg)
 	if cl != null and cl.smoko != null:
 		_json(c, "smoko", cl.smoko.phone_state(p))
 	_json(c, "nudge", {"t": "nudge", "lvl": int(game.nudge_level(p)) if game.has_method("nudge_level") else 0,
