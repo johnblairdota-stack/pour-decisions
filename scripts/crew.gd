@@ -162,8 +162,8 @@ func join(remote: bool, want_index := -1):
 		return null
 	var idx := want_index
 	if idx < 0:
-		# (phones leave P2 for a second keyboard or pad if they can)
-		for i in ([3, 4, 5, 6, 2] if remote else [2, 3, 4, 5, 6]):
+		# (the lowest free number, so phones count up P2, P3, P4... in order)
+		for i in range(2, MAX_PEOPLE + 1):
 			if human(i) == null:
 				idx = i
 				break
