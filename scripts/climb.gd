@@ -769,6 +769,9 @@ func _fly_step(delta: float) -> Vector2:
 ## Over to the dogman: the driver can't see it from here, so it arrives
 ## swinging and turned.
 func _to_guide() -> void:
+	# (which way round it's to land: the quarter turn it's nearest now, kept
+	# for the whole lift, so each leg has its own spot from the start)
+	_leg_q = roundi(spin / (PI * 0.5))
 	_cmds.clear()
 	_op_dir = Vector2.ZERO
 	_op_vert = 0.0
@@ -1254,16 +1257,38 @@ func _tag_pull(xz: Vector2, bottom: float, yaw: float, lens: Array, prev: Array,
 		turn += (r.z * f.x - r.x * f.z) / LOAD_I
 	return [acc, turn]
 
-## How far the worst of the section's four legs is from its spot on the
-## runway, for the load's centre at `xz` turned `yaw`. (The section's square,
-## so any quarter turn lines up.)
+## The section's four legs (and the four spots on the runway), as corners.
+const CORNERS := [Vector2(1, 1), Vector2(1, -1), Vector2(-1, 1), Vector2(-1, -1)]
+var _leg_q := 0             # the quarter turn the load's to land at, fixed when the dogman takes it
+
+## The turn the load has to land at.
+func land_yaw() -> float:
+	return _leg_q * PI * 0.5
+
+## `yaw`'s nearest equal of the landing turn (what squaring it up turns it to).
+func _square_to(yaw: float) -> float:
+	return yaw + wrapf(land_yaw() - yaw, -PI, PI)
+
+## Which spot (0-3, as numbered on the runway) leg `i` has to land on.
+func leg_spot(i: int) -> int:
+	var want: Vector2 = (CORNERS[i] * LW * 0.5).rotated(-land_yaw())
+	for j in 4:
+		if (CORNERS[j] * LW * 0.5).distance_to(want) < 0.1:
+			return j
+	return i
+
+## How far leg `i` is from its own spot, for the load's centre at `xz` turned `yaw`.
+func leg_dist(i: int, xz: Vector2, yaw: float) -> float:
+	var leg: Vector2 = xz + (CORNERS[i] * LW * 0.5).rotated(-yaw)
+	var spot: Vector2 = Vector2(LAT_X, RUNWAY_Z) + CORNERS[leg_spot(i)] * LW * 0.5
+	return leg.distance_to(spot)
+
+## How far the worst of the section's four legs is from its own spot on the
+## runway, for the load's centre at `xz` turned `yaw`.
 func leg_err(xz: Vector2, yaw: float) -> float:
-	var c := xz - Vector2(LAT_X, RUNWAY_Z)
-	var th := yaw - roundf(yaw / (PI * 0.5)) * PI * 0.5
 	var worst := 0.0
-	for k in [Vector2(1, 1), Vector2(1, -1), Vector2(-1, 1), Vector2(-1, -1)]:
-		var leg: Vector2 = k * LW * 0.5
-		worst = maxf(worst, (c + leg.rotated(-th) - leg).length())
+	for i in 4:
+		worst = maxf(worst, leg_dist(i, xz, yaw))
 	return worst
 
 ## How close the legs have to be to seat, by the help setting.
@@ -1286,7 +1311,7 @@ func _hands_on(delta: float) -> void:
 	if not hands:
 		return
 	var k: float = [1.0, 0.75, 0.55][clampi(help(), 0, 2)]
-	var square := roundf(spin / (PI * 0.5)) * PI * 0.5
+	var square := _square_to(spin)
 	spin_v += (-(spin - square) * 3.0 - spin_v * 2.5) * k * delta
 	swing_v *= maxf(0.0, 1.0 - 1.2 * k * delta)
 
@@ -1303,7 +1328,7 @@ func _lock_in(delta: float) -> void:
 	var k := minf(1.0, delta * 2.5)
 	swing += (Vector2(LAT_X, RUNWAY_Z) - xz) * k
 	swing_v *= 1.0 - k
-	var square := roundf(spin / (PI * 0.5)) * PI * 0.5
+	var square := _square_to(spin)
 	spin += (square - spin) * k
 	spin_v *= 1.0 - k
 
@@ -2697,7 +2722,7 @@ func _tag_bot(p, n: int, delta: float, corner: Vector3, span: float) -> void:
 	var want := Vector3(corner.x, p.position.y, corner.z) + side * 2.6 + out * 1.2
 	if Vector2(want.x - p.position.x, want.z - p.position.z).length() > 0.4:
 		p.run_to = want
-	var square := roundf(spin / (PI * 0.5)) * PI * 0.5
+	var square := _square_to(spin)
 	# (how hard to turn it: toward square, easing off as it gets going)
 	var need := -(spin - square) * 3.0 - spin_v * 2.5
 	var hand: Vector3 = p.global_position + Vector3(0, 1.0, 0)
@@ -3051,38 +3076,37 @@ func _update_ring(show: bool, gb: float) -> void:
 		lw.position = d * (RING_OUT + 1.6)
 		lw.rotation = read
 		lw.modulate = Color(1.0, 0.82, 0.25) if lit else Color(1, 1, 1, 0.85)
-	# The load's legs, where they are now, numbered for the spot each is
-	# nearest (the same numbers as the spots painted on the runway)
+	# The load's legs, where they are now, each numbered for the spot it has
+	# to land on (the same numbers as the spots painted on the runway) and
+	# coloured for how far it is from it
 	var tol := leg_tol()
-	var spots: Array[Vector2] = []
-	for k in [Vector2(1, 1), Vector2(1, -1), Vector2(-1, 1), Vector2(-1, -1)]:
-		spots.append(Vector2(LAT_X, RUNWAY_Z) + k * LW * 0.5)
-	var i := 0
-	for k in [Vector2(1, 1), Vector2(1, -1), Vector2(-1, 1), Vector2(-1, -1)]:
-		var off: Vector2 = (k * LW * 0.5).rotated(-spin)
-		var leg := c + off
-		var best := 0
-		for s in 4:
-			if leg.distance_to(spots[s]) < leg.distance_to(spots[best]):
-				best = s
-		var col := _near_colour(leg.distance_to(spots[best]), tol, 0.85)
+	for i in 4:
+		var off: Vector2 = (CORNERS[i] * LW * 0.5).rotated(-spin)
+		var col := _near_colour(leg_dist(i, c, spin), tol, 0.85)
 		ring_legs[i].position = Vector3(off.x, 0.02, off.y)
 		(ring_legs[i].material_override as StandardMaterial3D).albedo_color = col
-		ring_leg_nums[i].text = str(best + 1)
+		ring_leg_nums[i].text = str(leg_spot(i) + 1)
 		ring_leg_nums[i].position = Vector3(off.x, 0.05, off.y)
 		ring_leg_nums[i].rotation = read
-		i += 1
 	ring_vert.text = "HOIST" if _vert > 0.0 else ("LOWER" if _vert < 0.0 else "")
 	ring_vert.rotation = read
 	ring_vert.modulate = Color(1.0, 0.82, 0.25)
 
-## White when it's far off its spot, warming through gold as it closes in,
-## green once it's inside `tol`.
+## How close a leg is to its spot, as a colour: red far off, through orange
+## and yellow as it closes in, green once it's inside `tol`.
 func _near_colour(d: float, tol: float, alpha: float) -> Color:
 	if d < tol:
 		return Color(0.31, 0.85, 0.45, alpha + 0.2)
-	var u := clampf((d - tol) / 1.5, 0.0, 1.0)
-	return Color(1.0, 0.82, 0.25, alpha + 0.15).lerp(Color(1, 1, 1, alpha), u)
+	var u := clampf((d - tol) / 2.0, 0.0, 1.0)
+	var a := alpha + 0.15
+	if u < 0.5:
+		return Color(1.0, 0.84, 0.25, a).lerp(Color(1.0, 0.55, 0.1, a), u * 2.0)
+	return Color(1.0, 0.55, 0.1, a).lerp(Color(1.0, 0.23, 0.18, a), (u - 0.5) * 2.0)
+
+## The same four steps for the phone: 0 red, 1 orange, 2 yellow, 3 green.
+func near_level(d: float) -> int:
+	var tol := leg_tol()
+	return 3 if d < tol else (2 if d < tol + 0.7 else (1 if d < tol + 1.5 else 0))
 
 ## Arrows, the ghost, the leg spots and whistle rings for the dogman.
 func _update_guides(delta: float) -> void:
@@ -3113,7 +3137,8 @@ func _update_guides(delta: float) -> void:
 	# see-through, where it'll be in a moment if the call's STOP now (its
 	# swing and its turn too). It warms to gold as its legs come over their
 	# spots and goes green when all four are on.
-	stop_ghost.visible = guiding
+	# (no ghost drawn any more: its guess still says when "stop" lands it)
+	stop_ghost.visible = false
 	if not guiding:
 		for n in ghost_nums:
 			n.visible = false
@@ -3150,22 +3175,16 @@ func _update_guides(delta: float) -> void:
 		stop_ghost.rotation = Vector3(0, stop_ghost_yaw, 0)
 		var tol := leg_tol()
 		var err := leg_err(Vector2(at.x, at.z), stop_ghost_yaw)
-		stop_ghost_mat.set_shader_parameter("col", _near_colour(err, tol, 0.35))
-		# Each spot lights for the ghost leg nearest it
-		var legs: Array[Vector2] = []
-		for k in [Vector2(1, 1), Vector2(1, -1), Vector2(-1, 1), Vector2(-1, -1)]:
-			legs.append(Vector2(at.x, at.z) + (k * LW * 0.5).rotated(-stop_ghost_yaw))
-		# Spot n and the ghost leg headed for it share a number; close in, a
-		# line from the leg to its spot shows which way it still has to go
+		# Each spot lights for the leg that has to land on it
+		var lxz := Vector2(load.position.x, load.position.z)
+		var near_of := [INF, INF, INF, INF]
+		for li in 4:
+			near_of[leg_spot(li)] = leg_dist(li, lxz, spin)
 		var i := 0
-		for k in [Vector2(1, 1), Vector2(1, -1), Vector2(-1, 1), Vector2(-1, -1)]:
+		for k in CORNERS:
 			var spot: Vector2 = Vector2(LAT_X, RUNWAY_Z) + k * LW * 0.5
-			var near := INF
-			var best := Vector2.ZERO
-			for g in legs:
-				if g.distance_to(spot) < near:
-					near = g.distance_to(spot)
-					best = g
+			var near: float = near_of[i]
+			var best := spot
 			leg_marks[i].position = Vector3(spot.x, gb + 0.03, spot.y)
 			var c := _near_colour(near, tol, 0.6)
 			leg_mats[i].albedo_color = c
