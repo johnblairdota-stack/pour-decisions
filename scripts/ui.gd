@@ -186,7 +186,10 @@ const ROLE_HOW := {
 ## The job ticket on the TV, as on the phone: paper, the hard hat and the
 ## job, who's on it, what it's for, each step with its button, and what to
 ## watch. `climb` adds the climb-day steps; `compact` drops the watch line.
-static func job_ticket(role: String, who: String, pi: int, compact := false, climb := false, width := 360.0) -> PanelContainer:
+## On a climb day the ticket's the climb-day job, first and only. `keys`
+## (button -> key name, for someone on the keyboard) puts the key beside each
+## button.
+static func job_ticket(role: String, who: String, pi: int, compact := false, climb := false, width := 360.0, keys := {}) -> PanelContainer:
 	var col: Color = ROLE.get(role, WHITE)
 	var ink := Color("1d1a14")
 	var soft := Color("6b6252")
@@ -219,13 +222,12 @@ static func job_ticket(role: String, who: String, pi: int, compact := false, cli
 		wl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		top.add_child(wl)
 	var card_d: Dictionary = JOB_CARD.get(role, {})
-	var goal := label(String(card_d.get("goal", "")), 16, ink, 0)
+	var on_climb: bool = climb and not how(role, "climb").is_empty()
+	var goal := label(String(ROLE_CLIMB.get(role, "") if on_climb else card_d.get("goal", "")), 16, ink, 0)
 	goal.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	goal.custom_minimum_size = Vector2(width - 28, 0)
 	v.add_child(goal)
-	var parts := [["", how(role, "pour")]]
-	if climb and not how(role, "climb").is_empty():
-		parts.append(["CLIMB DAY", how(role, "climb")])
+	var parts := [["CLIMB DAY", how(role, "climb")]] if on_climb else [["", how(role, "pour")]]
 	for part in parts:
 		if part[0] != "":
 			v.add_child(head(part[0], 15, soft))
@@ -237,13 +239,17 @@ static func job_ticket(role: String, who: String, pi: int, compact := false, cli
 			var g := glyph(st[0], 24)
 			g.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 			r.add_child(g)
+			if keys.has(st[0]):
+				var kl := head(String(keys[st[0]]).to_upper(), 13, soft)
+				kl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+				r.add_child(kl)
 			var t := label(String(st[1]), 15, ink, 0)
 			t.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			t.custom_minimum_size = Vector2(width - 64, 0)
 			t.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 			r.add_child(t)
 			v.add_child(r)
-	if not compact and card_d.has("watch"):
+	if not compact and card_d.has("watch") and not on_climb:
 		var w := HBoxContainer.new()
 		w.add_theme_constant_override("separation", 6)
 		v.add_child(w)

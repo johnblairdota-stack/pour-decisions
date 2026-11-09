@@ -301,17 +301,33 @@ func set_char(id: String) -> void:
 	F.dress(model, info)
 	refresh_tag()
 
+## The climb-day stations a player's tag names while they're on them.
+const BUSY_TAG := {"dogman": "DOGMAN", "tag": "LINE 1", "tag2": "LINE 2", "rigger": "RIGGER"}
+var _tag_busy := ""
+
+## Button -> key name for someone playing on this keyboard (no phone, no
+## pad plugged in), so help can say which key; empty otherwise.
+func key_names() -> Dictionary:
+	if bot or remote_id > 0 or not Input.get_connected_joypads().is_empty() or not KEYS.has(prefix):
+		return {}
+	var k: Dictionary = KEYS[prefix].duplicate()
+	k["stick"] = "WASD" if prefix == "p1_" else "arrows"
+	return k
+
 func refresh_tag() -> void:
 	if tag == null:
 		return
 	_hat_icon()
+	# (on a climb-day station the job's on the tag too, for as long as they're on it)
+	var job: String = BUSY_TAG.get(busy, "")
+	_tag_busy = busy
 	if bot:
-		tag.text = char_name.to_lower()
+		tag.text = char_name.to_lower() + ("  · " + job.to_lower() if job != "" else "")
 		tag.modulate = Color(0.85, 0.9, 0.97, 0.75)
 		tag.font_size = 30
 		ring.visible = false
 	else:
-		tag.text = "P%d · %s" % [index, char_name]
+		tag.text = "P%d · %s" % [index, job if job != "" else char_name]
 		tag.modulate = tag_color
 		tag.font_size = 44
 		ring.visible = true
@@ -562,6 +578,8 @@ func leave_pressed() -> bool:
 
 ## Called once per frame after handling, so virtual presses register once.
 func end_frame() -> void:
+	if busy != _tag_busy:
+		refresh_tag()
 	if ai or covering:
 		_ai_prev = {"action": ai_action, "alt": ai_alt, "slow": ai_slow, "leave": ai_leave}
 
@@ -638,6 +656,7 @@ func say(text: String) -> void:
 func begin_cues() -> void:
 	# (last frame's: the cover check runs after this clears them)
 	had_cues = not cues.is_empty()
+	hide_world_cues = false
 	cues.clear()
 	prompt.text = ""
 
@@ -647,13 +666,14 @@ func begin_cues() -> void:
 const SMALL_K := 0.55
 const BIG_K := 1.0
 var had_cues := false
+var hide_world_cues := false   # a station asks for its buttons on the phone only, not floating here (re-set each frame)
 
 func show_cues(cam_right: Vector3, t: float, cam_pos := Vector3.ZERO, cam_k := 1.0) -> void:
 	# Keep glyphs a steady size on screen however far away the camera is
 	var k_size := 1.0
 	bubble.visible = false
 	_update_balloons(get_process_delta_time(), cam_pos)
-	if bot and not show_bot_cues:
+	if (bot and not show_bot_cues) or hide_world_cues:
 		for c in _cue_nodes:
 			(c["node"] as Node3D).visible = false
 		return
