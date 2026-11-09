@@ -367,7 +367,7 @@ func build(owner_game) -> void:
 		tag_mats.append(m)
 		tag_cols.append(c)
 		# (its number at the corner, and how it's working over the holder's head)
-		var en := F.label3d(str(tag_mats.size()), 38, c)
+		var en := F.label3d("L%d" % tag_mats.size(), 34, c)
 		en.no_depth_test = true
 		en.visible = false
 		add_child(en)
@@ -520,8 +520,8 @@ func _build_guides() -> void:
 		var lm := _overlay_mat(Color(1, 1, 1, 0.55))
 		var pad := MeshInstance3D.new()
 		var pm := CylinderMesh.new()
-		pm.top_radius = 0.24
-		pm.bottom_radius = 0.24
+		pm.top_radius = 0.34
+		pm.bottom_radius = 0.34
 		pm.height = 0.04
 		pm.radial_segments = 20
 		pad.mesh = pm
@@ -530,8 +530,8 @@ func _build_guides() -> void:
 		mk.add_child(pad)
 		var ring := MeshInstance3D.new()
 		var rt := TorusMesh.new()
-		rt.inner_radius = 0.34
-		rt.outer_radius = 0.42
+		rt.inner_radius = 0.44
+		rt.outer_radius = 0.52
 		rt.rings = 24
 		ring.mesh = rt
 		ring.material_override = lm
@@ -540,8 +540,15 @@ func _build_guides() -> void:
 		var post := F.cylinder(0.03, 0.9, lm, Vector3(0, 0.45, 0), 6)
 		post.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		mk.add_child(post)
-		var num := F.label3d(str(i + 1), 44, Color.WHITE)
-		num.position = Vector3(0, 1.2, 0)
+		# (painted on the spot: flat inside the ring, face up)
+		var num := F.label3d(str(i + 1), 72, Color.WHITE)
+		num.billboard = BaseMaterial3D.BILLBOARD_DISABLED
+		num.pixel_size = 0.011
+		num.outline_size = 8
+		# (drawn over the see-through pad and ring)
+		num.render_priority = 21
+		num.outline_render_priority = 20
+		num.position = Vector3(0, 0.06, 0)
 		num.no_depth_test = true
 		mk.add_child(num)
 		mk.visible = false
@@ -3060,9 +3067,13 @@ func _update_guides(delta: float) -> void:
 			leg_mats[i].albedo_color = c
 			var leg3 := Vector3(best.x, at.y + 0.05, best.y)
 			ghost_nums[i].visible = true
-			ghost_nums[i].position = leg3 + Vector3(0, -0.45, 0)
+			# (up the ghost's leg, where it reads against the lattice)
+			ghost_nums[i].position = leg3 + Vector3(0, 1.4, 0)
 			ghost_nums[i].modulate = Color(c, 1.0)
-			(leg_marks[i].get_child(3) as Label3D).modulate = Color(c, 1.0)
+			var spot_num := leg_marks[i].get_child(3) as Label3D
+			spot_num.modulate = Color(c, 1.0)
+			# (turned to read the right way up from the camera)
+			spot_num.rotation = Vector3(-PI * 0.5, game.cam_yaw, 0)
 			leg_arrows[i].visible = near > 0.05 and near < 3.0
 			if leg_arrows[i].visible:
 				F.stretch(leg_arrows[i], leg3, Vector3(spot.x, gb + 0.05, spot.y))
