@@ -99,7 +99,7 @@ var tag_ropes: Array[MeshInstance3D] = []   # [poker hand's line, hose hand's li
 var tag_segs: Array = []                    # per line: the span to the corner, TAG_SEGS pieces
 var tag_mats: Array[ShaderMaterial] = []
 var tag_cols: Array[Color] = []
-var tag_nums: Array[Label3D] = []           # 1 / 2 at each line's corner
+var tag_nums: Array[Node3D] = []            # a small numbered bead halfway along each line
 var tag_gauges: Array[Label3D] = []         # SLACK / WORKING / TOO TIGHT over each holder
 const TAG_SEGS := 10
 ## Whoever else is using the crane while the climb isn't (the west wing's
@@ -366,13 +366,28 @@ func build(owner_game) -> void:
 		var m := F.color_mat(c)
 		tag_mats.append(m)
 		tag_cols.append(c)
-		# (its number at the corner, and how it's working over the holder's head)
-		var en := F.label3d("L%d" % tag_mats.size(), 34, c)
-		en.no_depth_test = true
-		en.visible = false
-		add_child(en)
-		tag_nums.append(en)
-		var ga := F.label3d("", 30, Color.WHITE)
+		# (a small numbered bead halfway along it, and for a player, how it's
+		# working over their head)
+		var bead := Node3D.new()
+		var ball := MeshInstance3D.new()
+		var bm := SphereMesh.new()
+		bm.radius = 0.17
+		bm.height = 0.34
+		bm.radial_segments = 12
+		bm.rings = 6
+		ball.mesh = bm
+		ball.material_override = _overlay_mat(c)
+		ball.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		bead.add_child(ball)
+		var bn := F.label3d(str(tag_mats.size()), 28, Color("1d1a14"))
+		bn.pixel_size = 0.008
+		bn.outline_size = 0
+		bn.render_priority = 12
+		bead.add_child(bn)
+		bead.visible = false
+		add_child(bead)
+		tag_nums.append(bead)
+		var ga := F.label3d("", 28, Color.WHITE)
 		ga.no_depth_test = true
 		ga.visible = false
 		add_child(ga)
@@ -976,16 +991,15 @@ func _draw_tag_lines(crane_on: bool) -> void:
 			tag_gauges[n].visible = false
 			continue
 		var corner := _tag_corner(n)
-		# Whose line it is: a player's line is drawn in their colour, its
-		# number at both ends, and how it's working over their head
+		# Whose line it is: a player's line is drawn in their colour, with
+		# how it's working over their head
 		var h = tag_hands[n] if tag_on[n] else null
 		var mine: bool = h != null and is_instance_valid(h) and not h.bot
 		var line_col: Color = (h.tag_color as Color).lightened(0.15) if mine else tag_cols[n]
 		tag_mats[n].set_shader_parameter("albedo", line_col)
-		tag_nums[n].visible = true
-		tag_nums[n].position = corner + Vector3(0, 0.55, 0)
-		tag_nums[n].modulate = line_col
-		tag_gauges[n].visible = h != null and is_instance_valid(h)
+		((tag_nums[n].get_child(0) as MeshInstance3D).material_override as StandardMaterial3D).albedo_color = line_col
+		# (only a player gets the word over their head: bots just work)
+		tag_gauges[n].visible = mine
 		if tag_gauges[n].visible:
 			var grip: float = TAG_GRIP[clampi(help(), 0, 2)]
 			var slack: float = float(tag_len[n]) - (tag_from[n] as Vector3).distance_to(corner)
@@ -997,10 +1011,9 @@ func _draw_tag_lines(crane_on: bool) -> void:
 			elif float(tag_t[n]) > 0.0 or slack < 0.3:
 				word = "WORKING"
 				gc = Color("7cd992")
-			tag_gauges[n].text = "LINE %d · %s" % [n + 1, word]
+			tag_gauges[n].text = word
 			tag_gauges[n].modulate = gc
-			tag_gauges[n].position = h.global_position + Vector3(0, 3.1 if mine else 2.6, 0)
-			tag_gauges[n].font_size = 34 if mine else 24
+			tag_gauges[n].position = h.global_position + Vector3(0, 3.0, 0)
 		var pts: Array[Vector3] = []
 		if tag_on[n]:
 			var a: Vector3 = tag_from[n]
@@ -1031,6 +1044,9 @@ func _draw_tag_lines(crane_on: bool) -> void:
 				tail.visible = false
 		for i in TAG_SEGS:
 			F.stretch(segs[i], pts[i], pts[i + 1])
+		# (the bead halfway along: off once the crew have the load by hand)
+		tag_nums[n].visible = tag_on[n] or not hands
+		tag_nums[n].position = pts[TAG_SEGS / 2]
 
 ## Deck (or scaffold) under this point, to stand on or for a line to lie on.
 func _over_deck(at: Vector3) -> bool:
@@ -2469,8 +2485,6 @@ func handle_player(p, delta: float, near: String, act: String, alt: String, leav
 		# Close in, the platform crew take it by hand: the lines come off
 		if hands:
 			_drop_tag(p, n)
-			# (said where they're looking, so the controls going isn't a mystery)
-			game.pop("LINE %d released: crew have it" % (n + 1), p.global_position + Vector3(0, 2.8, 0), Color("ffc72c"))
 			return false
 		# Run out of line: it's gone through their hands, and the load turns free
 		if _tag_gone[n]:
