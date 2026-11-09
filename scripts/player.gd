@@ -656,6 +656,7 @@ func say(text: String) -> void:
 func begin_cues() -> void:
 	# (last frame's: the cover check runs after this clears them)
 	had_cues = not cues.is_empty()
+	hide_world_cues = false
 	cues.clear()
 	prompt.text = ""
 
@@ -665,13 +666,14 @@ func begin_cues() -> void:
 const SMALL_K := 0.55
 const BIG_K := 1.0
 var had_cues := false
+var hide_world_cues := false   # a station asks for its buttons on the phone only, not floating here (re-set each frame)
 
 func show_cues(cam_right: Vector3, t: float, cam_pos := Vector3.ZERO, cam_k := 1.0) -> void:
 	# Keep glyphs a steady size on screen however far away the camera is
 	var k_size := 1.0
 	bubble.visible = false
 	_update_balloons(get_process_delta_time(), cam_pos)
-	if bot and not show_bot_cues:
+	if (bot and not show_bot_cues) or hide_world_cues:
 		for c in _cue_nodes:
 			(c["node"] as Node3D).visible = false
 		return

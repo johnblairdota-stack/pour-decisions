@@ -496,15 +496,18 @@ func _build_guides() -> void:
 	add_child(plumb)
 	# Stick directions around the load, plus hoist and lower
 	for i in 6:
-		guide_arrows.append(_arrow(Color(1, 1, 1, 0.45), 1.3))
+		guide_arrows.append(_arrow(Color(1, 1, 1, 0.45), 2.0))
 	motion_arrow = _arrow(Color(1.0, 0.48, 0.1, 0.9), 1.0)
 	dog_arrow = _arrow(Color(1.0, 0.78, 0.17, 1.0), 0.9)
 	dog_stop = F.label3d("STOP", 54, Color("ff4d4d"))
 	dog_stop.visible = false
 	add_child(dog_stop)
-	# The call each stick arrow makes, in the crane's own words
-	for i in 4:
-		var l := F.label3d("", 34, Color.WHITE)
+	# The call each arrow makes, in the crane's own words, written on it
+	for i in 6:
+		var l := F.label3d(["", "", "", "", "HOIST", "LOWER"][i], 40, Color.WHITE)
+		l.pixel_size = 0.008
+		l.outline_size = 10
+		l.render_priority = 12
 		l.visible = false
 		add_child(l)
 		call_labels.append(l)
@@ -2579,6 +2582,9 @@ func handle_player(p, delta: float, near: String, act: String, alt: String, leav
 			_vert = vert
 			_command(dir, vert, slow, dog_all)
 			_signal(p, dir, vert, delta, slow, dog_all)
+			# (A lower / X hoist: on the phone and the HUD, not floating by
+			# the dogman, where they'd sit over the load's own arrows)
+			p.hide_world_cues = true
 			p.cue("action", "lower")
 			# Gold: right over the ghost, so lowering now seats it
 			if load and not p.bot:
@@ -2709,11 +2715,13 @@ func _tag_bot(p, n: int, delta: float, corner: Vector3, span: float) -> void:
 	tag_len[n] = clampf(move_toward(cur, target, (TAG_IN if target < cur else TAG_OUT) * delta), 1.0, TAG_LEN)
 
 ## The crane's four horizontal calls, each as a direction on the deck:
-## trolley out / in along the jib, slew left / right across it.
+## trolley out / in along the jib, slew left / right across it. Left and
+## right are the crane driver's, sat in the cab looking out along the jib
+## (a dogman always calls it from the driver's side, not their own).
 func call_dirs() -> Dictionary:
 	var radial := (trolley_xz - Vector2(MAST.x, MAST.z)).normalized()
-	var tangent := Vector2(-radial.y, radial.x)
-	return {"TROLLEY OUT": radial, "TROLLEY IN": -radial, "SLEW LEFT": tangent, "SLEW RIGHT": -tangent}
+	var right := Vector2(-radial.y, radial.x)
+	return {"TROLLEY OUT": radial, "TROLLEY IN": -radial, "SLEW LEFT": -right, "SLEW RIGHT": right}
 
 ## A direction on the deck as the stick (or phone stick) would push it, the
 ## same mapping the players walk with.
@@ -2851,13 +2859,13 @@ func _signal(p, dir: Vector2, vert: float, delta: float, slow := false, dog_all 
 		code = "hoist"
 	elif dir.length() > 0.3:
 		var radial := (trolley_xz - Vector2(MAST.x, MAST.z)).normalized()
-		var tangent := Vector2(-radial.y, radial.x)
+		var right := Vector2(-radial.y, radial.x)   # (the driver's right, looking out the jib)
 		var cr := dir.dot(radial)
-		var ct := dir.dot(tangent)
+		var ct := dir.dot(right)
 		if absf(cr) >= absf(ct):
 			call_name = "TROLLEY OUT" if cr > 0.0 else "TROLLEY IN"
 		else:
-			call_name = "SLEW LEFT" if ct > 0.0 else "SLEW RIGHT"
+			call_name = "SLEW RIGHT" if ct > 0.0 else "SLEW LEFT"
 		# (each way has its own whistle: sfx.gd CODES)
 		code = call_name.to_lower().replace(" ", "_")
 	# Debounce: a call has to be held a moment before the whistle goes, and
@@ -2979,9 +2987,9 @@ func _update_guides(delta: float) -> void:
 	var keys := cd.keys()
 	for i in 6:
 		var a := guide_arrows[i]
-		a.visible = guiding and _dogman != null
-		if i < 4:
-			call_labels[i].visible = a.visible
+		# (a bot dogman's arrows show only in a test run, for its screenshots)
+		a.visible = guiding and (_dogman != null or (game.autotest and dog_bot != null))
+		call_labels[i].visible = a.visible
 		if not a.visible:
 			continue
 		var lit := false
@@ -2989,22 +2997,25 @@ func _update_guides(delta: float) -> void:
 		if i < 4:
 			var w: Vector2 = cd[keys[i]]
 			var d := Vector3(w.x, 0, w.y)
-			a.position = lc + d * 1.9
+			a.position = lc + d * 1.4
 			_point(a, d)
 			lit = _call == keys[i]
-			var l := call_labels[i]
-			l.text = keys[i]
-			l.position = lc + d * 3.6 + Vector3(0, 0.5, 0)
-			l.modulate = Color(1.0, 0.82, 0.25) if lit else Color(1, 1, 1, 0.8)
-			l.outline_modulate = Color(0, 0, 0, 0.85)
+			call_labels[i].text = keys[i]
+			call_labels[i].position = a.position + d * 0.75
 		elif i == 4:
-			a.position = load.position + Vector3(0, LS + 0.4, 0)
+			a.position = load.position + Vector3(0, LS + 0.3, 0)
 			_point(a, Vector3.UP)
 			lit = _vert > 0.0
+			call_labels[i].position = a.position + Vector3(0, 0.75, 0)
 		else:
-			a.position = load.position + Vector3(0, -0.4, 0)
+			a.position = load.position + Vector3(0, -0.3, 0)
 			_point(a, Vector3.DOWN)
 			lit = _vert < 0.0
+			call_labels[i].position = a.position + Vector3(0, -0.75, 0)
+		# (the words on the arrow's shaft: dark ink on a white edge, so they
+		# read on the white arrow and on the gold one it turns when it's the call)
+		call_labels[i].modulate = Color(0.04, 0.07, 0.12, 1.0)
+		call_labels[i].outline_modulate = Color(1.0, 0.86, 0.35, 0.95) if lit else Color(1, 1, 1, 0.9)
 		var m: StandardMaterial3D = a.get_meta("mat")
 		m.albedo_color = Color(1.0, 0.78, 0.17, 1.0) if lit else Color(1, 1, 1, 0.45)
 		a.scale = Vector3.ONE * (1.25 if lit else 1.0)
