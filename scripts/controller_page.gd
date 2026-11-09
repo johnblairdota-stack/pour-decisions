@@ -596,7 +596,7 @@ function drawDog(j) {
 }
 // Climb days: the dogman's landing seen from above (spots, and the load's legs
 // where they are now), and a tag hand's line gauge. Over the top of the ticket.
-const LEG_COL = ['#ffffff', '#ffd23f', '#7cd992'];
+const LEG_COL = ['#ff3b2f', '#ff8c1a', '#ffd23f', '#7cd992'];   // far, nearer, close, on its spot
 function drawDial(j) {
   const p = $('climbp'), d = $('dial');
   const on = !!j.on && !!j.legs;
@@ -609,7 +609,7 @@ function drawDial(j) {
   j.spots.forEach((s, i) => { h += '<circle cx="' + (50 + s[0] * k).toFixed(1) + '" cy="' + (50 + s[1] * k).toFixed(1) + '" r="10" fill="none" stroke="#5a6170" stroke-width="2.5"/><text x="' + (50 + s[0] * k).toFixed(1) + '" y="' + (53.5 + s[1] * k).toFixed(1) + '" font-size="10" text-anchor="middle" fill="#9aa3ae">' + (i + 1) + '</text>'; });
   j.legs.forEach((l) => {
     const x = Math.max(4, Math.min(96, 50 + l[0] * k)), y = Math.max(4, Math.min(96, 50 + l[1] * k));
-    h += '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="6" fill="' + LEG_COL[l[3]] + '" opacity="0.9"/>';
+    h += '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="6" fill="' + LEG_COL[l[3]] + '" opacity="0.9"/><text x="' + x.toFixed(1) + '" y="' + (y + 2.6).toFixed(1) + '" font-size="7" text-anchor="middle" fill="#1d1a14">' + l[2] + '</text>';
   });
   d.innerHTML = h;
   $('dialv').textContent = j.v > 0 ? 'HOIST' : (j.v < 0 ? 'LOWER' : '');

@@ -513,19 +513,12 @@ func _send_state(c: Dictionary) -> void:
 			for k in [Vector2(1, 1), Vector2(1, -1), Vector2(-1, 1), Vector2(-1, -1)]:
 				var sp: Vector2 = cl.stick_of(k * cl.LW * 0.5)
 				spots.append([snappedf(sp.x, 0.05), snappedf(sp.y, 0.05)])
-			for k in [Vector2(1, 1), Vector2(1, -1), Vector2(-1, 1), Vector2(-1, -1)]:
-				var leg: Vector2 = Vector2(lp.x, lp.z) + (k * cl.LW * 0.5).rotated(-cl.spin)
-				var best := 0
-				var bd := INF
-				var i := 0
-				for k2 in [Vector2(1, 1), Vector2(1, -1), Vector2(-1, 1), Vector2(-1, -1)]:
-					var d: float = leg.distance_to(land + k2 * cl.LW * 0.5)
-					if d < bd:
-						bd = d
-						best = i
-					i += 1
+			for i in 4:
+				# (each leg numbered for the spot it has to land on, and how near)
+				var leg: Vector2 = Vector2(lp.x, lp.z) + (cl.CORNERS[i] * cl.LW * 0.5).rotated(-cl.spin)
 				var rel: Vector2 = cl.stick_of(leg - land)
-				legs.append([snappedf(rel.x, 0.05), snappedf(rel.y, 0.05), best + 1, 2 if bd < cl.leg_tol() else (1 if bd < cl.leg_tol() + 1.5 else 0)])
+				var d: float = cl.leg_dist(i, Vector2(lp.x, lp.z), cl.spin)
+				legs.append([snappedf(rel.x, 0.05), snappedf(rel.y, 0.05), cl.leg_spot(i) + 1, cl.near_level(d)])
 			dog["spots"] = spots
 			dog["legs"] = legs
 	_json(c, "dog", dog)
