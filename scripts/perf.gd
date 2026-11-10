@@ -11,7 +11,14 @@ extends CanvasLayer
 ##       an all-bot crew pours while it measures that many seconds of the
 ##       pour (60 if not given), prints one "[bench]" line and quits.
 ##
-## Paused frames aren't counted. "low" is the 1% low: the frame rate of the
+##   --benchoff=shadows,msaa,glow,labels,particles,hud,views,world
+##       with --bench: switches those parts off as the pour starts, to see
+##       what each one costs (views = the split-screen and close-up cameras,
+##       world = everything beyond the site: streets, trees, traffic, river).
+##
+## The [bench] line also splits the frame: "script" is the game's own code,
+## "draw cpu" is the engine getting the frame ready, "gpu" is the graphics
+## card drawing it. Paused frames aren't counted. "low" is the 1% low: the frame rate of the
 ## slowest one frame in a hundred, which is what a stutter feels like.
 
 const UI := preload("res://scripts/ui.gd")
@@ -32,6 +39,12 @@ var _recent := PackedFloat32Array()
 var _recent_t := 0.0
 var _prev_us := 0
 var _last := ""
+var _off: PackedStringArray = []   # --benchoff
+var _off_done := false
+var _views: Array = []             # viewport RIDs being timed
+var _views_t := 0.0
+var _cost := Vector3.ZERO          # summed ms: script, draw cpu, gpu
+const WORLD := ["surrounds", "neighbours", "flora", "fences", "wildlife", "cars", "people", "street", "water", "citycat", "yard"]
 
 func setup(owner_game) -> void:
 	game = owner_game
@@ -50,6 +63,8 @@ func setup(owner_game) -> void:
 			bench_secs = WINDOW
 		elif arg.begins_with("--bench="):
 			bench_secs = maxf(5.0, float(arg.substr(8)))
+		elif arg.begins_with("--benchoff="):
+			_off = arg.substr(11).split(",", false)
 	if bench_secs > 0.0:
 		on = true
 		_panel.visible = true
@@ -58,6 +73,7 @@ func toggle() -> void:
 	on = not on
 	_panel.visible = on
 	_reset()
+	_find_views()
 	_last = ""
 
 func _reset() -> void:
@@ -66,6 +82,61 @@ func _reset() -> void:
 	_recent.clear()
 	_recent_t = 0.0
 	_prev_us = 0
+	_cost = Vector3.ZERO
+	_views_t = 0.0
+
+## Every viewport that's drawing (the split screen and the close-ups have
+## their own), timed by the engine while the readout's on.
+func _find_views() -> void:
+	for rid in _views:
+		RenderingServer.viewport_set_measure_render_time(rid, false)
+	_views.clear()
+	if not on:
+		return
+	var all: Array = [get_viewport()]
+	all.append_array(get_tree().root.find_children("*", "SubViewport", true, false))
+	for v in all:
+		if v is SubViewport and (v as SubViewport).render_target_update_mode == SubViewport.UPDATE_DISABLED:
+			continue
+		var rid: RID = (v as Viewport).get_viewport_rid()
+		RenderingServer.viewport_set_measure_render_time(rid, true)
+		_views.append(rid)
+
+## Dev: switch parts of the picture off, to weigh them.
+func _apply_off() -> void:
+	_off_done = true
+	if _off.is_empty() or game == null:
+		return
+	var root := get_tree().root
+	if "shadows" in _off:
+		for l in root.find_children("*", "Light3D", true, false):
+			(l as Light3D).shadow_enabled = false
+	if "msaa" in _off:
+		get_viewport().msaa_3d = Viewport.MSAA_DISABLED
+		for v in root.find_children("*", "SubViewport", true, false):
+			(v as SubViewport).msaa_3d = Viewport.MSAA_DISABLED
+	if "glow" in _off and game.env != null:
+		game.env.glow_enabled = false
+	if "labels" in _off:
+		for l in root.find_children("*", "Label3D", true, false):
+			(l as Node3D).visible = false
+	if "particles" in _off:
+		for q in root.find_children("*", "CPUParticles3D", true, false):
+			(q as CPUParticles3D).emitting = false
+			(q as Node3D).visible = false
+	if "hud" in _off:
+		game.hud_off = true
+	if "views" in _off:
+		for v in root.find_children("*", "SubViewport", true, false):
+			(v as SubViewport).render_target_update_mode = SubViewport.UPDATE_DISABLED
+	if "world" in _off:
+		for n in root.find_children("*", "Node", true, false):
+			var sc = n.get_script()
+			if sc != null and sc.resource_path.get_file().get_basename() in WORLD:
+				n.process_mode = Node.PROCESS_MODE_DISABLED
+				if n is Node3D:
+					(n as Node3D).visible = false
+	print("[bench] switched off: %s" % ", ".join(_off))
 
 func _process(_delta: float) -> void:
 	if not on:
@@ -79,6 +150,18 @@ func _process(_delta: float) -> void:
 	# The benchmark only counts the pour itself
 	if bench_secs > 0.0 and (game == null or game.phase != "pour"):
 		return
+	if bench_secs > 0.0 and not _off_done:
+		_apply_off()
+	_views_t -= ms / 1000.0
+	if _views_t <= 0.0:
+		_views_t = 2.0
+		_find_views()
+	var cpu := RenderingServer.get_frame_setup_time_cpu()
+	var gpu := 0.0
+	for rid in _views:
+		cpu += RenderingServer.viewport_get_measured_render_time_cpu(rid)
+		gpu += RenderingServer.viewport_get_measured_render_time_gpu(rid)
+	_cost += Vector3(Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0, cpu, gpu)
 	_ms.append(ms)
 	_win_t += ms / 1000.0
 	_recent.append(ms)
@@ -89,6 +172,10 @@ func _process(_delta: float) -> void:
 		_recent_t = 0.0
 	if _win_t >= (bench_secs if bench_secs > 0.0 else WINDOW):
 		var s := summary(_ms)
+		var c := _cost / maxf(1.0, float(_ms.size()))
+		s["script"] = c.x
+		s["cpu"] = c.y
+		s["gpu"] = c.z
 		_last = "last %d s: avg %d · low %d fps" % [int(round(_win_t)), int(round(s["avg"])), int(round(s["low"]))]
 		_write(s)
 		if bench_secs > 0.0:
@@ -97,6 +184,7 @@ func _process(_delta: float) -> void:
 			return
 		_ms.clear()
 		_win_t = 0.0
+		_cost = Vector3.ZERO
 
 ## Average and 1% low frame rate, and the worst frame, of a run of frame times (ms).
 static func summary(ms: PackedFloat32Array) -> Dictionary:
@@ -133,8 +221,8 @@ static func _short(n: int) -> String:
 func _line(s: Dictionary) -> String:
 	var size := get_viewport().get_visible_rect().size
 	var where := "level %d %s" % [game.k + 1, game.phase] if game != null else ""
-	return "%s | avg %.1f fps | 1%% low %.1f fps | worst %.0f ms | %d frames in %.0f s | %s | %dx%d | %s, %s | %s" % [
-		Time.get_datetime_string_from_system(false, true), s["avg"], s["low"], s["worst"], s["frames"], _win_t, where,
+	return "%s | avg %.1f fps | 1%% low %.1f fps | worst %.0f ms | script %.1f ms, draw cpu %.1f ms, gpu %.1f ms | %d frames in %.0f s | %s | %dx%d | %s, %s | %s" % [
+		Time.get_datetime_string_from_system(false, true), s["avg"], s["low"], s["worst"], s.get("script", 0.0), s.get("cpu", 0.0), s.get("gpu", 0.0), s["frames"], _win_t, where,
 		int(size.x), int(size.y), OS.get_name(), RenderingServer.get_video_adapter_name(), RenderingServer.get_current_rendering_method()]
 
 func _write(s: Dictionary) -> void:
