@@ -109,9 +109,10 @@ func _ready() -> void:
 	assembly = Assembly.new()
 	assembly.visible = assembly_on
 	# (on its own layer, over the street band: the kit's the full height of
-	# the screen whether it's split or not)
+	# the screen whether it's split or not. The close-ups share the layer
+	# and are added later, so they draw over the trucks)
 	_kit_layer = CanvasLayer.new()
-	_kit_layer.layer = 3
+	_kit_layer.layer = 2
 	add_child(_kit_layer)
 	_kit_layer.add_child(assembly)
 	if assembly_on:
