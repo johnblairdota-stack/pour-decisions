@@ -310,7 +310,7 @@ func _dump() -> void:
 			names.append(str(at.name).rstrip("0123456789@_"))
 			at = at.get_parent()
 		names.reverse()
-		var key := "/".join(names.slice(0, 2))
+		var key := "/".join(names.slice(0, 3))
 		var casts := 0 if g.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF else pieces
 		var add := Vector3i(1, pieces, casts)
 		groups[key] = groups.get(key, Vector3i.ZERO) + add

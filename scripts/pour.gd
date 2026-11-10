@@ -80,6 +80,12 @@ var mask_n := NX * NZ
 var round_r := 0.0                   # > 0: a round slab of this radius (the water tower)
 var _rect_parts: Array = []
 var _flip := false
+# The step spreads its dearer jobs over three frames (ageing, then the state
+# picture, then the finish picture), and only works the flow over the part
+# of the slab that's still wet (`_wet`, cells, found on the ageing frame)
+var _tick := 0
+var _age_dt := 0.0
+var _wet := Rect2i(0, 0, 0, 0)
 var _coverage := 0.0
 var _reach_cov := 0.0
 var _t := 0.0
@@ -522,11 +528,21 @@ func step(dt: float) -> void:
 	var nx := NX
 	var nz := NZ
 	var flip := _flip
-	for r in nz:
-		var iz := r if flip else nz - 1 - r
+	_tick += 1
+	var part := _tick % 3
+	if _tick == 1:
+		_wet = Rect2i(0, 0, nx, nz)
+	# (concrete creeps a cell a frame at most, so three cells of margin
+	# covers the frames till the wet part's found again)
+	var x0 := maxi(0, _wet.position.x - 4)
+	var x1 := mini(nx, _wet.end.x + 4)
+	var z0 := maxi(0, _wet.position.y - 4)
+	var z1 := mini(nz, _wet.end.y + 4)
+	for r in z1 - z0:
+		var iz := z0 + r if flip else z1 - 1 - r
 		var row := iz * nx
-		for q in nx:
-			var ix := q if flip else nx - 1 - q
+		for q in x1 - x0:
+			var ix := x0 + q if flip else x1 - 1 - q
 			var ia := row + ix
 			# Each cell with its neighbour across (side 0) and down (side 1).
 			# (This was a _pair() call per pair: inlined, as it runs ~8000
@@ -570,14 +586,31 @@ func step(dt: float) -> void:
 				h[src] -= m
 				h[dst] = hd + m
 	# Ageing: past the open time a placed patch goes off
-	for i in NX * NZ:
-		var hi := h[i]
-		if hi > 0.005 and set_h[i] < 0.0:
-			age[i] += dt
-			if age[i] > open_time and hi > SET_MIN_H:
-				set_h[i] = hi
-		elif set_h[i] >= 0.0 and hi > set_h[i] + COLD_RISE and cold[i] == 0:
-			cold[i] = 1
+	_age_dt += dt
+	if part == 0:
+		var adt := _age_dt
+		_age_dt = 0.0
+		var wx0 := nx
+		var wx1 := -1
+		var wz0 := nz
+		var wz1 := -1
+		for i in nx * nz:
+			var hi := h[i]
+			if set_h[i] < 0.0:
+				if hi > 0.0005:
+					var cx := i % nx
+					var cz := i / nx
+					wx0 = mini(wx0, cx)
+					wx1 = maxi(wx1, cx)
+					wz0 = mini(wz0, cz)
+					wz1 = maxi(wz1, cz)
+				if hi > 0.005:
+					age[i] += adt
+					if age[i] > open_time and hi > SET_MIN_H:
+						set_h[i] = hi
+			elif hi > set_h[i] + COLD_RISE and cold[i] == 0:
+				cold[i] = 1
+		_wet = Rect2i(wx0, wz0, wx1 - wx0 + 1, wz1 - wz0 + 1) if wx1 >= 0 else Rect2i(0, 0, 0, 0)
 	# Anything piled higher than the edge forms runs over them
 	var area := dx * dx
 	for ix in NX:
@@ -586,7 +619,11 @@ func step(dt: float) -> void:
 	for iz in NZ:
 		_spill(iz * NX, dt, area)
 		_spill(iz * NX + NX - 1, dt, area)
-	_upload()
+	_upload_h()
+	if part == 1:
+		_upload_state()
+	elif part == 2:
+		_upload_finish()
 
 func _spill(i: int, dt: float, area: float) -> void:
 	if h[i] > FORM_H:
@@ -595,8 +632,16 @@ func _spill(i: int, dt: float, area: float) -> void:
 		spilled += m * area / vol_k
 
 func _upload() -> void:
+	_upload_h()
+	_upload_state()
+	_upload_finish()
+
+func _upload_h() -> void:
 	img.set_data(NX, NZ, false, Image.FORMAT_RF, h.to_byte_array())
 	tex.update(img)
+
+## How far along the slab is, bay by bay, and each cell's state for the shader.
+func _upload_state() -> void:
 	var n := 0
 	var nr := 0
 	var rcount := 0
@@ -651,8 +696,10 @@ func _upload() -> void:
 		cur_bay += 1
 	state_img.set_data(NX, NZ, false, Image.FORMAT_RGBA8, _state)
 	state_tex.update(state_img)
-	# The finish: how shiny the screeded concrete still is, floated, and
-	# matt and waiting for the float
+
+## The finish: how shiny the screeded concrete still is, floated, and matt
+## and waiting for the float.
+func _upload_finish() -> void:
 	var mt := matt_t()
 	var win := float_win()
 	var ready_n := 0

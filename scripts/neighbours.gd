@@ -123,11 +123,11 @@ static func _mat(key: String) -> Material:
 
 ## Places `items` (each [model name, Transform3D, colour]) under `root`, one
 ## multimesh per model per tile.
-static func place(root: Node3D, items: Array, shadows := true) -> void:
+static func place(root: Node3D, items: Array, shadows := true, tile := TILE) -> void:
 	var groups := {}
 	for it in items:
 		var t: Transform3D = it[1]
-		var key := "%s|%d|%d" % [it[0], floori(t.origin.x / TILE), floori(t.origin.z / TILE)]
+		var key := "%s|%d|%d" % [it[0], floori(t.origin.x / tile), floori(t.origin.z / tile)]
 		if not groups.has(key):
 			groups[key] = []
 		groups[key].append(it)
@@ -366,7 +366,9 @@ static func house_field(root: Node3D, spots: Array, rng: RandomNumberGenerator) 
 		var t := Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(s, s, s)), spot)
 		items.append([kind + "FarBody", t, wall])
 		items.append([kind + "FarRoof", t, roof])
-	place(root, items, false)
+	# (big tiles: out there a 160 m tile holds a house or two, which made
+	# thousands of separate things for the engine to sort through each frame)
+	place(root, items, false, TILE * 8.0)
 
 # ------------------------------------------------------------------ geometry
 

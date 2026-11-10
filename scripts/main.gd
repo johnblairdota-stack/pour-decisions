@@ -404,9 +404,36 @@ func _build_environment() -> void:
 	sun.light_energy = 1.2
 	sun.shadow_enabled = true
 	sun.directional_shadow_max_distance = 160.0
+	far_shadows(false)
 	sun.rotation_degrees = Vector3(-42, -24, 0)
 	_day_q = sun.quaternion
 	add_child(sun)
+
+## The sun's shadow is the dearest thing drawn. From the site camera, well
+## back and looking down, two passes look the same as four, and the boats,
+## the ferry terminal and the 4x4 park are too far off for theirs to show.
+## Knock-off (explore.gd) walks right up to them, so it asks for the lot.
+const FAR_CASTERS := ["OnTheRiver", "Park4x4", "Terminal", "CityCatRun"]
+
+func far_shadows(on: bool) -> void:
+	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS if on else DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
+	for nm in FAR_CASTERS:
+		var at := find_child(nm, true, false)
+		if at == null:
+			continue
+		var all: Array = at.find_children("*", "GeometryInstance3D", true, false)
+		all.append(at)
+		for n in all:
+			var g := n as GeometryInstance3D
+			if g == null:
+				continue
+			if on:
+				if g.has_meta("cast"):
+					g.cast_shadow = g.get_meta("cast")
+					g.remove_meta("cast")
+			elif g.cast_shadow != GeometryInstance3D.SHADOW_CASTING_SETTING_OFF:
+				g.set_meta("cast", g.cast_shadow)
+				g.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 # ------------------------------------------------------------------ the dawn pour
 
@@ -2297,6 +2324,9 @@ func _set_phase(p: String) -> void:
 		print("[autotest]   (%s took %.1fs)" % [phase, phase_t])
 	phase = p
 	phase_t = 0.0
+	# (the far things are built after the sun, and some come and go)
+	if sun != null and (explore == null or not explore.active):
+		far_shadows(false)
 	if autotest and p == "pour":
 		# `--pourhuman=<job>`: that job's left to an idle "person" from the pour on
 		for arg in OS.get_cmdline_user_args():
