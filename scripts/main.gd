@@ -5711,6 +5711,9 @@ func _update_camera(delta: float) -> void:
 	var vs: Vector2 = get_viewport().get_visible_rect().size
 	var ph := clampf(vs.y * 0.2, 120.0, 230.0)
 	var taken: Array = []
+	# (a fault's call-out on the kit round the screen is never covered)
+	if hud.assembly_on and hud.assembly.fault_rect.has_area():
+		taken.append(hud.assembly.fault_rect.grow(40.0))
 	var pump_spot := _pop_spot(line.PUMP_POS + Vector3(0, 1.5, 0), true) if line != null else {}
 	if not pump_spot.is_empty() and pump_spot["seen"]:
 		taken.append(Rect2(pump_spot["pt"] - Vector2(110, 90), Vector2(220, 170)))

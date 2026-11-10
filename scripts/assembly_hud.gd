@@ -50,6 +50,7 @@ var st := {
 	"trucks": [], "hats": [],
 }
 var lift := 0.0           # px the bottom's lifted, clear of the street band
+var fault_rect := Rect2()  # where the fault's call-out is on the screen (px), for the close-ups to keep off
 
 var _t := 0.0
 var _flow := 0.0
@@ -565,7 +566,8 @@ func _draw_hats() -> void:
 			"truck":
 				at = _gp(Vector2(_hopper_x() - 62.0, _g - 150.0)) - Vector2(0, 26)
 			"pump":
-				at = _gp(Vector2(_hopper_x() + 160.0, _g - 96.0)) - Vector2(0, 26)
+				# (over the pump's reading)
+				at = _gp(Vector2(_hopper_x() + 94.0, _g - 104.0)) - Vector2(0, _gfs(28) * _gs + 28.0)
 			"riser":
 				at = Vector2(_riser_x() + 66.0, _tower_y(float(h["at"])))
 			_:
@@ -588,6 +590,7 @@ func _draw_hats() -> void:
 func _draw_fault() -> void:
 	var f: Dictionary = st["fault"]
 	if f.is_empty():
+		fault_rect = Rect2()
 		return
 	var title: String = f.get("title", "")
 	var sub: String = f.get("sub", "")
@@ -595,6 +598,7 @@ func _draw_fault() -> void:
 	var w := clampf(maxf(_tw(title, 42), _tw(sub, 26)) + 130.0, 360.0, 560.0)
 	var right := _riser_x() - 40.0 if f.get("where", "riser") == "riser" else _gp(Vector2(_hopper_x() - 50.0, _g)).x
 	var r := Rect2(right - w, y - 50.0, w, 100.0)
+	fault_rect = Rect2(r.position * (size.y / 900.0), r.size * (size.y / 900.0))
 	var a := _pulse(1.6)
 	_box(r.grow(2.0 + 3.0 * a), Color(UI.ALARM, 0.35), 16.0, Color(1, 1, 1, 0.0), 0.0)
 	_box(r, UI.ALARM, 14.0, Color.WHITE, 3.0)
