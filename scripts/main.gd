@@ -1511,7 +1511,7 @@ func _update_menu_floors(delta: float) -> void:
 			var y: float = (i + 1) * FH
 			var mi := MeshInstance3D.new()
 			var bm := BoxMesh.new()
-			bm.size = Vector3(30.0, 0.4, 21.8)
+			bm.size = Vector3(30.0, 0.7, 21.8)
 			mi.mesh = bm
 			var mat := StandardMaterial3D.new()
 			mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
@@ -1529,8 +1529,7 @@ func _update_menu_floors(delta: float) -> void:
 			lab.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 			lab.no_depth_test = true
 			lab.render_priority = 4
-			lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-			lab.position = Vector3(SC.x - 17.0, y, SC.z + 12.5)
+			lab.position = Vector3(SC.x - 19.5, y, SC.z + 12.0)
 			_menu_floors.add_child(lab)
 			_menu_plates.append({"mesh": mi, "mat": mat, "label": lab})
 	_menu_floors.visible = true
@@ -1555,9 +1554,9 @@ func _update_menu_floors(delta: float) -> void:
 				ink = Color("ffd23f")
 			(e["mat"] as StandardMaterial3D).albedo_color = col
 			var lab: Label3D = e["label"]
-			lab.text = ("L%d  %s" % [i + 1, Story.title(i)]) if i == fp else "L%d" % (i + 1)
+			lab.text = "L%d" % (i + 1)
 			lab.modulate = Color.WHITE if i == fp else ink
-			lab.font_size = 120 if i == fp else 96
+			lab.font_size = 150 if i == fp else 96
 			e["base"] = col
 	# (the one picked glows)
 	var pe: Dictionary = _menu_plates[clampi(fp, 0, _menu_plates.size() - 1)]
@@ -5720,13 +5719,16 @@ func _update_camera(delta: float) -> void:
 			cam_yaw = lerp_angle(cam_yaw, _menu_yaw, minf(1.0, delta * 2.5))
 			var fp: int = selector.floor_pick()
 			if fp >= 0:
-				focus = Vector3(SC.x, (fp + 1) * FH * 0.7 + 4.0, SC.z)
-				dist = 64.0
+				focus = Vector3(SC.x, 14.0 + (fp - 5) * 1.2, SC.z)
+				dist = 96.0
 	if phase == "sign":
 		# (straight down onto the wet square they're signing)
 		focus = ink_centre()
 		dist = 9.0
 	var pitch := cam_pitch
+	if phase == "select" and is_instance_valid(selector) and selector.floor_pick() >= 0:
+		# (side on, so the floors read one above the other)
+		pitch = lerpf(cam_pitch, 0.26, ease(_menu_shift, -1.8))
 	if skyline:
 		var top := maxf(head.position.y, (k + 1) * FH)
 		# (the whole of Riverlight, both wings)
