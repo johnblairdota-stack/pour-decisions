@@ -1950,7 +1950,7 @@ func _pop_spot(world: Vector3, street: bool) -> Dictionary:
 	var split_on: bool = band_box != null and band_box.visible and _band_h > 120.0
 	var use_band := split_on and street
 	var band_h := _band_h if band_box != null and band_box.visible else 0.0
-	var region := Rect2(16, 96, vs.x - 32, vs.y - 112 - band_h)
+	var region := _pop_region(vs, band_h)
 	if use_band:
 		region = Rect2(16, vs.y - _band_h + 10, vs.x - 32, _band_h - 20)
 	var cam: Camera3D = band_cam if use_band else camera
@@ -1964,6 +1964,15 @@ func _pop_spot(world: Vector3, street: bool) -> Dictionary:
 		seen = region.has_point(pt)
 	pt = pt.clamp(region.position, region.end)
 	return {"pt": pt, "region": region, "seen": seen}
+
+## Where on the screen the close-ups can go: clear of the task bar, or of
+## the kit drawn round the screen (the boom along the top, the tower down
+## the right, the trucks and pump along the bottom).
+func _pop_region(vs: Vector2, band_h: float) -> Rect2:
+	if hud != null and hud.assembly_on:
+		var s := vs.y / 900.0
+		return Rect2(16, 210.0 * s, vs.x - 16 - 190.0 * s, vs.y - 210.0 * s - 190.0 * s - band_h)
+	return Rect2(16, 96, vs.x - 32, vs.y - 112 - band_h)
 
 ## A box of `sz` near `pt` (above it, beside it, then below), inside `region`,
 ## picked to cover as little as it can of the spot itself and of `taken`.
@@ -1999,7 +2008,7 @@ func _update_gauge_pop() -> void:
 	_gauge_cam.look_at(target, Vector3.UP)
 	# Which view the pump's in: the street band when split, else the main one
 	var split_on: bool = band_box != null and band_box.visible and _band_h > GAUGE_POP.y * 0.6
-	var region := Rect2(16, 96, vs.x - 32, vs.y - 112 - _band_h) if not split_on else Rect2(16, vs.y - _band_h + 10, vs.x - 32, _band_h - 20)
+	var region := _pop_region(vs, _band_h) if not split_on else Rect2(16, vs.y - _band_h + 10, vs.x - 32, _band_h - 20)
 	var cam: Camera3D = band_cam if split_on else camera
 	var pt := Vector2(region.position.x + region.size.x * 0.5, region.end.y)
 	if not cam.is_position_behind(target):
@@ -4808,6 +4817,18 @@ func _update_stations() -> void:
 		var xc := Color(col, (0.35 if on else 0.15) * fade)
 		if xm.albedo_color != xc:
 			xm.albedo_color = xc
+	# The same for the plant's own name tags and readings, now the kit round
+	# the screen carries them: there for whoever's standing at it, or when
+	# it's the thing that needs someone
+	if hud.assembly_on:
+		ops.tank_label.visible = ops.stage == "valve" or ops.wants_bin() or _human_near(ops.tank_label.global_position, 6.0, hs)
+		line.gauge_label.visible = line.spike_on or line.spike_warn or line.tripped or _human_near(line.gauge_label.global_position, 7.0, hs)
+
+func _human_near(at: Vector3, r: float, hs: Array) -> bool:
+	for h in hs:
+		if Vector2(h.global_position.x - at.x, h.global_position.z - at.z).length() < r:
+			return true
+	return false
 
 func _update_npcs(delta: float) -> void:
 	var on := phase == "pour"
@@ -5103,6 +5124,123 @@ func _update_hud() -> void:
 	if not (climb.active and climb.stage == "guide"):
 		hud.set_signal("")
 	hud.set_wind(climb.wind_gust, climb.wind_gust / 1.25, climb.WIND_STOP, climb.active or (in_pour and climb.wind_gust >= BOOM_WIND * 0.8))
+	if hud.assembly_on:
+		hud.set_assembly(assembly_state())
+
+# ------------------------------------------------------------------ the assembly HUD
+
+## The kit as it stands, for the drawing of it round the screen
+## (assembly_hud.gd): how tall the tower is, where the deck is on it, every
+## clamp up the riser and which one's in trouble, whether concrete's moving,
+## the trucks and the age of their loads, and where each person's working.
+func assembly_state() -> Dictionary:
+	var in_pour := phase == "pour"
+	var tall: float = maxf(1.0, section_count * LS)
+	var d := {"sections": maxi(1, section_count), "deck": work_y / tall,
+			"deck_tag": "" if phase == "topout" else ("DECK" if tutorial else "L%d DECK" % (k + 1)),
+			"wind": climb.wind_gust, "wind_stop": climb.WIND_STOP if climb.active else BOOM_WIND,
+			"band": line.HOP_BAND, "clamps": [], "bad": -1, "flow": false, "down": false, "alarm": false,
+			"fault": {}, "trucks": [], "hats": [], "next": _next_up()}
+	if kit == "tower":
+		for c in line.clamps:
+			(d["clamps"] as Array).append(clampf(float(c["pos"].y) / tall, 0.0, 1.0))
+	if in_pour:
+		d["flow"] = line.pumping
+		d["bad"] = line.fix_i if line.fix_i >= 0 else line.fail_i
+		d["down"] = line.burst or line.blocked or line.job_kind != "" or (line.tripped and not line.spike_on)
+		d["alarm"] = line.burst or line.blocked or line.spike_on
+		d["fault"] = _assembly_fault(tall)
+		# The trucks: the one at the hopper, the one backed in beside it,
+		# then the queue down the road; one pulling out drives off the left
+		var slot := 2 if line.staged != null else 1
+		for t in line.trucks:
+			if t["state"] == "gone" or not is_instance_valid(t["node"]):
+				continue
+			var s := -1
+			if t == line.bay_truck:
+				s = 0
+			elif t == line.staged:
+				s = 1
+			elif not String(t["state"]).begins_with("leave"):
+				s = slot
+				slot += 1
+			(d["trucks"] as Array).append({"id": (t["node"] as Node).get_instance_id(), "slot": s, "age": float(t["age"])})
+	if phase in ["columns", "deck", "setup", "climb", "inspect", "pour", "screed"]:
+		for role in hud.CREW_ORDER:
+			var p = crew.crew.get(role) if crew != null else null
+			if p == null:
+				continue
+			var where := "deck"
+			if role == "line":
+				where = "truck"
+			elif role == "pump":
+				where = "riser" if p.position.y > 2.0 and p.zone != "deck" else "pump"
+			(d["hats"] as Array).append({"role": role, "p": p.index, "bot": p.bot, "where": where, "at": p.position.y / tall, "nudge": nudge_level(p)})
+	return d
+
+## What's wrong with the line, for the call-out at the spot it's wrong:
+## {title, sub, where ("riser" or "pump"), at (share of the tower's height), btn}.
+func _assembly_fault(tall: float) -> Dictionary:
+	var op = crew.crew.get("pump") if crew != null else null
+	var hand = crew.crew.get("line") if crew != null else null
+	var op_n: String = _who(op) if op != null else "PUMP OPERATOR"
+	var bad: int = line.fix_i if line.fix_i >= 0 else line.fail_i
+	var at := 0.5
+	if bad >= 0 and bad < line.clamps.size():
+		at = clampf(float(line.clamps[bad]["pos"].y) / tall, 0.0, 1.0)
+	if line.spike_on:
+		return {"title": "PRESSURE SPIKE", "sub": "%s: kill the pump" % op_n, "where": "pump", "btn": "A"}
+	if line.burst:
+		return {"title": "CLAMP %d BURST" % (bad + 1), "sub": "%s: line down, fit a new clamp" % op_n, "where": "riser", "at": at}
+	if line.job_kind != "":
+		var what := "SWAP PIPE SECTION" if line.job_kind == "block" else "SWAP CLAMP %d" % (bad + 1)
+		return {"title": what, "sub": "%s: %s" % [op_n, line.STEP_INFO.get(line._step_name(), "on the job")], "where": "riser", "at": at}
+	if line.blocked and not line.block_found:
+		return {"title": "LINE BLOCKED", "sub": "%s: tap the riser to find it" % op_n, "where": "riser", "at": 0.45}
+	if line.fail_i >= 0:
+		return {"title": "CLAMP %d WEEPING" % (line.fail_i + 1), "sub": "%s: climb up, fit a new clamp" % op_n, "where": "riser", "at": at}
+	if line.tripped:
+		return {"title": "PUMP OFF", "sub": "%s: %s" % [op_n, "fix the line, then restart" if line.repair_pending() else "restart at the panel"], "where": "pump"}
+	if line.hopper < line.HOPPER_CAP * 0.1 and line.live and ops.primed:
+		return {"title": "HOPPER RUNNING DRY", "sub": "%s: get the next truck in" % (_who(hand) if hand != null else "TRUCK HAND"), "where": "pump"}
+	return {}
+
+## What happens next, and when, for the boom's inner arm: so a wait always
+## has a reason.
+func _next_up() -> String:
+	match phase:
+		"columns", "deck":
+			return "climb the tower" if kit == "tower" and k in climb_levels() else "engineer's inspection"
+		"setup":
+			return "engineer's inspection"
+		"climb":
+			return "pour level %d" % (k + 1)
+		"inspect":
+			return "prime the line, then pour"
+		"sign":
+			return "top out"
+		"pour":
+			if line.burst or line.job_kind != "" or line.fail_i >= 0 and line.tripped:
+				return "pump restarts once it's pinned"
+			if line.blocked:
+				return "pump restarts once the pipe's swapped"
+			if not ops.primed:
+				return "first truck, then the pour"
+			if _filled_ratio() >= 1.0:
+				return "slab report" if ops.washed else "wash out the line"
+			var info: Dictionary = line.hud_info()
+			if line.bay_truck == null and line.staged == null:
+				if int(info["queue"]) > 0:
+					return "truck waiting to be waved in"
+				var secs := int(info["next"])
+				return "next truck in %d:%02d" % [secs / 60, secs % 60]
+			if line.hopper < line.HOPPER_CAP * line.HOP_BAND.x and line.staged == null and int(info["queue"]) == 0:
+				var secs2 := int(info["next"])
+				return "next truck in %d:%02d" % [secs2 / 60, secs2 % 60]
+			if pour.cur_bay < pour.BAYS - 1:
+				return "bay %d of %d" % [pour.cur_bay + 2, pour.BAYS]
+			return "vibrate and screed to finish"
+	return ""
 
 ## Which keyboard players are on the keys (not a pad on the same slot), so
 ## their cues can show the key as well as the button: "Y [F]".
