@@ -2811,6 +2811,7 @@ func _process(delta: float) -> void:
 		_update_see_through(delta)
 		return
 
+	perf.mark("")
 	pumping = false
 	_human_a = false
 	for p in players:
@@ -2855,6 +2856,7 @@ func _process(delta: float) -> void:
 		if phase != "sign":
 			_handle_player(p, delta)
 		p.end_frame()
+	perf.mark("players")
 	if autotest and phase == "columns" and k == 0 and OS.get_cmdline_user_args().has("--skip") and kit == "tower":
 		_dev_skip(CLIMB_LEVELS[0])
 	# (dev `--topout`: every floor poured, straight to the top-out)
@@ -2869,15 +2871,19 @@ func _process(delta: float) -> void:
 		_dev_skip(_start_level - 1)
 	_clear_trucks_of_people()
 	bots.tick(delta)
+	perf.mark("bots")
 	if climb.active:
 		climb.bot(delta)
 	climb.update(delta)
 	if west != null:
 		west.visible = phase != "topout"
 		west.update(delta, _filled_ratio() if phase == "pour" else 0.0)
+	perf.mark("climb")
 	line.update(delta, phase == "pour")
+	perf.mark("line")
 	poker.update(delta)
 	screed.update(delta)
+	perf.mark("poker and screed")
 	_update_site_band(delta)
 	var see_p := false
 	var see_s := false
@@ -2891,6 +2897,7 @@ func _process(delta: float) -> void:
 	# (the gold line on the wet edge, for a person new to the boom)
 	pour.set_edge_view(clampf(gold_level(bop), 0.0, 1.0) if bop != null and humans().has(bop) and gold_level(bop) > 0.06 else 0.0)
 	score.update(delta)
+	perf.mark("pour views")
 	var cam_right := camera.global_transform.basis.x
 	var street_view: bool = band_box != null and band_box.visible
 	for p in players:
@@ -2901,7 +2908,9 @@ func _process(delta: float) -> void:
 			p.show_cues(cam_right, phase_t, band_cam.global_position, BAND_CUE_K)
 		else:
 			p.show_cues(cam_right, phase_t, camera.global_position)
+	perf.mark("button cues")
 	_scale_world_labels()
+	perf.mark("world labels")
 	if shot_dir != "":
 		_maybe_shot()
 
@@ -2997,22 +3006,34 @@ func _process(delta: float) -> void:
 	# Rest the boom when it is not pouring
 	if phase != "pour":
 		tip_target = tip_target.lerp(Vector3(5.0, 0, 0), minf(1.0, delta * 0.8))
+	perf.mark("phase")
 	tip_pos = tip_pos.lerp(tip_target, minf(1.0, delta * 4.0))
 	tip_kick = tip_kick.lerp(Vector3.ZERO, minf(1.0, delta * 3.0))
 	_update_whip(delta)
 	_update_boom()
 	_update_stream()
+	perf.mark("boom")
 	_update_hoist(delta)
+	perf.mark("hoist")
 	_update_pops(delta)
+	perf.mark("close-ups")
 	_update_npcs(delta)
+	perf.mark("npcs")
 	_update_stations()
+	perf.mark("stations")
 	_update_signs(delta)
+	perf.mark("signs")
 	_update_hud()
+	perf.mark("hud text")
 	_update_daylight(delta)
+	perf.mark("daylight")
 	coach.update(delta)
 	lead_hand.update(delta)
+	perf.mark("coach")
 	_update_camera(delta)
+	perf.mark("camera")
 	_update_see_through(delta)
+	perf.mark("see-through")
 	shake = maxf(0.0, shake - delta * 1.6)
 	# A hang shows up as one phase that never ends; the whole run's budget is
 	# only a backstop (a full tower runs 30 to 40 minutes, give or take the

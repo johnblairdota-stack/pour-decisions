@@ -11,14 +11,17 @@ extends CanvasLayer
 ##       an all-bot crew pours while it measures that many seconds of the
 ##       pour (60 if not given), prints one "[bench]" line and quits.
 ##
-##   --benchoff=shadows,msaa,glow,labels,particles,hud,views,world
+##   --benchoff=shadows,msaa,glow,labels,particles,hud,views,world,vsync
 ##       with --bench: switches those parts off as the pour starts, to see
 ##       what each one costs (views = the split-screen and close-up cameras,
-##       world = everything beyond the site: streets, trees, traffic, river).
+##       world = everything beyond the site: streets, trees, traffic, river,
+##       vsync = don't wait for the screen, so the true cost shows).
 ##
-## The [bench] line also splits the frame: "script" is the game's own code,
-## "draw cpu" is the engine getting the frame ready, "gpu" is the graphics
-## card drawing it. Paused frames aren't counted. "low" is the 1% low: the frame rate of the
+## The [bench] line also splits the frame: "script" is the game's own code
+## each frame, "physics" its fixed-step code, "draw cpu" is the engine
+## getting the frame ready, "gpu" is the graphics card drawing it. A second
+## line breaks "script" down by the parts of main.gd's frame that call
+## mark(). Paused frames aren't counted. "low" is the 1% low: the frame rate of the
 ## slowest one frame in a hundred, which is what a stutter feels like.
 
 const UI := preload("res://scripts/ui.gd")
@@ -44,12 +47,34 @@ var _off_done := false
 var _views: Array = []             # viewport RIDs being timed
 var _views_t := 0.0
 var _cost := Vector3.ZERO          # summed ms: script, draw cpu, gpu
+var _phys_ms := 0.0                # summed ms of the fixed-step code
+var _draws := 0.0                  # summed draw calls
+var _t0 := 0                       # when this frame's scripts started (usec)
+var _p0 := 0                       # the same for a physics step
+var _mark_us := 0
+var _marks := {}                   # part of the frame -> summed usec
+var _counting := false
+
+## Runs before every other script in the frame, to time them all.
+class Stamp extends Node:
+	var perf
+	func _process(_d: float) -> void:
+		perf._t0 = Time.get_ticks_usec()
+	func _physics_process(_d: float) -> void:
+		perf._p0 = Time.get_ticks_usec()
 const WORLD := ["surrounds", "neighbours", "flora", "fences", "wildlife", "cars", "people", "street", "water", "citycat", "yard"]
 
 func setup(owner_game) -> void:
 	game = owner_game
 	layer = 9
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	process_priority = 1000000
+	process_physics_priority = 1000000
+	var stamp := Stamp.new()
+	stamp.perf = self
+	stamp.process_priority = -1000000
+	stamp.process_physics_priority = -1000000
+	add_child(stamp)
 	_panel = UI.panel(UI.GLASS_SOLID, 10, UI.EDGE, 1, Vector4(12, 6, 12, 8))
 	_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_panel)
@@ -84,6 +109,23 @@ func _reset() -> void:
 	_prev_us = 0
 	_cost = Vector3.ZERO
 	_views_t = 0.0
+	_phys_ms = 0.0
+	_draws = 0.0
+	_marks.clear()
+	_counting = false
+
+## Called through main.gd's frame: the time since the last mark goes to `part`.
+func mark(part: String) -> void:
+	if not _counting:
+		return
+	var now := Time.get_ticks_usec()
+	if part != "":
+		_marks[part] = _marks.get(part, 0) + now - _mark_us
+	_mark_us = now
+
+func _physics_process(_delta: float) -> void:
+	if _counting and _p0 > 0:
+		_phys_ms += (Time.get_ticks_usec() - _p0) / 1000.0
 
 ## Every viewport that's drawing (the split screen and the close-ups have
 ## their own), timed by the engine while the readout's on.
@@ -136,19 +178,27 @@ func _apply_off() -> void:
 				n.process_mode = Node.PROCESS_MODE_DISABLED
 				if n is Node3D:
 					(n as Node3D).visible = false
+	if "vsync" in _off:
+		DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
 	print("[bench] switched off: %s" % ", ".join(_off))
 
 func _process(_delta: float) -> void:
 	if not on:
 		return
 	var now := Time.get_ticks_usec()
+	var script_ms := (now - _t0) / 1000.0
 	var first := _prev_us == 0
 	var ms := (now - _prev_us) / 1000.0
 	_prev_us = now
 	if first or get_tree().paused or ms > 2000.0:
+		_counting = false
 		return   # (a pause, or a hitch from the window being dragged: not the game)
 	# The benchmark only counts the pour itself
 	if bench_secs > 0.0 and (game == null or game.phase != "pour"):
+		_counting = false
+		return
+	if not _counting:
+		_counting = true   # (the parts are counted from the next frame)
 		return
 	if bench_secs > 0.0 and not _off_done:
 		_apply_off()
@@ -161,7 +211,8 @@ func _process(_delta: float) -> void:
 	for rid in _views:
 		cpu += RenderingServer.viewport_get_measured_render_time_cpu(rid)
 		gpu += RenderingServer.viewport_get_measured_render_time_gpu(rid)
-	_cost += Vector3(Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0, cpu, gpu)
+	_cost += Vector3(script_ms, cpu, gpu)
+	_draws += RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME)
 	_ms.append(ms)
 	_win_t += ms / 1000.0
 	_recent.append(ms)
@@ -176,15 +227,22 @@ func _process(_delta: float) -> void:
 		s["script"] = c.x
 		s["cpu"] = c.y
 		s["gpu"] = c.z
+		s["physics"] = _phys_ms / maxf(1.0, float(_ms.size()))
+		s["draws"] = _draws / maxf(1.0, float(_ms.size()))
 		_last = "last %d s: avg %d · low %d fps" % [int(round(_win_t)), int(round(s["avg"])), int(round(s["low"]))]
 		_write(s)
 		if bench_secs > 0.0:
 			print("[bench] %s" % _line(s))
+			if not _marks.is_empty():
+				print("[bench] script parts, ms a frame: %s" % _parts(_ms.size(), c.x))
 			get_tree().quit(0)
 			return
 		_ms.clear()
 		_win_t = 0.0
 		_cost = Vector3.ZERO
+		_phys_ms = 0.0
+		_draws = 0.0
+		_marks.clear()
 
 ## Average and 1% low frame rate, and the worst frame, of a run of frame times (ms).
 static func summary(ms: PackedFloat32Array) -> Dictionary:
@@ -218,11 +276,26 @@ static func _short(n: int) -> String:
 		return "%dk" % int(round(n / 1000.0))
 	return str(n)
 
+## The marked parts of the frame, dearest first, and what's left over (the
+## scripts outside main.gd's frame: HUD, sound, traffic, people).
+func _parts(frames: int, script_ms: float) -> String:
+	var names: Array = _marks.keys()
+	names.sort_custom(func(a, b): return _marks[a] > _marks[b])
+	var out: PackedStringArray = []
+	var seen := 0.0
+	for n in names:
+		var v: float = _marks[n] / 1000.0 / maxf(1.0, float(frames))
+		seen += v
+		if v >= 0.05:
+			out.append("%s %.2f" % [n, v])
+	out.append("everything else %.2f" % maxf(0.0, script_ms - seen))
+	return ", ".join(out)
+
 func _line(s: Dictionary) -> String:
 	var size := get_viewport().get_visible_rect().size
 	var where := "level %d %s" % [game.k + 1, game.phase] if game != null else ""
-	return "%s | avg %.1f fps | 1%% low %.1f fps | worst %.0f ms | script %.1f ms, draw cpu %.1f ms, gpu %.1f ms | %d frames in %.0f s | %s | %dx%d | %s, %s | %s" % [
-		Time.get_datetime_string_from_system(false, true), s["avg"], s["low"], s["worst"], s.get("script", 0.0), s.get("cpu", 0.0), s.get("gpu", 0.0), s["frames"], _win_t, where,
+	return "%s | avg %.1f fps | 1%% low %.1f fps | worst %.0f ms | script %.1f ms, physics %.1f ms, draw cpu %.1f ms, gpu %.1f ms | %d draws | %d frames in %.0f s | %s | %dx%d | %s, %s | %s" % [
+		Time.get_datetime_string_from_system(false, true), s["avg"], s["low"], s["worst"], s.get("script", 0.0), s.get("physics", 0.0), s.get("cpu", 0.0), s.get("gpu", 0.0), int(s.get("draws", 0.0)), s["frames"], _win_t, where,
 		int(size.x), int(size.y), OS.get_name(), RenderingServer.get_video_adapter_name(), RenderingServer.get_current_rendering_method()]
 
 func _write(s: Dictionary) -> void:
