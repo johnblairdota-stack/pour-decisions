@@ -32,6 +32,7 @@ const BLUE := Color("2f4f9e")
 const CONC := Color("a4abb3")
 const AMBER := Color("f2b51f")
 const LW := 3.0
+const KIT := 0.74         # the trucks, hopper and pump are drawn this much smaller than the tower
 const TOP := 182.0        # the tower's collar
 const TRUCK_L := 262.0    # a truck and its gap
 const AGE_WARN := 78.0
@@ -113,7 +114,7 @@ func _process(delta: float) -> void:
 		if not seen.has(id):
 			_truck_x.erase(id)
 	_tick += 1
-	var skey := "%s|%d|%d" % [str(size), int(lift), int(st["sections"])]
+	var skey := "%s|%d" % [str(size), int(st["sections"])]
 	var tkey := skey
 	for tr in st["trucks"]:
 		tkey += "|%d:%d:%d" % [int(_truck_x.get(tr["id"], 0.0)), int(tr["age"]), int(tr["slot"])]
@@ -144,10 +145,12 @@ func _paint(c: CanvasItem, which: int) -> void:
 	if k <= 0.0:
 		return
 	_w = size.x / k
-	_g = 900.0 - lift / k - 28.0
+	# (the kit's the full height of the screen, split or not, and sits on
+	# its bottom edge)
+	_g = 900.0 - 12.0
 	# (with the street band along the bottom, the real trucks and pump are
 	# right there in it: the drawn ones shrink, to leave the deck in view)
-	_gs = 0.62 if lift > 1.0 else 1.0
+	_gs = KIT
 	var pivot := Vector2(_riser_x(), _g)
 	_c.draw_set_transform(pivot * (1.0 - _gs) * k, 0.0, Vector2(k, k) * _gs)
 	match which:
@@ -520,7 +523,7 @@ func _draw_trucks() -> void:
 				continue
 			var x: float = _truck_x.get(tr["id"], -9999.0)
 			# (as many as there's room for beside the job list)
-			if x < -TRUCK_L - 30.0 or int(tr["slot"]) > (3 if _gs >= 1.0 else 5):
+			if x < -TRUCK_L - 30.0 or int(tr["slot"]) > 4:
 				continue
 			_draw_truck(x, float(tr["age"]), int(tr["slot"]) < 0)
 
@@ -669,30 +672,30 @@ func _draw_fault() -> void:
 	var title: String = f.get("title", "")
 	var sub: String = f.get("sub", "")
 	var on_riser: bool = f.get("where", "riser") == "riser"
-	var y := 252.0
-	var w := clampf(maxf(_tw(title, 42), _tw(sub, 26)) + 130.0, 360.0, 560.0)
-	var r := Rect2(_riser_x() - 44.0 - w, y - 50.0, w, 100.0)
+	var y := 238.0
+	var w := clampf(maxf(_tw(title, 30), _tw(sub, 24)) + 96.0, 250.0, 430.0)
+	var r := Rect2(_riser_x() - 44.0 - w, y - 36.0, w, 72.0)
 	# (the call-out's always in the one place, clear of the close-ups; a
 	# line runs from it to the spot on the kit)
 	var spot := Vector2(_riser_x(), _tower_y(float(f.get("at", 0.5)))) if on_riser else _gp(Vector2(_hopper_x() + 94.0, _g - 96.0))
 	var from := Vector2(clampf(spot.x - 30.0, r.position.x + 40.0, r.end.x - 20.0), r.end.y)
 	if spot.y > r.end.y + 20.0:
-		_c.draw_polyline(PackedVector2Array([from, Vector2(from.x, spot.y - 34.0), spot + Vector2(-22.0, -22.0) if not on_riser else Vector2(spot.x - 24.0, spot.y)]), Color.WHITE, 8.0, true)
-		_c.draw_polyline(PackedVector2Array([from, Vector2(from.x, spot.y - 34.0), spot + Vector2(-22.0, -22.0) if not on_riser else Vector2(spot.x - 24.0, spot.y)]), UI.ALARM, 4.0, true)
+		_c.draw_polyline(PackedVector2Array([from, Vector2(from.x, spot.y - 34.0), spot + Vector2(-22.0, -22.0) if not on_riser else Vector2(spot.x - 24.0, spot.y)]), Color.WHITE, 6.0, true)
+		_c.draw_polyline(PackedVector2Array([from, Vector2(from.x, spot.y - 34.0), spot + Vector2(-22.0, -22.0) if not on_riser else Vector2(spot.x - 24.0, spot.y)]), UI.ALARM, 3.0, true)
 	fault_rect = Rect2(r.position * (size.y / 900.0), r.size * (size.y / 900.0))
 	var a := _pulse(1.6)
-	_box(r.grow(2.0 + 3.0 * a), Color(UI.ALARM, 0.35), 16.0, Color(1, 1, 1, 0.0), 0.0)
-	_box(r, UI.ALARM, 14.0, Color.WHITE, 3.0)
-	var tx := r.position.x + 22.0
+	_box(r.grow(1.0 + 2.0 * a), Color(UI.ALARM, 0.35), 13.0, Color(1, 1, 1, 0.0), 0.0)
+	_box(r, UI.ALARM, 11.0, Color.WHITE, 2.5)
+	var tx := r.position.x + 16.0
 	var btn: String = f.get("btn", "")
 	if btn != "":
-		var c := Vector2(r.position.x + 52.0, y)
-		_c.draw_circle(c + Vector2(0, 4), 33.0, UI.LIP.get(btn, INK), true, -1.0, true)
-		_disc(c, 33.0, UI.GLYPH.get(btn, Color.WHITE), Color.WHITE, 3.0)
-		_text(Vector2(c.x - _tw(btn, 40) * 0.5, c.y + 14.0), btn, 40, UI.GLYPH_INK.get(btn, INK))
-		tx = r.position.x + 100.0
-	var room := r.end.x - 18.0 - tx
-	var fs := _fit(title, 42, room, 28)
-	_text(Vector2(tx, y + (4.0 if sub != "" else 14.0)), title, fs, Color.WHITE)
+		var c := Vector2(r.position.x + 38.0, y)
+		_c.draw_circle(c + Vector2(0, 3), 24.0, UI.LIP.get(btn, INK), true, -1.0, true)
+		_disc(c, 24.0, UI.GLYPH.get(btn, Color.WHITE), Color.WHITE, 2.5)
+		_text(Vector2(c.x - _tw(btn, 30) * 0.5, c.y + 10.0), btn, 30, UI.GLYPH_INK.get(btn, INK))
+		tx = r.position.x + 72.0
+	var room := r.end.x - 14.0 - tx
+	var fs := _fit(title, 30, room, 24)
+	_text(Vector2(tx, y + (0.0 if sub != "" else 10.0)), title, fs, Color.WHITE)
 	if sub != "":
-		_text(Vector2(tx, y + 34.0), sub, _fit(sub, 26, room, 24), Color.WHITE)
+		_text(Vector2(tx, y + 26.0), sub, _fit(sub, 24, room, 20), Color.WHITE)

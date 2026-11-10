@@ -66,6 +66,7 @@ var wind_bar: ColorRect
 var ticket_box: VBoxContainer
 var tickets: Array = []
 # call-outs
+var _kit_layer: CanvasLayer
 var toast_panel: PanelContainer
 var toast_label: Label
 var _toast_t := 0.0
@@ -107,7 +108,12 @@ func _ready() -> void:
 	assembly_on = not OS.get_cmdline_user_args().has("--classichud")
 	assembly = Assembly.new()
 	assembly.visible = assembly_on
-	_root.add_child(assembly)
+	# (on its own layer, over the street band: the kit's the full height of
+	# the screen whether it's split or not)
+	_kit_layer = CanvasLayer.new()
+	_kit_layer.layer = 3
+	add_child(_kit_layer)
+	_kit_layer.add_child(assembly)
 	if assembly_on:
 		call_deferred("_tv_size_tickets")
 	# The slab report and the briefing sit on their own layer, above the
@@ -373,6 +379,7 @@ func _ready() -> void:
 	facts.visible = false
 
 func _process(delta: float) -> void:
+	_kit_layer.visible = visible and assembly_on
 	_place_tickets()
 	if assembly_on:
 		_feed_assembly()
