@@ -137,6 +137,7 @@ var _shot_wait := 0
 
 var building: Node3D
 var podium: Node3D
+var west_podium: Node3D      # the other wing's ground slab, under their first deck
 var hoist_mast: Node3D
 var yard: Node3D          # the site set-up (yard.gd)
 var floor_nodes: Array[Node3D] = []
@@ -1125,6 +1126,8 @@ func _use_tut_frame() -> void:
 	pour.queue_free()
 	_make_pour()
 	podium.position = Vector3(0, -0.49, 0)
+	if west_podium != null:
+		west_podium.visible = false
 	hoist_mast.position.z = HOIST_Z
 	hoist_cage.position.z = HOIST_Z
 	(stations["hoist_g"]["node"] as Node3D).position.z = HOIST_Z + 1.4
@@ -1185,6 +1188,18 @@ func _tut_site() -> void:
 func _build_site() -> void:
 	podium = F.box(Vector3(BW + 10, 1.0, BD + 10), F.mat("podium"), Vector3(SC.x, -0.49, SC.z))
 	add_child(podium)
+	# The other wing stands on its own ground slab, with a 3 m apron (inside
+	# the map's site cut) where ours doesn't already reach: their first deck
+	# goes up off it, not off the grass
+	var pr := Rect2(SC.x - BW * 0.5 - 5.0, SC.z - BD * 0.5 - 5.0, BW + 10.0, BD + 10.0)
+	var ours := PackedVector2Array([pr.position, Vector2(pr.end.x, pr.position.y), pr.end, Vector2(pr.position.x, pr.end.y)])
+	var apron: Array = Geometry2D.offset_polygon(PackedVector2Array(OTHER_WING), 3.0, Geometry2D.JOIN_MITER)
+	if not apron.is_empty():
+		west_podium = Node3D.new()
+		west_podium.name = "WestPodium"
+		for part in Geometry2D.clip_polygons(apron[0], ours):
+			west_podium.add_child(F.prism(part, -0.99, 1.0, F.mat("podium")))
+		add_child(west_podium)
 	building = Node3D.new()
 	add_child(building)
 

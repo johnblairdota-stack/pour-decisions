@@ -922,6 +922,14 @@ func _spikes(delta: float) -> void:
 			_start_spike(_pending_cause)
 			_pending_cause = ""
 		return
+	# Once the warning's up it's seen through: a moment off the pump button
+	# (the boom moving on, the hopper dipping) doesn't take the gauge close-up
+	# away and put it back, over and over
+	if spike_warn and live and not tripped and not blocked and fail_i < 0 and not (game.ops and game.ops.busy()):
+		_spike_in -= delta
+		if _spike_in <= 0.0:
+			_start_spike("")
+		return
 	# Random spikes only in steady pumping, with the line sound
 	if not pumping or not live or tripped or blocked or fail_i >= 0 or hopper < 0.4 or (game.ops and game.ops.busy()):
 		spike_warn = false

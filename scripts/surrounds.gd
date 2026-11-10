@@ -35,6 +35,9 @@ const FAR := 2500.0           # the haze ring of houses goes out to here
 ## the laydown south of the building.
 const SITE_CLEAR := [Rect2(-45, -14, 95, 38), Rect2(-50, 10, 88, 22), Rect2(-26, -32, 46, 19)]
 const TRUCK_ROAD := Rect2(-44.5, 21.1, 80.0, 9.0)
+## Both wings of the tower (main.gd's slab and OTHER_WING, in this frame) and
+## their edge screens: no tree's crown reaches over them, at any floor.
+const TOWER := [Rect2(-40.0, -12.5, 85.5, 26.0)]
 ## The map's ground sits a little above the plain grass and under the game's own
 ## hardstand (6 cm) and truck road (4.5 cm), clear of both so nothing flickers.
 const GROUND_Y := 0.02
@@ -694,7 +697,7 @@ static func _trees(root: Node3D, d: Dictionary, roads: Dictionary, bank: Diction
 				plant.append([Flora.pick(mix, rng), Vector3(p.x, 0, p.y)])
 	_street_trees(d, roads, taken, lidar, plant, rng)
 	_mangroves(d, bank, lidar, plant, rng)
-	Flora.plant(root, plant, rng)
+	Flora.plant(root, plant, rng, TOWER)
 
 ## Inside the 1 km LiDAR tile round the site, a tree at every tree top the
 ## 2019 LiDAR found, at its real height, the species going by where it stands:
