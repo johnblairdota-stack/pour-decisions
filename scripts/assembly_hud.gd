@@ -1,4 +1,6 @@
 extends Control
+
+const PerfClock := preload("res://scripts/perf.gd")
 ## The assembly HUD: a flat drawing of the real kit round the edge of the
 ## screen, and every reading shown on the part it belongs to.
 ##
@@ -106,7 +108,13 @@ func _ready() -> void:
 		l.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		_layers.append(l)
 
+## (timed for the F4 readout's list of what the frame went on)
 func _process(delta: float) -> void:
+	var _t0 := Time.get_ticks_usec()
+	_frame_work(delta)
+	PerfClock.took("kit hud", _t0)
+
+func _frame_work(delta: float) -> void:
 	if not is_visible_in_tree():
 		return
 	_t += delta

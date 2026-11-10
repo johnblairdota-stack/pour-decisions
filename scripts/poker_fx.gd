@@ -10,6 +10,8 @@
 ## `radius` is the area it covers (m). `low_light` brightens it for dawn.
 extends Node3D
 
+const PerfClock := preload("res://scripts/perf.gd")
+
 const MAX_BUBBLES := 40
 const MAX_RINGS := 24
 const MAX_DROPS := 48
@@ -122,7 +124,13 @@ func clear() -> void:
 	_d.clear()
 	_owed = 0.0
 
+## (timed for the F4 readout's list of what the frame went on)
 func _process(delta: float) -> void:
+	var _t0 := Time.get_ticks_usec()
+	_frame_work(delta)
+	PerfClock.took("poker fx", _t0)
+
+func _frame_work(delta: float) -> void:
 	# the cream and the puddle
 	var span := radius * 1.25
 	_sheen.scale = Vector3(span, 1, span)

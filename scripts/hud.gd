@@ -11,6 +11,8 @@
 ## Close-up cameras sit bottom right (see main.gd), framed in the job's colour.
 extends CanvasLayer
 
+const PerfClock := preload("res://scripts/perf.gd")
+
 const UI := preload("res://scripts/ui.gd")
 const Icons := preload("res://scripts/icons.gd")
 const CueBadge := preload("res://scripts/cue_badge.gd")
@@ -380,7 +382,13 @@ func _ready() -> void:
 	facts.add_child(facts_label)
 	facts.visible = false
 
+## (timed for the F4 readout's list of what the frame went on)
 func _process(delta: float) -> void:
+	var _t0 := Time.get_ticks_usec()
+	_frame_work(delta)
+	PerfClock.took("hud", _t0)
+
+func _frame_work(delta: float) -> void:
 	_kit_layer.visible = visible and assembly_on
 	_frames_up += 1
 	_place_tickets()

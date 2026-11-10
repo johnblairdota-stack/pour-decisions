@@ -2,6 +2,8 @@
 ## stroke thump, a worn clamp's rattle, the dogman's whistle and one-shot hits.
 extends AudioStreamPlayer
 
+const PerfClock := preload("res://scripts/perf.gd")
+
 const Settings := preload("res://scripts/settings.gd")
 
 # ------------------------------------------------------------------ the mix
@@ -483,7 +485,13 @@ func _whistle_on(code: String, a: float) -> float:
 		t += float(b[1])
 	return 0.0
 
+## (timed for the F4 readout's list of what the frame went on)
 func _process(delta: float) -> void:
+	var _t0 := Time.get_ticks_usec()
+	_frame_work(delta)
+	PerfClock.took("sound", _t0)
+
+func _frame_work(delta: float) -> void:
 	if _playback == null:
 		return
 	_update_mix(delta)

@@ -6,6 +6,8 @@
 ## makes one of these with the map's paths.
 extends Node3D
 
+const PerfClock := preload("res://scripts/perf.gd")
+
 const F := preload("res://scripts/factory.gd")
 const Water := preload("res://scripts/water.gd")
 const LIB := "res://assets/people/people.glb"
@@ -248,7 +250,13 @@ func _walker(kind: String, route: Dictionary, rng: RandomNumberGenerator) -> Dic
 		w["pram"] = pr
 	return w
 
+## (timed for the F4 readout's list of what the frame went on)
 func _process(delta: float) -> void:
+	var _t0 := Time.get_ticks_usec()
+	_frame_work(delta)
+	PerfClock.took("street crowd", _t0)
+
+func _frame_work(delta: float) -> void:
 	_t += delta
 	var cam := get_viewport().get_camera_3d()
 	var eye := cam.global_position if cam != null else Vector3.ZERO

@@ -1802,7 +1802,11 @@ func _build_band() -> void:
 	layer.layer = 1
 	add_child(layer)
 	band_box = SubViewportContainer.new()
-	band_box.stretch = true
+	# (not stretched: the view keeps its full size and the box slides up
+	# over it. Stretched, the view was made again at a new size every frame
+	# the band was opening or closing, which is dear)
+	band_box.stretch = false
+	band_box.clip_contents = true
 	band_box.anchor_left = 0.0
 	band_box.anchor_right = 1.0
 	band_box.anchor_top = 1.0
@@ -5713,7 +5717,10 @@ func _update_camera_views(delta: float) -> void:
 		for p in down:
 			da += p.position
 		da /= down.size()
-		apart = work_y >= SPLIT_Y or ua.distance_to(da) > SPLIT_DIST
+		# (once it's split it stays split till they're well back together:
+		# on the line, it used to open and close over and over)
+		var slack := 0.8 if _split > 0.0 else 1.0
+		apart = work_y >= SPLIT_Y * slack or ua.distance_to(da) > SPLIT_DIST * slack
 	# (and not while the slab report's up: it needs the whole screen)
 	var split_on: bool = Settings.value("split")
 	var want_split := split_on and apart and not skyline and not (phase in ["roles", "select", "topout", "screed", "sign", "cure"])

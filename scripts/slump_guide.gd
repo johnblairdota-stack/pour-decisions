@@ -6,6 +6,8 @@
 ## the close-up keeps the room.
 extends Control
 
+const PerfClock := preload("res://scripts/perf.gd")
+
 const GOLD := Color("ffd23f")
 const DONE := Color("7cd992")
 const BG := Color(0.04, 0.07, 0.12, 0.97)
@@ -74,7 +76,13 @@ func fit(w: float) -> float:
 	size = Vector2(w, h)
 	return h
 
+## (timed for the F4 readout's list of what the frame went on)
 func _process(delta: float) -> void:
+	var _t0 := Time.get_ticks_usec()
+	_frame_work(delta)
+	PerfClock.took("slump guide", _t0)
+
+func _frame_work(delta: float) -> void:
 	_t += delta
 	queue_redraw()
 

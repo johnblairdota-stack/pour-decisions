@@ -7,6 +7,8 @@
 ## spray_fx.hose(points) makes the hose itself, along global points.
 extends Node3D
 
+const PerfClock := preload("res://scripts/perf.gd")
+
 const RF := preload("res://scripts/rope_fx.gd")
 const F := preload("res://scripts/factory.gd")
 const MAX := 320
@@ -44,7 +46,13 @@ func _ready() -> void:
 	_mm.top_level = true
 	add_child(_mm)
 
+## (timed for the F4 readout's list of what the frame went on)
 func _process(delta: float) -> void:
+	var _t0 := Time.get_ticks_usec()
+	_frame_work(delta)
+	PerfClock.took("spray fx", _t0)
+
+func _frame_work(delta: float) -> void:
 	var gt := global_transform
 	var fwd := -gt.basis.z.normalized()
 	if on:
