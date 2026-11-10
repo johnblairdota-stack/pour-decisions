@@ -1,10 +1,15 @@
-## The front end, in the Site Kit look, two pages:
+## The front end, in the Site Kit look, laid over the real site (the camera's
+## flying over it behind). Two pages:
+##   0. The cold open: just the title and the code to scan, while the camera
+##      comes in over the river. Phones can already join and pick a job.
 ##   1. CREW: the title, one big code to scan, and the hat rack: six hard
 ##      hats, one per job. Each person grabs a hat (on their phone, or with
 ##      the stick) and their P tag lands on it; bots wear the rest. Lock in
-##      with A (or hold LOCK IN on the phone).
-##   2. SITE: the building floor by floor (poured floors show their medal,
-##      the next one glows gold) and the kit to pour it with.
+##      with A (or hold LOCK IN on the phone). Once everyone's in, the
+##      lowest-numbered player holds A to start.
+##   2. SITE: the real building, floor by floor (main.gd draws the floors on
+##      the site itself and the camera goes to the one picked) and the kit
+##      to pour it with.
 ## Casual crews keep moving: there's always one gold default action, any
 ## player can press it, a countdown ring picks it on its own, and B goes back.
 extends CanvasLayer
@@ -19,9 +24,9 @@ const QR := preload("res://scripts/qr.gd")
 const Story := preload("res://scripts/story.gd")
 
 const KITS := [
-	{"id": "tower", "name": "Tower boom", "sub": "Stationary pump + placing boom on a lattice tower", "ok": true, "tag": "WHAT SCP RAN HERE"},
-	{"id": "truck", "name": "Truck boom", "sub": "Truck-mounted boom pump. Reach runs out on the top floors", "ok": true, "tag": "REACH RUNS OUT UP TOP"},
-	{"id": "tutorial", "name": "Water tower", "sub": "A short guided job on a round concrete water tower", "ok": true, "tag": "NEW? START HERE"},
+	{"id": "tower", "name": "Tower boom", "sub": "Pump on the street, boom up a lattice tower", "ok": true, "tag": "WHAT SCP RAN HERE"},
+	{"id": "truck", "name": "Truck boom", "sub": "Boom on the pump truck. Runs out of reach up top", "ok": true, "tag": "REACH RUNS OUT UP TOP"},
+	{"id": "tutorial", "name": "Water tower", "sub": "A short guided job on a round water tower", "ok": true, "tag": "NEW? START HERE"},
 	{"id": "line", "name": "Line pump", "sub": "Trailer pump, pipe run across the deck", "ok": false, "tag": "LATER CHAPTER"},
 	{"id": "mast", "name": "Mast boom", "sub": "Placing boom on a floor-climbing mast", "ok": false, "tag": "LATER CHAPTER"},
 ]
@@ -31,13 +36,16 @@ const KITS := [
 const CARDS_FRESH := [2, 0, 1]
 const CARDS_TUT_DONE := [0, 2, 1]
 const CARDS_ON_SITE := [0, 1]
-const CARD_TAGS := {"fresh": ["NEW? START HERE", "THE TOWER", "OTHER KIT"], "tut_done": ["PICKED FOR YOU", "THE WATER TOWER AGAIN", "OTHER KIT"], "site": ["PICKED FOR YOU", "OTHER KIT"]}
+const CARD_TAGS := {"fresh": ["NEW? START HERE", "THE TOWER", "OTHER KIT"], "tut_done": ["PICKED FOR YOU", "ONCE MORE", "OTHER KIT"], "site": ["PICKED FOR YOU", "OTHER KIT"]}
 var CARDS: Array = CARDS_TUT_DONE
 const FLOORS := 11
+const MEDAL_COL := [Color("d0884a"), Color("d6dde6"), Color("ffd23f")]
 const CLIMB_BEFORE := [4, 7, 10]   # levels that start with a climb day
 const RACK_ORDER := ["boom", "line", "pump", "hose", "poker", "screed"]
 
-const COUNT_T := 3.0          # everyone's locked in: a short count, B still stops it
+const HOLD_T := 0.8           # everyone's locked in: the first player holds A this long to start
+const WAIT_T := 20.0          # ...and if nobody does, it starts on its own
+const OPEN_T := 6.0           # the cold open: the title over the fly-in, before the hat rack
 const AUTO_T := 20.0          # someone's locked in: the ring runs, then everyone's in
 const SITE_T := 15.0          # the site page starts the picked pour on its own
 
@@ -49,7 +57,20 @@ var _done := false
 var _cool := 0.0
 var _pcool := {}
 var _ready_p := {}            # person index -> locked in on the crew page
-var _count_t := -1.0          # counting down to the site page
+var _hold_t := 0.0            # how long the first player's held A, everyone locked in
+var _hold_armed := false      # (they've let go of A since locking in)
+var _wait_t := 0.0            # everyone's in and nobody's holding
+var _all_in := false          # every person here's locked in
+## (the phones' lobby reads this: seconds until it starts on its own, or -1)
+var _count_t: float:
+	get:
+		return (WAIT_T - _wait_t) if _all_in and page == "crew" else -1.0
+var _waiting := false         # the first player's holding A but someone's still choosing
+var open_t := 0.0             # the cold open's clock
+var crew_t := 0.0             # how long the crew page has been up
+var open_e := 0.0             # 0 the cold open, 1 the crew page (main.gd flies the camera on it)
+var _bar: Control
+var _tagline: Control
 var _auto_t := -1.0
 var _site_t := SITE_T
 var _t := 0.0
@@ -88,8 +109,21 @@ var _kit_cards: Array = []
 
 func _ready() -> void:
 	layer = 5
-	var shade := ColorRect.new()
-	shade.color = Color(0.043, 0.047, 0.063, 0.86)
+	# The real site's behind it all: only the top and the bottom are
+	# darkened, for the type
+	var g := Gradient.new()
+	g.offsets = PackedFloat32Array([0.0, 0.3, 0.6, 1.0])
+	g.colors = PackedColorArray([Color(0.043, 0.047, 0.063, 0.82), Color(0.043, 0.047, 0.063, 0.2), Color(0.043, 0.047, 0.063, 0.2), Color(0.043, 0.047, 0.063, 0.86)])
+	var gt := GradientTexture2D.new()
+	gt.gradient = g
+	gt.fill_from = Vector2(0, 0)
+	gt.fill_to = Vector2(0, 1)
+	gt.width = 4
+	gt.height = 256
+	var shade := TextureRect.new()
+	shade.texture = gt
+	shade.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	shade.stretch_mode = TextureRect.STRETCH_SCALE
 	shade.set_anchors_preset(Control.PRESET_FULL_RECT)
 	shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(shade)
@@ -118,11 +152,17 @@ func _build_crew_page(root: Control) -> void:
 	tv.add_child(th)
 	var logo_hat := UI.Hat.new()
 	logo_hat.color = UI.YELLOW
-	logo_hat.custom_minimum_size = Vector2(76, 64)
+	logo_hat.custom_minimum_size = Vector2(92, 78)
 	logo_hat.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	th.add_child(logo_hat)
-	th.add_child(UI.head("POUR DECISIONS", 66, UI.BONE))
-	tv.add_child(UI.label(Settings.brand("site") + ", Hamilton Reach · a crew of six · bots fill the gaps", 18, Color("d4d1c8"), 0))
+	var names := VBoxContainer.new()
+	names.add_theme_constant_override("separation", -14)
+	th.add_child(names)
+	names.add_child(UI.head("Pour Decisions", 84, UI.BONE, 8))
+	# (where it is: smaller and paler, under the name)
+	names.add_child(UI.head("Brisbane", 38, Color(UI.BONE, 0.62), 6))
+	_tagline = UI.label(Settings.brand("site") + ", Hamilton Reach · a crew of six · bots fill the gaps", 24, Color("d4d1c8"), 4)
+	tv.add_child(_tagline)
 	# One code for everyone, top right
 	var qr := UI.panel(UI.CARD, 18, Color(1, 1, 1, 0.08), 1, Vector4(14, 14, 18, 14))
 	_crew_page.add_child(qr)
@@ -133,25 +173,25 @@ func _build_crew_page(root: Control) -> void:
 	var qbg := UI.panel(Color.WHITE, 12, Color(0, 0, 0, 0), 0, Vector4(8, 8, 8, 8))
 	qh.add_child(qbg)
 	_qr_rect = TextureRect.new()
-	_qr_rect.custom_minimum_size = Vector2(148, 148)
+	_qr_rect.custom_minimum_size = Vector2(176, 176)
 	_qr_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	_qr_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	_qr_rect.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	qbg.add_child(_qr_rect)
 	var qv := VBoxContainer.new()
 	qv.add_theme_constant_override("separation", 6)
-	qv.custom_minimum_size = Vector2(250, 0)
+	qv.custom_minimum_size = Vector2(330, 0)
 	qh.add_child(qv)
-	qv.add_child(UI.head("Scan to join", 34, UI.BONE))
-	var how := UI.label("Everyone scans this one code. Your phone says which player you are. Keyboards and pads: press A.", 15, Color("c9c6bd"), 0)
+	qv.add_child(UI.head("Scan to join", 40, UI.BONE))
+	var how := UI.label("One code for everyone. Pads and keyboards: press A.", 24, Color("c9c6bd"), 0)
 	how.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	how.custom_minimum_size = Vector2(250, 0)
+	how.custom_minimum_size = Vector2(330, 0)
 	qv.add_child(how)
-	_url_label = UI.head("", 20, UI.GOLD)
+	_url_label = UI.head("", 26, UI.GOLD)
 	qv.add_child(_url_label)
-	_help_label = UI.label("", 12, UI.DIM, 0)
+	_help_label = UI.label("", 24, UI.DIM, 0)
 	_help_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_help_label.custom_minimum_size = Vector2(250, 0)
+	_help_label.custom_minimum_size = Vector2(330, 0)
 	qv.add_child(_help_label)
 	join = _help_label
 	# The hat rack
@@ -167,8 +207,8 @@ func _build_crew_page(root: Control) -> void:
 	var rt := HBoxContainer.new()
 	rt.add_theme_constant_override("separation", 14)
 	rv.add_child(rt)
-	rt.add_child(UI.head("Grab a hat", 34, Color("1b1308")))
-	var rs := UI.label("Pick your job on your phone, or left / right (up / down changes who you are), then lock in", 16, Color("3d2c18"), 0)
+	rt.add_child(UI.head("Grab a hat", 36, Color("1b1308")))
+	var rs := UI.label("On your phone, or left / right for the job and up / down for who. Then lock in.", 24, Color("3d2c18"), 0)
 	rs.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	rt.add_child(rs)
 	var rail := ColorRect.new()
@@ -181,7 +221,7 @@ func _build_crew_page(root: Control) -> void:
 	for role in RACK_ORDER:
 		var col := VBoxContainer.new()
 		col.add_theme_constant_override("separation", 6)
-		col.custom_minimum_size = Vector2(176, 0)
+		col.custom_minimum_size = Vector2(212, 0)
 		col.alignment = BoxContainer.ALIGNMENT_BEGIN
 		row.add_child(col)
 		var peg := ColorRect.new()
@@ -195,7 +235,7 @@ func _build_crew_page(root: Control) -> void:
 		hat.custom_minimum_size = Vector2(120, 100)
 		hat.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 		col.add_child(hat)
-		var jn := UI.head(UI.ROLE_NAME[role], 24, Color("1b1308"))
+		var jn := UI.head(UI.ROLE_NAME[role], 30, Color("1b1308"))
 		jn.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		col.add_child(jn)
 		var tag := UI.pill(UI.CARD, Vector4(5, 4, 12, 4))
@@ -204,21 +244,16 @@ func _build_crew_page(root: Control) -> void:
 		var tr := HBoxContainer.new()
 		tr.add_theme_constant_override("separation", 6)
 		tag.add_child(tr)
-		var ptag := UI.ptag(1, 16)
+		var ptag := UI.ptag(1, 24)
 		tr.add_child(ptag)
-		var who := UI.label("", 16, UI.BONE, 0)
+		var who := UI.label("", 24, UI.BONE, 0)
 		who.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		tr.add_child(who)
-		var ask := UI.head(UI.ROLE_ASK[role], 17, Color("1b1308"))
+		var ask := UI.head(UI.ROLE_ASK[role], 24, Color("1b1308"))
 		ask.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		ask.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		ask.custom_minimum_size = Vector2(170, 0)
+		ask.custom_minimum_size = Vector2(206, 0)
 		col.add_child(ask)
-		var line := UI.label(UI.ROLE_SHORT[role], 13, Color("3d2c18"), 0)
-		line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		line.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		line.custom_minimum_size = Vector2(170, 0)
-		col.add_child(line)
 		_hats[role] = {"hat": hat, "tag": tag, "ptag": ptag, "who": who}
 	# Along the bottom: who's in, the countdown, and the gold default
 	var bar := HBoxContainer.new()
@@ -227,16 +262,17 @@ func _build_crew_page(root: Control) -> void:
 	bar.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 	bar.offset_left = 48
 	bar.offset_right = -48
-	bar.offset_top = -112
-	bar.offset_bottom = -24
+	bar.offset_top = -128
+	bar.offset_bottom = -20
+	_bar = bar
 	var dots := HBoxContainer.new()
 	dots.add_theme_constant_override("separation", 8)
 	bar.add_child(dots)
 	for i in 6:
 		var d := UI.panel(Color(0, 0, 0, 0), 99, UI.DIM, 2, Vector4(0, 0, 0, 0))
-		d.custom_minimum_size = Vector2(46, 46)
+		d.custom_minimum_size = Vector2(56, 56)
 		d.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		var dl := UI.head("P%d" % (i + 1), 18, UI.DIM)
+		var dl := UI.head("P%d" % (i + 1), 24, UI.DIM)
 		dl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		dl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		d.add_child(dl)
@@ -251,9 +287,9 @@ func _build_crew_page(root: Control) -> void:
 	cv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	cv.alignment = BoxContainer.ALIGNMENT_CENTER
 	bar.add_child(cv)
-	_count_title = UI.head("", 30, UI.BONE)
+	_count_title = UI.head("", 32, UI.BONE)
 	cv.add_child(_count_title)
-	_count_sub = UI.label("", 15, Color("b9b6ad"), 0)
+	_count_sub = UI.label("", 24, Color("c9c6bd"), 0)
 	_count_sub.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	cv.add_child(_count_sub)
 	_back_hint = _key_hint("B", "CHANGE", false)
@@ -271,7 +307,7 @@ func _build_crew_page(root: Control) -> void:
 	gh.add_child(gv)
 	_go_title = UI.head("", 30, UI.BONE)
 	gv.add_child(_go_title)
-	_go_sub = UI.label("", 13, Color("c9c6bd"), 0)
+	_go_sub = UI.label("", 24, Color("c9c6bd"), 0)
 	gv.add_child(_go_sub)
 
 ## A button and what it does, for the bottom bars.
@@ -331,25 +367,36 @@ func _refresh_crew() -> void:
 		else:
 			all_locked = false
 			choosing.append("P%d" % p.index)
-	_go_title.text = ("START WITH %d" % people.size()) if not people.is_empty() else "PRESS A TO JOIN"
-	_go_sub.text = ("any player · bots take the other %d jobs" % bots) if bots > 0 else "any player · the whole crew's people"
+	var first := "P%d" % _starter(people).index if not people.is_empty() else "P1"
+	if people.is_empty():
+		_go_title.text = "PRESS A TO JOIN"
+		_go_sub.text = "bots take the jobs nobody does"
+	elif all_locked:
+		_go_title.text = "HOLD TO START"
+		_go_sub.text = ("%s · bots take the other %d jobs" % [first, bots]) if bots > 0 else ("%s · the whole crew's people" % first)
+	else:
+		_go_title.text = "LOCK IN"
+		_go_sub.text = "then %s holds A to start" % first
 	_go_pill.pivot_offset = _go_pill.size * 0.5
 	_go_pill.scale = Vector2.ONE * (1.0 + (UI.BREATHE_S - 1.0) * (0.5 - 0.5 * cos(_t * TAU / UI.BREATHE_T)))
 	_back_hint.visible = any_locked
 	if all_locked:
-		_ring.frac = clampf(_count_t / COUNT_T, 0.0, 1.0)
-		_ring.text = str(int(ceil(maxf(_count_t, 0.0))))
+		# (the ring fills as the first player holds A; left alone, it runs
+		# down and the job starts anyway)
+		var holding := _hold_t > 0.0
+		_ring.frac = clampf(_hold_t / HOLD_T, 0.0, 1.0) if holding else clampf(1.0 - _wait_t / WAIT_T, 0.0, 1.0)
+		_ring.text = "A" if holding else str(int(ceil(maxf(WAIT_T - _wait_t, 0.0))))
 		_count_title.text = "Everyone's in"
-		_count_sub.text = "Starting now. B stops it."
+		_count_sub.text = "%s: hold A to start. B changes your hat." % first
 	elif any_locked:
 		_ring.frac = clampf(_auto_t / AUTO_T, 0.0, 1.0)
 		_ring.text = str(int(ceil(maxf(_auto_t, 0.0))))
-		_count_title.text = "Nearly there"
-		_count_sub.text = "Starting when the ring runs out. %s %s still choosing: they keep the hat they're on." % [" and ".join(choosing), "is" if choosing.size() == 1 else "are"]
+		_count_title.text = ("Waiting on %s" % " and ".join(choosing)) if _waiting else "Nearly there"
+		_count_sub.text = "%s %s still choosing. When the ring runs out they keep the hat they're on." % [" and ".join(choosing), "is" if choosing.size() == 1 else "are"]
 	else:
 		_ring.frac = -1.0
 		_count_title.text = "Grab a hat"
-		_count_sub.text = "Pick a job, then lock in. Bots wear the hats nobody takes, and you can swap on site."
+		_count_sub.text = "Pick a job, then lock in. You can swap on site."
 	_ring.visible = any_locked
 
 ## A person locks in (or changes their mind).
@@ -369,13 +416,13 @@ func set_ready(i: int, on: bool) -> void:
 ## along the bottom, shrunk to fit when the screen text is big (it used to
 ## sit in the middle and cover the bottom of the QR at 1.25).
 const RACK_GAP := 14.0
-const RACK_BAR := 118.0      # px kept clear along the bottom for the bar
+const RACK_BAR := 142.0      # px kept clear along the bottom for the bar
 
 func _fit_rack() -> void:
 	if _rack == null:
 		return
 	var vs: Vector2 = _crew_page.size
-	var top: float = _title.get_rect().end.y + RACK_GAP
+	var top: float = 30.0 + _title.size.y + RACK_GAP
 	if _qr_panel.visible:
 		top = maxf(top, _qr_panel.get_rect().end.y + RACK_GAP)
 	var bottom: float = vs.y - RACK_BAR
@@ -383,13 +430,47 @@ func _fit_rack() -> void:
 	var k := minf(1.0, minf((bottom - top) / sz.y, (vs.x - 48.0) / sz.x))
 	_rack.size = sz
 	_rack.scale = Vector2(k, k)
-	_rack.position = Vector2((vs.x - sz.x * k) * 0.5, top + maxf(0.0, (bottom - top - sz.y * k) * 0.5))
+	# (hard down on the bar, so the site shows over it)
+	_rack.position = Vector2((vs.x - sz.x * k) * 0.5, bottom - sz.y * k)
+	# The title: big in the middle for the cold open, then up to its corner
+	var ts: Vector2 = _title.get_combined_minimum_size()
+	_title.size = ts
+	var big := 1.45
+	var sc := lerpf(big, 1.0, open_e)
+	_title.scale = Vector2(sc, sc)
+	_title.position = Vector2((vs.x - ts.x * big) * 0.5, vs.y * 0.3).lerp(Vector2(48, 30), open_e)
+	_rack.modulate.a = open_e
+	_bar.modulate.a = open_e
+	_tagline.modulate.a = open_e
+
+## Who starts the job: the lowest-numbered person here.
+func _starter(people: Array):
+	var best = null
+	for p in people:
+		if best == null or p.index < best.index:
+			best = p
+	return best
 
 func _process_crew(delta: float) -> void:
-	_fit_rack()
 	var crew = game.crew
 	var people: Array = crew.humans()
-	var go_now := false
+	# The cold open: the title over the fly-in. Any button cuts it short
+	# (and that press does nothing else)
+	if open_e < 1.0:
+		open_t += delta
+		var skip: bool = (game.autotest and not game.wants_cold_open()) or _uitest
+		for p in people:
+			if p.action_pressed() or p.leave_pressed() or p.move_input().length() > 0.5:
+				skip = true
+		if skip:
+			open_t = maxf(open_t, OPEN_T)
+		open_e = ease(clampf((open_t - OPEN_T) / 0.7, 0.0, 1.0), -2.0)
+		_fit_rack()
+		_refresh_crew()
+		if open_e < 1.0:
+			return
+	crew_t += delta
+	_fit_rack()
 	for p in people:
 		var i: int = p.index
 		_pcool[i] = maxf(0.0, float(_pcool.get(i, 0.0)) - delta)
@@ -411,38 +492,44 @@ func _process_crew(delta: float) -> void:
 				game.sfx.hit("tink")
 		me = crew.human(i)
 		if me.action_pressed():
-			# The gold default: lock in, and once you're in, go now
-			if locked:
-				go_now = true
-			else:
+			# The gold default: lock in
+			if not locked:
 				set_ready(i, true)
 		elif me.leave_pressed() and locked:
 			set_ready(i, false)
+	people = crew.humans()
 	var all := not people.is_empty()
 	var any := false
 	for p in people:
 		var r: bool = _ready_p.get(p.index, false)
 		all = all and r
 		any = any or r
-	if go_now:
-		for p in people:
-			_ready_p[p.index] = true
-		all = true
-		_count_t = minf(_count_t, 0.6) if _count_t > 0.0 else 0.6
+	_all_in = all
+	var first = _starter(people)
+	var held: bool = first != null and first.action_held()
+	_waiting = false
 	if all:
+		# Everyone's in: the first player holds A to start (they have to let
+		# go of the press that locked them in first). Left alone, it starts.
 		_auto_t = -1.0
-		if _count_t < 0.0:
-			_count_t = COUNT_T
+		if not held:
+			_hold_armed = true
+		if held and _hold_armed:
+			if _hold_t <= 0.0:
+				game.sfx.hit("tink")
+			_hold_t += delta
+		else:
+			_hold_t = maxf(0.0, _hold_t - delta * 2.0)
+			_wait_t += delta
+		if _hold_t >= HOLD_T or _wait_t >= WAIT_T:
 			game.sfx.hit("ding")
-		var was := int(ceil(_count_t))
-		_count_t -= delta
-		if int(ceil(_count_t)) != was and _count_t > 0.0:
-			game.sfx.hit("tink")
-		if _count_t <= 0.0:
-			_count_t = -1.0
 			go_site()
 	else:
-		_count_t = -1.0
+		_hold_t = 0.0
+		_wait_t = 0.0
+		_hold_armed = false
+		# (holding A with someone still choosing: it says who it's waiting on)
+		_waiting = held and first != null and bool(_ready_p.get(first.index, false))
 		if any:
 			if _auto_t < 0.0:
 				_auto_t = AUTO_T
@@ -459,6 +546,9 @@ func _process_crew(delta: float) -> void:
 ## On to the second page.
 func go_site() -> void:
 	_show_page("site")
+	open_e = 1.0
+	_hold_t = 0.0
+	_wait_t = 0.0
 	_cool = 0.3
 	_site_t = SITE_T
 	_pick_defaults()
@@ -471,96 +561,54 @@ func _build_site_page(root: Control) -> void:
 	_site_page.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_site_page.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(_site_page)
-	var title := UI.head(Settings.brand("site") + " · next pour", 54, UI.BONE)
+	var title := UI.head(Settings.brand("site") + " · next pour", 56, UI.BONE, 8)
 	_site_page.add_child(title)
 	UI.place(title, Vector2(0, 0), Vector2(48, 26))
-	# The building, floor by floor, from the street up
-	var tower := VBoxContainer.new()
-	tower.add_theme_constant_override("separation", 4)
-	_site_page.add_child(tower)
-	UI.place(tower, Vector2(0, 0), Vector2(60, 110))
-	for n in range(FLOORS, 0, -1):
-		var r := HBoxContainer.new()
-		r.add_theme_constant_override("separation", 10)
-		tower.add_child(r)
-		var num := UI.head("L%d" % n, 18, UI.DIM)
-		num.custom_minimum_size = Vector2(36, 0)
-		num.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		num.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		r.add_child(num)
-		var b := UI.panel(Color(0, 0, 0, 0), 8, Color("3a3e4a"), 2, Vector4(12, 2, 10, 2))
-		b.custom_minimum_size = Vector2(380, 36)
-		r.add_child(b)
-		var bh := HBoxContainer.new()
-		bh.add_theme_constant_override("separation", 8)
-		b.add_child(bh)
-		var lab := UI.head("", 17, UI.DIM)
-		lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		lab.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		bh.add_child(lab)
-		if n in CLIMB_BEFORE:
-			var chip := UI.pill(Color(0, 0, 0, 0.35), Vector4(8, 1, 8, 1))
-			chip.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-			chip.add_child(UI.head("CLIMB DAY", 13, UI.YELLOW))
-			bh.add_child(chip)
-		var medal := UI.panel(UI.GOLD, 99, Color(0, 0, 0, 0), 0, Vector4(0, 0, 0, 0))
-		medal.custom_minimum_size = Vector2(22, 22)
-		medal.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		bh.add_child(medal)
-		_floor_rows.append({"bar": b, "label": lab, "num": num, "medal": medal, "n": n})
-	var ground := ColorRect.new()
-	ground.color = Color("5f8a5a")
-	ground.custom_minimum_size = Vector2(380, 12)
-	var gr := HBoxContainer.new()
-	gr.add_theme_constant_override("separation", 10)
-	var sp := Control.new()
-	sp.custom_minimum_size = Vector2(36, 0)
-	gr.add_child(sp)
-	gr.add_child(ground)
-	tower.add_child(gr)
-	# The pour picked, and the kit
+	# The building's the real one, out on the site (main.gd draws its floors
+	# and takes the camera to the one picked): this side's the pour picked,
+	# and the kit
+	var card := UI.panel(Color(UI.CARD, 0.9), 22, Color(1, 1, 1, 0.08), 1, Vector4(26, 20, 26, 22))
+	_site_page.add_child(card)
+	UI.place(card, Vector2(1, 0), Vector2(-40, 104))
 	var rv := VBoxContainer.new()
-	rv.add_theme_constant_override("separation", 12)
-	rv.custom_minimum_size = Vector2(700, 0)
-	_site_page.add_child(rv)
-	UI.place(rv, Vector2(1, 0), Vector2(-48, 120))
-	_lvl_k = UI.head("", 18, UI.DIM)
+	rv.add_theme_constant_override("separation", 10)
+	rv.custom_minimum_size = Vector2(804, 0)
+	card.add_child(rv)
+	_lvl_k = UI.head("", 24, UI.DIM)
 	rv.add_child(_lvl_k)
 	_lvl_title = UI.head("", 46, UI.BONE)
 	rv.add_child(_lvl_title)
-	_lvl_line = UI.label("", 21, UI.BONE, 0)
+	_lvl_line = UI.label("", 24, UI.BONE, 0)
 	_lvl_line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_lvl_line.custom_minimum_size = Vector2(680, 0)
+	_lvl_line.custom_minimum_size = Vector2(800, 0)
 	rv.add_child(_lvl_line)
 	_lvl_chips = HBoxContainer.new()
 	_lvl_chips.add_theme_constant_override("separation", 10)
 	rv.add_child(_lvl_chips)
-	var note := UI.label("Floors you've poured show their medal. Stick up or down picks another floor; left or right picks the kit.", 17, Color("c9c6bd"), 0)
-	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	note.custom_minimum_size = Vector2(680, 0)
+	var note := UI.label("Stick up or down picks the floor. Left or right picks the kit.", 24, Color("c9c6bd"), 0)
 	rv.add_child(note)
 	var cards := HBoxContainer.new()
 	cards.add_theme_constant_override("separation", 12)
 	rv.add_child(cards)
 	for ki in [0, 2, 1]:
 		var k: Dictionary = KITS[ki]
-		var c := UI.panel(UI.TRACK, 16, Color("2c2f39"), 1, Vector4(16, 14, 16, 16))
-		c.custom_minimum_size = Vector2(220, 150)
+		var c := UI.panel(UI.TRACK, 16, Color("2c2f39"), 1, Vector4(16, 12, 16, 14))
+		c.custom_minimum_size = Vector2(260, 170)
 		cards.add_child(c)
 		var v := VBoxContainer.new()
-		v.add_theme_constant_override("separation", 4)
+		v.add_theme_constant_override("separation", 2)
 		c.add_child(v)
-		var tg := UI.head("", 14, UI.DIM)
+		var tg := UI.head("", 24, UI.DIM)
 		v.add_child(tg)
-		v.add_child(UI.head(k["name"], 30, UI.BONE))
-		var sub := UI.label(Settings.branded(k["sub"]), 14, Color("b9b6ad"), 0)
+		v.add_child(UI.head(k["name"], 34, UI.BONE))
+		var sub := UI.label(Settings.branded(k["sub"]), 24, Color("b9b6ad"), 0)
 		sub.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		sub.custom_minimum_size = Vector2(186, 0)
+		sub.custom_minimum_size = Vector2(226, 0)
 		v.add_child(sub)
 		_kit_cards.append({"card": c, "tag": tg, "kit": ki})
-	var later := UI.label("Later chapters: line pump · mast boom", 14, UI.DIM, 0)
-	rv.add_child(later)
-	_site_note = UI.label("", 17, UI.YELLOW, 0)
+	_site_note = UI.label("", 24, UI.YELLOW, 0)
+	_site_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_site_note.custom_minimum_size = Vector2(800, 0)
 	rv.add_child(_site_note)
 	# The countdown and the buttons
 	var bar := HBoxContainer.new()
@@ -575,7 +623,7 @@ func _build_site_page(root: Control) -> void:
 	_site_ring.custom_minimum_size = Vector2(72, 72)
 	_site_ring.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	bar.add_child(_site_ring)
-	var sn := UI.label("", 19, Color("c9c6bd"), 0)
+	var sn := UI.label("", 24, Color("c9c6bd"), 4)
 	sn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	sn.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	bar.add_child(sn)
@@ -587,6 +635,14 @@ func _build_site_page(root: Control) -> void:
 	_site_ring.set_meta("go", go)
 	var back := _key_hint("B", "CREW", false)
 	bar.add_child(back)
+
+## For main.gd's floors out on the site: the floor picked (0-based), or -1
+## on the water tower's card.
+func floor_pick() -> int:
+	return -1 if KITS[index]["id"] == "tutorial" else _floor_pick
+
+func medals() -> Array:
+	return _medals()
 
 func _medals() -> Array:
 	var m = Settings.value("medals")
@@ -678,8 +734,11 @@ func _refresh_site() -> void:
 	var chips := [[KITS[index]["name"], UI.YELLOW]]
 	if not tut and lvl in CLIMB_BEFORE and KITS[index]["id"] == "tower":
 		chips.append(["Climb day first", UI.ROLE["pump"]])
-	if not tut and lvl <= done:
-		chips.append(["Poured before", UI.DONE])
+	if not tut and lvl - 1 < m.size() and int(m[lvl - 1]) >= 0:
+		var mi := clampi(int(m[lvl - 1]), 0, 2)
+		chips.append([["Bronze", "Silver", "Gold"][mi] + " last time", MEDAL_COL[mi]])
+	elif not tut and lvl - 1 == done:
+		chips.append(["Next floor up", UI.GOLD])
 	for ch in chips:
 		var p := UI.pill(UI.TRACK, Vector4(10, 4, 14, 4))
 		var h := HBoxContainer.new()
@@ -688,10 +747,10 @@ func _refresh_site() -> void:
 		var d := UI.Hat.new()
 		d.dot = true
 		d.color = ch[1]
-		d.custom_minimum_size = Vector2(10, 10)
+		d.custom_minimum_size = Vector2(14, 14)
 		d.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		h.add_child(d)
-		h.add_child(UI.label(ch[0], 16, UI.BONE, 0))
+		h.add_child(UI.label(ch[0], 24, UI.BONE, 0))
 		_lvl_chips.add_child(p)
 	for e2 in _kit_cards:
 		var on := int(e2["kit"]) == index
@@ -765,7 +824,7 @@ func pick(i: int) -> void:
 		_refresh_site()
 	var k: Dictionary = KITS[i]
 	if not k["ok"]:
-		_site_note.text = "The %s comes in a later chapter. Pick the tower or the truck." % k["name"].to_lower()
+		_site_note.text = "The %s comes in a later chapter." % k["name"].to_lower()
 		return
 	if k["id"] == "tutorial":
 		start_level = 1
@@ -794,6 +853,8 @@ func _process(delta: float) -> void:
 				print("[uitest] job -> %s, chars: %s" % [game.crew.human(1).role, str(game.crew.ROLES.map(func(r): return game.crew.crew[r].char_name))])
 			if _ut > 1.5 and _ut - delta <= 1.5:
 				set_ready(1, true)
+			if _ut > 2.2 and _ut - delta <= 2.2:
+				go_site()
 		elif page == "site" and _ut > 2.5 and not _done:
 			print("[uitest] picking the tower")
 			pick(0)
@@ -807,7 +868,9 @@ func _show_page(which: String) -> void:
 	_crew_page.visible = which == "crew"
 	_site_page.visible = which == "site"
 	if which == "crew":
-		_count_t = -1.0
+		_hold_t = 0.0
+		_wait_t = 0.0
+		_hold_armed = false
 		_auto_t = -1.0
 
 func set_join(text: String, url := "") -> void:
@@ -819,9 +882,9 @@ func set_join(text: String, url := "") -> void:
 		var help := ""
 		if url != "":
 			var others: Array = game.phones.other_urls() if game != null and game.phones != null else []
-			help = "Not loading? Same Wi-Fi as this computer, and allow Godot through the Windows firewall (private networks)."
+			help = "Not loading? Use the same Wi-Fi, and allow Godot through the firewall."
 			if not others.is_empty():
-				help = "Not loading? Try " + " or ".join(others.map(func(o): return String(o).replace("http://", ""))) + ", and allow Godot through the firewall."
+				help = "Not loading? Try " + " or ".join(others.map(func(o): return String(o).replace("http://", "")))
 		else:
 			help = text.split("\n")[0] if text != "" else ""
 		_help_label.text = help
