@@ -451,6 +451,22 @@ func _fit_rack() -> void:
 	_tagline.modulate.a = open_e
 
 ## Who starts the job: the lowest-numbered person here.
+## A phone's HOLD TO START (the first player's, everyone locked in): the same
+## as holding A on the big screen.
+func phone_start(index: int) -> void:
+	if game.phase != "roles" or not _all_in:
+		return
+	var first = _starter(game.crew.humans())
+	if first == null or first.index != index:
+		return
+	game.sfx.hit("ding")
+	go_site()
+
+## Whether this player is the one who starts the day.
+func is_starter(index: int) -> bool:
+	var first = _starter(game.crew.humans())
+	return first != null and first.index == index
+
 func _starter(people: Array):
 	var best = null
 	for p in people:

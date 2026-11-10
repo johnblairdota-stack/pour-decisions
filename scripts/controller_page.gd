@@ -447,6 +447,7 @@ body.roam #ticket,body.roam #helping{display:none}
   <div class="right">
     <div class="hd" style="font-size:5vmin;color:#b9b6ad">Today's crew</div>
     <div id="crewlist"></div>
+    <button class="holdbtn" id="startgo" style="display:none;background:#f5b700;color:#1a1300"><div class="fill"></div><span>HOLD TO START</span></button>
     <div class="row"><div id="count" class="hd"></div><div class="sub" id="cnote" style="font-size:3.4vmin;color:#b9b6ad">Waiting for the rest of the crew to lock in. Once you're on site you can swap to any job a bot is doing.</div></div>
   </div>
 </div>
@@ -553,7 +554,7 @@ function onJson(j) {
     if (j.s !== screen) { screen = j.s; showScreen(); }
     $('cname').textContent = j.name || '';
     if (j.s === 'sign') { $('sgleft').textContent = j.done ? 'Pressed in. Nice.' : (j.left + ' s left'); signDone = !!j.done; $('slab').classList.toggle('done', signDone); $('sgok').disabled = signDone; $('sgclr').disabled = signDone; }
-    if (j.s === 'lobby') { if (!!j.locked !== locked) { locked = !!j.locked; showScreen(); if (locked) buzz(BUZZ.done); } setCount(j.count); }
+    if (j.s === 'lobby') { if (!!j.locked !== locked) { locked = !!j.locked; showScreen(); if (locked) buzz(BUZZ.done); } setCount(j.count, !!j.first); }
   } else if (j.t === 'roster') { roster = j.r; drawLobby(); drawSwap(); }
   else if (j.t === 'card') { card = j; drawTicket(); drawLobby(); }
   else if (j.t === 'now') { now = j; drawSteps(); }
@@ -1040,10 +1041,13 @@ holdButton($('lockgo'), 800, () => send('lock'));
 $('unlock').addEventListener('pointerdown', (e) => { e.preventDefault(); send('unlock'); buzz(BUZZ.press); });
 $('cprev').addEventListener('pointerdown', (e) => { e.preventDefault(); send('char -1'); buzz(BUZZ.press); });
 $('cnext').addEventListener('pointerdown', (e) => { e.preventDefault(); send('char 1'); buzz(BUZZ.press); });
-function setCount(c) {
+function setCount(c, first) {
   $('count').textContent = c > 0 ? c : '';
-  $('cnote').textContent = c > 0 ? 'Everyone’s in. The first player holds A on the big screen to start, or it starts on its own. Once you’re on site you can swap to any job a bot is doing.' : 'Waiting for the rest of the crew to lock in. Once you’re on site you can swap to any job a bot is doing.';
+  $('startgo').style.display = c > 0 && first ? '' : 'none';
+  const tail = ' Once you’re on site you can swap to any job a bot is doing.';
+  $('cnote').textContent = (c > 0 ? (first ? 'Everyone’s in. Hold START when the crew’s ready, or it starts on its own.' : 'Everyone’s in. The first player holds START, or it starts on its own.') : 'Waiting for the rest of the crew to lock in.') + tail;
 }
+holdButton($('startgo'), 800, () => send('start'));
 // ---------------------------------------------------------------- swap jobs on site
 let swapOpen = false, swapPick = '';
 $('thead').addEventListener('pointerdown', (e) => { e.preventDefault(); if (screen === 'play') openSwap(); });
