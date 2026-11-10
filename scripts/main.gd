@@ -1514,7 +1514,6 @@ func _update_menu_floors(delta: float) -> void:
 			bm.size = Vector3(30.0, 0.7, 21.8)
 			mi.mesh = bm
 			var mat := StandardMaterial3D.new()
-			mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 			mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 			mi.material_override = mat
 			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -1547,7 +1546,7 @@ func _update_menu_floors(delta: float) -> void:
 			var col := Color(1, 1, 1, 0.1)
 			var ink := Color(1, 1, 1, 0.55)
 			if poured:
-				col = Color(0.72, 0.71, 0.68, 0.92)
+				col = Color(0.78, 0.77, 0.74, 1.0)
 				ink = selector.MEDAL_COL[clampi(int(m[i]), 0, 2)]
 			elif i == done:
 				col = Color(1.0, 0.82, 0.25, 0.5)
@@ -1556,7 +1555,7 @@ func _update_menu_floors(delta: float) -> void:
 			var lab: Label3D = e["label"]
 			lab.text = "L%d" % (i + 1)
 			lab.modulate = Color.WHITE if i == fp else ink
-			lab.font_size = 150 if i == fp else 96
+			lab.font_size = 150 if i == fp else 112
 			e["base"] = col
 	# (the one picked glows)
 	var pe: Dictionary = _menu_plates[clampi(fp, 0, _menu_plates.size() - 1)]
