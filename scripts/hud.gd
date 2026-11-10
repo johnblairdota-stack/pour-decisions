@@ -14,6 +14,7 @@ extends CanvasLayer
 const UI := preload("res://scripts/ui.gd")
 const Icons := preload("res://scripts/icons.gd")
 const CueBadge := preload("res://scripts/cue_badge.gd")
+const Assembly := preload("res://scripts/assembly_hud.gd")
 
 # (kept for older callers)
 const YELLOW := UI.YELLOW
@@ -24,6 +25,15 @@ const RED := UI.RED
 
 var lead_name := "Macca"   # who the leading hand is today (main sets it)
 var _root: Control
+## The assembly HUD (assembly_hud.gd): the kit drawn round the screen, with
+## the readings on it. It stands in for the task bar, the score, pump and
+## wind panels and the crew bar, which are still built and fed (they're the
+## `--classichud` look) but kept hidden.
+var assembly: Assembly
+var assembly_on := true
+var _right: VBoxContainer
+var _sub := ""
+var _next := ""
 var _top: Control          # the report and the briefing, above the street band
 # task
 var task_box: PanelContainer
@@ -56,6 +66,7 @@ var wind_bar: ColorRect
 var ticket_box: VBoxContainer
 var tickets: Array = []
 # call-outs
+var _kit_layer: CanvasLayer
 var toast_panel: PanelContainer
 var toast_label: Label
 var _toast_t := 0.0
@@ -94,6 +105,18 @@ func _ready() -> void:
 	_root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_root)
+	assembly_on = not OS.get_cmdline_user_args().has("--classichud")
+	assembly = Assembly.new()
+	assembly.visible = assembly_on
+	# (on its own layer, over the street band: the kit's the full height of
+	# the screen whether it's split or not. The close-ups share the layer
+	# and are added later, so they draw over the trucks)
+	_kit_layer = CanvasLayer.new()
+	_kit_layer.layer = 2
+	add_child(_kit_layer)
+	_kit_layer.add_child(assembly)
+	if assembly_on:
+		call_deferred("_tv_size_tickets")
 	# The slab report and the briefing sit on their own layer, above the
 	# street band and the pop-up cameras, so a split screen never hides them
 	var top_layer := CanvasLayer.new()
@@ -140,6 +163,7 @@ func _ready() -> void:
 	var right := VBoxContainer.new()
 	right.add_theme_constant_override("separation", 8)
 	_root.add_child(right)
+	_right = right
 	UI.place(right, Vector2(1, 0), Vector2(-16, 14))
 	_score_box = UI.panel(UI.GLASS, 12, UI.EDGE, 1, Vector4(14, 6, 14, 8))
 	right.add_child(_score_box)
@@ -356,7 +380,10 @@ func _ready() -> void:
 	facts.visible = false
 
 func _process(delta: float) -> void:
+	_kit_layer.visible = visible and assembly_on
 	_place_tickets()
+	if assembly_on:
+		_feed_assembly()
 	_animate_crew(delta)
 	if _toast_t > 0.0:
 		_toast_t -= delta
@@ -524,10 +551,14 @@ func set_task(title: String, sub := "", role := "") -> void:
 	task_box.visible = title != ""
 	sub_label.text = sub
 	sub_label.visible = sub != ""
+	assembly.st["chip"] = chip
+	assembly.st["title"] = t.substr(0, 1).to_upper() + t.substr(1)
+	_sub = sub
 	UI.font_color(sub_label, UI.ROLE.get(role, UI.WHITE) if role != "" else UI.WHITE)
 
 func set_progress(p: float) -> void:
 	UI.set_bar(prog_fill, p)
+	assembly.st["progress"] = p
 
 ## The pour clock (in the task bar) and the line pressure (on the pump panel).
 func set_stats(timer_text: String, pressure: float, warn := false) -> void:
@@ -535,6 +566,8 @@ func set_stats(timer_text: String, pressure: float, warn := false) -> void:
 	line_label.text = "LINE  %d bar" % int(pressure)
 	UI.font_color(line_label, UI.RED if warn else UI.MUTED)
 	gauge.bar = pressure
+	assembly.st["clock"] = timer_text
+	assembly.st["bar"] = pressure
 
 ## Lifts everything along the bottom of the screen clear of the street band
 ## (the split view's strip along the bottom), `h` pixels tall.
@@ -547,6 +580,7 @@ func set_bottom_inset(h: float) -> void:
 	UI.place(bolt_panel, Vector2(0.5, 1), Vector2(0, -110 - h))
 	UI.place(_pause_hint, Vector2(0, 1), Vector2(16, -12 - h))
 	UI.place(crew_bar, Vector2(0, 1), Vector2(16, -36 - h))
+	assembly.lift = h
 	if facts != null:
 		UI.place(facts, Vector2(0.5, 1), Vector2(0, -60 - h))
 
@@ -596,6 +630,9 @@ func rank_up(rank: String) -> void:
 ## Pump panel: hopper, the trucks at the pump, the line pressure.
 func set_pump(on: bool, info := {}) -> void:
 	pump_panel.visible = on
+	assembly.st["pump"] = on
+	assembly.st["hopper"] = info.get("hopper", 0.0)
+	assembly.st["startup"] = info.get("startup", false)
 	if not on:
 		return
 	var fill: float = info.get("hopper", 0.0)
@@ -1177,6 +1214,45 @@ func _place_docket() -> void:
 		UI.place(docket, Vector2(0.5, 1), Vector2(0, -24))
 	else:
 		UI.place(docket, Vector2(0.5, 1), Vector2(-120, -24))
+
+## The kit and who's where on it, from main.gd (assembly_state()): sections,
+## deck, clamps, bad, flow, down, fault, trucks, hats, next, wind, wind_stop,
+## band, alarm.
+func set_assembly(d: Dictionary) -> void:
+	_next = d.get("next", "")
+	for key in d:
+		assembly.st[key] = d[key]
+
+## The job list at a size that reads from the couch.
+func _tv_size_tickets() -> void:
+	for slot in tickets:
+		var l: Label = slot["label"]
+		l.add_theme_font_size_override("font_size", 24)
+		l.custom_minimum_size = Vector2(300, 0)
+		(slot["panel"] as Control).custom_minimum_size = Vector2(330, 0)
+
+## The readings the old panels show, onto the kit; and the old panels away.
+func _feed_assembly() -> void:
+	task_box.visible = false
+	_right.visible = false
+	crew_bar.visible = false
+	var st: Dictionary = assembly.st
+	st["cash"] = int(_shown_score)
+	st["bump"] = maxf(0.0, score_label.scale.x - 1.0) / 0.15
+	st["level"] = level_label.text.replace("/", " of ")
+	st["spike"] = gauge.spike
+	st["tripped"] = gauge.tripped
+	# (a step that's waiting on someone goes where "next up" would)
+	st["next_chip"] = "NOW" if _sub != "" else "NEXT UP"
+	st["next"] = _sub if _sub != "" else _next
+	if st["title"] == "":
+		st["next"] = ""
+	# The job list hangs under the end hose, the call-outs clear of the boom
+	var k := _root.size.y / 900.0
+	ticket_box.position = Vector2(24.0, 216.0) * k
+	toast_panel.position.y = 138.0 * k
+	if banner.visible:
+		banner.position.y = 230.0 * k
 
 func _place_tickets() -> void:
 	var sc: float = get_tree().root.content_scale_factor
