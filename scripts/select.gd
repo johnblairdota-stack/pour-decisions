@@ -30,14 +30,6 @@ const KITS := [
 	{"id": "line", "name": "Line pump", "sub": "Trailer pump, pipe run across the deck", "ok": false, "tag": "LATER CHAPTER"},
 	{"id": "mast", "name": "Mast boom", "sub": "Placing boom on a floor-climbing mast", "ok": false, "tag": "LATER CHAPTER"},
 ]
-## The site page's cards, left to right (indices into KITS). A fresh save
-## puts the water tower first and picks it; once the crew's poured on the
-## tower the water tower card goes (_arrange_cards).
-const CARDS_FRESH := [2, 0, 1]
-const CARDS_TUT_DONE := [0, 2, 1]
-const CARDS_ON_SITE := [0, 1]
-const CARD_TAGS := {"fresh": ["NEW? START HERE", "THE TOWER", "OTHER KIT"], "tut_done": ["PICKED FOR YOU", "ONCE MORE", "OTHER KIT"], "site": ["PICKED FOR YOU", "OTHER KIT"]}
-var CARDS: Array = CARDS_TUT_DONE
 const FLOORS := 11
 const MEDAL_COL := [Color("d0884a"), Color("d6dde6"), Color("ffd23f")]
 const CLIMB_BEFORE := [4, 7, 10]   # levels that start with a climb day
@@ -48,6 +40,7 @@ const WAIT_T := 20.0          # ...and if nobody does, it starts on its own
 const OPEN_T := 6.0           # the cold open: the title over the fly-in, before the hat rack
 const AUTO_T := 20.0          # someone's locked in: the ring runs, then everyone's in
 const SITE_T := 15.0          # the site page starts the picked pour on its own
+const LATE_AT := 0.6          # ...and this far through, the mound behind the crew goes over the slab's edge
 
 var game = null
 var page := "crew"
@@ -74,9 +67,9 @@ var _tagline: Control
 var _auto_t := -1.0
 var _site_t := SITE_T
 var _t := 0.0
-var _floor_pick := 0          # 0-based
-var _card_i := 0              # which of CARDS
-var _card_state := ""         # "fresh", "tut_done" or "site"
+var _floor_pick := 0          # 0-based; -1 the induction
+var _induction := false       # the water tower's row is on offer (a crew that's not poured on the tower yet)
+var _late := false            # the mound's going over the edge
 
 var _crew_page: Control
 var _site_page: Control
@@ -98,14 +91,11 @@ var _url_label: Label
 var _help_label: Label
 var join: Label
 # site page
-var _floor_rows: Array = []   # {row, bar, label, num, medal}
+var _floor_rows: Array = []   # {n, row, label, dot}, top floor first
 var _site_ring: Ring
-var _site_note: Label
 var _lvl_k: Label
 var _lvl_title: Label
 var _lvl_line: Label         # the day's line from the tower's story
-var _lvl_chips: HBoxContainer
-var _kit_cards: Array = []
 
 func _ready() -> void:
 	layer = 5
@@ -574,6 +564,8 @@ func go_site() -> void:
 	_wait_t = 0.0
 	_cool = 0.3
 	_site_t = SITE_T
+	_late = false
+	_lvl_line.add_theme_color_override("font_color", Color("d5d2c8"))
 	_pick_defaults()
 	roles_done.emit()
 
@@ -584,85 +576,82 @@ func _build_site_page(root: Control) -> void:
 	_site_page.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_site_page.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(_site_page)
-	var title := UI.head(Settings.brand("site") + " · next pour", 56, UI.BONE, 8)
-	_site_page.add_child(title)
-	UI.place(title, Vector2(0, 0), Vector2(48, 26))
-	# The building's the real one, out on the site (main.gd draws its floors
-	# and takes the camera to the one picked): this side's the pour picked,
-	# and the kit
-	var card := UI.panel(Color(UI.CARD, 0.9), 22, Color(1, 1, 1, 0.08), 1, Vector4(26, 20, 26, 22))
-	_site_page.add_child(card)
-	UI.place(card, Vector2(1, 0), Vector2(-40, 104))
-	var rv := VBoxContainer.new()
-	rv.add_theme_constant_override("separation", 10)
-	rv.custom_minimum_size = Vector2(804, 0)
-	card.add_child(rv)
-	_lvl_k = UI.head("", 24, UI.DIM)
-	rv.add_child(_lvl_k)
-	_lvl_title = UI.head("", 46, UI.BONE)
-	rv.add_child(_lvl_title)
-	_lvl_line = UI.label("", 24, UI.BONE, 0)
-	_lvl_line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_lvl_line.custom_minimum_size = Vector2(800, 0)
-	rv.add_child(_lvl_line)
-	_lvl_chips = HBoxContainer.new()
-	_lvl_chips.add_theme_constant_override("separation", 10)
-	rv.add_child(_lvl_chips)
-	var note := UI.label("Stick up or down picks the floor. Left or right picks the kit.", 24, Color("c9c6bd"), 0)
-	rv.add_child(note)
-	var cards := HBoxContainer.new()
-	cards.add_theme_constant_override("separation", 12)
-	rv.add_child(cards)
-	for ki in [0, 2, 1]:
-		var k: Dictionary = KITS[ki]
-		var c := UI.panel(UI.TRACK, 16, Color("2c2f39"), 1, Vector4(16, 12, 16, 14))
-		c.custom_minimum_size = Vector2(260, 170)
-		cards.add_child(c)
-		var v := VBoxContainer.new()
-		v.add_theme_constant_override("separation", 2)
-		c.add_child(v)
-		var tg := UI.head("", 24, UI.DIM)
-		v.add_child(tg)
-		v.add_child(UI.head(k["name"], 34, UI.BONE))
-		var sub := UI.label(Settings.branded(k["sub"]), 24, Color("b9b6ad"), 0)
-		sub.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		sub.custom_minimum_size = Vector2(226, 0)
-		v.add_child(sub)
-		_kit_cards.append({"card": c, "tag": tg, "kit": ki})
-	_site_note = UI.label("", 24, UI.YELLOW, 0)
-	_site_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_site_note.custom_minimum_size = Vector2(800, 0)
-	rv.add_child(_site_note)
-	# The countdown and the buttons
-	var bar := HBoxContainer.new()
-	bar.add_theme_constant_override("separation", 18)
-	_site_page.add_child(bar)
-	bar.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	bar.offset_left = 48
-	bar.offset_right = -48
-	bar.offset_top = -104
-	bar.offset_bottom = -24
+	# The building's the real one, out on the site, seen side on (main.gd
+	# builds the floors under the one picked, stands the crew on its deck and
+	# has the boom pouring behind them). All this page adds is the floor
+	# rail down the left and one small plate.
+	var rail := VBoxContainer.new()
+	rail.add_theme_constant_override("separation", 5)
+	_site_page.add_child(rail)
+	UI.place(rail, Vector2(0, 0), Vector2(36, 26))
+	rail.add_child(UI.head(Settings.brand("site").to_upper(), 24, UI.BONE, 6))
+	for n in range(FLOORS, -1, -1):
+		# (row 0 is the water tower: a new crew's induction, under level 1)
+		var row := UI.pill(Color(UI.CARD, 0.9), Vector4(14, 1, 10, 1), Color(0, 0, 0, 0), 2)
+		row.custom_minimum_size = Vector2(132, 34)
+		var h := HBoxContainer.new()
+		h.add_theme_constant_override("separation", 8)
+		row.add_child(h)
+		var lab := UI.head("L%d" % n if n > 0 else "INDUCTION", 26 if n > 0 else 24, UI.BONE)
+		lab.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		h.add_child(lab)
+		var dot := UI.Hat.new()
+		dot.dot = true
+		dot.custom_minimum_size = Vector2(16, 16)
+		dot.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		h.add_child(dot)
+		rail.add_child(row)
+		_floor_rows.append({"n": n, "row": row, "label": lab, "dot": dot})
+	# The plate: the countdown, the floor and its day
+	var plate := UI.panel(Color(UI.CARD, 0.92), 22, Color(1, 1, 1, 0.08), 1, Vector4(20, 14, 26, 16))
+	_site_page.add_child(plate)
+	UI.place(plate, Vector2(0, 1), Vector2(190, -30))
+	var ph := HBoxContainer.new()
+	ph.add_theme_constant_override("separation", 20)
+	plate.add_child(ph)
 	_site_ring = Ring.new()
-	_site_ring.custom_minimum_size = Vector2(72, 72)
+	_site_ring.custom_minimum_size = Vector2(88, 88)
 	_site_ring.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	bar.add_child(_site_ring)
-	var sn := UI.label("", 24, Color("c9c6bd"), 4)
-	sn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	sn.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	bar.add_child(sn)
-	_site_ring.set_meta("note", sn)
+	ph.add_child(_site_ring)
+	var pv := VBoxContainer.new()
+	pv.add_theme_constant_override("separation", 0)
+	ph.add_child(pv)
+	_lvl_k = UI.head("", 24, UI.GOLD)
+	pv.add_child(_lvl_k)
+	_lvl_title = UI.head("", 50, UI.BONE)
+	pv.add_child(_lvl_title)
+	_lvl_line = UI.label("", 24, Color("d5d2c8"), 0)
+	_lvl_line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_lvl_line.custom_minimum_size = Vector2(520, 0)
+	pv.add_child(_lvl_line)
+	# The buttons
+	var bar := HBoxContainer.new()
+	bar.add_theme_constant_override("separation", 22)
+	_site_page.add_child(bar)
+	UI.place(bar, Vector2(1, 1), Vector2(-44, -36))
+	var hint := UI.head("UP / DOWN · FLOOR", 24, Color("c9c6bd"), 6)
+	hint.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	bar.add_child(hint)
 	var go := UI.pill(UI.TRACK, Vector4(8, 6, 22, 6), UI.GOLD, 2)
 	go.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	go.add_child(_key_hint("A", "POUR"))
 	bar.add_child(go)
 	_site_ring.set_meta("go", go)
-	var back := _key_hint("B", "CREW", false)
+	var back := UI.pill(Color(UI.CARD, 0.9), Vector4(8, 6, 22, 6))
+	back.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	back.add_child(_key_hint("B", "CREW", false))
 	bar.add_child(back)
 
 ## For main.gd's floors out on the site: the floor picked (0-based), or -1
-## on the water tower's card.
+## on the water tower's induction.
 func floor_pick() -> int:
 	return -1 if KITS[index]["id"] == "tutorial" else _floor_pick
+
+## How long they've dawdled on the site page, 0..1 (1: it starts itself).
+## The boom's been pouring the whole time: main.gd grows the mound on it.
+func site_dawdle() -> float:
+	return clampf(1.0 - _site_t / SITE_T, 0.0, 1.0) if page == "site" else 0.0
 
 func medals() -> Array:
 	return _medals()
@@ -671,117 +660,71 @@ func _medals() -> Array:
 	var m = Settings.value("medals")
 	return m if m is Array else []
 
-## The gold default: the tower boom, on the next floor nobody's poured.
-func _pick_defaults() -> void:
+func _floors_done() -> int:
 	var m := _medals()
 	var done := 0
 	while done < m.size() and int(m[done]) >= 0:
 		done += 1
+	return done
+
+## The floor it opens on: the next one nobody's poured. A crew that's never
+## been on site (or done the water tower) opens on the induction instead,
+## and once they've poured on the tower the induction's row goes.
+func _pick_defaults() -> void:
+	var done := _floors_done()
+	var on_site: bool = done > 0 or bool(Settings.value("tower_started"))
+	_induction = not on_site
 	_floor_pick = clampi(done, 0, FLOORS - 1)
-	_arrange_cards(done)
-	_card_i = 0
-	index = CARDS[_card_i]
+	if _induction and not bool(Settings.value("tut_done")):
+		_floor_pick = -1
+	index = 2 if _floor_pick < 0 else 0
 	_refresh_site()
 
-## Has this save poured on the tower (or the truck boom) before? Then the
-## water tower's done its job and its card goes. Until then a crew that's
-## never played is pointed at it first.
-func _arrange_cards(done: int) -> void:
-	var on_site: bool = done > 0 or bool(Settings.value("tower_started"))
-	_card_state = "site" if on_site else ("tut_done" if bool(Settings.value("tut_done")) else "fresh")
-	CARDS = {"fresh": CARDS_FRESH, "tut_done": CARDS_TUT_DONE, "site": CARDS_ON_SITE}[_card_state]
-	var tags: Array = CARD_TAGS[_card_state]
-	var row: Node = null
-	for e in _kit_cards:
-		var c: Control = e["card"]
-		row = c.get_parent()
-		var at := CARDS.find(int(e["kit"]))
-		c.visible = at >= 0
-		if at >= 0:
-			(e["tag"] as Label).text = tags[at]
-	if row != null:
-		for at in CARDS.size():
-			for e in _kit_cards:
-				if int(e["kit"]) == CARDS[at]:
-					row.move_child(e["card"], at)
+## Dev (`--startlevel=N` test runs): opens the site page on that floor.
+func show_floor(i: int) -> void:
+	_floor_pick = clampi(i, 0, FLOORS - 1)
+	index = 0
+	_refresh_site()
 
 func _refresh_site() -> void:
 	var m := _medals()
-	var done := 0
-	while done < m.size() and int(m[done]) >= 0:
-		done += 1
+	var done := _floors_done()
 	var tut: bool = KITS[index]["id"] == "tutorial"
 	for e in _floor_rows:
 		var n: int = e["n"]
 		var i := n - 1
-		var poured := i < m.size() and int(m[i]) >= 0
-		var next := i == done
-		var sel := i == _floor_pick and not tut
-		var sb := UI.style(e["bar"])
+		var row: PanelContainer = e["row"]
 		var lab: Label = e["label"]
+		var dot: Control = e["dot"]
+		if n == 0:
+			row.visible = _induction
+		var poured := i >= 0 and i < m.size() and int(m[i]) >= 0
+		var sel := (tut and n == 0) or (not tut and i == _floor_pick)
+		var locked := i > done
+		var sb := UI.style(row)
+		sb.bg_color = UI.GOLD if sel else Color(UI.CARD, 0.4 if locked else 0.9)
+		sb.border_color = UI.GOLD if (i == done and not sel) else Color(0, 0, 0, 0)
+		lab.add_theme_color_override("font_color", Color("14161b") if sel else (UI.DIM if locked else (Color("7cd992") if n == 0 else UI.BONE)))
+		lab.add_theme_font_size_override("font_size", (38 if n > 0 else 26) if sel else (26 if n > 0 else 24))
+		row.custom_minimum_size.y = 50 if sel else 34
+		dot.visible = poured
 		if poured:
-			sb.bg_color = Color("a8a296")
-			sb.border_color = UI.GOLD if sel else Color(0, 0, 0, 0)
-			lab.text = Story.title(i) + ("  ·  pour it again" if sel else "")
-			lab.add_theme_color_override("font_color", Color("1b1a17"))
-		elif next:
-			sb.bg_color = Color("2a2410")
-			sb.border_color = UI.GOLD
-			lab.text = "NEXT · " + Story.title(i)
-			lab.add_theme_color_override("font_color", UI.GOLD)
-		else:
-			sb.bg_color = Color(0, 0, 0, 0)
-			sb.border_color = Color("3a3e4a")
-			lab.text = Story.title(i)
-			lab.add_theme_color_override("font_color", UI.DIM)
-		sb.set_border_width_all(3 if sel or next else 2)
-		(e["bar"] as Control).modulate.a = 0.4 if tut else 1.0
-		(e["num"] as Label).add_theme_color_override("font_color", UI.GOLD if next else (Color("c9c6bd") if poured else UI.DIM))
-		var medal: PanelContainer = e["medal"]
-		medal.visible = poured
-		if poured:
-			UI.style(medal).bg_color = [Color("d0884a"), Color("d6dde6"), Color("ffd23f")][clampi(int(m[i]), 0, 2)]
+			dot.color = MEDAL_COL[clampi(int(m[i]), 0, 2)]
 	var lvl := _floor_pick + 1
 	start_level = 1 if tut else lvl
 	if tut:
-		_lvl_k.text = "TUTORIAL"
-		_lvl_title.text = "Water tower · a short guided job"
-		_lvl_line.text = ""
+		_lvl_k.text = "INDUCTION · NEW? START HERE"
+		_lvl_title.text = "Water tower"
+		_lvl_line.text = "A short guided job on a round water tower, before the real thing."
 	else:
-		_lvl_k.text = "LEVEL %d OF %d" % [lvl, FLOORS]
-		_lvl_title.text = "Level %d · %s" % [lvl, Story.title(lvl - 1)]
+		var extra := ""
+		if lvl in CLIMB_BEFORE:
+			extra = " · CLIMB DAY FIRST"
+		elif lvl - 1 < m.size() and int(m[lvl - 1]) >= 0:
+			extra = " · %s LAST TIME" % ["BRONZE", "SILVER", "GOLD"][clampi(int(m[lvl - 1]), 0, 2)]
+		_lvl_k.text = "LEVEL %d OF %d%s" % [lvl, FLOORS, extra]
+		_lvl_title.text = Story.title(lvl - 1)
 		_lvl_line.text = Story.line(lvl - 1)
-	for c in _lvl_chips.get_children():
-		_lvl_chips.remove_child(c)
-		c.queue_free()
-	var chips := [[KITS[index]["name"], UI.YELLOW]]
-	if not tut and lvl in CLIMB_BEFORE and KITS[index]["id"] == "tower":
-		chips.append(["Climb day first", UI.ROLE["pump"]])
-	if not tut and lvl - 1 < m.size() and int(m[lvl - 1]) >= 0:
-		var mi := clampi(int(m[lvl - 1]), 0, 2)
-		chips.append([["Bronze", "Silver", "Gold"][mi] + " last time", MEDAL_COL[mi]])
-	elif not tut and lvl - 1 == done:
-		chips.append(["Next floor up", UI.GOLD])
-	for ch in chips:
-		var p := UI.pill(UI.TRACK, Vector4(10, 4, 14, 4))
-		var h := HBoxContainer.new()
-		h.add_theme_constant_override("separation", 8)
-		p.add_child(h)
-		var d := UI.Hat.new()
-		d.dot = true
-		d.color = ch[1]
-		d.custom_minimum_size = Vector2(14, 14)
-		d.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		h.add_child(d)
-		h.add_child(UI.label(ch[0], 24, UI.BONE, 0))
-		_lvl_chips.add_child(p)
-	for e2 in _kit_cards:
-		var on := int(e2["kit"]) == index
-		var sb2 := UI.style(e2["card"])
-		sb2.bg_color = Color("2a2410") if on else UI.CARD
-		sb2.border_color = UI.GOLD if on else Color("2c2f39")
-		sb2.set_border_width_all(3 if on else 1)
-		(e2["tag"] as Label).add_theme_color_override("font_color", UI.GOLD if on else UI.DIM)
 
 func _process_site(delta: float) -> void:
 	if _done:
@@ -798,31 +741,13 @@ func _process_site(delta: float) -> void:
 				v = mv
 			pressed = pressed or p.action_pressed()
 			back = back or p.leave_pressed()
-	if _cool <= 0.0 and absf(v.x) > 0.5:
-		var ni := clampi(_card_i + int(signf(v.x)), 0, CARDS.size() - 1)
-		if ni != _card_i:
-			_card_i = ni
-			index = CARDS[_card_i]
-			_site_note.text = ""
-			_site_t = SITE_T
-			_refresh_site()
-			for e in _kit_cards:
-				if int(e["kit"]) == index:
-					var kc: Control = e["card"]
-					kc.pivot_offset = kc.size * 0.5
-					kc.scale = Vector2(1.08, 1.08)
-					create_tween().tween_property(kc, "scale", Vector2.ONE, 0.25).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-			if game:
-				game.sfx.hit("tink")
-		_cool = 0.22
-	elif _cool <= 0.0 and absf(v.y) > 0.5 and KITS[index]["id"] != "tutorial":
-		var m := _medals()
-		var done := 0
-		while done < m.size() and int(m[done]) >= 0:
-			done += 1
-		var nf := clampi(_floor_pick - int(signf(v.y)), 0, mini(done, FLOORS - 1))
+	if _cool <= 0.0 and absf(v.y) > 0.5:
+		# (up a floor, as far as the next one nobody's poured; down as far
+		# as level 1, or the induction under it while that's on offer)
+		var nf := clampi(_floor_pick - int(signf(v.y)), -1 if _induction else 0, mini(_floors_done(), FLOORS - 1))
 		if nf != _floor_pick:
 			_floor_pick = nf
+			index = 2 if nf < 0 else 0
 			_site_t = SITE_T
 			_refresh_site()
 			if game:
@@ -831,8 +756,18 @@ func _process_site(delta: float) -> void:
 	_site_t -= delta
 	_site_ring.frac = clampf(_site_t / SITE_T, 0.0, 1.0)
 	_site_ring.text = str(int(ceil(maxf(_site_t, 0.0))))
-	var tut: bool = KITS[index]["id"] == "tutorial"
-	(_site_ring.get_meta("note") as Label).text = ("The water tower starts on its own." if tut else "Level %d starts on its own." % start_level) + " Anyone can change it."
+	# (left too long, the concrete's going over the edge of the slab)
+	var late := site_dawdle() > LATE_AT and floor_pick() >= 0
+	if late != _late:
+		_late = late
+		if late:
+			_lvl_line.text = "It's going over the edge! Pick one!"
+			_lvl_line.add_theme_color_override("font_color", UI.YELLOW)
+			if game:
+				game.sfx.hit("sign_alarm")
+		else:
+			_lvl_line.add_theme_color_override("font_color", Color("d5d2c8"))
+			_refresh_site()
 	var go: Control = _site_ring.get_meta("go")
 	go.pivot_offset = go.size * 0.5
 	go.scale = Vector2.ONE * (1.0 + (UI.BREATHE_S - 1.0) * (0.5 - 0.5 * cos(_t * TAU / UI.BREATHE_T)))
@@ -844,18 +779,18 @@ func _process_site(delta: float) -> void:
 		_show_page("crew")
 		back_to_crew.emit()
 
+## Starts on kit `i` of KITS (the tower, or the water tower; the truck boom
+## is still there for `--kit=truck` test runs, but it can't reach this job
+## and the page doesn't offer it).
 func pick(i: int) -> void:
 	index = i
-	var ci := CARDS.find(i)
-	if ci >= 0:
-		_card_i = ci
-	if _floor_rows.size() > 0:
-		_refresh_site()
 	var k: Dictionary = KITS[i]
 	if not k["ok"]:
-		_site_note.text = "The %s comes in a later chapter." % k["name"].to_lower()
 		return
 	if k["id"] == "tutorial":
+		start_level = 1
+	elif _floor_pick < 0:
+		_floor_pick = 0
 		start_level = 1
 	_done = true
 	chosen.emit(k["id"])
