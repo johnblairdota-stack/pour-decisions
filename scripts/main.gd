@@ -1507,8 +1507,8 @@ func _update_menu_floors(delta: float) -> void:
 	if _menu_floors == null:
 		_menu_floors = Node3D.new()
 		add_child(_menu_floors)
-		for i in selector.FLOORS:
-			var y := (i + 1) * FH
+		for i: int in int(selector.FLOORS):
+			var y: float = (i + 1) * FH
 			var mi := MeshInstance3D.new()
 			var bm := BoxMesh.new()
 			bm.size = Vector3(30.0, 0.4, 21.8)
