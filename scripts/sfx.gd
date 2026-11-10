@@ -71,6 +71,12 @@ var _whistle_pls: Array = []    # two players, so a long blast can fade while th
 var _wp_i := 0
 var _wq: Array = []         # [s from now, blast, alert] blasts still to blow
 
+## How long each made-up hit can be heard, s (2 s when it's not listed). The
+## mixer stops working a hit out once it's past this.
+const HIT_LEN := {"clank": 0.5, "tink": 0.3, "thunk": 0.9, "hiss": 0.6, "buzz": 0.2, "knock": 0.3, "thud": 0.4,
+	"beep": 0.25, "scrape": 0.26, "plop": 0.3, "sign_chat": 0.1, "sign_call": 0.2, "sign_alarm": 0.25,
+	"sign_gold": 0.3, "sign_thanks": 0.2, "sign_slip": 0.22, "bleep": 0.42, "bleep_s": 0.2, "birds": 1.4}
+
 const BIRD_CHIRPS := [0.0, 0.16, 0.5, 0.64, 1.0, 1.12, 1.26]   # s, when each chirp of "birds" starts
 
 var pumping := false
@@ -186,7 +192,7 @@ func _band_sample(bt: float) -> float:
 		s += sin(TAU * (48.0 + 70.0 * exp(-x * 30.0)) * x) * exp(-x * 9.0) * 0.32 * l
 	# Snare on 2 and 4: a noise burst with a body
 	l = _lv[1]
-	if l > 0.005 and _recorded[1] == 0 and int(b) % 2 == 1:
+	if l > 0.005 and _recorded[1] == 0 and x < 0.35 and int(b) % 2 == 1:
 		s += ((randf() * 2.0 - 1.0) * exp(-x * 20.0) * 0.16 + sin(TAU * 190.0 * x) * exp(-x * 28.0) * 0.14) * l
 	# Bass: a soft triangle on the chord's root in eighths, up the octave on the off-beats
 	l = _lv[2]
@@ -196,7 +202,7 @@ func _band_sample(bt: float) -> float:
 		s += (1.0 - 4.0 * absf(ph - 0.5)) * exp(-e8 * 5.0) * 0.17 * l
 	# Hi-hat: high-passed noise, the off-beats louder
 	l = _lv[3]
-	if l > 0.005 and _recorded[3] == 0:
+	if l > 0.005 and _recorded[3] == 0 and e8 < 0.12:
 		var n := randf() * 2.0 - 1.0
 		var hp := n - _hp
 		_hp = n
@@ -524,8 +530,23 @@ func _mix(n: int) -> PackedVector2Array:
 		var kind: String = e[0]
 		if kind.begins_with("~"):
 			continue
+		if float(e[1]) > float(HIT_LEN.get(kind, 2.0)):
+			continue
 		var whistle := kind.begins_with("whistle:")
 		hits.append([kind, float(e[1]), whistle, kind.substr(8) if whistle else "", kind in ALERTS])
+	# Nothing sounding at all (a quiet menu, a pause between jobs): hand back
+	# silence without going through it sample by sample
+	if hits.is_empty() and not pumping and rattle <= 0.01 and _rum <= 0.005 and (_poker_rec or rumble <= 0.0) \
+			and _master <= 0.002 and want_m == 0.0:
+		_t += n * dt
+		_bt += n * dt
+		_stroke = fmod(_bt, BEAT)
+		_duck = maxf(0.0, _duck - n * dt / DUCK_T)
+		buf.fill(Vector2.ZERO)
+		for e in _events:
+			e[1] += n * dt
+		_events = _events.filter(func(e): return e[1] < 2.0)
+		return buf
 	for f in n:
 		_t += dt
 		_bt += dt
@@ -544,10 +565,14 @@ func _mix(n: int) -> PackedVector2Array:
 			# The stroke's thump, with its 2nd and 3rd harmonics so TV and
 			# laptop speakers (which can't play 46 Hz) still carry it, and a
 			# short hydraulic "chuff" on top
-			var env := exp(-_stroke * 13.0)
-			s += (sin(TAU * 46.0 * _stroke) * 0.3 + sin(TAU * 92.0 * _stroke) * 0.2 + sin(TAU * 138.0 * _stroke) * 0.12) * env
-			s += (randf() * 2.0 - 1.0) * sin(TAU * 1400.0 * _stroke) * exp(-_stroke * 55.0) * 0.14
-			s += (randf() * 2.0 - 1.0) * exp(-_stroke * 45.0) * 0.05
+			# (each part's left out once it has died away to nothing, which
+			# is most of the stroke: this loop is the dearest script in a frame)
+			if _stroke < 0.55:
+				var env := exp(-_stroke * 13.0)
+				s += (sin(TAU * 46.0 * _stroke) * 0.3 + sin(TAU * 92.0 * _stroke) * 0.2 + sin(TAU * 138.0 * _stroke) * 0.12) * env
+				if _stroke < 0.16:
+					s += (randf() * 2.0 - 1.0) * sin(TAU * 1400.0 * _stroke) * exp(-_stroke * 55.0) * 0.14
+					s += (randf() * 2.0 - 1.0) * exp(-_stroke * 45.0) * 0.05
 		if rattle > 0.01:
 			# A loose clamp chatters in bursts; keep it audible, never harsh
 			var want := 0.5 + 0.5 * sin(TAU * (6.0 + rattle * 9.0) * _t)
