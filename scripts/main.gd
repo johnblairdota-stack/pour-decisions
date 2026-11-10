@@ -14,6 +14,7 @@ extends Node3D
 
 const UI := preload("res://scripts/ui.gd")
 const PauseScript := preload("res://scripts/pause.gd")
+const PerfScript := preload("res://scripts/perf.gd")
 const CoachScript := preload("res://scripts/coach.gd")
 const LeadingHand := preload("res://scripts/leading_hand.gd")
 const Icons := preload("res://scripts/icons.gd")
@@ -158,6 +159,7 @@ var phones
 var hud
 var selector
 var pause_menu
+var perf   # the frame-rate readout (F4, or Settings)
 var explore                  # knocking off: off the clock, wandering the area (explore.gd)
 var coach
 var shake_on := true
@@ -291,6 +293,9 @@ func _ready() -> void:
 	pause_menu = PauseScript.new()
 	add_child(pause_menu)
 	pause_menu.setup(self)
+	perf = PerfScript.new()
+	add_child(perf)
+	perf.setup(self)
 	explore = ExploreScript.new()
 	explore.name = "Explore"
 	add_child(explore)
@@ -357,7 +362,7 @@ func _setup_input() -> void:
 				jb.button_index = b
 				InputMap.action_add_event(act_name, jb)
 		device += 1
-	for pair in [["skyline", KEY_TAB], ["restart", KEY_R], ["dev_climb", KEY_F1], ["toggle_shake", KEY_F2], ["toggle_sound", KEY_F3]]:
+	for pair in [["skyline", KEY_TAB], ["restart", KEY_R], ["dev_climb", KEY_F1], ["toggle_shake", KEY_F2], ["toggle_sound", KEY_F3], ["toggle_perf", KEY_F4]]:
 		if InputMap.has_action(pair[0]):
 			InputMap.erase_action(pair[0])
 		InputMap.add_action(pair[0])
@@ -399,9 +404,36 @@ func _build_environment() -> void:
 	sun.light_energy = 1.2
 	sun.shadow_enabled = true
 	sun.directional_shadow_max_distance = 160.0
+	far_shadows(false)
 	sun.rotation_degrees = Vector3(-42, -24, 0)
 	_day_q = sun.quaternion
 	add_child(sun)
+
+## The sun's shadow is the dearest thing drawn. From the site camera, well
+## back and looking down, two passes look the same as four, and the boats,
+## the ferry terminal and the 4x4 park are too far off for theirs to show.
+## Knock-off (explore.gd) walks right up to them, so it asks for the lot.
+const FAR_CASTERS := ["OnTheRiver", "Park4x4", "Terminal", "CityCatRun"]
+
+func far_shadows(on: bool) -> void:
+	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS if on else DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
+	for nm in FAR_CASTERS:
+		var at := find_child(nm, true, false)
+		if at == null:
+			continue
+		var all: Array = at.find_children("*", "GeometryInstance3D", true, false)
+		all.append(at)
+		for n in all:
+			var g := n as GeometryInstance3D
+			if g == null:
+				continue
+			if on:
+				if g.has_meta("cast"):
+					g.cast_shadow = g.get_meta("cast")
+					g.remove_meta("cast")
+			elif g.cast_shadow != GeometryInstance3D.SHADOW_CASTING_SETTING_OFF:
+				g.set_meta("cast", g.cast_shadow)
+				g.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 # ------------------------------------------------------------------ the dawn pour
 
@@ -2292,6 +2324,9 @@ func _set_phase(p: String) -> void:
 		print("[autotest]   (%s took %.1fs)" % [phase, phase_t])
 	phase = p
 	phase_t = 0.0
+	# (the far things are built after the sun, and some come and go)
+	if sun != null and (explore == null or not explore.active):
+		far_shadows(false)
 	if autotest and p == "pour":
 		# `--pourhuman=<job>`: that job's left to an idle "person" from the pour on
 		for arg in OS.get_cmdline_user_args():
@@ -2769,6 +2804,8 @@ func _process(delta: float) -> void:
 	if Input.is_action_just_pressed("toggle_shake"):
 		shake_on = not shake_on
 		hud.toast("Screen shake %s" % ("on" if shake_on else "off"), 1.2)
+	if Input.is_action_just_pressed("toggle_perf"):
+		perf.toggle()
 	if Input.is_action_just_pressed("toggle_sound"):
 		sfx.toggle_mute()
 		hud.toast("Sound %s" % ("off" if sfx.muted else "on"), 1.2)
@@ -2804,6 +2841,7 @@ func _process(delta: float) -> void:
 		_update_see_through(delta)
 		return
 
+	perf.mark("")
 	pumping = false
 	_human_a = false
 	for p in players:
@@ -2848,6 +2886,7 @@ func _process(delta: float) -> void:
 		if phase != "sign":
 			_handle_player(p, delta)
 		p.end_frame()
+	perf.mark("players")
 	if autotest and phase == "columns" and k == 0 and OS.get_cmdline_user_args().has("--skip") and kit == "tower":
 		_dev_skip(CLIMB_LEVELS[0])
 	# (dev `--topout`: every floor poured, straight to the top-out)
@@ -2862,15 +2901,19 @@ func _process(delta: float) -> void:
 		_dev_skip(_start_level - 1)
 	_clear_trucks_of_people()
 	bots.tick(delta)
+	perf.mark("bots")
 	if climb.active:
 		climb.bot(delta)
 	climb.update(delta)
 	if west != null:
 		west.visible = phase != "topout"
 		west.update(delta, _filled_ratio() if phase == "pour" else 0.0)
+	perf.mark("climb")
 	line.update(delta, phase == "pour")
+	perf.mark("line")
 	poker.update(delta)
 	screed.update(delta)
+	perf.mark("poker and screed")
 	_update_site_band(delta)
 	var see_p := false
 	var see_s := false
@@ -2884,6 +2927,7 @@ func _process(delta: float) -> void:
 	# (the gold line on the wet edge, for a person new to the boom)
 	pour.set_edge_view(clampf(gold_level(bop), 0.0, 1.0) if bop != null and humans().has(bop) and gold_level(bop) > 0.06 else 0.0)
 	score.update(delta)
+	perf.mark("pour views")
 	var cam_right := camera.global_transform.basis.x
 	var street_view: bool = band_box != null and band_box.visible
 	for p in players:
@@ -2894,7 +2938,9 @@ func _process(delta: float) -> void:
 			p.show_cues(cam_right, phase_t, band_cam.global_position, BAND_CUE_K)
 		else:
 			p.show_cues(cam_right, phase_t, camera.global_position)
+	perf.mark("button cues")
 	_scale_world_labels()
+	perf.mark("world labels")
 	if shot_dir != "":
 		_maybe_shot()
 
@@ -2990,22 +3036,34 @@ func _process(delta: float) -> void:
 	# Rest the boom when it is not pouring
 	if phase != "pour":
 		tip_target = tip_target.lerp(Vector3(5.0, 0, 0), minf(1.0, delta * 0.8))
+	perf.mark("phase")
 	tip_pos = tip_pos.lerp(tip_target, minf(1.0, delta * 4.0))
 	tip_kick = tip_kick.lerp(Vector3.ZERO, minf(1.0, delta * 3.0))
 	_update_whip(delta)
 	_update_boom()
 	_update_stream()
+	perf.mark("boom")
 	_update_hoist(delta)
+	perf.mark("hoist")
 	_update_pops(delta)
+	perf.mark("close-ups")
 	_update_npcs(delta)
+	perf.mark("npcs")
 	_update_stations()
+	perf.mark("stations")
 	_update_signs(delta)
+	perf.mark("signs")
 	_update_hud()
+	perf.mark("hud text")
 	_update_daylight(delta)
+	perf.mark("daylight")
 	coach.update(delta)
 	lead_hand.update(delta)
+	perf.mark("coach")
 	_update_camera(delta)
+	perf.mark("camera")
 	_update_see_through(delta)
+	perf.mark("see-through")
 	shake = maxf(0.0, shake - delta * 1.6)
 	# A hang shows up as one phase that never ends; the whole run's budget is
 	# only a backstop (a full tower runs 30 to 40 minutes, give or take the
@@ -3130,8 +3188,11 @@ func _update_pour(delta: float) -> void:
 	# (the pour clock starts once the line's primed and the concrete's on)
 	if ops.primed:
 		pour_clock += delta
+	perf.mark("phase")
 	ops.update(delta)
+	perf.mark("pour: ops")
 	_draw_hose()
+	perf.mark("pour: hose")
 	if autotest and fmod(phase_t, 15.0) < delta:
 		# (progress, and how long a frame takes, for long pours)
 		print("[autotest]   pour t=%.0f clock=%.0f fill=%.2f poured=%.1f/%.1f bay=%d/%d edge=%.0f risk=%.2f wall=%ds step=%.1fms frame=%.1fms" % [phase_t, pour_clock, _filled_ratio(), pour.poured, pour.needed(), pour.cur_bay + 1, pour.BAYS, pour.edge_left, pour.at_risk, Time.get_ticks_msec() / 1000, _step_ms, _frame_ms])
@@ -3244,10 +3305,13 @@ func _update_pour(delta: float) -> void:
 	pour.set_splash(pumping and not (ops.wants_bin() and ops.over_bin(discharge())), hose_local)
 	if line.pumping:
 		_pump_t += delta
+	perf.mark("pour: boom and hose calls")
 	var t0 := Time.get_ticks_usec()
 	pour.step(delta)
 	_step_ms = lerpf(_step_ms, (Time.get_ticks_usec() - t0) / 1000.0, 0.05)
+	perf.mark("pour: concrete step")
 	pour.show_bays(true)
+	perf.mark("pour: bays")
 
 
 	# Not enough coming to finish? Ring the plant for another truck.

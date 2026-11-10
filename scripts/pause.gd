@@ -18,7 +18,7 @@ const MAIN := [["Back to work", "resume"], ["Knock off", "explore"], ["Swap jobs
 const ROAM := [["Carry on", "resume"], ["Back to work", "work"], ["Add a player", "join"],
 	["Settings", "settings"], ["Start again", "restart"], ["Exit", "quit"]]
 const SETTINGS := ["back", "incidents", "gold_mode", "dog_help", "docket_help", "ui_scale", "world_text", "split", "fullscreen", "sound_page", "shake",
-	"real_names", "cam_test"]
+	"real_names", "cam_test", "perf"]
 ## The Sound page, off Settings.
 const SOUND := ["back", "sound", "vol_site", "vol_band", "vol_alerts", "band"]
 const VOLUMES := [0.0, 0.25, 0.5, 0.75, 1.0]
@@ -295,6 +295,8 @@ func _refresh() -> void:
 				l.text = "%s: %d%%" % [VOL_NAMES[a], int(round(float(Settings.value(a)) * 100.0))]
 			"shake":
 				l.text = "Screen shake: %s" % ("on" if game.shake_on else "off")
+			"perf":
+				l.text = "Frame rate readout: %s" % ("on" if game.perf.on else "off")
 			"incidents":
 				l.text = "Incidents: %s" % Settings.INCIDENT_NAMES[int(Settings.value("incidents"))]
 			"docket_help":
@@ -491,6 +493,8 @@ func _note_for(action: String) -> String:
 			return "On: while the concrete's going in, every job that's working plays its part of a tune made from the site's own noises. A job that stops drops out of the band."
 		"shake":
 			return "The camera kicks on a burst or a whip."
+		"perf":
+			return "Shows frames a second in the corner (F4 does the same). Leave it on for a minute of a pour to get an average and a low."
 		"back":
 			return ""
 	if action.begins_with("role:"):
@@ -562,6 +566,8 @@ func _do(action: String) -> void:
 			Settings.cycle(action, VOLUMES)
 		"shake":
 			game.shake_on = not game.shake_on
+		"perf":
+			game.perf.toggle()
 		"restart":
 			close()
 			get_tree().reload_current_scene()

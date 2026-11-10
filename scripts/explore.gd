@@ -403,6 +403,7 @@ func enter(who = null) -> void:
 	_badge.visible = false
 	_main_cam = game.camera
 	cam.current = true
+	game.far_shadows(true)
 	# (re-parked when this person's ute or kit isn't what's at the kerb,
 	# say after a shop at Smoko)
 	var sig := "%s|%s|%s" % [_my_ute(), _kit_on("Hilux"), [_kit_on("Ranger"), _kit_on("Shark")]]
@@ -443,6 +444,7 @@ func leave() -> void:
 	if mode == "ride":
 		_leave_boat()
 	active = false
+	game.far_shadows(false)
 	for c in _hidden:
 		if is_instance_valid(c):
 			c.visible = true
