@@ -108,6 +108,8 @@ func _ready() -> void:
 	assembly = Assembly.new()
 	assembly.visible = assembly_on
 	_root.add_child(assembly)
+	if assembly_on:
+		call_deferred("_tv_size_tickets")
 	# The slab report and the briefing sit on their own layer, above the
 	# street band and the pop-up cameras, so a split screen never hides them
 	var top_layer := CanvasLayer.new()
@@ -1212,6 +1214,14 @@ func set_assembly(d: Dictionary) -> void:
 	_next = d.get("next", "")
 	for key in d:
 		assembly.st[key] = d[key]
+
+## The job list at a size that reads from the couch.
+func _tv_size_tickets() -> void:
+	for slot in tickets:
+		var l: Label = slot["label"]
+		l.add_theme_font_size_override("font_size", 24)
+		l.custom_minimum_size = Vector2(300, 0)
+		(slot["panel"] as Control).custom_minimum_size = Vector2(330, 0)
 
 ## The readings the old panels show, onto the kit; and the old panels away.
 func _feed_assembly() -> void:

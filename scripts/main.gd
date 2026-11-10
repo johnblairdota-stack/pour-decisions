@@ -234,6 +234,7 @@ func _ready() -> void:
 		if arg.begins_with("--camtest="):
 			Settings.cam_test = clampi(int(arg.substr(10)), 0, Settings.CAM_TESTS.size() - 1)
 		if arg == "--nosplit":
+			Settings.ensure()   # (or loading the saved settings would undo it)
 			Settings.data["split"] = false
 		if arg.begins_with("--cam="):
 			_cam_roles = Array(arg.substr(6).split(","))

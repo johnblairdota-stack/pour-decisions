@@ -57,6 +57,7 @@ var _truck_x := {}        # truck id -> where it's drawn (x)
 var _boxes := {}
 var _w := 1600.0
 var _g := 872.0           # the ground line
+var _gs := 1.0            # the trucks and pump are drawn smaller over a split screen
 var _head: Font
 var _body: Font
 
@@ -103,9 +104,14 @@ func _draw() -> void:
 		return
 	_w = size.x / k
 	_g = 900.0 - lift / k - 28.0
-	draw_set_transform(Vector2.ZERO, 0.0, Vector2(k, k))
+	# (with the street band along the bottom, the real trucks and pump are
+	# right there in it: the drawn ones shrink, to leave the deck in view)
+	_gs = 0.62 if lift > 1.0 else 1.0
+	var pivot := Vector2(_riser_x(), _g)
+	draw_set_transform(pivot * (1.0 - _gs) * k, 0.0, Vector2(k, k) * _gs)
 	_draw_trucks()
 	_draw_pump()
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2(k, k))
 	_draw_tower()
 	_draw_boom()
 	_draw_wind()
@@ -177,6 +183,15 @@ func _dashes(pts: PackedVector2Array, off: float, col: Color, w := 3.0) -> void:
 			d += ON + GAP
 		d -= ln
 
+## A spot on the trucks and pump, as it lands on the screen at their scale.
+func _gp(v: Vector2) -> Vector2:
+	var pivot := Vector2(_riser_x(), _g)
+	return pivot + (v - pivot) * _gs
+
+## A text size that stays readable when the trucks and pump are drawn small.
+func _gfs(fs: int) -> int:
+	return int(minf(fs * 1.5, fs / _gs))
+
 func _pulse(rate := 2.0) -> float:
 	return 0.5 + 0.5 * sin(_t * TAU * rate)
 
@@ -230,15 +245,14 @@ func _draw_tower() -> void:
 		if i < n:
 			draw_line(Vector2(_riser_x(), y + sh * 0.5), Vector2(tx.x, y + sh * 0.5), INK, 3.0)
 	_box(Rect2(tx.x - 14.0, base - 4.0, tx.y - tx.x + 28.0, 14.0), Color("3a4252"), 3.0)
-	# The deck being poured
+	# The deck being poured: a plate across the mast at its height
 	if st["deck_tag"] != "":
-		var dy := _tower_y(st["deck"])
-		var tag: String = st["deck_tag"]
-		var tw := _tw(tag, 24) + 28.0
-		var r := Rect2(_riser_x() - 32.0 - tw, dy - 17.0, tw, 34.0)
-		_dashes(PackedVector2Array([Vector2(r.end.x, dy), Vector2(tx.y, dy)]), 0.0, ORANGE, 2.5)
-		_box(r, ORANGE, 8.0, ORANGE.darkened(0.2), 2.0)
-		_text(Vector2(r.position.x + 14.0, dy + 9.0), tag, 24, INK)
+		var dy := clampf(_tower_y(st["deck"]), TOP + 24.0, base - 24.0)
+		var tag: String = String(st["deck_tag"]).get_slice(" ", 0)
+		var r := Rect2(tx.x - 9.0, dy - 16.0, tx.y - tx.x + 18.0, 32.0)
+		_box(r, ORANGE, 6.0, INK, 2.5)
+		var fs := _fit(tag, 26, r.size.x - 10.0, 14)
+		_text(Vector2(r.get_center().x - _tw(tag, fs) * 0.5, dy + fs * 0.36), tag, fs, INK)
 	# The riser: 3 m pipes, a lever clamp and a red pin at every joint
 	var rx := _riser_x()
 	var run := _line_run()
@@ -275,7 +289,8 @@ func _draw_tower() -> void:
 ## boom and down the end hose.
 func _line_run() -> PackedVector2Array:
 	var rx := _riser_x()
-	return PackedVector2Array([Vector2(_hopper_x() + 118.0, _g - 20.0), Vector2(rx - 8.0, _g - 20.0), Vector2(rx, _g - 28.0),
+	var low := _g - 20.0 * _gs
+	return PackedVector2Array([_gp(Vector2(_hopper_x() + 118.0, _g - 20.0)), Vector2(rx - 8.0, low), Vector2(rx, low - 8.0),
 			Vector2(rx, 134.0), Vector2(rx - 10.0, 124.0), Vector2(254.0, 124.0), Vector2(244.0, 134.0), Vector2(244.0, 152.0)])
 
 # ------------------------------------------------------------------ the boom
@@ -377,7 +392,8 @@ func _draw_pump() -> void:
 	if st["pump"]:
 		var pct := "%d%%" % int(round(fill * 100.0))
 		var low: bool = fill < 0.2 and not st["startup"]
-		_text(Vector2(hx - _tw(pct, 30) * 0.5, top - 12.0), pct, 30, UI.ALARM if low and _pulse(2.0) > 0.4 else Color.WHITE, 8)
+		var pfs := _gfs(30)
+		_text(Vector2(hx - _tw(pct, pfs) * 0.5, top - 12.0), pct, pfs, UI.ALARM if low and _pulse(2.0) > 0.4 else Color.WHITE, 8)
 	# The trailer pump: jack legs, exhaust, and the big pressure gauge
 	var px := hx + 44.0
 	draw_line(Vector2(px + 6.0, g - 30.0), Vector2(px + 6.0, g), INK, 5.0)
@@ -415,7 +431,8 @@ func _draw_pump() -> void:
 		elif st["tripped"]:
 			txt = "OFF"
 			col = Color("ff6b5f")
-		_text(Vector2(px + 44.0 - _tw(txt, 28) * 0.5, g - 100.0), txt, 28, col, 8)
+		var bfs := _gfs(28)
+		_text(Vector2(px + 50.0 - _tw(txt, bfs) * 0.5, g - 100.0), txt, bfs, col, 8)
 
 # ------------------------------------------------------------------ trucks
 
@@ -427,7 +444,8 @@ func _draw_trucks() -> void:
 			if (int(tr["slot"]) < 0) != (pass_i == 0):
 				continue
 			var x: float = _truck_x.get(tr["id"], -9999.0)
-			if x < -TRUCK_L - 30.0:
+			# (as many as there's room for beside the job list)
+			if x < -TRUCK_L - 30.0 or int(tr["slot"]) > (3 if _gs >= 1.0 else 5):
 				continue
 			_draw_truck(x, float(tr["age"]), int(tr["slot"]) < 0)
 
@@ -485,10 +503,11 @@ func _draw_truck(x: float, age: float, leaving: bool) -> void:
 	elif age >= AGE_WARN:
 		bg = AMBER
 		fg = INK
-	var tw := _tw(txt, 26) + 26.0
-	var r := Rect2(dc.x - tw * 0.5 - 6.0, dc.y - 20.0, tw, 38.0)
+	var afs := _gfs(26)
+	var tw := _tw(txt, afs) + 26.0
+	var r := Rect2(dc.x - tw * 0.5 - 6.0, dc.y - afs * 0.75, tw, afs * 1.46)
 	_box(r, bg * m, 7.0, (Color.WHITE if age > AGE_MAX else ink) * m, 2.5)
-	_text(Vector2(r.position.x + 13.0, r.position.y + 28.0), txt, 26, fg * m)
+	_text(Vector2(r.position.x + 13.0, r.position.y + afs * 1.08), txt, afs, fg * m)
 
 # ------------------------------------------------------------------ wind, cash
 
@@ -544,9 +563,9 @@ func _draw_hats() -> void:
 				at = Vector2(316.0 + deck_i * 62.0, 174.0)
 				deck_i += 1
 			"truck":
-				at = Vector2(_hopper_x() - 62.0, _g - 168.0)
+				at = _gp(Vector2(_hopper_x() - 62.0, _g - 150.0)) - Vector2(0, 26)
 			"pump":
-				at = Vector2(_hopper_x() + 136.0, _g - 150.0)
+				at = _gp(Vector2(_hopper_x() + 160.0, _g - 96.0)) - Vector2(0, 26)
 			"riser":
 				at = Vector2(_riser_x() + 66.0, _tower_y(float(h["at"])))
 			_:
@@ -572,9 +591,9 @@ func _draw_fault() -> void:
 		return
 	var title: String = f.get("title", "")
 	var sub: String = f.get("sub", "")
-	var y := clampf(_tower_y(float(f.get("at", 0.5))), 300.0, _g - 240.0) if f.get("where", "riser") == "riser" else _g - 250.0
+	var y := clampf(_tower_y(float(f.get("at", 0.5))), 300.0, maxf(300.0, _g - 240.0)) if f.get("where", "riser") == "riser" else _g - 150.0 * _gs - 110.0
 	var w := clampf(maxf(_tw(title, 42), _tw(sub, 26)) + 130.0, 360.0, 560.0)
-	var right := _riser_x() - 40.0 if f.get("where", "riser") == "riser" else _hopper_x() + 130.0
+	var right := _riser_x() - 40.0 if f.get("where", "riser") == "riser" else _gp(Vector2(_hopper_x() - 50.0, _g)).x
 	var r := Rect2(right - w, y - 50.0, w, 100.0)
 	var a := _pulse(1.6)
 	_box(r.grow(2.0 + 3.0 * a), Color(UI.ALARM, 0.35), 16.0, Color(1, 1, 1, 0.0), 0.0)
