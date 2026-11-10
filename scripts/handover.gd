@@ -101,7 +101,10 @@ func _plan_strip() -> void:
 	_at(1.2, func():
 		for h in game._hardstand:
 			(h as Node3D).visible = false
-		game.podium.material_override = F.color_mat(Color("cfc8b8")))
+		game.podium.material_override = F.color_mat(Color("cfc8b8"))
+		if game.west_podium != null:
+			for c in game.west_podium.get_children():
+				(c as GeometryInstance3D).material_override = F.color_mat(Color("cfc8b8")))
 	# The hoist, the boom tower and the crane, a section at a time off the top
 	_at(2.4, func(): _gone(game.hoist_cage, game.hoist_cage.global_position + Vector3(0, 1.5, 0), true))
 	_mast(game.hoist_mast, 2.5, 3.9)
