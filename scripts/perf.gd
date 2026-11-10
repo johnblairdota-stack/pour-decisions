@@ -16,6 +16,11 @@ extends CanvasLayer
 ##       what each one costs (views = the split-screen and close-up cameras,
 ##       world = everything beyond the site: streets, trees, traffic, river,
 ##       vsync = don't wait for the screen, so the true cost shows).
+##       Also split2 and split1: the sun's shadow drawn in two passes or
+##       one, where the game uses four.
+##   --benchdump
+##       with --bench: lists what is in the scene, by group, with how many
+##       pieces each has and how many of them cast a shadow.
 ##
 ## The [bench] line also splits the frame: "script" is the game's own code
 ## each frame, "physics" its fixed-step code, "draw cpu" is the engine
@@ -178,6 +183,11 @@ func _apply_off() -> void:
 				n.process_mode = Node.PROCESS_MODE_DISABLED
 				if n is Node3D:
 					(n as Node3D).visible = false
+	for l in root.find_children("*", "DirectionalLight3D", true, false):
+		if "split2" in _off:
+			(l as DirectionalLight3D).directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
+		if "split1" in _off:
+			(l as DirectionalLight3D).directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
 	if "vsync" in _off:
 		DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
 	print("[bench] switched off: %s" % ", ".join(_off))
@@ -233,6 +243,8 @@ func _process(_delta: float) -> void:
 		_write(s)
 		if bench_secs > 0.0:
 			print("[bench] %s" % _line(s))
+			if OS.get_cmdline_user_args().has("--benchdump"):
+				_dump()
 			if not _marks.is_empty():
 				print("[bench] script parts, ms a frame: %s" % _parts(_ms.size(), c.x))
 			get_tree().quit(0)
@@ -275,6 +287,40 @@ static func _short(n: int) -> String:
 	if n >= 1000:
 		return "%dk" % int(round(n / 1000.0))
 	return str(n)
+
+## Dev: what's in the scene. Every mesh that's showing, grouped by where it
+## hangs in the tree, with its pieces (each piece is a draw) and how many of
+## those cast a shadow.
+func _dump() -> void:
+	var groups := {}
+	var total := Vector3i.ZERO
+	for n in get_tree().root.find_children("*", "GeometryInstance3D", true, false):
+		var g := n as GeometryInstance3D
+		if not g.is_visible_in_tree():
+			continue
+		var pieces := 1
+		if g is MeshInstance3D:
+			var m: Mesh = (g as MeshInstance3D).mesh
+			if m == null:
+				continue
+			pieces = m.get_surface_count()
+		var names: PackedStringArray = []
+		var at: Node = g
+		while at != null and at != game and at != get_tree().root:
+			names.append(str(at.name).rstrip("0123456789@_"))
+			at = at.get_parent()
+		names.reverse()
+		var key := "/".join(names.slice(0, 2))
+		var casts := 0 if g.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF else pieces
+		var add := Vector3i(1, pieces, casts)
+		groups[key] = groups.get(key, Vector3i.ZERO) + add
+		total += add
+	var keys: Array = groups.keys()
+	keys.sort_custom(func(a, b): return groups[a].z * 4 + groups[a].y > groups[b].z * 4 + groups[b].y)
+	print("[bench] scene: %d meshes, %d pieces, %d pieces cast a shadow" % [total.x, total.y, total.z])
+	for i in mini(40, keys.size()):
+		var v: Vector3i = groups[keys[i]]
+		print("[bench]   %s: %d meshes, %d pieces, %d cast" % [keys[i], v.x, v.y, v.z])
 
 ## The marked parts of the frame, dearest first, and what's left over (the
 ## scripts outside main.gd's frame: HUD, sound, traffic, people).

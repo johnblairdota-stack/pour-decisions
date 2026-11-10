@@ -3158,8 +3158,11 @@ func _update_pour(delta: float) -> void:
 	# (the pour clock starts once the line's primed and the concrete's on)
 	if ops.primed:
 		pour_clock += delta
+	perf.mark("phase")
 	ops.update(delta)
+	perf.mark("pour: ops")
 	_draw_hose()
+	perf.mark("pour: hose")
 	if autotest and fmod(phase_t, 15.0) < delta:
 		# (progress, and how long a frame takes, for long pours)
 		print("[autotest]   pour t=%.0f clock=%.0f fill=%.2f poured=%.1f/%.1f bay=%d/%d edge=%.0f risk=%.2f wall=%ds step=%.1fms frame=%.1fms" % [phase_t, pour_clock, _filled_ratio(), pour.poured, pour.needed(), pour.cur_bay + 1, pour.BAYS, pour.edge_left, pour.at_risk, Time.get_ticks_msec() / 1000, _step_ms, _frame_ms])
@@ -3272,10 +3275,13 @@ func _update_pour(delta: float) -> void:
 	pour.set_splash(pumping and not (ops.wants_bin() and ops.over_bin(discharge())), hose_local)
 	if line.pumping:
 		_pump_t += delta
+	perf.mark("pour: boom and hose calls")
 	var t0 := Time.get_ticks_usec()
 	pour.step(delta)
 	_step_ms = lerpf(_step_ms, (Time.get_ticks_usec() - t0) / 1000.0, 0.05)
+	perf.mark("pour: concrete step")
 	pour.show_bays(true)
+	perf.mark("pour: bays")
 
 
 	# Not enough coming to finish? Ring the plant for another truck.
