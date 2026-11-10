@@ -61,7 +61,9 @@ var _head: Font
 var _body: Font
 
 func _ready() -> void:
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	# (anchors AND offsets: set once it's in the tree, anchors alone keep
+	# the empty rect it was added with)
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_head = UI.font("head")
 	_body = UI.font("body")
