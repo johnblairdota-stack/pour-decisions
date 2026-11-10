@@ -67,6 +67,7 @@ var ticket_box: VBoxContainer
 var tickets: Array = []
 # call-outs
 var _kit_layer: CanvasLayer
+var _frames_up := 0
 var toast_panel: PanelContainer
 var toast_label: Label
 var _toast_t := 0.0
@@ -381,6 +382,7 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	_kit_layer.visible = visible and assembly_on
+	_frames_up += 1
 	_place_tickets()
 	if assembly_on:
 		_feed_assembly()
@@ -677,8 +679,13 @@ func set_tickets(list: Array, t: float) -> void:
 		var panel: PanelContainer = slot["panel"]
 		panel.visible = i < list.size()
 		if not panel.visible:
+			slot["text"] = ""
 			continue
 		var tk: Dictionary = list[i]
+		# (a new ticket pops in)
+		if String(slot.get("text", "")) == "" and _frames_up > 30:
+			_pop(panel, 0.86, 0.22)
+		slot["text"] = tk.get("text", "-")
 		var icon: PanelContainer = slot["icon"]
 		var col: Color = tk.get("color", ORANGE)
 		# (a style box re-lays its panel out whenever it's set, even to the
@@ -712,7 +719,19 @@ func set_tickets(list: Array, t: float) -> void:
 
 # ------------------------------------------------------------------ call-outs
 
+## UI motion: a thing that's just turned up pops in (a touch small, then a
+## springy overshoot), the way the buttons do.
+func _pop(c: Control, from := 0.8, secs := 0.24) -> void:
+	if not is_inside_tree():
+		return
+	c.pivot_offset = c.size * 0.5
+	c.scale = Vector2(from, from)
+	var tw := create_tween()
+	tw.tween_property(c, "scale", Vector2.ONE, secs).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
 func set_alert(text: String) -> void:
+	if text != "" and text != _alert:
+		_pop(toast_panel)
 	_alert = text
 	if text != "":
 		toast_label.text = text
@@ -723,11 +742,14 @@ func set_alert(text: String) -> void:
 func toast(text: String, seconds := 2.2) -> void:
 	if _alert != "":
 		return
+	var fresh := not toast_panel.visible or toast_label.text != text
 	toast_label.text = text
 	toast_label.add_theme_color_override("font_color", UI.YELLOW)
 	_toast_t = seconds
 	toast_panel.visible = true
 	toast_panel.modulate.a = 1.0
+	if fresh:
+		_pop(toast_panel)
 
 func set_signal(text: String, color := Color.WHITE) -> void:
 	# (a long line wraps in the middle, clear of the crew badges in the corner)
@@ -1198,6 +1220,8 @@ func set_toolbox(hold: float, left: float, secs: float) -> void:
 	_tb_left.text = "STARTS ITSELF IN %ds" % int(ceil(secs))
 
 func show_topout(text: String) -> void:
+	if not banner.visible:
+		_pop(banner, 0.5, 0.45)
 	banner.visible = true
 	facts.visible = true
 	facts_label.text = text

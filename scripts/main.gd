@@ -2185,6 +2185,42 @@ func gold_level(p) -> float:
 func gold_hit(p) -> void:
 	if not p.bot:
 		Wallet.add_skill(p.char_id, p.role, GOLD_STEP)
+		_gold_fx(p)
+
+## The press landed on gold: the game holds its breath for a few frames and
+## a gold ring runs out across the deck from their feet. (F2, the screen
+## shake switch, turns the hold off too.)
+const HIT_PAUSE := 0.06
+var _goldfx_test := OS.get_cmdline_user_args().has("--goldfx")   # dev: a gold press every 3 s of the pour
+var _hit_at := -10.0
+
+func _gold_fx(p) -> void:
+	var ring := MeshInstance3D.new()
+	var tm := TorusMesh.new()
+	tm.inner_radius = 0.52
+	tm.outer_radius = 0.64
+	tm.rings = 40
+	tm.ring_segments = 6
+	ring.mesh = tm
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.albedo_color = Color(1.0, 0.84, 0.25, 0.95)
+	ring.material_override = mat
+	ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(ring)
+	ring.global_position = p.global_position + Vector3(0, 0.12, 0)
+	ring.scale = Vector3(0.6, 0.5, 0.6)
+	var tw := create_tween().set_parallel(true)
+	tw.tween_property(ring, "scale", Vector3(3.4, 0.5, 3.4), 0.38).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tw.tween_property(mat, "albedo_color:a", 0.0, 0.38).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tw.chain().tween_callback(ring.queue_free)
+	# (not on top of the last one: six people can all land gold at once)
+	var now := Time.get_ticks_msec() / 1000.0
+	if shake_on and (not autotest or _goldfx_test) and now - _hit_at > 0.5 and not get_tree().paused:
+		_hit_at = now
+		Engine.time_scale = 0.05
+		get_tree().create_timer(HIT_PAUSE, true, false, true).timeout.connect(func(): Engine.time_scale = 1.0)
 
 ## A person slipped (a mistake, a missed moment, a crewmate covering for
 ## them): the gold comes back up a bit.
@@ -2875,6 +2911,10 @@ func _people_line() -> String:
 
 func _process(delta: float) -> void:
 	_frames += 1
+	if _frames == 1:
+		Engine.time_scale = 1.0   # (a restart in the middle of a hit-pause)
+	if _goldfx_test and phase == "pour" and int(phase_t / 3.0) != int((phase_t - delta) / 3.0):
+		_gold_fx(crew.crew["poker"])
 	var now_us := Time.get_ticks_usec()
 	if _frame_us > 0:
 		_frame_ms = lerpf(_frame_ms, (now_us - _frame_us) / 1000.0, 0.05)
