@@ -8,6 +8,8 @@
 ## Everything's put back when you're back at the site.
 extends Node3D
 
+const PerfClock := preload("res://scripts/perf.gd")
+
 const F := preload("res://scripts/factory.gd")
 const Flora := preload("res://scripts/flora.gd")
 
@@ -247,7 +249,13 @@ func bowl(w: Dictionary, push: Vector2) -> void:
 		it["bspin"] = Vector3(randf_range(-6, 6), randf_range(-8, 8), randf_range(-6, 6))
 	_flying.append(it)
 
+## (timed for the F4 readout's list of what the frame went on)
 func _process(delta: float) -> void:
+	var _t0 := Time.get_ticks_usec()
+	_frame_work(delta)
+	PerfClock.took("crash", _t0)
+
+func _frame_work(delta: float) -> void:
 	var dt := minf(delta, 0.05)
 	_t += dt
 	for k in range(_wobble.size() - 1, -1, -1):

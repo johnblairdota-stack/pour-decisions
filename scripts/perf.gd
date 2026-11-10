@@ -117,9 +117,20 @@ func _reset() -> void:
 	_phys_ms = 0.0
 	_draws = 0.0
 	_marks.clear()
+	_ext.clear()
+	_ext_on = false
 	_counting = false
 
 ## Called through main.gd's frame: the time since the last mark goes to `part`.
+## Other scripts' own frames (traffic, the street crowd, sound...): each adds
+## what its frame took.
+static var _ext := {}
+static var _ext_on := false
+
+static func took(part: String, since_us: int) -> void:
+	if _ext_on:
+		_ext[part] = _ext.get(part, 0) + Time.get_ticks_usec() - since_us
+
 func mark(part: String) -> void:
 	if not _counting:
 		return
@@ -209,6 +220,7 @@ func _process(_delta: float) -> void:
 		return
 	if not _counting:
 		_counting = true   # (the parts are counted from the next frame)
+		_ext_on = true
 		return
 	if bench_secs > 0.0 and not _off_done:
 		_apply_off()
@@ -325,12 +337,15 @@ func _dump() -> void:
 ## The marked parts of the frame, dearest first, and what's left over (the
 ## scripts outside main.gd's frame: HUD, sound, traffic, people).
 func _parts(frames: int, script_ms: float) -> String:
-	var names: Array = _marks.keys()
-	names.sort_custom(func(a, b): return _marks[a] > _marks[b])
+	var all := _marks.duplicate()
+	for n in _ext:
+		all[n] = _ext[n]
+	var names: Array = all.keys()
+	names.sort_custom(func(a, b): return all[a] > all[b])
 	var out: PackedStringArray = []
 	var seen := 0.0
 	for n in names:
-		var v: float = _marks[n] / 1000.0 / maxf(1.0, float(frames))
+		var v: float = all[n] / 1000.0 / maxf(1.0, float(frames))
 		seen += v
 		if v >= 0.05:
 			out.append("%s %.2f" % [n, v])

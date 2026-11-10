@@ -26,8 +26,9 @@ const PATH := "user://settings.cfg"
 const INCIDENT_NAMES := ["None", "Normal", "Busy", "Chaos"]
 const DOG_HELP_NAMES := ["First Day", "On Site", "Ticketed"]
 const GOLD_NAMES := ["fades as you learn", "full sparkle", "off"]
+const GRAPHICS_NAMES := ["Full", "Lite"]
 
-static var data := {"incidents": 1, "ui_scale": 1.25, "world_text": 1.25, "docket_help": false, "fullscreen": false, "gold_assist": true, "gold_mode": 0, "dog_help": 0, "real_names": true, "split": true, "band": true, "vol_site": 1.0, "vol_band": 1.0, "vol_alerts": 1.0, "ver": 2, "medals": [], "tut_done": false, "tower_started": false}
+static var data := {"incidents": 1, "ui_scale": 1.25, "world_text": 1.25, "docket_help": false, "fullscreen": false, "gold_assist": true, "gold_mode": 0, "dog_help": 0, "real_names": true, "split": true, "band": true, "vol_site": 1.0, "vol_band": 1.0, "vol_alerts": 1.0, "ver": 2, "medals": [], "tut_done": false, "tower_started": false, "graphics": 0}
 static var _loaded := false
 
 ## Camera test (not saved: it's for trying out the multiplayer cameras on
@@ -48,6 +49,9 @@ static func ensure() -> void:
 	if _loaded:
 		return
 	_loaded = true
+	# (a tablet or phone starts on Lite, till someone picks)
+	if OS.has_feature("mobile"):
+		data["graphics"] = 1
 	var cf := ConfigFile.new()
 	if cf.load(PATH) == OK:
 		for k in data.keys():

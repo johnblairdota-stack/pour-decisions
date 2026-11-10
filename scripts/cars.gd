@@ -7,6 +7,8 @@
 ## surrounds.gd makes one of these with the map.
 extends Node3D
 
+const PerfClock := preload("res://scripts/perf.gd")
+
 const F := preload("res://scripts/factory.gd")
 const Utes := preload("res://scripts/utes.gd")
 const ParkWays := preload("res://scripts/park_ways.gd")
@@ -376,7 +378,13 @@ func clear_parked_near(p: Vector2, r: float) -> void:
 				(ref[0] as MultiMesh).set_instance_transform(ref[1], Transform3D(Basis.from_scale(Vector3.ONE * 0.0001), t.origin))
 			it[0] = ""
 
+## (timed for the F4 readout's list of what the frame went on)
 func _process(delta: float) -> void:
+	var _t0 := Time.get_ticks_usec()
+	_frame_work(delta)
+	PerfClock.took("traffic", _t0)
+
+func _frame_work(delta: float) -> void:
 	for dv in _drivers:
 		_follow(dv, delta)
 	for dv in _drivers:

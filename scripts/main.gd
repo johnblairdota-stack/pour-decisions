@@ -409,6 +409,56 @@ func _build_environment() -> void:
 	sun.rotation_degrees = Vector3(-42, -24, 0)
 	_day_q = sun.quaternion
 	add_child(sun)
+	apply_graphics()
+
+## Graphics: Full or Lite (Settings, or `--graphics=lite` / `full` to try one).
+## Full: 4x soft edges, contact shadows (the dark where a thing meets the
+## deck, so nothing floats), glow. Lite: those off, the 3D drawn a little
+## smaller and scaled up, a smaller shadow map, and the close-ups and the
+## street band drawn every other frame.
+var lite := false
+
+func apply_graphics() -> void:
+	lite = int(Settings.value("graphics")) == 1
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--graphics="):
+			lite = arg.substr(11) == "lite"
+	var aa := Viewport.MSAA_DISABLED if lite else Viewport.MSAA_4X
+	var vp := get_viewport()
+	vp.msaa_3d = aa
+	vp.scaling_3d_scale = 0.8 if lite else 1.0
+	env.glow_enabled = not lite
+	env.ssao_enabled = not lite
+	env.ssao_radius = 0.7
+	env.ssao_intensity = 1.6
+	env.ssao_power = 1.4
+	env.ssao_detail = 0.3
+	env.ssao_light_affect = 0.25
+	RenderingServer.directional_shadow_atlas_set_size(2048 if lite else 4096, true)
+
+## The close-ups cost a whole extra drawing of the site each (shadows and
+## all). On Lite, or with more than one up, each is drawn every other frame,
+## turn about; the street band too on Lite.
+func _pace_views() -> void:
+	if perf != null and "views" in perf._off:
+		return
+	var boxes: Array = []
+	if _inset_layer != null:
+		for c in _inset_layer.get_children():
+			if c is SubViewportContainer and (c as Control).visible and c.get_child_count() > 0 and c.get_child(0) is SubViewport:
+				boxes.append(c)
+	var half := lite or boxes.size() > 1
+	for i in boxes.size():
+		var v: SubViewport = boxes[i].get_child(0)
+		if half:
+			v.render_target_update_mode = SubViewport.UPDATE_ONCE if (_frames + i) % 2 == 0 else SubViewport.UPDATE_DISABLED
+		else:
+			v.render_target_update_mode = SubViewport.UPDATE_WHEN_VISIBLE
+	if band_view != null and band_box != null and band_box.visible:
+		if lite:
+			band_view.render_target_update_mode = SubViewport.UPDATE_ONCE if _frames % 2 == 1 else SubViewport.UPDATE_DISABLED
+		else:
+			band_view.render_target_update_mode = SubViewport.UPDATE_WHEN_VISIBLE
 
 ## The sun's shadow is the dearest thing drawn. From the site camera, well
 ## back and looking down, two passes look the same as four, and the boats,
@@ -1752,7 +1802,11 @@ func _build_band() -> void:
 	layer.layer = 1
 	add_child(layer)
 	band_box = SubViewportContainer.new()
-	band_box.stretch = true
+	# (not stretched: the view keeps its full size and the box slides up
+	# over it. Stretched, the view was made again at a new size every frame
+	# the band was opening or closing, which is dear)
+	band_box.stretch = false
+	band_box.clip_contents = true
 	band_box.anchor_left = 0.0
 	band_box.anchor_right = 1.0
 	band_box.anchor_top = 1.0
@@ -5633,6 +5687,10 @@ const TIGHT_MIN := 15.0      # m: the closest the mid-pour deck view comes in
 var _tight := 0.0            # 0 whole slab .. 1 framed on the crew and the wet edge
 
 func _update_camera(delta: float) -> void:
+	_update_camera_views(delta)
+	_pace_views()
+
+func _update_camera_views(delta: float) -> void:
 	# Who's up top and who's down on the street. While the deck's low, one
 	# camera takes in everyone. Once it's up past SPLIT_Y with people at both
 	# heights, the screen splits: the deck on top, a street band along the
@@ -5659,7 +5717,10 @@ func _update_camera(delta: float) -> void:
 		for p in down:
 			da += p.position
 		da /= down.size()
-		apart = work_y >= SPLIT_Y or ua.distance_to(da) > SPLIT_DIST
+		# (once it's split it stays split till they're well back together:
+		# on the line, it used to open and close over and over)
+		var slack := 0.8 if _split > 0.0 else 1.0
+		apart = work_y >= SPLIT_Y * slack or ua.distance_to(da) > SPLIT_DIST * slack
 	# (and not while the slab report's up: it needs the whole screen)
 	var split_on: bool = Settings.value("split")
 	var want_split := split_on and apart and not skyline and not (phase in ["roles", "select", "topout", "screed", "sign", "cure"])

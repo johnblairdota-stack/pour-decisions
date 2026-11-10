@@ -7,6 +7,8 @@
 ## beats fast and throws gold star sparks.
 extends Control
 
+const PerfClock := preload("res://scripts/perf.gd")
+
 const PLAYER := preload("res://scripts/player.gd")
 const UI := preload("res://scripts/ui.gd")
 const GOLD := Color("ffd23f")
@@ -48,7 +50,13 @@ func show_cues(list: Array) -> void:
 func _centre(i: int) -> Vector2:
 	return Vector2(34, 35 - (cues.size() - 1 - i) * ROW_H)
 
+## (timed for the F4 readout's list of what the frame went on)
 func _process(delta: float) -> void:
+	var _t0 := Time.get_ticks_usec()
+	_frame_work(delta)
+	PerfClock.took("cue badges", _t0)
+
+func _frame_work(delta: float) -> void:
 	_t += delta
 	for i in _flash.size():
 		_flash[i] = maxf(0.0, _flash[i] - delta * 3.0)

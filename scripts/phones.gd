@@ -22,6 +22,8 @@
 ## The token lets a phone that drops out reconnect to the same chibi.
 extends Node
 
+const PerfClock := preload("res://scripts/perf.gd")
+
 const Wallet := preload("res://scripts/wallet.gd")
 const CashArt := preload("res://scripts/cash_art.gd")
 const UtePreview := preload("res://scripts/ute_preview.gd")
@@ -114,7 +116,13 @@ func _lan_addresses() -> Array:
 			out.append(e[1])
 	return out
 
+## (timed for the F4 readout's list of what the frame went on)
 func _process(delta: float) -> void:
+	var _t0 := Time.get_ticks_usec()
+	_frame_work(delta)
+	PerfClock.took("phones", _t0)
+
+func _frame_work(delta: float) -> void:
 	if not running:
 		return
 	_serve_http(delta)

@@ -17,7 +17,7 @@ const MAIN := [["Back to work", "resume"], ["Knock off", "explore"], ["Swap jobs
 ## are, or back to the job.
 const ROAM := [["Carry on", "resume"], ["Back to work", "work"], ["Add a player", "join"],
 	["Settings", "settings"], ["Start again", "restart"], ["Exit", "quit"]]
-const SETTINGS := ["back", "incidents", "gold_mode", "dog_help", "docket_help", "ui_scale", "world_text", "split", "fullscreen", "sound_page", "shake",
+const SETTINGS := ["back", "incidents", "gold_mode", "dog_help", "docket_help", "ui_scale", "world_text", "split", "fullscreen", "graphics", "sound_page", "shake",
 	"real_names", "cam_test", "perf"]
 ## The Sound page, off Settings.
 const SOUND := ["back", "sound", "vol_site", "vol_band", "vol_alerts", "band"]
@@ -285,6 +285,8 @@ func _refresh() -> void:
 				l.text = "Brand names: %s" % ("real" if Settings.value("real_names") else "lookalike")
 			"fullscreen":
 				l.text = "Full screen: %s" % ("on" if Settings.value("fullscreen") else "off")
+			"graphics":
+				l.text = "Graphics: %s" % Settings.GRAPHICS_NAMES[clampi(int(Settings.value("graphics")), 0, 1)]
 			"sound":
 				l.text = "Sound: %s" % ("off" if game.sfx.muted else "on")
 			"band":
@@ -479,6 +481,8 @@ func _note_for(action: String) -> String:
 			return "Climb days. The see-through ghost always shows where the load's headed. First Day: the swing and turn are tamed, the crane driver's quick, the tag lines grip hard, and the legs seat with a bit to spare. On Site: a real swing and a real driver. Ticketed: full swing and lag, a light grip on the lines, and the legs have to be spot on."
 		"fullscreen":
 			return "Fill the whole screen. F11 flips it any time."
+		"graphics":
+			return "Full: soft edges, contact shadows under everything, glow. Lite: those off, a slightly softer picture and close-ups at half speed, for a tablet or an older computer. F4 shows what it does to the frame rate."
 		"sound":
 			return "Site noise, the pump, the radio calls."
 		"sound_page":
@@ -558,6 +562,9 @@ func _do(action: String) -> void:
 				(n as Label3D).text = Settings.brand("pumper")
 		"fullscreen":
 			Settings.toggle_fullscreen()
+		"graphics":
+			Settings.put("graphics", (int(Settings.value("graphics")) + 1) % Settings.GRAPHICS_NAMES.size())
+			game.apply_graphics()
 		"sound":
 			game.sfx.toggle_mute()
 		"band":
