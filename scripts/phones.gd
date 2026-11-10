@@ -257,7 +257,7 @@ func _on_message(c: Dictionary, msg: String) -> void:
 			p.ai = true
 			p.remote_id = 1
 			(c["ws"] as WebSocketPeer).send_text("p %d %s" % [p.index, p.tag_color.to_html(false)])
-		"pick", "lock", "unlock", "char", "swap":
+		"pick", "lock", "unlock", "char", "swap", "start":
 			_on_pick(c, parts)
 			return
 		"buy":
@@ -480,6 +480,7 @@ func _send_state(c: Dictionary) -> void:
 	if sel != null and scr == "lobby":
 		st["locked"] = bool(sel._ready_p.get(p.index, false))
 		st["count"] = int(ceil(sel._count_t)) if sel._count_t > 0.0 else -1
+		st["first"] = bool(sel.is_starter(p.index))
 	if scr == "sign":
 		st["left"] = int(ceil(game.ink_left()))
 		st["done"] = bool(game._ink_done.get(p, false))
@@ -609,6 +610,9 @@ func _on_pick(c: Dictionary, parts: PackedStringArray) -> void:
 		"lock", "unlock":
 			if sel != null and screen() == "lobby":
 				sel.set_ready(p.index, parts[0] == "lock")
+		"start":
+			if sel != null and screen() == "lobby":
+				sel.phone_start(p.index)
 		"char":
 			if sel != null and screen() == "lobby" and not bool(sel._ready_p.get(p.index, false)):
 				crew.cycle_char(p.index, 1 if role != "-1" else -1)

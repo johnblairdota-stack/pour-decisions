@@ -220,6 +220,8 @@ var _pitch_before := 0.62
 # ------------------------------------------------------------------ setup
 
 func _ready() -> void:
+	# (a pause never carries over a restart: the crew page has to run)
+	get_tree().paused = false
 	UI.install_fonts()
 	var args := OS.get_cmdline_user_args()
 	autotest = args.has("--autotest")

@@ -576,7 +576,12 @@ func _do(action: String) -> void:
 		"perf":
 			game.perf.toggle()
 		"restart":
+			# (knocked off, the game's held paused for the wander: come back
+			# first, or the fresh crew page would start frozen)
+			if _roaming():
+				game.explore.leave()
 			close()
+			get_tree().paused = false
 			get_tree().reload_current_scene()
 			return
 		"explore":
