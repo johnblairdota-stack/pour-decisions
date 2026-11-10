@@ -1242,7 +1242,7 @@ func _feed_assembly() -> void:
 	# The job list hangs under the end hose, the call-outs clear of the boom
 	var k := _root.size.y / 900.0
 	ticket_box.position = Vector2(24.0, 216.0) * k
-	toast_panel.position.y = 206.0 * k
+	toast_panel.position.y = 138.0 * k
 	if banner.visible:
 		banner.position.y = 230.0 * k
 
