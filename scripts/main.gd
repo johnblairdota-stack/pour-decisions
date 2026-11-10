@@ -14,6 +14,7 @@ extends Node3D
 
 const UI := preload("res://scripts/ui.gd")
 const PauseScript := preload("res://scripts/pause.gd")
+const PerfScript := preload("res://scripts/perf.gd")
 const CoachScript := preload("res://scripts/coach.gd")
 const LeadingHand := preload("res://scripts/leading_hand.gd")
 const Icons := preload("res://scripts/icons.gd")
@@ -158,6 +159,7 @@ var phones
 var hud
 var selector
 var pause_menu
+var perf   # the frame-rate readout (F4, or Settings)
 var explore                  # knocking off: off the clock, wandering the area (explore.gd)
 var coach
 var shake_on := true
@@ -291,6 +293,9 @@ func _ready() -> void:
 	pause_menu = PauseScript.new()
 	add_child(pause_menu)
 	pause_menu.setup(self)
+	perf = PerfScript.new()
+	add_child(perf)
+	perf.setup(self)
 	explore = ExploreScript.new()
 	explore.name = "Explore"
 	add_child(explore)
@@ -357,7 +362,7 @@ func _setup_input() -> void:
 				jb.button_index = b
 				InputMap.action_add_event(act_name, jb)
 		device += 1
-	for pair in [["skyline", KEY_TAB], ["restart", KEY_R], ["dev_climb", KEY_F1], ["toggle_shake", KEY_F2], ["toggle_sound", KEY_F3]]:
+	for pair in [["skyline", KEY_TAB], ["restart", KEY_R], ["dev_climb", KEY_F1], ["toggle_shake", KEY_F2], ["toggle_sound", KEY_F3], ["toggle_perf", KEY_F4]]:
 		if InputMap.has_action(pair[0]):
 			InputMap.erase_action(pair[0])
 		InputMap.add_action(pair[0])
@@ -2769,6 +2774,8 @@ func _process(delta: float) -> void:
 	if Input.is_action_just_pressed("toggle_shake"):
 		shake_on = not shake_on
 		hud.toast("Screen shake %s" % ("on" if shake_on else "off"), 1.2)
+	if Input.is_action_just_pressed("toggle_perf"):
+		perf.toggle()
 	if Input.is_action_just_pressed("toggle_sound"):
 		sfx.toggle_mute()
 		hud.toast("Sound %s" % ("off" if sfx.muted else "on"), 1.2)
