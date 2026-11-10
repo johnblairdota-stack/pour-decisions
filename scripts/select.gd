@@ -404,6 +404,13 @@ func set_ready(i: int, on: bool) -> void:
 	if bool(_ready_p.get(i, false)) == on:
 		return
 	_ready_p[i] = on
+	# (the hat they've locked in on jumps)
+	if on and game != null and is_inside_tree():
+		var me = game.crew.human(i)
+		if me != null and _hats.has(me.role):
+			var hat: Control = _hats[me.role]["hat"]
+			hat.scale = Vector2(1.3, 1.3)
+			create_tween().tween_property(hat, "scale", Vector2.ONE, 0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	if game != null:
 		game.sfx.hit("ding" if on else "tink")
 		if game._dbg:
@@ -783,6 +790,12 @@ func _process_site(delta: float) -> void:
 			_site_note.text = ""
 			_site_t = SITE_T
 			_refresh_site()
+			for e in _kit_cards:
+				if int(e["kit"]) == index:
+					var kc: Control = e["card"]
+					kc.pivot_offset = kc.size * 0.5
+					kc.scale = Vector2(1.08, 1.08)
+					create_tween().tween_property(kc, "scale", Vector2.ONE, 0.25).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 			if game:
 				game.sfx.hit("tink")
 		_cool = 0.22
@@ -864,9 +877,18 @@ func _process(delta: float) -> void:
 		_process_site(delta)
 
 func _show_page(which: String) -> void:
+	var was := page
 	page = which
 	_crew_page.visible = which == "crew"
 	_site_page.visible = which == "site"
+	# (the page coming in slides in from its side and fades up)
+	if was != which and is_inside_tree():
+		var pg: Control = _site_page if which == "site" else _crew_page
+		pg.modulate.a = 0.0
+		pg.position.x = 60.0 if which == "site" else -60.0
+		var tw := create_tween().set_parallel(true)
+		tw.tween_property(pg, "modulate:a", 1.0, 0.25)
+		tw.tween_property(pg, "position:x", 0.0, 0.3).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	if which == "crew":
 		_hold_t = 0.0
 		_wait_t = 0.0

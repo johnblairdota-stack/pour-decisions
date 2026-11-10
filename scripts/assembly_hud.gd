@@ -71,6 +71,17 @@ var _layers: Array[Layer] = []
 var _static_key := ""
 var _truck_key := ""
 var _tick := 0
+# UI motion: what changed, and when
+var _title_was := ""
+var _title_at := -10.0
+var _next_was := ""
+var _next_at := -10.0
+var _fault_was := ""
+var _fault_at := -10.0
+
+## 0 to 1 over `secs` since `at`, easing out.
+func _since(at: float, secs := 0.28) -> float:
+	return ease(clampf((_t - at) / secs, 0.0, 1.0), 0.35)
 
 class Layer extends Control:
 	var hud
@@ -403,7 +414,12 @@ func _draw_boom_live() -> void:
 		var cw2 := (_tw(clock, 32) + 14.0) if clock != "" else 0.0
 		var bar_w := 110.0 if float(st["progress"]) >= 0.0 else 0.0
 		var fs := _fit(title, 42, room - cw2 - (bar_w + 16.0 if bar_w > 0.0 else 0.0), 26)
-		_text(Vector2(x, 84.0 + fs * 0.36), title, fs, INK)
+		# (a new job drops into place)
+		if title != _title_was:
+			_title_was = title
+			_title_at = _t
+		var te := _since(_title_at)
+		_text(Vector2(x, 84.0 + fs * 0.36 - (1.0 - te) * 16.0), title, fs, Color(INK, te))
 		x += minf(_tw(title, fs), room - cw2 - bar_w) + 16.0
 		if bar_w > 0.0 and x + bar_w + cw2 <= xm - 22.0:
 			bar_w = minf(160.0, xm - 26.0 - cw2 - x)
@@ -423,7 +439,11 @@ func _draw_boom_live() -> void:
 		_text(Vector2(nx + 12.0, 96.0), nchip, 28, YEL)
 		nx += lw + 12.0
 		var fs2 := _fit(next, 30, x1 - 30.0 - nx, 24)
-		_text(Vector2(nx, 86.0 + fs2 * 0.36), next, fs2, INK)
+		if next != _next_was:
+			_next_was = next
+			_next_at = _t
+		var ne := _since(_next_at)
+		_text(Vector2(nx + (1.0 - ne) * 22.0, 86.0 + fs2 * 0.36), next, fs2, Color(INK, ne))
 
 # ------------------------------------------------------------------ the pump
 
@@ -668,8 +688,14 @@ func _draw_fault() -> void:
 	var f: Dictionary = st["fault"]
 	if f.is_empty():
 		fault_rect = Rect2()
+		_fault_was = ""
 		return
 	var title: String = f.get("title", "")
+	# (it pops in: a touch small, then a springy overshoot)
+	if title != _fault_was:
+		_fault_was = title
+		_fault_at = _t
+	var fe := _since(_fault_at, 0.3)
 	var sub: String = f.get("sub", "")
 	var on_riser: bool = f.get("where", "riser") == "riser"
 	var y := 238.0
@@ -685,6 +711,7 @@ func _draw_fault() -> void:
 	fault_rect = Rect2(r.position * (size.y / 900.0), r.size * (size.y / 900.0))
 	var a := _pulse(1.6)
 	_box(r.grow(1.0 + 2.0 * a), Color(UI.ALARM, 0.35), 13.0, Color(1, 1, 1, 0.0), 0.0)
+	r = r.grow(-(1.0 - fe) * 12.0 + sin(fe * PI) * 5.0)
 	_box(r, UI.ALARM, 11.0, Color.WHITE, 2.5)
 	var tx := r.position.x + 16.0
 	var btn: String = f.get("btn", "")
