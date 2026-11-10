@@ -95,9 +95,23 @@ static func height(sp: String) -> float:
 	var m := mesh(sp)
 	return maxf(m.get_aabb().end.y, 0.5) if m != null else 8.0
 
+## Whether a `sp` at scale `s` standing at `p` spreads its crown over any of
+## `rects` (with half a metre to spare).
+static func _overhangs(sp: String, s: float, p: Vector2, rects: Array) -> bool:
+	var m := mesh(sp)
+	if m == null:
+		return false
+	var box := m.get_aabb()
+	var reach := maxf(maxf(absf(box.position.x), absf(box.end.x)), maxf(absf(box.position.z), absf(box.end.z))) * s + 0.5
+	for rc in rects:
+		if (rc as Rect2).grow(reach).has_point(p):
+			return true
+	return false
+
 ## Plants `trees` (each [species, Vector3 on the ground], or with a third
-## entry, the height it should stand) under `root`.
-static func plant(root: Node3D, trees: Array, rng: RandomNumberGenerator) -> void:
+## entry, the height it should stand) under `root`. A tree whose crown would
+## reach over any of `clear_of` (the building, as it goes up) isn't planted.
+static func plant(root: Node3D, trees: Array, rng: RandomNumberGenerator, clear_of: Array = []) -> void:
 	var groups := {}
 	for t in trees:
 		var sp: String = t[0]
@@ -111,8 +125,6 @@ static func plant(root: Node3D, trees: Array, rng: RandomNumberGenerator) -> voi
 			key = sp + "Far"
 		else:
 			key = "%s|%d|%d|%d" % [sp, floori(at.x / TILE), floori(at.z / TILE), 1 if d < SHADOW else 0]
-		if not groups.has(key):
-			groups[key] = []
 		var r: Array = SPECIES.get(sp, [0.0, 1.0, 1.0])
 		var s := rng.randf_range(r[1], r[2])
 		if t.size() > 2:
@@ -120,6 +132,12 @@ static func plant(root: Node3D, trees: Array, rng: RandomNumberGenerator) -> voi
 		var b := Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(s, s * rng.randf_range(0.92, 1.08), s))
 		var v := rng.randf_range(0.86, 1.08)
 		var w := rng.randf_range(-0.04, 0.04)
+		# (the random draws are made either way, so everything planted after
+		# stays where it was)
+		if not clear_of.is_empty() and _overhangs(sp, s, Vector2(at.x, at.z), clear_of):
+			continue
+		if not groups.has(key):
+			groups[key] = []
 		groups[key].append([Transform3D(b, at), Color(v * (1.0 + w), v, v * (1.0 - w))])
 	for key in groups:
 		var parts: PackedStringArray = (key as String).split("|")

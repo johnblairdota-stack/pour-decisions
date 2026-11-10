@@ -81,6 +81,13 @@ var _next_at := -10.0
 var _fault_was := ""
 var _fault_at := -10.0
 
+## The job a line of text names, without its counts: "Screed 9% to go" and
+## "Screed 8% to go" are the same job, so only a new job animates in, not a
+## number ticking over.
+var _digits := RegEx.create_from_string("[0-9]+")
+func _job_key(s: String) -> String:
+	return _digits.sub(s, "#", true)
+
 ## 0 to 1 over `secs` since `at`, easing out.
 func _since(at: float, secs := 0.28) -> float:
 	return ease(clampf((_t - at) / secs, 0.0, 1.0), 0.35)
@@ -423,8 +430,8 @@ func _draw_boom_live() -> void:
 		var bar_w := 110.0 if float(st["progress"]) >= 0.0 else 0.0
 		var fs := _fit(title, 42, room - cw2 - (bar_w + 16.0 if bar_w > 0.0 else 0.0), 26)
 		# (a new job drops into place)
-		if title != _title_was:
-			_title_was = title
+		if _job_key(title) != _title_was:
+			_title_was = _job_key(title)
 			_title_at = _t
 		var te := _since(_title_at)
 		_text(Vector2(x, 84.0 + fs * 0.36 - (1.0 - te) * 16.0), title, fs, Color(INK, te))
@@ -447,8 +454,8 @@ func _draw_boom_live() -> void:
 		_text(Vector2(nx + 12.0, 96.0), nchip, 28, YEL)
 		nx += lw + 12.0
 		var fs2 := _fit(next, 30, x1 - 30.0 - nx, 24)
-		if next != _next_was:
-			_next_was = next
+		if _job_key(next) != _next_was:
+			_next_was = _job_key(next)
 			_next_at = _t
 		var ne := _since(_next_at)
 		_text(Vector2(nx + (1.0 - ne) * 22.0, 86.0 + fs2 * 0.36), next, fs2, Color(INK, ne))

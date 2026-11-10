@@ -750,7 +750,8 @@ func set_alert(text: String) -> void:
 func toast(text: String, seconds := 2.2) -> void:
 	if _alert != "":
 		return
-	var fresh := not toast_panel.visible or toast_label.text != text
+	# (a count ticking over in the same message isn't a new message)
+	var fresh := not toast_panel.visible or assembly._job_key(toast_label.text) != assembly._job_key(text)
 	toast_label.text = text
 	toast_label.add_theme_color_override("font_color", UI.YELLOW)
 	_toast_t = seconds
