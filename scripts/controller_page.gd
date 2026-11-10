@@ -1042,7 +1042,7 @@ $('cprev').addEventListener('pointerdown', (e) => { e.preventDefault(); send('ch
 $('cnext').addEventListener('pointerdown', (e) => { e.preventDefault(); send('char 1'); buzz(BUZZ.press); });
 function setCount(c) {
   $('count').textContent = c > 0 ? c : '';
-  $('cnote').textContent = c > 0 ? 'Everyone’s in. Starting the pour. Once you’re on site you can swap to any job a bot is doing.' : 'Waiting for the rest of the crew to lock in. Once you’re on site you can swap to any job a bot is doing.';
+  $('cnote').textContent = c > 0 ? 'Everyone’s in. The first player holds A on the big screen to start, or it starts on its own. Once you’re on site you can swap to any job a bot is doing.' : 'Waiting for the rest of the crew to lock in. Once you’re on site you can swap to any job a bot is doing.';
 }
 // ---------------------------------------------------------------- swap jobs on site
 let swapOpen = false, swapPick = '';

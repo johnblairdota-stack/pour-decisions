@@ -1484,7 +1484,91 @@ func _build_boom(a: float, b: float) -> void:
 	hose_end.position.y = -HOSE
 	tip.add_child(hose_end)
 
+## The site page's floors, out on the real site: a plate where each slab
+## goes. Poured ones are concrete with their medal's colour on the label,
+## the next one's gold, the rest are faint; the one picked glows.
+var _menu_floors: Node3D
+var _menu_plates: Array = []   # {mesh, mat, label}
+var _menu_key := ""
+var _menu_yaw := INF           # the camera's own angle, to go back to after the cold open's turn
+var _menu_shift := 0.0
+var _menu_t := 0.0
+
+## Dev: `--only=coldopen` holds the cold open for its screenshot.
+func wants_cold_open() -> bool:
+	return shot_dir != "" and "coldopen" in _shot_only and not _shots_taken.has("coldopen")
+
+func _update_menu_floors(delta: float) -> void:
+	var fp: int = selector.floor_pick() if phase == "select" and kit == "" and is_instance_valid(selector) else -1
+	if fp < 0:
+		if _menu_floors != null:
+			_menu_floors.visible = false
+		return
+	if _menu_floors == null:
+		_menu_floors = Node3D.new()
+		add_child(_menu_floors)
+		for i: int in int(selector.FLOORS):
+			var y: float = (i + 1) * FH
+			var mi := MeshInstance3D.new()
+			var bm := BoxMesh.new()
+			bm.size = Vector3(30.0, 0.7, 21.8)
+			mi.mesh = bm
+			var mat := StandardMaterial3D.new()
+			mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			mi.material_override = mat
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			mi.position = Vector3(SC.x, y, SC.z)
+			_menu_floors.add_child(mi)
+			var lab := Label3D.new()
+			lab.font = UI.font("head")
+			lab.font_size = 96
+			lab.outline_size = 28
+			lab.outline_modulate = Color("141a26")
+			lab.pixel_size = 0.021
+			lab.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+			lab.no_depth_test = true
+			lab.render_priority = 4
+			lab.position = Vector3(SC.x - 19.5, y, SC.z + 12.0)
+			_menu_floors.add_child(lab)
+			_menu_plates.append({"mesh": mi, "mat": mat, "label": lab})
+	_menu_floors.visible = true
+	_menu_t += delta
+	var m: Array = selector.medals()
+	var done := 0
+	while done < m.size() and int(m[done]) >= 0:
+		done += 1
+	var key := "%d|%s" % [fp, str(m)]
+	if key != _menu_key:
+		_menu_key = key
+		for i in _menu_plates.size():
+			var e: Dictionary = _menu_plates[i]
+			var poured := i < m.size() and int(m[i]) >= 0
+			var col := Color(1, 1, 1, 0.1)
+			var ink := Color(1, 1, 1, 0.55)
+			if poured:
+				col = Color(0.78, 0.77, 0.74, 1.0)
+				ink = selector.MEDAL_COL[clampi(int(m[i]), 0, 2)]
+			elif i == done:
+				col = Color(1.0, 0.82, 0.25, 0.5)
+				ink = Color("ffd23f")
+			(e["mat"] as StandardMaterial3D).albedo_color = col
+			var lab: Label3D = e["label"]
+			lab.text = "L%d" % (i + 1)
+			lab.modulate = Color.WHITE if i == fp else ink
+			lab.font_size = 150 if i == fp else 112
+			e["base"] = col
+	# (the one picked glows)
+	var pe: Dictionary = _menu_plates[clampi(fp, 0, _menu_plates.size() - 1)]
+	var a := 0.5 + 0.5 * sin(_menu_t * TAU * 0.9)
+	(pe["mat"] as StandardMaterial3D).albedo_color = (pe["base"] as Color).lerp(Color(1.0, 0.85, 0.3, 0.95), 0.55 + 0.35 * a)
+
 func _apply_kit(which: String) -> void:
+	if _menu_yaw != INF:
+		cam_yaw = _menu_yaw
+	if _menu_floors != null:
+		_menu_floors.queue_free()
+		_menu_floors = null
+		_menu_plates.clear()
 	if which == "tutorial":
 		tutorial = true
 		_use_tut_frame()
@@ -5618,11 +5702,32 @@ func _update_camera(delta: float) -> void:
 	if phase == "select" or phase == "roles":
 		focus = Vector3(4, 10, 0) + (Vector3(SC.x, 0, SC.z) if not tutorial else Vector3.ZERO) * 0.5
 		dist = 60.0 if tutorial else 72.0
+		if _menu_yaw == INF:
+			_menu_yaw = cam_yaw
+		var sel_ok: bool = is_instance_valid(selector)
+		if phase == "roles" and sel_ok:
+			# The cold open: in from high over the river, then a slow turn
+			# around the site behind the hat rack
+			var e: float = selector.open_e
+			dist = lerpf(190.0, dist, ease(clampf(selector.open_t / (selector.OPEN_T + 0.7), 0.0, 1.0), -2.2))
+			focus.y = lerpf(18.0, focus.y, e)
+			if not autotest:
+				cam_yaw += delta * 0.045
+		elif phase == "select" and sel_ok:
+			# The site page: square on to the building, at the floor picked
+			cam_yaw = lerp_angle(cam_yaw, _menu_yaw, minf(1.0, delta * 2.5))
+			var fp: int = selector.floor_pick()
+			if fp >= 0:
+				focus = Vector3(SC.x, 14.0 + (fp - 5) * 1.2, SC.z)
+				dist = 96.0
 	if phase == "sign":
 		# (straight down onto the wet square they're signing)
 		focus = ink_centre()
 		dist = 9.0
 	var pitch := cam_pitch
+	if phase == "select" and is_instance_valid(selector) and selector.floor_pick() >= 0:
+		# (side on, so the floors read one above the other)
+		pitch = lerpf(cam_pitch, 0.26, ease(_menu_shift, -1.8))
 	if skyline:
 		var top := maxf(head.position.y, (k + 1) * FH)
 		# (the whole of Riverlight, both wings)
@@ -5658,6 +5763,12 @@ func _update_camera(delta: float) -> void:
 		_fly_camera()
 	# The deck view shifts up into the top part of the screen as the band opens
 	camera.v_offset = -0.34 * split_e * camera.position.distance_to(cam_focus) * tan(deg_to_rad(camera.fov * 0.5))
+	# (the site page's card is down the right: the building's shown in the
+	# room to the left of it)
+	_menu_shift = move_toward(_menu_shift, 1.0 if phase == "select" else 0.0, delta * 1.6)
+	var vr := get_viewport().get_visible_rect().size
+	camera.h_offset = 0.5 * ease(_menu_shift, -1.8) * camera.position.distance_to(cam_focus) * tan(deg_to_rad(camera.fov * 0.5)) * vr.x / maxf(1.0, vr.y)
+	_update_menu_floors(delta)
 	_update_band(delta, down, mid, split_e)
 	# Shake is a smooth low wobble, capped, and can be turned off with F2
 	var w: float = line.wear if line and line.fail_i >= 0 and line.pumping else 0.0
@@ -5951,9 +6062,12 @@ func _maybe_shot() -> void:
 	elif west != null and phase == "pour" and _west_shot() != "":
 		key = _west_shot()
 	elif phase == "select":
-		key = "select"
+		# (asked for by name, it waits for the camera to get to the floor)
+		key = "select" if not ("select" in _shot_only) or phase_t > 3.0 else ""
+	elif phase == "roles" and wants_cold_open():
+		key = "coldopen" if selector.open_t > 3.5 else ""
 	elif phase == "roles":
-		key = "roles"
+		key = "roles" if not ("roles" in _shot_only) or selector.crew_t > 1.2 else ""
 	elif climb.active and climb.stage == "wreck" and climb.stage_t > 0.25:
 		key = "wreck"
 	elif phase == "pour" and line.hook["state"] == "rising" and line.hook["y"] > 3.0 and not _shots_taken.has("haul"):
