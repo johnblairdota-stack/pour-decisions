@@ -623,16 +623,38 @@ func _build_site_page(root: Control) -> void:
 	pv.add_child(_lvl_title)
 	_lvl_line = UI.label("", 24, Color("d5d2c8"), 0)
 	_lvl_line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_lvl_line.custom_minimum_size = Vector2(520, 0)
+	_lvl_line.custom_minimum_size = Vector2(clampf(get_viewport().get_visible_rect().size.x - 830.0, 300.0, 520.0), 0)
 	pv.add_child(_lvl_line)
+	# The photo from the last time this floor was poured, if there is one
+	_photo_card = UI.panel(UI.PAPER, 4, Color(0, 0, 0, 0.25), 1, Vector4(10, 10, 10, 6))
+	_site_page.add_child(_photo_card)
+	UI.place(_photo_card, Vector2(1, 1), Vector2(-52, -160))
+	_photo_card.rotation = 0.035
+	var fv := VBoxContainer.new()
+	fv.add_theme_constant_override("separation", 3)
+	_photo_card.add_child(fv)
+	_photo_pic = TextureRect.new()
+	_photo_pic.custom_minimum_size = Vector2(270, 180)
+	_photo_pic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_photo_pic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	fv.add_child(_photo_pic)
+	var fc := UI.label("LAST POUR HERE", 16, UI.INK, 0)
+	fc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	fv.add_child(fc)
+	_photo_card.visible = false
 	# The buttons
+	# (the hint sits over them, so on a squarer screen it's clear of the plate)
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 8)
+	_site_page.add_child(col)
+	UI.place(col, Vector2(1, 1), Vector2(-44, -36))
+	var hint := UI.head("UP / DOWN · FLOOR", 24, Color("c9c6bd"), 6)
+	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	col.add_child(hint)
 	var bar := HBoxContainer.new()
 	bar.add_theme_constant_override("separation", 22)
-	_site_page.add_child(bar)
-	UI.place(bar, Vector2(1, 1), Vector2(-44, -36))
-	var hint := UI.head("UP / DOWN · FLOOR", 24, Color("c9c6bd"), 6)
-	hint.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	bar.add_child(hint)
+	bar.alignment = BoxContainer.ALIGNMENT_END
+	col.add_child(bar)
 	var go := UI.pill(UI.TRACK, Vector4(8, 6, 22, 6), UI.GOLD, 2)
 	go.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	go.add_child(_key_hint("A", "POUR"))
@@ -686,6 +708,17 @@ func show_floor(i: int) -> void:
 	index = 0
 	_refresh_site()
 
+var _photo_card: PanelContainer
+var _photo_pic: TextureRect
+var _photos := {}             # floor -> its photo (null: none taken yet)
+
+func _floor_photo(i: int) -> Texture2D:
+	if not _photos.has(i):
+		var path := Settings.photo_path(i)
+		var img: Image = Image.load_from_file(path) if FileAccess.file_exists(path) else null
+		_photos[i] = ImageTexture.create_from_image(img) if img != null and not img.is_empty() else null
+	return _photos[i]
+
 func _refresh_site() -> void:
 	var m := _medals()
 	var done := _floors_done()
@@ -725,6 +758,10 @@ func _refresh_site() -> void:
 		_lvl_k.text = "LEVEL %d OF %d%s" % [lvl, FLOORS, extra]
 		_lvl_title.text = Story.title(lvl - 1)
 		_lvl_line.text = Story.line(lvl - 1)
+	# (the print of this floor's last pour)
+	var tex: Texture2D = null if tut else _floor_photo(_floor_pick)
+	_photo_pic.texture = tex
+	_photo_card.visible = tex != null
 
 func _process_site(delta: float) -> void:
 	if _done:
@@ -753,6 +790,8 @@ func _process_site(delta: float) -> void:
 			if game:
 				game.sfx.hit("tink")
 		_cool = 0.22
+	# (on a squarer screen the plate's text wraps sooner, to stay clear of the buttons)
+	_lvl_line.custom_minimum_size.x = clampf(get_viewport().get_visible_rect().size.x - 830.0, 300.0, 520.0)
 	_site_t -= delta
 	_site_ring.frac = clampf(_site_t / SITE_T, 0.0, 1.0)
 	_site_ring.text = str(int(ceil(maxf(_site_t, 0.0))))

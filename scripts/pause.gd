@@ -454,7 +454,7 @@ func _note_for(action: String) -> String:
 			return "Closes the game."
 		"incidents":
 			return ["Nothing goes wrong on the line. Just pour.",
-				"One clamp or blockage per pour, like a normal day.",
+				"One thing goes wrong per pour low down. More the higher you build: up to four near the top.",
 				"Something per bay from level 3. Keep the truck hand busy.",
 				"Something every bay, blockages too, from level 1."][int(Settings.value("incidents"))] + "  (from the next pour)"
 		"ui_scale":
