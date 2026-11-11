@@ -1647,8 +1647,9 @@ func _menu_build() -> void:
 	_menu_deck.add_child(_menu_stream)
 	_menu_fall = MeshInstance3D.new()
 	var fm := StandardMaterial3D.new()
-	fm.albedo_color = Color(0.37, 0.375, 0.38)
-	fm.roughness = 0.4
+	fm.albedo_color = Color(0.5, 0.505, 0.51)
+	fm.vertex_color_use_as_albedo = true   # (streaks down it, column by column)
+	fm.roughness = 0.5
 	fm.cull_mode = BaseMaterial3D.CULL_DISABLED
 	_menu_fall.material_override = fm
 	_menu_pour.add_child(_menu_fall)
@@ -1836,6 +1837,8 @@ func _menu_fall_update(delta: float) -> void:
 		# (nothing coming over here: tucked away inside the ply)
 		var sink := 0.0 if th > 0.002 or ln > 0.01 else -0.04
 		var t := 0.0 if sink < 0.0 else 0.04 + minf(th * 0.9, 0.12)
+		var shade := 0.9 + 0.2 * (0.5 + 0.5 * sin(ix * 2.7 + 0.9) * sin(ix * 1.13 + 2.2))
+		st.set_color(Color(shade, shade, shade))
 		st.add_vertex(Vector3(x, th + sink, z0 - 0.06))
 		st.add_vertex(Vector3(x, th * 0.9 + sink, lip - 0.02))
 		st.add_vertex(Vector3(x, th * 0.35 + sink, lip + t))
