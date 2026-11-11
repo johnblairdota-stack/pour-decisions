@@ -2992,13 +2992,13 @@ func _take_photo() -> void:
 		_photo_vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
 		add_child(_photo_vp)
 		_photo_cam = Camera3D.new()
-		_photo_cam.fov = 46.0
+		_photo_cam.fov = 52.0
 		_photo_cam.far = 900.0
 		_photo_cam.cull_mask = 1
 		_photo_vp.add_child(_photo_cam)
 		_photo_cam.current = true
 	var deck := deck_top()
-	_photo_cam.look_at_from_position(Vector3(SC.x + 6.0, deck + 8.5, SC.z + BD * 0.5 + 16.0), Vector3(SC.x, deck + 0.6, SC.z))
+	_photo_cam.look_at_from_position(Vector3(SC.x + 5.0, deck + 12.0, SC.z + BD * 0.5 + 10.0), Vector3(SC.x, deck + 0.4, SC.z - 1.0))
 	_photo_vp.render_target_update_mode = SubViewport.UPDATE_ONCE
 	_photo_wait = 2
 	_photo_k = k
