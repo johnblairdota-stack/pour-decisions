@@ -2744,6 +2744,8 @@ func _toolbox(wait: bool) -> Dictionary:
 	if bool(cfg.get("quiet", false)):
 		chips.append(["A QUIET ONE", ""])
 		notes.append("Good loads all day. Pump operator: one spike, and you'll see the needle climb first.")
+	elif not tutorial and incident_level() == 1 and _trouble_n() >= 2:
+		notes.append("The higher the line runs, the more goes wrong on it: expect about %d faults today." % _trouble_n())
 	if is_dawn():
 		chips.append(["DAWN POUR · 5:10 AM", "warn"])
 	if t >= 31:
@@ -2863,6 +2865,18 @@ func incident_level() -> int:
 		return 1
 	return int(Settings.value("incidents"))
 
+## On Normal, how many things go wrong on the line this pour. It builds
+## with the building: one a day on the low floors while everyone's finding
+## their feet, four a day by the top, when the crew knows every job.
+func _trouble_n() -> int:
+	if k <= 2:
+		return 1
+	if k <= 5:
+		return 2
+	if k <= 8:
+		return 3
+	return 4
+
 func _plan_incidents() -> Array:
 	var lvl := incident_level()
 	var out: Array = []
@@ -2878,7 +2892,13 @@ func _plan_incidents() -> Array:
 		0:
 			pass
 		1:
-			out.append({"at": randf_range(0.2, 0.55), "kind": "clamp"})
+			# (spread through the pour, one after the other; blockages
+			# only turn up once there's more than one a day)
+			var n := _trouble_n()
+			var block_p := 0.12 * (n - 1)
+			for i in n:
+				var kind := "block" if randf() < block_p else "clamp"
+				out.append({"at": (i + randf_range(0.2, 0.7)) / float(n) * 0.9, "kind": kind})
 		2, 3:
 			var per_bay: bool = lvl == 3 or k >= 2
 			if per_bay:
@@ -2948,7 +2968,55 @@ func _finish_pour() -> void:
 		if p.busy == "boom":
 			p.busy = ""
 	_grade()
+	_take_photo()
 	_set_phase("screed")
+
+# ------------------------------------------------------------------ the photo of the pour
+
+## Someone on the street gets a photo as the last load goes in: the crew
+## where they stood, the slab still wet. It goes on the slab report, and
+## it's kept for that floor on the floor pick page.
+var _photo_vp: SubViewport
+var _photo_cam: Camera3D
+var _photo_wait := -1      # frames till the picture can be read back
+var _photo_k := -1
+
+func _take_photo() -> void:
+	if tutorial or DisplayServer.get_name() == "headless":
+		return
+	if _photo_vp == null:
+		_photo_vp = SubViewport.new()
+		_photo_vp.size = Vector2i(720, 480)
+		_photo_vp.world_3d = get_viewport().world_3d
+		_photo_vp.msaa_3d = Viewport.MSAA_2X
+		_photo_vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
+		add_child(_photo_vp)
+		_photo_cam = Camera3D.new()
+		_photo_cam.fov = 46.0
+		_photo_cam.far = 900.0
+		_photo_cam.cull_mask = 1
+		_photo_vp.add_child(_photo_cam)
+		_photo_cam.current = true
+	var deck := deck_top()
+	_photo_cam.look_at_from_position(Vector3(SC.x + 6.0, deck + 8.5, SC.z + BD * 0.5 + 16.0), Vector3(SC.x, deck + 0.6, SC.z))
+	_photo_vp.render_target_update_mode = SubViewport.UPDATE_ONCE
+	_photo_wait = 2
+	_photo_k = k
+
+func _update_photo() -> void:
+	if _photo_wait < 0:
+		return
+	_photo_wait -= 1
+	if _photo_wait >= 0:
+		return
+	var img: Image = _photo_vp.get_texture().get_image()
+	if img == null or img.is_empty():
+		return
+	hud.set_slab_photo(ImageTexture.create_from_image(img), "Level %d · %s" % [_photo_k + 1, Story.title(_photo_k)])
+	# (test runs leave the crew's own photos alone, as they do its medals)
+	if not autotest:
+		DirAccess.make_dir_recursive_absolute("user://photos")
+		img.save_png(Settings.photo_path(_photo_k))
 
 ## The end-of-slab report: what an engineer, the builder and the safety
 ## officer would pick up on, as a quality score out of 100 that pays a bonus
@@ -6215,6 +6283,7 @@ func _update_camera_views(delta: float) -> void:
 	_menu_shift = move_toward(_menu_shift, 1.0 if phase == "select" else 0.0, delta * 1.6)
 	camera.h_offset = 0.0
 	_update_menu_floors(delta)
+	_update_photo()
 	_update_band(delta, down, mid, split_e)
 	# Shake is a smooth low wobble, capped, and can be turned off with F2
 	var w: float = line.wear if line and line.fail_i >= 0 and line.pumping else 0.0

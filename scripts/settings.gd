@@ -1,5 +1,6 @@
 ## Player settings, kept between sessions (user://settings.cfg).
-##   incidents   0 none · 1 normal (one per pour) · 2 busy (one per bay from
+##   incidents   0 none · 1 normal (one per pour low down, up to four near the
+##               top: main._trouble_n) · 2 busy (one per bay from
 ##               level 3) · 3 chaos (one per bay, blockages too, from level 1)
 ##   ui_scale    1.0 / 1.25 / 1.5: everything on screen, for a big TV far away
 ##   world_text  1.0 / 1.25 / 1.5: names, station labels and signs in the world
@@ -64,6 +65,10 @@ static func ensure() -> void:
 		# (the old on/off gold switch: off stays off)
 		if not cf.has_section_key("game", "gold_mode") and not bool(data["gold_assist"]):
 			data["gold_mode"] = 2
+
+## Where the photo of a floor's last pour is kept (level 0-based).
+static func photo_path(level: int) -> String:
+	return "user://photos/level_%02d.png" % (level + 1)
 
 static func value(key: String):
 	ensure()

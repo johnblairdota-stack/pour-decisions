@@ -806,6 +806,7 @@ func show_slab(d: Dictionary, seconds := 6.0) -> void:
 	var top := HBoxContainer.new()
 	top.add_theme_constant_override("separation", 16)
 	_card_box.add_child(top)
+	_card_top = top
 	var disc := UI.panel(mcols[m], 36, Color(1, 1, 1, 0.85), 3, Vector4(0, 0, 0, 0))
 	disc.custom_minimum_size = Vector2(72, 72)
 	disc.size_flags_vertical = Control.SIZE_SHRINK_CENTER
@@ -884,6 +885,31 @@ func show_slab(d: Dictionary, seconds := 6.0) -> void:
 	card.modulate.a = 1.0
 	_card_t = maxf(0.0, seconds)
 	_card_age = 0.0
+	_refit_card()
+
+## The photo of the pour, once it's developed: a print on the report,
+## beside the medal.
+var _card_top: HBoxContainer
+func set_slab_photo(tex: Texture2D, caption: String) -> void:
+	if not card.visible or not is_instance_valid(_card_top):
+		return
+	var snap := UI.panel(UI.PAPER, 4, Color(0, 0, 0, 0.25), 1, Vector4(8, 8, 8, 6))
+	snap.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var pv := VBoxContainer.new()
+	pv.add_theme_constant_override("separation", 3)
+	snap.add_child(pv)
+	var pic := TextureRect.new()
+	pic.texture = tex
+	pic.custom_minimum_size = Vector2(216, 144)
+	pic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	pic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	pv.add_child(pic)
+	var cap := UI.label(caption, 14, UI.INK, 0)
+	cap.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	pv.add_child(cap)
+	_card_top.add_child(snap)
+	snap.modulate.a = 0.0
+	create_tween().tween_property(snap, "modulate:a", 1.0, 0.6)
 	_refit_card()
 
 ## How much of the report's countdown is left (0..1), and the seconds.
