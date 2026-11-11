@@ -270,6 +270,13 @@ func _ready() -> void:
 	if not OS.get_cmdline_user_args().has("--noinset"):
 		_build_insets()
 	_build_band()
+	# "This way" arrows at the screen's edge to a job that's off it
+	var go_layer := CanvasLayer.new()
+	go_layer.layer = 2
+	add_child(go_layer)
+	var arrows := preload("res://scripts/go_arrows.gd").new()
+	arrows.game = self
+	go_layer.add_child(arrows)
 	score = ScoreScript.new()
 	add_child(score)
 	score.setup(self)
@@ -1903,14 +1910,23 @@ func _update_band(delta: float, down: Array, mid: Array, split_e: float) -> void
 		var target := Vector3(22.0, 0.0, 6.5)
 		var spread := 0.0
 		if not down.is_empty():
+			# (on a climb day, where each one's job wants them too: the pin
+			# bags, the haul rope, the coffee van)
+			var band_pts: Array = []
+			for p in down:
+				band_pts.append(p.position)
+				if climb.active:
+					var dest := _job_dest(p, 40.0)
+					if dest.x != INF:
+						band_pts.append(dest)
 			var avg := Vector3.ZERO
-			for p in down:
-				avg += p.position
-			avg /= down.size()
-			for p in down:
-				spread = maxf(spread, (p.position - avg).length())
+			for q in band_pts:
+				avg += q
+			avg /= band_pts.size()
+			for q in band_pts:
+				spread = maxf(spread, (q - avg).length())
 			target = target.lerp(Vector3(avg.x, 0.0, avg.z), 0.9)
-		var d := minf(12.0 + spread * 0.8, 18.0)
+		var d := minf(12.0 + spread * 0.8, 18.0 if not climb.active else 26.0)
 		# Hands-on work down there (a slump test): the band moves in on it
 		for p in down:
 			var wf: Vector3 = work_focus(p)
@@ -4414,6 +4430,23 @@ const CALL_OUTS := {"boom": "Bay's waiting on the boom!", "line": "Truck's waiti
 func waiting_on(p) -> bool:
 	return not p.bot and int(urgent.get(p.role, 0)) >= 1 and phase in ["inspect", "pour", "climb"] and (not p.cues.is_empty() or p.had_cues or where_to(p) != "")
 
+## Where this person's job wants them (the hand sign's spot, on the ground
+## under it), if it's within `reach` m of them across; else INF. The camera
+## keeps it in the shot with them.
+func _job_dest(p, reach: float) -> Vector3:
+	if p.bot:
+		return Vector3.INF
+	var g: Array = go_to.get(p.role, [])
+	if g.is_empty():
+		return Vector3.INF
+	var at: Vector3 = g[1]
+	var floor_y := 0.0 if String(g[3]) == "ground" else at.y - 2.3
+	at = Vector3(at.x, maxf(0.0, floor_y), at.z)
+	var d := Vector2(at.x - p.position.x, at.z - p.position.z).length()
+	if d < GO_NEAR or d > reach:
+		return Vector3.INF
+	return at
+
 ## For the phone: where this person's job needs them, when they're not there
 ## yet and have nothing to press ("Walk to the TRUCK BAY"), else "".
 func where_to(p) -> String:
@@ -5564,6 +5597,8 @@ func _who(p) -> String:
 ## is cut out of it (shaders/cutaway.gdshaderinc), clear in the middle and
 ## fading back to solid at the rim; the rest of it stays as it is.
 const CUT_R := 4.0            # m, the see-through circle round each bit of work
+var _scr_cut := Vector3.INF    # the nearest concrete a screeder's still to do (world)
+var _scr_cut_t := 0.0
 const CUT_R_CLOSE := 1.1      # ...and round what a close-up's on
 var _close_targets: Array = []   # what the close-ups looked at this frame
 const TOON_CUT := preload("res://shaders/toon_cut.gdshader")
@@ -5629,6 +5664,21 @@ func _update_see_through(delta: float) -> void:
 		if phase == "pour":
 			var d := discharge()
 			ps.append(Vector4(d.x, d.y, d.z, CUT_R))
+	# The concrete still to screed nearest a screeder: seen through the boom
+	# tower too, not just where they're standing
+	_scr_cut_t -= delta
+	if _scr_cut_t <= 0.0:
+		_scr_cut_t = 0.4
+		_scr_cut = Vector3.INF
+		if phase == "pour" and pour != null:
+			for p in humans():
+				if p.tool == "screed" and p.zone == "deck":
+					var l: Vector3 = pour.needs_screed(_pour_local(p.position), Vector3(1e6, 0, 1e6), 0.0)
+					if l.x != INF:
+						_scr_cut = pour.position + l
+					break
+	if _scr_cut.x != INF and ps.size() < 6:
+		ps.append(Vector4(_scr_cut.x, _scr_cut.y + 0.5, _scr_cut.z, CUT_R))
 	var n := ps.size()
 	while ps.size() < 6:
 		ps.append(Vector4.ZERO)
@@ -5787,6 +5837,24 @@ func _update_camera_views(delta: float) -> void:
 		pts.append(p.position)
 	if phase == "pour" and ops != null and ops.wants_bin() and not main_follow.is_empty() and main_follow[0].zone == "deck":
 		pts.append(ops.bin_world())
+	# A climb day: the camera's on the climb only when someone it follows is
+	# working it (or nobody's playing). Anyone else (the screeder off on the
+	# smoko run, the truck hand at the laydown and the pin bags) is followed
+	# like any other day, with where their job wants them kept in the shot.
+	var climb_frame := false
+	if climb.active:
+		climb_frame = main_follow.is_empty()
+		for p in main_follow:
+			if p.busy in ["rigger", "dogman"] or p.busy in climb.TAG_KEYS:
+				climb_frame = true
+		if not climb_frame:
+			for p in main_follow:
+				var dest := _job_dest(p, 30.0 if p.zone == "deck" else 45.0)
+				if dest.x != INF:
+					pts.append(dest)
+				# (up on the deck, the section coming in stays in the shot too)
+				if _height_group(p) == "deck" and climb.focus_point().distance_to(p.position) < 26.0:
+					pts.append(climb.focus_point())
 	# Mid-pour, the deck view's on the crew and the wet edge (where the hose
 	# is putting it in), not the whole slab: the whole slab's for the start
 	# and the end
@@ -5814,10 +5882,10 @@ func _update_camera_views(delta: float) -> void:
 	dist *= 1.0 + 0.22 * ease(_split, -1.8)
 	# (never so far out that the crew are specks on a TV)
 	dist = minf(dist, maxf(DIST_MAX if split_on else 70.0, cam_dist * 0.82))   # (the mouse wheel can still pull back)
-	if climb.active:
+	if climb_frame:
 		focus = focus.lerp(climb.focus_point(), 0.65)
 		dist = minf(cam_dist, 27.0)
-	var guiding: bool = climb.active and climb.stage == "guide"
+	var guiding: bool = climb_frame and climb.stage == "guide"
 	if guiding and not _dog_view and climb.stage_t < 0.1:
 		_dog_view = true
 		_yaw_before = cam_yaw
