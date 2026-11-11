@@ -32,7 +32,7 @@ PALETTE = {
 	"belt": "2a2a2a", "steel": "afc0d2", "boot": "8a5a32", "sole": "2b2b2b",
 	"gumboot": "eef0f2", "glove": "d9b26b", "skin": "f2c9a0", "hair": "6b4a2b",
 	"nose": "f2c9a0", "eye": "151515", "eye_hi": "ffffff", "cheek": "f08a7a", "mouth": "7a3030",
-	"hat": "ffc72c", "hat_dark": "e0a800", "hat_rib": "f0b81f", "lens": "10151d", "muff": "ff4d4d",
+	"hat": "ffc72c", "hat_dark": "e0a800", "hat_rib": "f0b81f", "lens": "1f2a3d", "lens_hi": "e8f4ff", "frame": "1d1f22", "muff": "ff4d4d",
 	"kit_muff": "3d4a2f", "radio": "1d1f22", "remote": "ffc72c", "red": "ff4d4d",
 	"harness": "22262b", "docket": "fff4c2", "splat": "a9adb3", "pocket": "e86d14",
 }
@@ -210,15 +210,90 @@ def looks(h):
 	build("Look_ponytail", [tie, tail], PALETTE, h, hidden=True)
 	bun = sphere(0.14, "hair", 16, 10, at=(0, -0.06, -0.44), s=(1, 0.9, 0.9))
 	build("Look_bun", [bun], PALETTE, h, hidden=True)
-	# Wraparound safety sunnies
-	lens = lathe([(0.442, -0.075), (0.448, -0.01), (0.445, 0.05)], 14, "lens", arc=(-0.95, 0.95),
-		cap_top=False, cap_bottom=False)
-	lens.scale(1, 1, 0.97)
-	arms = [tube([(0.36 * s, 0.02, 0.2), (0.43 * s, 0.02, 0.0), (0.42 * s, 0.0, -0.12)], 0.012, "lens")
-		for s in (-1, 1)]
-	build("Look_sunnies", [lens, *arms], PALETTE, h, hidden=True)
+	build("Look_sunnies", sunnies(), PALETTE, h, hidden=True)
 	build("Look_earmuffs", muffs("muff"), PALETTE, h, hidden=True)
 	build("Kit_Earmuffs", muffs("kit_muff"), PALETTE, h, hidden=True)
+
+
+def _on_face(x, y, r):
+	"""A point on the face's own egg shape, blown up to radius r."""
+	return (x, y, 0.95 * math.sqrt(max(0.0, r * r - x * x - (y / 0.96) ** 2)))
+
+
+def sunnies():
+	"""Wraparound safety sunnies: two smoky blue lenses shaped to the
+	face and sweeping round to the temples, a slim frame along their tops
+	with a nose bridge, a glint across each lens, arms back to the ears."""
+	R = 0.47                 # the lenses' surface, the face's shape blown up
+	LX, LY = 0.152, -0.008   # each lens's middle
+	HW, HH = 0.105, 0.072    # its half width and height
+
+	def lens_at(c, shrink=1.0):
+		for sx in (-1, 1):
+			dx = (c.x - sx * LX) / (HW * shrink)
+			# (a little deeper on the outside, like a real wrap lens)
+			dy = (c.y - LY + 0.18 * max(0.0, sx * (c.x - sx * LX))) / (HH * shrink)
+			if c.z > 0.1 and abs(dx) ** 2.4 + abs(dy) ** 2.4 < 1.0:
+				return sx
+		return 0
+
+	def lens_piece(sx, mat, r, shrink=1.0, rings=28, segs=160):
+		"""One lens as a smooth-edged grid laid over the face's shape."""
+		pc = Piece(mat)
+		bm = pc.bm
+		e = 2 / 2.4
+		grid = []
+		for i in range(rings + 1):
+			u = i / rings
+			row = []
+			if i == 0:
+				grid.append([bm.verts.new(_on_face(sx * LX, LY, r))] * segs)
+				continue
+			for j in range(segs):
+				t = 2 * math.pi * j / segs
+				c, s_ = math.cos(t), math.sin(t)
+				x = sx * LX + HW * shrink * u * math.copysign(abs(c) ** e, c)
+				y = LY + HH * shrink * u * math.copysign(abs(s_) ** e, s_)
+				y -= 0.18 * max(0.0, sx * (x - sx * LX))
+				row.append(bm.verts.new(_on_face(x, y, r)))
+			grid.append(row)
+		for i in range(rings):
+			for j in range(segs):
+				q = [grid[i][j], grid[i][(j + 1) % segs], grid[i + 1][(j + 1) % segs], grid[i + 1][j]]
+				if i == 0:
+					q = [q[0], q[2], q[3]] if q[0] is q[1] else q
+				try:
+					f = bm.faces.new(q)
+				except ValueError:
+					continue
+				f.normal_update()
+				if f.normal.z < 0:
+					f.normal_flip()
+		return pc
+
+	lens, glint = [], []
+	for sx in (-1, 1):
+		ln = lens_piece(sx, "lens", R)
+		# and a diagonal glint across it
+		ln.paint("lens_hi", lambda c: 0.028 < (c.y - LY) + 0.55 * sx * (c.x - sx * LX) < 0.05
+			and abs(c.x - sx * LX) < HW * 0.8)
+		lens.append(ln)
+	# the frame: a bar along the lenses' tops, dipping over the nose
+	top = []
+	for k in range(25):
+		x = -0.26 + 0.52 * k / 24
+		y = LY + HH * 0.92 - 0.03 * (abs(x) / 0.26) ** 2 + (0.0 if abs(x) > 0.05 else -0.012 * (1 - abs(x) / 0.05))
+		top.append(_on_face(x, y, R + 0.006))
+	frame = [tube(top, 0.011, "frame", 6)]
+	# nose pads
+	for sx in (-1, 1):
+		frame.append(sphere(0.012, "frame", 6, 4, at=_on_face(sx * 0.035, LY - 0.035, R - 0.025)))
+	# the arms, from each outer corner back over the ear
+	for sx in (-1, 1):
+		a = _on_face(sx * 0.255, LY + 0.04, R + 0.004)
+		frame.append(tube([a, (sx * 0.4, LY + 0.04, 0.17), (sx * 0.44, 0.02, 0.0), (sx * 0.43, -0.03, -0.11)],
+			0.011, "frame", 6))
+	return [*lens, *frame]
 
 
 def muffs(mat):
