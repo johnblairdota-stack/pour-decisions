@@ -87,6 +87,7 @@ var frame_posts: Array[MeshInstance3D] = []
 var rams: Array[MeshInstance3D] = []
 var runway: Node3D
 var platform: Node3D
+var rail_gate: Node3D       # the length of hand rail lifted out while a section comes in
 var sock_pivot: Node3D
 var cups: Node3D
 var crane: Node3D           # the tower crane's mast (its sections) and everything on top
@@ -322,12 +323,23 @@ func build(owner_game) -> void:
 	]
 	for b in boards:
 		platform.add_child(F.box(Vector3(b[2], 0.1, b[3]), deck, Vector3(b[0], -0.05, b[1])))
+	# The runway (south, +z) side has a gate in its hand rail where the new
+	# section rolls in: a loose length the riggers lift out while it comes in
+	# and drop back in after (rail_gate)
+	rail_gate = Node3D.new()
+	platform.add_child(rail_gate)
 	for side in [-1.0, 1.0]:
 		for hgt in [0.5, 1.0]:
-			platform.add_child(F.box(Vector3(5.6, 0.06, 0.06), rail, Vector3(0, hgt, side * 2.8)))
+			if side > 0.0:
+				for gx in [-2.0, 2.0]:
+					platform.add_child(F.box(Vector3(1.6, 0.06, 0.06), rail, Vector3(gx, hgt, side * 2.8)))
+				rail_gate.add_child(F.box(Vector3(2.4, 0.06, 0.06), rail, Vector3(0, hgt, side * 2.8)))
+			else:
+				platform.add_child(F.box(Vector3(5.6, 0.06, 0.06), rail, Vector3(0, hgt, side * 2.8)))
 			platform.add_child(F.box(Vector3(0.06, 0.06, 5.6), rail, Vector3(side * 2.8, hgt, 0)))
-		for c in [-2.8, 0.0, 2.8]:
+		for c in ([-2.8, -1.2, 1.2, 2.8] if side > 0.0 else [-2.8, 0.0, 2.8]):
 			platform.add_child(F.box(Vector3(0.06, 1.0, 0.06), rail, Vector3(c, 0.5, side * 2.8)))
+		for c in [-2.8, 0.0, 2.8]:
 			platform.add_child(F.box(Vector3(0.06, 1.0, 0.06), rail, Vector3(side * 2.8, 0.5, c)))
 	add_child(platform)
 	_build_pin_haul()
@@ -654,6 +666,9 @@ func _place_frame() -> void:
 		r.scale = Vector3(1, h, 1)
 	runway.position = Vector3(LAT_X, gb, 0)
 	platform.position = Vector3(LAT_X, gb - PLATFORM_DROP, 0)
+	# (out while a section's being brought in and rolled across, back in for
+	# the pinning)
+	rail_gate.visible = not (active and stage in ["fly", "guide", "roll", "wreck", "refetch"])
 
 # ------------------------------------------------------------------ flow
 
