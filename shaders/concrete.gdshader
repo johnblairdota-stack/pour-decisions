@@ -154,7 +154,8 @@ void fragment() {
 	col = mix(col, vcol, vp);
 	int strip_i = clamp(int(floor(UV.x * grid_nx / strip_cols)), 0, 31);
 	float todo_s = smoothstep(0.5, 0.8, vib) * (1.0 - smoothstep(0.3, 0.7, scr)) * step(0.18, vh) * (1.0 - step(0.999, st.r)) * screed_view * strip_rel[strip_i];
-	float sp = (0.3 + 0.12 * sin(TIME * 4.0 + nuv.y * 20.0)) * todo_s;
+	// (strong enough to read from the couch, past the boom tower's cut-away)
+	float sp = (0.55 + 0.15 * sin(TIME * 4.0 + nuv.y * 20.0)) * todo_s;
 	col = mix(col, vec3(0.72, 1.0, 0.86), sp);   // cool green-white: gold is kept for the assist
 	// The wet edge reads on the concrete itself: glossy while it's fresh,
 	// dull and crazed as it ages toward going off. New to the boom, a thin
@@ -167,9 +168,12 @@ void fragment() {
 	vec3 ecol = vec3(1.0, 0.82, 0.25);
 	float ep = edge * edge_view * (1.0 - ageing * 0.4) * (0.6 + 0.4 * sin(TIME * 4.0 + (nuv.x + nuv.y) * 30.0));
 	col = mix(col, ecol, ep * 0.7);
-	float glint = fn.b * float_view * step(0.93, hash(floor(nuv * vec2(260.0, 195.0)) + floor(TIME * 6.0))) * (1.0 - cured);
-	col = mix(col, vec3(1.0, 0.82, 0.25), glint * 0.8);
-	EMISSION = vcol * vp * mix(0.6, 1.4, low_light) + vec3(0.72, 1.0, 0.86) * sp * mix(0.3, 0.9, low_light) + ecol * ep * 0.6 + vec3(1.0, 0.82, 0.25) * glint * 0.8;
+	float glint = fn.b * float_view * step(0.85, hash(floor(nuv * vec2(260.0, 195.0)) + floor(TIME * 6.0))) * (1.0 - cured);
+	// (and a steady gold wash under the glints, so the patch reads as one)
+	float wash = fn.b * float_view * (1.0 - cured) * (0.28 + 0.08 * sin(TIME * 3.0 + nuv.x * 16.0));
+	col = mix(col, vec3(1.0, 0.82, 0.25), wash);
+	col = mix(col, vec3(1.0, 0.82, 0.25), glint * 0.9);
+	EMISSION = vcol * vp * mix(0.6, 1.4, low_light) + vec3(0.72, 1.0, 0.86) * sp * mix(0.7, 1.2, low_light) + ecol * ep * 0.6 + vec3(1.0, 0.82, 0.25) * (glint * 0.8 + wash * 0.5);
 	ALBEDO = col;
 	float rough = mix(0.06, 0.22, depth) + 0.06 * grit + 0.5 * going;
 	rough = mix(rough, 0.55, raw * 0.8);
