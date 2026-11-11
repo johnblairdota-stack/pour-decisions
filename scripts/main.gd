@@ -5111,6 +5111,15 @@ func work_focus(p) -> Vector3:
 
 # ------------------------------------------------------------------ boom
 
+## The parked boom: swung to face away from the crane's path (north of the
+## tower), its first arm stood up steep, the second folded back down tight
+## along it.
+const PARK_YAW := PI * 0.5
+const PARK_A1 := 1.15        # rad (about 66 degrees)
+const PARK_A2 := -(PI - 0.1)
+var _park_s := 0.0
+var _park_f := 0.0
+
 func _update_boom() -> void:
 	if arm1 == null:
 		return
@@ -5130,6 +5139,17 @@ func _update_boom() -> void:
 		jit = 0.015 * line.wear * line.wear
 	arm1.rotation.z = phi + a + sin(phase_t * 11.0) * jit * 0.15
 	arm2.rotation.z = -(PI - b) + sin(phase_t * 12.7 + 1.0) * jit * 0.3
+	# Packed away for a climb day: swung round off the crane's path and folded
+	# up tight and steep, as a parked boom stands on a real job. (Eased, so it
+	# moves there and back rather than jumping.)
+	var dt := get_process_delta_time()
+	_park_s = move_toward(_park_s, climb.park_slew if climb != null else 0.0, dt * 0.8)
+	_park_f = move_toward(_park_f, climb.park_fold if climb != null else 0.0, dt * 0.6)
+	if _park_s > 0.0 or _park_f > 0.0:
+		yaw_node.rotation.y = lerp_angle(yaw_node.rotation.y, PARK_YAW, ease(_park_s, -1.6))
+		var f := ease(_park_f, -1.6)
+		arm1.rotation.z = lerpf(arm1.rotation.z, PARK_A1, f)
+		arm2.rotation.z = lerpf(arm2.rotation.z, PARK_A2, f)
 	tip.rotation.z = -(arm1.rotation.z + arm2.rotation.z)
 
 var _stream_mats := {}
