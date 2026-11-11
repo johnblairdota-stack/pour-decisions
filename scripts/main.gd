@@ -1663,6 +1663,9 @@ func _update_menu_floors(delta: float) -> void:
 		_menu_build()
 	_menu_t += delta
 	_menu_floors.visible = fp >= 0
+	# (no station signs behind the menu: the game shows them again each frame)
+	for key in stations:
+		(stations[key]["node"] as Node3D).visible = false
 	var deck_y := _menu_deck_y(fp) if fp >= 0 else 0.0
 	if fp != _menu_fp:
 		for i in _menu_storeys.size():
