@@ -1561,15 +1561,18 @@ var _menu_floors: Node3D
 var _menu_storeys: Array = []  # per level: {node, open, skin}
 var _menu_deck: Node3D
 var _menu_mast: Node3D         # the tower's sections past the four it starts with
-var _menu_mound: MeshInstance3D
+var _menu_pour                 # the deck itself: real formwork, steel and concrete (pour.gd)
 var _menu_stream: MeshInstance3D
-var _menu_spill: Node3D
+var _menu_fall: MeshInstance3D # the concrete going over the open street edge and down the face
+var _menu_run := PackedFloat32Array()   # per column of the deck: how far down the face it's got, m
+var _menu_d := 0.0
+var _menu_over := 0.0          # how hard it's going over the edge right now
 var _menu_fp := -2
 var _menu_hop: Array = []      # per crew member: [from y, to y, clock]
 var _menu_yaw := INF           # the camera's own angle, to go back to after the menu
 var _menu_shift := 0.0
 var _menu_t := 0.0
-const MENU_TIP := Vector3(0.5, 0, -4.5)   # where the boom pours, behind the crew
+const MENU_TIP := Vector3(0.5, 0, -1.6)   # where the boom pours, just behind the crew
 ## Where each of the crew stands for the photo (x along the slab's street
 ## edge), and how they hold their arms: [left z, right z, waves]
 const MENU_POSE := {"boom": [-6.4, -2.5, 2.5, true], "line": [-4.3, -0.3, 2.4, true], "pump": [-2.2, -0.8, 0.8, false],
@@ -1627,20 +1630,28 @@ func _menu_build() -> void:
 	_menu_floors.add_child(_menu_deck)
 	for c in _column_xz():
 		_menu_deck.add_child(F.box(Vector3(0.6, FH - 0.3, 0.6), col, Vector3(SC.x + c.x, -(FH - 0.3) * 0.5, SC.z + c.y)))
-	_menu_deck.add_child(F.box(Vector3(BW + 0.6, 0.12, BD + 0.6), F.color_mat(Color("b08a55")), Vector3(SC.x, -0.06, SC.z)))
-	var conc := F.color_mat(Color("9a9c9a"))
-	_menu_mound = F.sphere(1.0, conc, Vector3.ZERO, true)
-	_menu_mound.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	_menu_deck.add_child(_menu_mound)
-	_menu_stream = F.cylinder(0.11, 1.0, conc, Vector3.ZERO, 8)
+	# (the game's own deck: ply, edge forms, both mats of steel. The form
+	# on the street side is left off, so the concrete has somewhere to go)
+	_menu_pour = PourScript.new()
+	_menu_deck.add_child(_menu_pour)
+	_menu_pour.position = Vector3(SC.x, 0, SC.z)
+	_menu_pour.build(BW, BD, _column_xz())
+	_menu_pour.open_front = true
+	_menu_pour.open_time = 1.0e6
+	_menu_pour.vol_k = 1.0
+	_menu_pour.splash_r = 0.45
+	_menu_pour._make_kernel()
+	_menu_pour.set_edge_view(0.0)
+	(_menu_pour._rect_parts[1] as Node3D).visible = false
+	_menu_stream = F.cylinder(0.11, 1.0, F.color_mat(Color("6e7073")), Vector3.ZERO, 8)
 	_menu_deck.add_child(_menu_stream)
-	# (what goes over the street edge: a sheet down the slab's face, and runs)
-	_menu_spill = Node3D.new()
-	_menu_deck.add_child(_menu_spill)
-	_menu_spill.add_child(F.box(Vector3(1.0, 0.12, 0.3), conc, Vector3(0, -0.06, 0), false))
-	# (tongues of different lengths: [x, width, length], as fractions)
-	for tg in [[-0.38, 0.17, 0.7], [-0.15, 0.2, 1.0], [0.1, 0.14, 0.5], [0.3, 0.19, 0.85], [0.45, 0.08, 0.35]]:
-		_menu_spill.add_child(F.box(Vector3(float(tg[1]), float(tg[2]), 0.26), conc, Vector3(float(tg[0]), -float(tg[2]) * 0.5, 0), false))
+	_menu_fall = MeshInstance3D.new()
+	var fm := StandardMaterial3D.new()
+	fm.albedo_color = Color(0.37, 0.375, 0.38)
+	fm.roughness = 0.4
+	fm.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_menu_fall.material_override = fm
+	_menu_pour.add_child(_menu_fall)
 	# The tower's later sections, for the floors it's climbed by
 	_menu_mast = Node3D.new()
 	_menu_mast.position = lattice.position
@@ -1692,6 +1703,7 @@ func _update_menu_floors(delta: float) -> void:
 		if _menu_fp > -2:
 			sfx.hit("thud")
 		_menu_fp = fp
+		_menu_wash()
 	# The rig (walkway, rails, edge screens) rides at the deck, and the
 	# tower's head at the height it's climbed to
 	rig.position.y = lerpf(rig.position.y, deck_y, minf(1.0, delta * 6.0))
@@ -1709,6 +1721,9 @@ func _update_menu_floors(delta: float) -> void:
 		var y: float = lerpf(float(h[0]), float(h[1]), ease(u, -2.0)) + sin(u * PI) * 0.9 * (0.0 if is_equal_approx(float(h[0]), float(h[1])) else 1.0)
 		if fp >= 0:
 			p.position = Vector3(float(pose[0]), y, SC.z + BD * 0.5 - 1.4)
+			# (they stand in whatever's reached them, boots just under)
+			var wet: float = _menu_pour.height_at(p.position - _menu_pour.position)
+			p.position.y += maxf(0.0, wet - BOOT_SINK)
 		else:
 			p.position = Vector3(15.0 + 2.2 * i, y, 9.5)
 		p.model.rotation.y = 0.0
@@ -1717,14 +1732,28 @@ func _update_menu_floors(delta: float) -> void:
 	if fp < 0:
 		sfx.set_loop("concrete_pour", 0.0)
 		return
-	# The boom, pouring behind them, and the mound it's made so far
+	# The boom, pouring behind them. It's real concrete on the real deck:
+	# it heaps up under the hose, slumps out toward the open street edge,
+	# and (left long enough) goes over it. The hose runs just hard enough
+	# that it gets there as the countdown's getting short.
 	var d: float = selector.site_dawdle()
-	var late: float = clampf((d - selector.LATE_AT) / (1.0 - selector.LATE_AT), 0.0, 1.0)
-	var r := minf(1.2 + 9.0 * d, 6.9)
-	var mh := 0.4 + 0.55 * d
+	if d < _menu_d - 0.05:
+		_menu_wash()
+	_menu_d = d
+	var tl := Vector3(MENU_TIP.x - SC.x, 0, MENU_TIP.z - SC.z)
+	var mh: float = _menu_pour.height_at(tl)
+	if phase == "select":
+		var edge := BD * 0.5 - tl.z
+		var cell: float = _menu_pour.dx
+		var toe := 0.0
+		while toe < edge and float(_menu_pour.height_at(tl + Vector3(0, 0, toe + cell))) > 0.02:
+			toe += cell
+		var want: float = maxf(1.0, edge * d / selector.LATE_AT) if d < selector.LATE_AT else edge + 0.45
+		var rate := clampf(0.3 + 4.0 * (want - toe), 0.2, 3.0) * clampf((1.5 - mh) / 0.5, 0.15, 1.0)
+		_menu_pour.deposit(tl, rate * delta)
+	_menu_pour.step(delta)
+	_menu_fall_update(delta)
 	var tipw := Vector3(MENU_TIP.x, deck_y, MENU_TIP.z)
-	_menu_mound.position = Vector3(tipw.x, 0, tipw.z)
-	_menu_mound.scale = Vector3(r, mh, r)
 	var hp := head.global_position + Vector3(0, SHOULDER, 0)
 	var t := tipw + Vector3(0, 1.6 + HOSE + mh, 0)
 	var hv := Vector2(t.x - hp.x, t.z - hp.z)
@@ -1741,12 +1770,89 @@ func _update_menu_floors(delta: float) -> void:
 	var fall := 1.6
 	_menu_stream.position = Vector3(tipw.x, mh + fall * 0.5 - 0.1, tipw.z)
 	_menu_stream.scale = Vector3(1.0 + 0.15 * sin(_menu_t * 23.0), fall + 0.2, 1.0 + 0.15 * sin(_menu_t * 19.0))
-	_menu_spill.visible = late > 0.0
-	if late > 0.0:
-		var edge_z := SC.z + BD * 0.5 + 0.3
-		_menu_spill.position = Vector3(tipw.x, 0.05, edge_z)
-		_menu_spill.scale = Vector3(4.0 + 9.0 * late, 0.3 + FH * 1.9 * late, 1.0)
+	_menu_stream.visible = phase == "select"
 	sfx.set_loop("concrete_pour", 0.5 if phase == "select" else 0.0)
+
+## A clean deck again: a new floor picked, or the countdown's started over.
+func _menu_wash() -> void:
+	if _menu_pour == null:
+		return
+	_menu_pour.reset()
+	_menu_run.fill(0.0)
+	_menu_over = 0.0
+	_menu_fall.mesh = null
+
+## Is the menu's concrete going over the slab's edge? (the floor pick page
+## tells the crew to get on with it)
+func menu_spilling() -> bool:
+	return _menu_floors != null and _menu_over > 0.03
+
+## The sheet of concrete off the open edge: over the ply's lip and down the
+## building's face. It starts at the height of the concrete at the edge, so
+## it's one piece with the heap, and each column of it runs down at its own
+## pace, so its bottom edge comes down in tongues.
+func _menu_fall_update(delta: float) -> void:
+	var nx: int = _menu_pour.NX
+	var flow: PackedFloat32Array = _menu_pour.front_flow
+	if flow.size() != nx:
+		return
+	if _menu_run.size() != nx:
+		_menu_run.resize(nx)
+		_menu_run.fill(0.0)
+	var cell: float = _menu_pour.dx
+	var total := 0.0
+	var c0 := nx
+	var c1 := -1
+	for ix in nx:
+		var f := flow[ix]
+		total += f * cell
+		if f > 0.02:
+			var n1 := 0.5 + 0.5 * sin(ix * 0.83 + 1.7) * sin(ix * 0.31 + 0.4)
+			var n2 := 0.5 + 0.5 * sin(ix * 1.9 + 4.0)
+			var run := _menu_run[ix]
+			_menu_run[ix] = minf(run + (0.5 + 1.5 * n1 + 0.5 * n2 + 1.3 * run) * delta, FH * (1.5 + 1.5 * n1))
+		if f > 0.004 or _menu_run[ix] > 0.0:
+			c0 = mini(c0, ix)
+			c1 = maxi(c1, ix)
+	_menu_over = total
+	if c1 < 0:
+		_menu_fall.mesh = null
+		return
+	c0 = maxi(c0 - 1, 0)
+	c1 = mini(c1 + 1, nx - 1)
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var z0 := BD * 0.5
+	var lip := z0 + 0.3
+	const ROWS := 6
+	for ix in range(c0, c1 + 1):
+		var a := maxi(ix - 1, 0)
+		var b := mini(ix + 1, nx - 1)
+		var th := maxf(0.0, (0.25 * flow[a] + 0.5 * flow[ix] + 0.25 * flow[b]) / 5.0)
+		var ln := 0.25 * _menu_run[a] + 0.5 * _menu_run[ix] + 0.25 * _menu_run[b]
+		if th > 0.002:
+			th += 0.03
+		var x := -BW * 0.5 + (ix + 0.5) * cell
+		# (nothing coming over here: tucked away inside the ply)
+		var sink := 0.0 if th > 0.002 or ln > 0.01 else -0.04
+		var t := 0.0 if sink < 0.0 else 0.04 + minf(th * 0.9, 0.12)
+		st.add_vertex(Vector3(x, th + sink, z0 - 0.06))
+		st.add_vertex(Vector3(x, th * 0.9 + sink, lip - 0.02))
+		st.add_vertex(Vector3(x, th * 0.35 + sink, lip + t))
+		st.add_vertex(Vector3(x, sink - minf(ln, 0.35), lip + t))
+		st.add_vertex(Vector3(x, sink - ln * 0.8, lip + t * 0.8))
+		st.add_vertex(Vector3(x, sink - ln, lip + 0.02))
+	for q in c1 - c0:
+		for r in ROWS - 1:
+			var i := q * ROWS + r
+			st.add_index(i)
+			st.add_index(i + ROWS)
+			st.add_index(i + ROWS + 1)
+			st.add_index(i)
+			st.add_index(i + ROWS + 1)
+			st.add_index(i + 1)
+	st.generate_normals()
+	_menu_fall.mesh = st.commit()
 
 func _apply_kit(which: String) -> void:
 	if _menu_yaw != INF:
@@ -1756,6 +1862,10 @@ func _apply_kit(which: String) -> void:
 		_menu_floors = null
 		_menu_storeys.clear()
 		_menu_hop.clear()
+		_menu_pour = null
+		_menu_fall = null
+		_menu_run.clear()
+		_menu_over = 0.0
 		# (the site page lifted the rig and the tower's head, and had the
 		# crew's arms up)
 		rig.position.y = 0.0

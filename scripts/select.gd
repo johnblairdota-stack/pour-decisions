@@ -757,7 +757,7 @@ func _process_site(delta: float) -> void:
 	_site_ring.frac = clampf(_site_t / SITE_T, 0.0, 1.0)
 	_site_ring.text = str(int(ceil(maxf(_site_t, 0.0))))
 	# (left too long, the concrete's going over the edge of the slab)
-	var late := site_dawdle() > LATE_AT and floor_pick() >= 0
+	var late: bool = floor_pick() >= 0 and (game.menu_spilling() if game else site_dawdle() > LATE_AT)
 	if late != _late:
 		_late = late
 		if late:

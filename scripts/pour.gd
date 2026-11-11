@@ -79,6 +79,11 @@ var mask := PackedByteArray()        # 1 where there's slab (a round slab leaves
 var mask_n := NX * NZ
 var round_r := 0.0                   # > 0: a round slab of this radius (the water tower)
 var _rect_parts: Array = []
+## The floor pick page's deck has no form on its street (+z) side, so the
+## concrete that gets to that edge runs off it. front_flow is how hard, column
+## by column (m of depth a second, smoothed).
+var open_front := false
+var front_flow := PackedFloat32Array()
 var _flip := false
 # The step spreads its dearer jobs over three frames (ageing, then the state
 # picture, then the finish picture), and only works the flow over the part
@@ -249,7 +254,12 @@ func build(width: float, depth: float, columns: Array) -> void:
 	splash.mesh = sm
 	add_child(splash)
 
-	# Discharge kernel: a soft round splat, normalised to 1
+	_make_kernel()
+	reset()
+
+## Discharge kernel: a soft round splat, normalised to 1
+func _make_kernel() -> void:
+	_kernel.clear()
 	var sum := 0.0
 	var kr := maxi(3, ceili(3.0 * splash_r / dx))
 	for oz in range(-kr, kr + 1):
@@ -261,7 +271,6 @@ func build(width: float, depth: float, columns: Array) -> void:
 				sum += w
 	for e in _kernel:
 		e[2] = e[2] / sum
-	reset()
 
 func _build_rebar(columns: Array) -> void:
 	var steel := F.color_mat(Color("8a4a2b"))
@@ -404,6 +413,7 @@ func reset() -> void:
 	_push_strips()
 	scr_t.fill(-1.0)
 	flt.fill(0)
+	front_flow.fill(0.0)
 	poured = 0.0
 	spilled = 0.0
 	out_of_seq = 0.0
@@ -619,11 +629,26 @@ func step(dt: float) -> void:
 	for iz in NZ:
 		_spill(iz * NX, dt, area)
 		_spill(iz * NX + NX - 1, dt, area)
+	if open_front:
+		_drain_front(dt)
 	_upload_h()
 	if part == 1:
 		_upload_state()
 	elif part == 2:
 		_upload_finish()
+
+func _drain_front(dt: float) -> void:
+	if front_flow.size() != NX:
+		front_flow.resize(NX)
+		front_flow.fill(0.0)
+	var row := (NZ - 1) * NX
+	var k := minf(1.0, 5.0 * dt)
+	for ix in NX:
+		var hi := h[row + ix]
+		var m := maxf(0.0, hi - 0.03) * k
+		h[row + ix] = hi - m
+		spilled += m * dx * dx / vol_k
+		front_flow[ix] = lerpf(front_flow[ix], m / maxf(dt, 0.001), minf(1.0, 6.0 * dt))
 
 func _spill(i: int, dt: float, area: float) -> void:
 	if h[i] > FORM_H:
