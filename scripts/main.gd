@@ -243,6 +243,17 @@ func _ready() -> void:
 			_cam_roles = Array(arg.substr(6).split(","))
 		if arg.begins_with("--startlevel="):
 			_start_level = int(arg.substr(13))
+	# (a tablet has no console: its errors go up on the screen instead.
+	# Loaded by name, so a fault in it can't stop the game starting)
+	if OS.has_feature("mobile") or args.has("--errlog"):
+		var eo = load("res://scripts/err_overlay.gd")
+		if eo != null and eo.can_instantiate():
+			add_child(eo.new())
+	if args.has("--errtest"):
+		# (dev: a deliberate script error, to see the overlay catch it)
+		(func():
+			var nothing = null
+			nothing.call("nope")).call_deferred()
 	randomize()
 	# World labels get untangled just before each frame's drawn, when
 	# everything's where it's going to be
