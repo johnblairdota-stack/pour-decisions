@@ -2419,10 +2419,15 @@ func _place_pop(pt: Vector2, sz: Vector2, region: Rect2, taken: Array) -> Rect2:
 			best = r
 	return best
 
+## A person (not a bot) is on the pump.
+func _pump_played() -> bool:
+	return crew != null and crew.crew.has("pump") and not crew.crew["pump"].bot
+
 func _update_gauge_pop() -> void:
 	if gauge_pop == null:
 		return
-	gauge_pop.visible = phase == "pour" and line != null and line.gauge_popup() and not skyline
+	# (only for a person on the pump: with a bot there, it's its job, not theirs)
+	gauge_pop.visible = phase == "pour" and line != null and line.gauge_popup() and not skyline and _pump_played()
 	if not gauge_pop.visible:
 		return
 	var vs: Vector2 = get_viewport().get_visible_rect().size
