@@ -1572,8 +1572,8 @@ var _menu_t := 0.0
 const MENU_TIP := Vector3(0.5, 0, -4.5)   # where the boom pours, behind the crew
 ## Where each of the crew stands for the photo (x along the slab's street
 ## edge), and how they hold their arms: [left z, right z, waves]
-const MENU_POSE := {"boom": [-9.0, -2.5, 2.5, true], "line": [-6.6, -0.3, 2.4, true], "pump": [-4.2, -0.8, 0.8, false],
-	"hose": [-1.8, -2.4, 0.3, true], "poker": [3.0, -2.5, 2.5, false], "screed": [5.4, -0.4, 2.3, true]}
+const MENU_POSE := {"boom": [-6.4, -2.5, 2.5, true], "line": [-4.3, -0.3, 2.4, true], "pump": [-2.2, -0.8, 0.8, false],
+	"hose": [2.8, -2.4, 0.3, true], "poker": [4.9, -2.5, 2.5, false], "screed": [7.0, -0.4, 2.3, true]}
 
 ## Dev: `--only=coldopen` holds the cold open for its screenshot.
 func wants_cold_open() -> bool:
@@ -1637,9 +1637,10 @@ func _menu_build() -> void:
 	# (what goes over the street edge: a sheet down the slab's face, and runs)
 	_menu_spill = Node3D.new()
 	_menu_deck.add_child(_menu_spill)
-	_menu_spill.add_child(F.box(Vector3(1.0, 1.0, 0.3), conc, Vector3(0, -0.5, 0), false))
-	for dx in [-0.42, -0.2, 0.12, 0.38]:
-		_menu_spill.add_child(F.cylinder(0.035, 1.0, conc, Vector3(dx, -0.5, 0.05), 8))
+	_menu_spill.add_child(F.box(Vector3(1.0, 0.12, 0.3), conc, Vector3(0, -0.06, 0), false))
+	# (tongues of different lengths: [x, width, length], as fractions)
+	for tg in [[-0.38, 0.17, 0.7], [-0.15, 0.2, 1.0], [0.1, 0.14, 0.5], [0.3, 0.19, 0.85], [0.45, 0.08, 0.35]]:
+		_menu_spill.add_child(F.box(Vector3(float(tg[1]), float(tg[2]), 0.26), conc, Vector3(float(tg[0]), -float(tg[2]) * 0.5, 0), false))
 	# The tower's later sections, for the floors it's climbed by
 	_menu_mast = Node3D.new()
 	_menu_mast.position = lattice.position
@@ -1717,7 +1718,7 @@ func _update_menu_floors(delta: float) -> void:
 	var d: float = selector.site_dawdle()
 	var late: float = clampf((d - selector.LATE_AT) / (1.0 - selector.LATE_AT), 0.0, 1.0)
 	var r := minf(1.2 + 9.0 * d, 6.9)
-	var mh := 0.45 + 1.5 * d
+	var mh := 0.4 + 0.55 * d
 	var tipw := Vector3(MENU_TIP.x, deck_y, MENU_TIP.z)
 	_menu_mound.position = Vector3(tipw.x, 0, tipw.z)
 	_menu_mound.scale = Vector3(r, mh, r)
@@ -5962,8 +5963,8 @@ func _update_camera_views(delta: float) -> void:
 			var fp: int = selector.floor_pick()
 			cam_yaw = lerp_angle(cam_yaw, 0.0 if fp >= 0 else _menu_yaw, minf(1.0, delta * 2.5))
 			if fp >= 0:
-				focus = Vector3(1.5, _menu_deck_y(fp) + 1.6, -4.0)
-				dist = 17.5
+				focus = Vector3(1.6, _menu_deck_y(fp) + 0.5, -4.0)
+				dist = 21.0
 	if phase == "sign":
 		# (straight down onto the wet square they're signing)
 		focus = ink_centre()
