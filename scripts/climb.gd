@@ -87,6 +87,7 @@ var frame_posts: Array[MeshInstance3D] = []
 var rams: Array[MeshInstance3D] = []
 var runway: Node3D
 var platform: Node3D
+var rail_gate: Node3D       # the length of hand rail lifted out while a section comes in
 var sock_pivot: Node3D
 var cups: Node3D
 var crane: Node3D           # the tower crane's mast (its sections) and everything on top
@@ -212,6 +213,15 @@ var hands := false          # the platform crew have their hands on the load
 var _steady_t := 0.0        # s both lines have been on this lift
 var _steady_said := false
 var smoko: Node3D            # the screeder's coffee run (scripts/smoko_run.gd)
+# Packing the placing boom away before the crane lifts over it: the boom
+# operator swings it round to its parking side, folds it up tight and steep
+# (like a parked boom on a real job), and pins it. The crane won't lift till
+# it's parked. A bot boom operator does it on their own.
+var park_stage := ""        # "slew", "fold", "pin", "done"; "" off a climb day
+var park_slew := 0.0        # 0..1 swung round to its parking side
+var park_fold := 0.0        # 0..1 folded up
+const PARK_SLEW_T := 2.5    # s of stick to swing it round
+const PARK_FOLD_T := 3.0    # s of holding A to fold it
 var tag_hand:
 	get:
 		return tag_hands[0]
@@ -322,12 +332,23 @@ func build(owner_game) -> void:
 	]
 	for b in boards:
 		platform.add_child(F.box(Vector3(b[2], 0.1, b[3]), deck, Vector3(b[0], -0.05, b[1])))
+	# The runway (south, +z) side has a gate in its hand rail where the new
+	# section rolls in: a loose length the riggers lift out while it comes in
+	# and drop back in after (rail_gate)
+	rail_gate = Node3D.new()
+	platform.add_child(rail_gate)
 	for side in [-1.0, 1.0]:
 		for hgt in [0.5, 1.0]:
-			platform.add_child(F.box(Vector3(5.6, 0.06, 0.06), rail, Vector3(0, hgt, side * 2.8)))
+			if side > 0.0:
+				for gx in [-2.0, 2.0]:
+					platform.add_child(F.box(Vector3(1.6, 0.06, 0.06), rail, Vector3(gx, hgt, side * 2.8)))
+				rail_gate.add_child(F.box(Vector3(2.4, 0.06, 0.06), rail, Vector3(0, hgt, side * 2.8)))
+			else:
+				platform.add_child(F.box(Vector3(5.6, 0.06, 0.06), rail, Vector3(0, hgt, side * 2.8)))
 			platform.add_child(F.box(Vector3(0.06, 0.06, 5.6), rail, Vector3(side * 2.8, hgt, 0)))
-		for c in [-2.8, 0.0, 2.8]:
+		for c in ([-2.8, -1.2, 1.2, 2.8] if side > 0.0 else [-2.8, 0.0, 2.8]):
 			platform.add_child(F.box(Vector3(0.06, 1.0, 0.06), rail, Vector3(c, 0.5, side * 2.8)))
+		for c in [-2.8, 0.0, 2.8]:
 			platform.add_child(F.box(Vector3(0.06, 1.0, 0.06), rail, Vector3(side * 2.8, 0.5, c)))
 	add_child(platform)
 	_build_pin_haul()
@@ -654,6 +675,9 @@ func _place_frame() -> void:
 		r.scale = Vector3(1, h, 1)
 	runway.position = Vector3(LAT_X, gb, 0)
 	platform.position = Vector3(LAT_X, gb - PLATFORM_DROP, 0)
+	# (out while a section's being brought in and rolled across, back in for
+	# the pinning)
+	rail_gate.visible = not (active and stage in ["fly", "guide", "roll", "wreck", "refetch"])
 
 # ------------------------------------------------------------------ flow
 
@@ -666,6 +690,9 @@ func start(sections: int) -> void:
 	wind_mean = randf_range(16.0, 30.0)
 	game.line.wash.begin_climb()
 	smoko.begin()
+	park_stage = "slew"
+	park_slew = 0.0
+	park_fold = 0.0
 	_begin_section()
 
 func _set_stage(s: String) -> void:
@@ -746,6 +773,9 @@ func hand_off_point() -> Vector2:
 func _fly_step(delta: float) -> Vector2:
 	_fly_arrived = false
 	if load_state == "laydown":
+		return Vector2.ZERO
+	# (the crane won't take a load over the deck till the boom's packed away)
+	if not boom_parked():
 		return Vector2.ZERO
 	if load_state == "lift":
 		# Straight up off the laydown, all the way to its flying height, then
@@ -859,6 +889,10 @@ func _finish_section() -> void:
 		_begin_section()
 	else:
 		active = false
+		# (the boom's free to unfold again for the pour)
+		park_stage = ""
+		park_slew = 0.0
+		park_fold = 0.0
 		runway.visible = false
 		stage = ""
 		game.hud.show_meter(false)
@@ -871,6 +905,9 @@ func _finish_section() -> void:
 func update(delta: float) -> void:
 	_t += delta
 	smoko.update(delta)
+	var bo = game.crew.crew.get("boom") if game.crew != null else null
+	if not boom_parked() and (bo == null or bo.bot):
+		_park_step(delta, true, true)
 	stage_t += delta
 	cool = maxf(0.0, cool - delta)
 	_knock_cd = maxf(0.0, _knock_cd - delta)
@@ -2370,7 +2407,7 @@ func needed() -> Array:
 			has_dogman = true
 	if stage in ["jack", "roll", "pin"] and not has_rigger:
 		out.append("rigger")
-	if stage == "guide":
+	if stage == "guide" or not boom_parked():
 		if not has_dogman:
 			out.append("dogman")
 	for n in 2:
@@ -2567,6 +2604,29 @@ func handle_player(p, delta: float, near: String, act: String, alt: String, leav
 				p.say("line's tight")
 		return true
 
+	if p.busy == "parkboom":
+		if not active or p.leave_pressed() or boom_parked():
+			p.busy = ""
+			return true
+		p.face(game.head.global_position)
+		var fold_now: bool = park_stage == "fold" and p.action_held()
+		var slew_now: bool = park_stage == "slew" and p.move_input().length() > 0.4
+		var pin_now: bool = park_stage == "pin" and p.action_pressed()
+		match park_stage:
+			"slew":
+				p.say("push the stick: swing the boom round to park")
+			"fold":
+				p.cue("action", "hold: fold the boom", park_fold, true)
+			"pin":
+				p.cue("action", "pin it", -1.0, true)
+				p.gold(not p.bot)
+		_park_step(get_process_delta_time(), slew_now or fold_now, pin_now)
+		if boom_parked():
+			# Parked: straight on to taking the crane's signals
+			p.busy = "dogman"
+			p.bounce()
+		return true
+
 	if p.busy == "dogman":
 		# (stays on the job between sections: a climb's two lifts are one
 		# dogman's, so nobody has to take signals again for the second)
@@ -2671,6 +2731,14 @@ func handle_player(p, delta: float, near: String, act: String, alt: String, leav
 				p.bounce()
 			return true
 		"dogman":
+			# First the boom has to be packed away, then it's the crane's
+			if not boom_parked():
+				p.cue("action", "pack the boom away", -1.0, true)
+				p.gold(not p.bot)
+				if p.action_pressed():
+					p.busy = "parkboom"
+					p.bounce()
+				return true
 			if stage in ["fly", "guide"]:
 				p.cue("action", "take signals", -1.0, stage == "guide")
 				if p.action_pressed():
@@ -2739,6 +2807,31 @@ func _tag_bot(p, n: int, delta: float, corner: Vector3, span: float) -> void:
 	var target := span - want_t / TAG_K if want_t > 0.0 else span + 0.3
 	var cur := float(tag_len[n])
 	tag_len[n] = clampf(move_toward(cur, target, (TAG_IN if target < cur else TAG_OUT) * delta), 1.0, TAG_LEN)
+
+## The boom's packed away (or there's nothing to pack: not a climb day).
+func boom_parked() -> bool:
+	return park_stage in ["", "done"]
+
+## One step of packing the boom away: `go` swings or folds it this frame,
+## `pin` drops the park pin in once it's folded.
+func _park_step(delta: float, go: bool, pin: bool) -> void:
+	match park_stage:
+		"slew":
+			if go:
+				park_slew = minf(1.0, park_slew + delta / PARK_SLEW_T)
+			if park_slew >= 1.0:
+				park_stage = "fold"
+		"fold":
+			if go:
+				park_fold = minf(1.0, park_fold + delta / PARK_FOLD_T)
+			if park_fold >= 1.0:
+				park_stage = "pin"
+				game.sfx.hit("clank")
+		"pin":
+			if pin:
+				park_stage = "done"
+				game.sfx.hit("thunk")
+				game.pop("BOOM PARKED", game.head.global_position + Vector3(0, 6.0, 0), Color("7cd992"))
 
 ## The crane's four horizontal calls, each as a direction on the deck:
 ## trolley out / in along the jib, slew left / right across it. Left and
@@ -3250,6 +3343,8 @@ func hud_task() -> Array:
 			var done := int(floor(lifted / STROKE + 0.001))
 			return ["Climb · jack the frame  %d/%d" % [done, n], "", lifted / (LS + CLEAR)]
 		"fly":
+			if not boom_parked():
+				return ["Climb · pack the boom away: the crane's waiting", "", (park_slew + park_fold) * 0.5]
 			return ["Climb · crane's flying it in", "", 0.0]
 		"guide":
 			var err := leg_err(Vector2(load.position.x, load.position.z), spin)
