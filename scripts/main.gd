@@ -1558,83 +1558,311 @@ func _build_boom(a: float, b: float) -> void:
 	hose_end.position.y = -HOSE
 	tip.add_child(hose_end)
 
-## The site page's floors, out on the real site: a plate where each slab
-## goes. Poured ones are concrete with their medal's colour on the label,
-## the next one's gold, the rest are faint; the one picked glows.
+## The site page, out on the real site and seen side on: the storeys under
+## the floor picked are built (clad a few floors behind the deck, as in the
+## game), the crew stand posing on its deck, and the boom pours a mound
+## behind them the whole time. Nothing's drawn above the deck, so the floors
+## to come stay out of sight until the crew go up to them. Leave it too long
+## and the mound goes over the slab's edge.
 var _menu_floors: Node3D
-var _menu_plates: Array = []   # {mesh, mat, label}
-var _menu_key := ""
-var _menu_yaw := INF           # the camera's own angle, to go back to after the cold open's turn
+var _menu_storeys: Array = []  # per level: {node, open, skin}
+var _menu_deck: Node3D
+var _menu_mast: Node3D         # the tower's sections past the four it starts with
+var _menu_pour                 # the deck itself: real formwork, steel and concrete (pour.gd)
+var _menu_stream: MeshInstance3D
+var _menu_fall: MeshInstance3D # the concrete going over the open street edge and down the face
+var _menu_run := PackedFloat32Array()   # per column of the deck: how far down the face it's got, m
+var _menu_d := 0.0
+var _menu_over := 0.0          # how hard it's going over the edge right now
+var _menu_fp := -2
+var _menu_hop: Array = []      # per crew member: [from y, to y, clock]
+var _menu_yaw := INF           # the camera's own angle, to go back to after the menu
 var _menu_shift := 0.0
 var _menu_t := 0.0
+const MENU_TIP := Vector3(0.5, 0, -1.6)   # where the boom pours, just behind the crew
+## Where each of the crew stands for the photo (x along the slab's street
+## edge), and how they hold their arms: [left z, right z, waves]
+const MENU_POSE := {"boom": [-6.4, -2.5, 2.5, true], "line": [-4.3, -0.3, 2.4, true], "pump": [-2.2, -0.8, 0.8, false],
+	"hose": [2.8, -2.4, 0.3, true], "poker": [4.9, -2.5, 2.5, false], "screed": [7.0, -0.4, 2.3, true]}
 
 ## Dev: `--only=coldopen` holds the cold open for its screenshot.
 func wants_cold_open() -> bool:
 	return shot_dir != "" and "coldopen" in _shot_only and not _shots_taken.has("coldopen")
 
+func _menu_deck_y(fp: int) -> float:
+	return (fp + 1) * FH - 0.3
+
+func _menu_sections(fp: int) -> int:
+	var n := 4
+	for c in CLIMB_LEVELS:
+		if fp >= int(c):
+			n += SECTIONS_PER_CLIMB
+	return n
+
+func _menu_build() -> void:
+	_menu_floors = Node3D.new()
+	add_child(_menu_floors)
+	var grey := F.color_mat(Color("b5b6b3"))
+	var dark := F.color_mat(Color("3a3f45"))
+	var col := F.mat("column")
+	var plan := PackedVector2Array(OTHER_WING)
+	var core: Array = Geometry2D.offset_polygon(plan, -1.5)
+	var wall := plan.slice(1)
+	wall.append(Vector2(10.7, -1.15))
+	var inset: Array = Geometry2D.offset_polygon(wall, -0.2)
+	for i: int in FLOORS:
+		var f := Node3D.new()
+		f.position.y = i * FH
+		_menu_floors.add_child(f)
+		f.add_child(F.box(Vector3(BW + 0.6, 0.3, BD + 0.6), grey, Vector3(SC.x, FH - 0.15, SC.z)))
+		f.add_child(F.prism(plan, FH - 0.3, 0.3, grey))
+		# (open frame for the first storeys under the deck...)
+		var open := Node3D.new()
+		f.add_child(open)
+		open.add_child(F.box(Vector3(BW - 3.0, FH - 0.3, BD - 3.0), dark, Vector3(SC.x, (FH - 0.3) * 0.5, SC.z)))
+		for c in _column_xz():
+			open.add_child(F.box(Vector3(0.6, FH - 0.3, 0.6), col, Vector3(SC.x + c.x, (FH - 0.3) * 0.5, SC.z + c.y)))
+		if not core.is_empty():
+			open.add_child(F.prism(core[0], 0.0, FH - 0.3, dark, false))
+		# (...and the cladding and glass further down)
+		var skin := Node3D.new()
+		f.add_child(skin)
+		skin.add_child(F.box(Vector3(BW - 0.4, FH - 0.3, BD - 0.4), F.riverlight_mat(), Vector3(SC.x, (FH - 0.3) * 0.5, SC.z)))
+		if not inset.is_empty():
+			skin.add_child(F.prism(inset[0], 0.0, FH - 0.3, F.riverlight_mat(), false))
+		skin.add_child(F.box(Vector3(3.0, FH - 0.3, 8.0), F.color_mat(Color("2f3538")), Vector3(9.25, (FH - 0.3) * 0.5, -6.6)))
+		_menu_storeys.append({"node": f, "open": open, "skin": skin})
+	# The deck picked: its columns, and the formwork the crew stand on
+	_menu_deck = Node3D.new()
+	_menu_floors.add_child(_menu_deck)
+	for c in _column_xz():
+		_menu_deck.add_child(F.box(Vector3(0.6, FH - 0.3, 0.6), col, Vector3(SC.x + c.x, -(FH - 0.3) * 0.5, SC.z + c.y)))
+	# (the game's own deck: ply, edge forms, both mats of steel. The form
+	# on the street side is left off, so the concrete has somewhere to go)
+	_menu_pour = PourScript.new()
+	_menu_deck.add_child(_menu_pour)
+	_menu_pour.position = Vector3(SC.x, 0, SC.z)
+	_menu_pour.build(BW, BD, _column_xz())
+	_menu_pour.open_front = true
+	_menu_pour.open_time = 1.0e6
+	_menu_pour.vol_k = 1.0
+	_menu_pour.splash_r = 0.45
+	_menu_pour._make_kernel()
+	_menu_pour.set_edge_view(0.0)
+	(_menu_pour._rect_parts[1] as Node3D).visible = false
+	_menu_stream = F.cylinder(0.11, 1.0, F.color_mat(Color("6e7073")), Vector3.ZERO, 8)
+	_menu_deck.add_child(_menu_stream)
+	_menu_fall = MeshInstance3D.new()
+	var fm := StandardMaterial3D.new()
+	fm.albedo_color = Color(0.5, 0.505, 0.51)
+	fm.vertex_color_use_as_albedo = true   # (streaks down it, column by column)
+	fm.roughness = 0.5
+	fm.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_menu_fall.material_override = fm
+	_menu_pour.add_child(_menu_fall)
+	# The tower's later sections, for the floors it's climbed by
+	_menu_mast = Node3D.new()
+	_menu_mast.position = lattice.position
+	_menu_floors.add_child(_menu_mast)
+	for n in range(4, 4 + CLIMB_LEVELS.size() * SECTIONS_PER_CLIMB):
+		var sec := F.lattice_section(LS, LW)
+		sec.position.y = n * LS
+		_menu_mast.add_child(sec)
+	_build_boom(20.0, 20.0)
+
 func _update_menu_floors(delta: float) -> void:
-	var fp: int = selector.floor_pick() if phase == "select" and kit == "" and is_instance_valid(selector) else -1
-	if fp < 0:
+	# (it stays up behind the hat rack if they go back to the crew page)
+	var on: bool = kit == "" and is_instance_valid(selector) and (phase == "select" or (phase == "roles" and _menu_floors != null))
+	var fp: int = selector.floor_pick() if on else -1
+	if not on:
 		if _menu_floors != null:
 			_menu_floors.visible = false
 		return
 	if _menu_floors == null:
-		_menu_floors = Node3D.new()
-		add_child(_menu_floors)
-		for i: int in int(selector.FLOORS):
-			var y: float = (i + 1) * FH
-			var mi := MeshInstance3D.new()
-			var bm := BoxMesh.new()
-			bm.size = Vector3(30.0, 0.7, 21.8)
-			mi.mesh = bm
-			var mat := StandardMaterial3D.new()
-			mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-			mi.material_override = mat
-			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-			mi.position = Vector3(SC.x, y, SC.z)
-			_menu_floors.add_child(mi)
-			var lab := Label3D.new()
-			lab.font = UI.font("head")
-			lab.font_size = 96
-			lab.outline_size = 28
-			lab.outline_modulate = Color("141a26")
-			lab.pixel_size = 0.021
-			lab.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-			lab.no_depth_test = true
-			lab.render_priority = 4
-			lab.position = Vector3(SC.x - 19.5, y, SC.z + 12.0)
-			_menu_floors.add_child(lab)
-			_menu_plates.append({"mesh": mi, "mat": mat, "label": lab})
-	_menu_floors.visible = true
+		_menu_build()
 	_menu_t += delta
-	var m: Array = selector.medals()
-	var done := 0
-	while done < m.size() and int(m[done]) >= 0:
-		done += 1
-	var key := "%d|%s" % [fp, str(m)]
-	if key != _menu_key:
-		_menu_key = key
-		for i in _menu_plates.size():
-			var e: Dictionary = _menu_plates[i]
-			var poured := i < m.size() and int(m[i]) >= 0
-			var col := Color(1, 1, 1, 0.1)
-			var ink := Color(1, 1, 1, 0.55)
-			if poured:
-				col = Color(0.78, 0.77, 0.74, 1.0)
-				ink = selector.MEDAL_COL[clampi(int(m[i]), 0, 2)]
-			elif i == done:
-				col = Color(1.0, 0.82, 0.25, 0.5)
-				ink = Color("ffd23f")
-			(e["mat"] as StandardMaterial3D).albedo_color = col
-			var lab: Label3D = e["label"]
-			lab.text = "L%d" % (i + 1)
-			lab.modulate = Color.WHITE if i == fp else ink
-			lab.font_size = 150 if i == fp else 112
-			e["base"] = col
-	# (the one picked glows)
-	var pe: Dictionary = _menu_plates[clampi(fp, 0, _menu_plates.size() - 1)]
-	var a := 0.5 + 0.5 * sin(_menu_t * TAU * 0.9)
-	(pe["mat"] as StandardMaterial3D).albedo_color = (pe["base"] as Color).lerp(Color(1.0, 0.85, 0.3, 0.95), 0.55 + 0.35 * a)
+	_menu_floors.visible = fp >= 0
+	# (no station signs behind the menu: the game shows them again each frame)
+	for key in stations:
+		(stations[key]["node"] as Node3D).visible = false
+	var deck_y := _menu_deck_y(fp) if fp >= 0 else 0.0
+	if fp != _menu_fp:
+		for i in _menu_storeys.size():
+			var e: Dictionary = _menu_storeys[i]
+			var f: Node3D = e["node"]
+			var was: bool = f.visible
+			f.visible = i < fp
+			(e["skin"] as Node3D).visible = i < fp - FACADE_LAG
+			(e["open"] as Node3D).visible = i >= fp - FACADE_LAG
+			if f.visible and not was and _menu_fp >= 0:
+				# (the floor they've just left goes up under them)
+				f.scale.y = 0.05
+				create_tween().tween_property(f, "scale:y", 1.0, 0.35).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+			else:
+				f.scale.y = 1.0
+		var secs := _menu_sections(maxi(fp, 0))
+		for n in _menu_mast.get_child_count():
+			(_menu_mast.get_child(n) as Node3D).visible = n + 4 < secs
+		# (the crew hop up, or down, one after the other)
+		_menu_hop.clear()
+		for i in crew.ROLES.size():
+			var p = crew.crew[crew.ROLES[i]]
+			_menu_hop.append([p.position.y, deck_y, -0.07 * i if _menu_fp > -2 else 1.0])
+		if _menu_fp > -2:
+			sfx.hit("thud")
+		_menu_fp = fp
+		_menu_wash()
+	# The rig (walkway, rails, edge screens) rides at the deck, and the
+	# tower's head at the height it's climbed to
+	rig.position.y = lerpf(rig.position.y, deck_y, minf(1.0, delta * 6.0))
+	head.position.y = lerpf(head.position.y, _menu_sections(maxi(fp, 0)) * LS, minf(1.0, delta * 6.0))
+	if fp >= 0:
+		_menu_deck.position.y = deck_y
+	# The crew, in a row along the street edge for the photo
+	for i in crew.ROLES.size():
+		var role: String = crew.ROLES[i]
+		var p = crew.crew[role]
+		var pose: Array = MENU_POSE[role]
+		var h: Array = _menu_hop[i]
+		h[2] = float(h[2]) + delta / 0.4
+		var u := clampf(float(h[2]), 0.0, 1.0)
+		var y: float = lerpf(float(h[0]), float(h[1]), ease(u, -2.0)) + sin(u * PI) * 0.9 * (0.0 if is_equal_approx(float(h[0]), float(h[1])) else 1.0)
+		if fp >= 0:
+			p.position = Vector3(float(pose[0]), y, SC.z + BD * 0.5 - 1.4)
+			# (they stand in whatever's reached them, boots just under)
+			var wet: float = _menu_pour.height_at(p.position - _menu_pour.position)
+			p.position.y += maxf(0.0, wet - BOOT_SINK)
+		else:
+			p.position = Vector3(15.0 + 2.2 * i, y, 9.5)
+		p.model.rotation.y = 0.0
+		var wob := sin(_menu_t * 5.0 + i * 1.7) * 0.25 if bool(pose[3]) else 0.0
+		p.pose_arms(Vector3(0, 0, float(pose[1])), Vector3(0, 0, float(pose[2]) + wob))
+	if fp < 0:
+		sfx.set_loop("concrete_pour", 0.0)
+		return
+	# The boom, pouring behind them. It's real concrete on the real deck:
+	# it heaps up under the hose, slumps out toward the open street edge,
+	# and (left long enough) goes over it. The hose runs just hard enough
+	# that it gets there as the countdown's getting short.
+	var d: float = selector.site_dawdle()
+	if d < _menu_d - 0.05:
+		_menu_wash()
+	_menu_d = d
+	var tl := Vector3(MENU_TIP.x - SC.x, 0, MENU_TIP.z - SC.z)
+	var mh: float = _menu_pour.height_at(tl)
+	if phase == "select":
+		var edge := BD * 0.5 - tl.z
+		var cell: float = _menu_pour.dx
+		var toe := 0.0
+		while toe < edge and float(_menu_pour.height_at(tl + Vector3(0, 0, toe + cell))) > 0.02:
+			toe += cell
+		var want: float = maxf(1.0, edge * d / selector.LATE_AT) if d < selector.LATE_AT else edge + 0.45
+		var rate := clampf(0.3 + 4.0 * (want - toe), 0.2, 3.0) * clampf((1.5 - mh) / 0.5, 0.15, 1.0)
+		_menu_pour.deposit(tl, rate * delta)
+	_menu_pour.step(delta)
+	_menu_fall_update(delta)
+	var tipw := Vector3(MENU_TIP.x, deck_y, MENU_TIP.z)
+	var hp := head.global_position + Vector3(0, SHOULDER, 0)
+	var t := tipw + Vector3(0, 1.6 + HOSE + mh, 0)
+	var hv := Vector2(t.x - hp.x, t.z - hp.z)
+	yaw_node.rotation.y = atan2(-hv.y, hv.x)
+	var hd := hv.length()
+	var ty := t.y - hp.y
+	var reach := clampf(sqrt(hd * hd + ty * ty), 1.0, l1 + l2 - 0.05)
+	var phi := atan2(ty, hd)
+	var a := acos(clampf((l1 * l1 + reach * reach - l2 * l2) / (2.0 * l1 * reach), -1.0, 1.0))
+	var b := acos(clampf((l1 * l1 + l2 * l2 - reach * reach) / (2.0 * l1 * l2), -1.0, 1.0))
+	arm1.rotation.z = phi + a
+	arm2.rotation.z = -(PI - b)
+	tip.rotation.z = -(arm1.rotation.z + arm2.rotation.z)
+	var fall := 1.6
+	_menu_stream.position = Vector3(tipw.x, mh + fall * 0.5 - 0.1, tipw.z)
+	_menu_stream.scale = Vector3(1.0 + 0.15 * sin(_menu_t * 23.0), fall + 0.2, 1.0 + 0.15 * sin(_menu_t * 19.0))
+	_menu_stream.visible = phase == "select"
+	sfx.set_loop("concrete_pour", 0.5 if phase == "select" else 0.0)
+
+## A clean deck again: a new floor picked, or the countdown's started over.
+func _menu_wash() -> void:
+	if _menu_pour == null:
+		return
+	_menu_pour.reset()
+	_menu_run.fill(0.0)
+	_menu_over = 0.0
+	_menu_fall.mesh = null
+
+## Is the menu's concrete going over the slab's edge? (the floor pick page
+## tells the crew to get on with it)
+func menu_spilling() -> bool:
+	return _menu_floors != null and _menu_over > 0.03
+
+## The sheet of concrete off the open edge: over the ply's lip and down the
+## building's face. It starts at the height of the concrete at the edge, so
+## it's one piece with the heap, and each column of it runs down at its own
+## pace, so its bottom edge comes down in tongues.
+func _menu_fall_update(delta: float) -> void:
+	var nx: int = _menu_pour.NX
+	var flow: PackedFloat32Array = _menu_pour.front_flow
+	if flow.size() != nx:
+		return
+	if _menu_run.size() != nx:
+		_menu_run.resize(nx)
+		_menu_run.fill(0.0)
+	var cell: float = _menu_pour.dx
+	var total := 0.0
+	var c0 := nx
+	var c1 := -1
+	for ix in nx:
+		var f := flow[ix]
+		total += f * cell
+		if f > 0.02:
+			var n1 := 0.5 + 0.5 * sin(ix * 0.83 + 1.7) * sin(ix * 0.31 + 0.4)
+			var n2 := 0.5 + 0.5 * sin(ix * 1.9 + 4.0)
+			var run := _menu_run[ix]
+			_menu_run[ix] = minf(run + (0.5 + 1.5 * n1 + 0.5 * n2 + 1.3 * run) * delta, FH * (1.5 + 1.5 * n1))
+		if f > 0.004 or _menu_run[ix] > 0.0:
+			c0 = mini(c0, ix)
+			c1 = maxi(c1, ix)
+	_menu_over = total
+	if c1 < 0:
+		_menu_fall.mesh = null
+		return
+	c0 = maxi(c0 - 1, 0)
+	c1 = mini(c1 + 1, nx - 1)
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var z0 := BD * 0.5
+	var lip := z0 + 0.3
+	const ROWS := 6
+	for ix in range(c0, c1 + 1):
+		var a := maxi(ix - 1, 0)
+		var b := mini(ix + 1, nx - 1)
+		var th := maxf(0.0, (0.25 * flow[a] + 0.5 * flow[ix] + 0.25 * flow[b]) / 5.0)
+		var ln := 0.25 * _menu_run[a] + 0.5 * _menu_run[ix] + 0.25 * _menu_run[b]
+		if th > 0.002:
+			th += 0.03
+		var x := -BW * 0.5 + (ix + 0.5) * cell
+		# (nothing coming over here: tucked away inside the ply)
+		var sink := 0.0 if th > 0.002 or ln > 0.01 else -0.04
+		var t := 0.0 if sink < 0.0 else 0.04 + minf(th * 0.9, 0.12)
+		var shade := 0.9 + 0.2 * (0.5 + 0.5 * sin(ix * 2.7 + 0.9) * sin(ix * 1.13 + 2.2))
+		st.set_color(Color(shade, shade, shade))
+		st.add_vertex(Vector3(x, th + sink, z0 - 0.06))
+		st.add_vertex(Vector3(x, th * 0.9 + sink, lip - 0.02))
+		st.add_vertex(Vector3(x, th * 0.35 + sink, lip + t))
+		st.add_vertex(Vector3(x, sink - minf(ln, 0.35), lip + t))
+		st.add_vertex(Vector3(x, sink - ln * 0.8, lip + t * 0.8))
+		st.add_vertex(Vector3(x, sink - ln, lip + 0.02))
+	for q in c1 - c0:
+		for r in ROWS - 1:
+			var i := q * ROWS + r
+			st.add_index(i)
+			st.add_index(i + ROWS)
+			st.add_index(i + ROWS + 1)
+			st.add_index(i)
+			st.add_index(i + ROWS + 1)
+			st.add_index(i + 1)
+	st.generate_normals()
+	_menu_fall.mesh = st.commit()
 
 func _apply_kit(which: String) -> void:
 	if _menu_yaw != INF:
@@ -1642,7 +1870,19 @@ func _apply_kit(which: String) -> void:
 	if _menu_floors != null:
 		_menu_floors.queue_free()
 		_menu_floors = null
-		_menu_plates.clear()
+		_menu_storeys.clear()
+		_menu_hop.clear()
+		_menu_pour = null
+		_menu_fall = null
+		_menu_run.clear()
+		_menu_over = 0.0
+		# (the site page lifted the rig and the tower's head, and had the
+		# crew's arms up)
+		rig.position.y = 0.0
+		head.position.y = section_count * LS
+		sfx.set_loop("concrete_pour", 0.0)
+		for p in players:
+			p.set_arms(0.0, 0.0)
 	if which == "tutorial":
 		tutorial = true
 		_use_tut_frame()
@@ -3052,8 +3292,10 @@ func _process(delta: float) -> void:
 					crew.crew["poker"].set_driver(crew.bot_identity("gus"))
 					_shot_human = false
 				selector.go_site()
+				if _start_level > 1:
+					selector.show_floor(_start_level - 1)
 		elif phase == "select" and _auto_kit != "" and phase_t > 0.3:
-			if shot_dir != "" and not _shots_taken.has("select"):
+			if shot_dir != "" and (not _shots_taken.has("select") or ("selectlate" in _shot_only and not _shots_taken.has("selectlate"))):
 				_maybe_shot()
 			else:
 				selector.pick(2 if tutorial else (0 if _auto_kit == "tower" else 1))
@@ -5920,12 +6162,13 @@ func _update_camera_views(delta: float) -> void:
 			if not autotest:
 				cam_yaw += delta * 0.045
 		elif phase == "select" and sel_ok:
-			# The site page: square on to the building, at the floor picked
-			cam_yaw = lerp_angle(cam_yaw, _menu_yaw, minf(1.0, delta * 2.5))
+			# The site page: side on from the street, close on the deck of
+			# the floor picked (the induction: back out over the whole site)
 			var fp: int = selector.floor_pick()
+			cam_yaw = lerp_angle(cam_yaw, 0.0 if fp >= 0 else _menu_yaw, minf(1.0, delta * 2.5))
 			if fp >= 0:
-				focus = Vector3(SC.x, 14.0 + (fp - 5) * 1.2, SC.z)
-				dist = 96.0
+				focus = Vector3(1.6, _menu_deck_y(fp) + 0.5, -4.0)
+				dist = 21.0
 	if phase == "sign":
 		# (straight down onto the wet square they're signing)
 		focus = ink_centre()
@@ -5933,7 +6176,7 @@ func _update_camera_views(delta: float) -> void:
 	var pitch := cam_pitch
 	if phase == "select" and is_instance_valid(selector) and selector.floor_pick() >= 0:
 		# (side on, so the floors read one above the other)
-		pitch = lerpf(cam_pitch, 0.26, ease(_menu_shift, -1.8))
+		pitch = lerpf(cam_pitch, 0.07, ease(_menu_shift, -1.8))
 	if skyline:
 		var top := maxf(head.position.y, (k + 1) * FH)
 		# (the whole of Riverlight, both wings)
@@ -5969,11 +6212,8 @@ func _update_camera_views(delta: float) -> void:
 		_fly_camera()
 	# The deck view shifts up into the top part of the screen as the band opens
 	camera.v_offset = -0.34 * split_e * camera.position.distance_to(cam_focus) * tan(deg_to_rad(camera.fov * 0.5))
-	# (the site page's card is down the right: the building's shown in the
-	# room to the left of it)
 	_menu_shift = move_toward(_menu_shift, 1.0 if phase == "select" else 0.0, delta * 1.6)
-	var vr := get_viewport().get_visible_rect().size
-	camera.h_offset = 0.5 * ease(_menu_shift, -1.8) * camera.position.distance_to(cam_focus) * tan(deg_to_rad(camera.fov * 0.5)) * vr.x / maxf(1.0, vr.y)
+	camera.h_offset = 0.0
 	_update_menu_floors(delta)
 	_update_band(delta, down, mid, split_e)
 	# Shake is a smooth low wobble, capped, and can be turned off with F2
@@ -6269,7 +6509,11 @@ func _maybe_shot() -> void:
 		key = _west_shot()
 	elif phase == "select":
 		# (asked for by name, it waits for the camera to get to the floor)
-		key = "select" if not ("select" in _shot_only) or phase_t > 3.0 else ""
+		if not _shots_taken.has("select"):
+			key = "select" if not ("select" in _shot_only) or phase_t > 3.0 else ""
+		elif "selectlate" in _shot_only and selector.site_dawdle() > 0.92:
+			# (the mound over the edge, just before it starts itself)
+			key = "selectlate"
 	elif phase == "roles" and wants_cold_open():
 		key = "coldopen" if selector.open_t > 3.5 else ""
 	elif phase == "roles":
