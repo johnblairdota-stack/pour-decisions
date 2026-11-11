@@ -10,3 +10,4 @@ reference/elevation/lidar_2019/
 fonts/*.import
 __pycache__/
 __pycache__/
+tools/_errors_seen.txt
