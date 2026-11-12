@@ -33,6 +33,5 @@ void fragment() {
 	ALBEDO = albedo.rgb * COLOR.rgb;
 	ROUGHNESS = 0.9;
 	SPECULAR = 0.15;
-	RIM = rim_amount;
-	RIM_TINT = 0.6;
+	lk_rim = rim_amount;
 }

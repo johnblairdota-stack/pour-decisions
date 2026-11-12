@@ -2,12 +2,14 @@
 // between, and a few fuzzy fibres. UV.x runs along the rope (m), UV.y round it.
 shader_type spatial;
 render_mode cull_back, diffuse_toon, specular_disabled;
+#include "res://shaders/look.gdshaderinc"
 
 uniform vec4 color : source_color = vec4(0.85, 0.76, 0.48, 1.0);
 uniform float lay = 9.0;      // strand turns per metre
 uniform vec4 tracer : source_color = vec4(0.2, 0.42, 0.85, 1.0);  // a coloured strand marker
 
 void fragment() {
+	lk_rim = 0.0;
 	float u = UV.y * 3.0 + UV.x * lay;
 	float f = fract(u);
 	float groove = smoothstep(0.0, 0.18, f) * smoothstep(1.0, 0.82, f);

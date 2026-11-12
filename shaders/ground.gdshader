@@ -4,6 +4,7 @@
 // surface a triangle is comes in UV.x.
 shader_type spatial;
 render_mode diffuse_toon, specular_toon, cull_disabled;
+#include "res://shaders/look.gdshaderinc"
 
 #include "res://shaders/ground_detail.gdshaderinc"
 
@@ -22,6 +23,7 @@ void vertex() {
 }
 
 void fragment() {
+	lk_rim = 0.0;
 	float px = max(length(dFdx(wp)), length(dFdy(wp)));
 	float wet = wetness * smoothstep(0.55, 0.85, (INV_VIEW_MATRIX * vec4(NORMAL, 0.0)).y);
 	ALBEDO = ground_detail(COLOR.rgb, code, wp, px) * (1.0 - 0.3 * wet);

@@ -9,6 +9,7 @@ extends CanvasLayer
 const UI := preload("res://scripts/ui.gd")
 const QR := preload("res://scripts/qr.gd")
 const Settings := preload("res://scripts/settings.gd")
+const Look := preload("res://scripts/look.gd")
 
 const SCALES := [1.0, 1.25, 1.5]
 const MAIN := [["Back to work", "resume"], ["Knock off", "explore"], ["Swap jobs", "swap"], ["Add a player", "join"],
@@ -17,7 +18,7 @@ const MAIN := [["Back to work", "resume"], ["Knock off", "explore"], ["Swap jobs
 ## are, or back to the job.
 const ROAM := [["Carry on", "resume"], ["Back to work", "work"], ["Add a player", "join"],
 	["Settings", "settings"], ["Start again", "restart"], ["Exit", "quit"]]
-const SETTINGS := ["back", "incidents", "gold_mode", "dog_help", "docket_help", "ui_scale", "world_text", "split", "fullscreen", "graphics", "sound_page", "shake",
+const SETTINGS := ["back", "incidents", "gold_mode", "dog_help", "docket_help", "ui_scale", "world_text", "split", "fullscreen", "graphics", "look", "sound_page", "shake",
 	"real_names", "cam_test", "perf"]
 ## The Sound page, off Settings.
 const SOUND := ["back", "sound", "vol_site", "vol_band", "vol_alerts", "band"]
@@ -287,6 +288,8 @@ func _refresh() -> void:
 				l.text = "Full screen: %s" % ("on" if Settings.value("fullscreen") else "off")
 			"graphics":
 				l.text = "Graphics: %s" % Settings.GRAPHICS_NAMES[clampi(int(Settings.value("graphics")), 0, 1)]
+			"look":
+				l.text = "Look: %s" % Look.NAMES[Look.cur]
 			"sound":
 				l.text = "Sound: %s" % ("off" if game.sfx.muted else "on")
 			"band":
@@ -483,6 +486,8 @@ func _note_for(action: String) -> String:
 			return "Fill the whole screen. F11 flips it any time."
 		"graphics":
 			return "Full: soft edges, contact shadows under everything, glow. Lite: those off, a slightly softer picture and close-ups at half speed, for a tablet or an older computer. F4 shows what it does to the frame rate."
+		"look":
+			return Look.BLURB[Look.cur] + " F6 flicks through the looks any time."
 		"sound":
 			return "Site noise, the pump, the radio calls."
 		"sound_page":
@@ -565,6 +570,8 @@ func _do(action: String) -> void:
 		"graphics":
 			Settings.put("graphics", (int(Settings.value("graphics")) + 1) % Settings.GRAPHICS_NAMES.size())
 			game.apply_graphics()
+		"look":
+			game.next_look()
 		"sound":
 			game.sfx.toggle_mute()
 		"band":
