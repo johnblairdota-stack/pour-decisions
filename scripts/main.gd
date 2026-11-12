@@ -1698,6 +1698,31 @@ const MENU_TIP := Vector3(0.5, 0, -1.6)   # where the boom pours, just behind th
 const MENU_POSE := {"boom": [-6.4, -2.5, 2.5, true], "line": [-4.3, -0.3, 2.4, true], "pump": [-2.2, -0.8, 0.8, false],
 	"hose": [2.8, -2.4, 0.3, true], "poker": [4.9, -2.5, 2.5, false], "screed": [7.0, -0.4, 2.3, true]}
 
+## The floor pick: the camera slides along so the crew's left end (and the
+## name over their head) is clear of the floor rail, whatever the screen's
+## shape. (A 16:10 tablet showed less either side, and the boom op's name
+## tag went under the rail.)
+const MENU_CLEAR_X := 330.0    # px, at 900 high: the rail's right edge and a name tag's half width
+var _menu_h := 0.0
+
+func _menu_frame_crew(delta: float) -> void:
+	var on: bool = phase == "select" and is_instance_valid(selector) and selector.floor_pick() >= 0 and crew != null and crew.crew.has("boom")
+	if not on:
+		_menu_h = move_toward(_menu_h, 0.0, delta * 6.0)
+		camera.h_offset = _menu_h
+		return
+	var lead: Node3D = crew.crew["boom"]
+	var vs: Vector2 = get_viewport().get_visible_rect().size
+	var at := lead.global_position + Vector3(0, 2.2, 0)
+	if not camera.is_position_behind(at):
+		var sx := camera.unproject_position(at).x
+		var ppm := vs.y / maxf(1.0, 2.0 * camera.position.distance_to(cam_focus) * tan(deg_to_rad(camera.fov * 0.5)))
+		var err := MENU_CLEAR_X * vs.y / 900.0 - sx
+		# (only ever pushes the view along; with room to spare it eases back)
+		var want := clampf(_menu_h - err / ppm, -6.0, 0.0)
+		_menu_h = lerpf(_menu_h, want, minf(1.0, delta * 3.0))
+	camera.h_offset = _menu_h
+
 ## Dev: `--only=coldopen` holds the cold open for its screenshot.
 func wants_cold_open() -> bool:
 	return shot_dir != "" and "coldopen" in _shot_only and not _shots_taken.has("coldopen")
@@ -3098,6 +3123,21 @@ var _photo_vp: SubViewport
 var _photo_cam: Camera3D
 var _photo_wait := -1      # frames till the picture can be read back
 var _photo_k := -1
+var _photos := {}           # level -> this run's photo of its pour
+
+## Every floor's photo for the top-out album: this run's, or the last one
+## saved for that floor.
+func _album() -> Array:
+	var out: Array = []
+	for i in floors():
+		var tex: Texture2D = _photos.get(i)
+		if tex == null and FileAccess.file_exists(Settings.photo_path(i)):
+			var img := Image.load_from_file(Settings.photo_path(i))
+			if img != null and not img.is_empty():
+				tex = ImageTexture.create_from_image(img)
+		if tex != null:
+			out.append({"tex": tex, "caption": "L%d · %s" % [i + 1, Story.title(i)]})
+	return out
 
 func _take_photo() -> void:
 	if tutorial or DisplayServer.get_name() == "headless":
@@ -3130,7 +3170,9 @@ func _update_photo() -> void:
 	var img: Image = _photo_vp.get_texture().get_image()
 	if img == null or img.is_empty():
 		return
-	hud.set_slab_photo(ImageTexture.create_from_image(img), "Level %d · %s" % [_photo_k + 1, Story.title(_photo_k)])
+	var tex := ImageTexture.create_from_image(img)
+	_photos[_photo_k] = tex
+	hud.set_slab_photo(tex, "Level %d · %s" % [_photo_k + 1, Story.title(_photo_k)])
 	# (test runs leave the crew's own photos alone, as they do its medals)
 	if not autotest:
 		DirAccess.make_dir_recursive_absolute("user://photos")
@@ -3383,6 +3425,7 @@ func _top_out() -> void:
 		# (the signed square's bare concrete, left clear of the membrane)
 		_ink_node.add_child(F.box(Vector3(INK_SIZE.x + 0.3, 0.012, INK_SIZE.y + 0.3), F.color_mat(Color("a8a49b")), Vector3(0, -0.008, 0), false))
 	skyline = false
+	hud.show_album(_album())
 	_start_fly()
 
 ## The finished roof of both wings: grey membrane, a white parapet, plant
@@ -6420,6 +6463,7 @@ func _update_camera_views(delta: float) -> void:
 	camera.v_offset = -0.34 * split_e * camera.position.distance_to(cam_focus) * tan(deg_to_rad(camera.fov * 0.5))
 	_menu_shift = move_toward(_menu_shift, 1.0 if phase == "select" else 0.0, delta * 1.6)
 	camera.h_offset = 0.0
+	_menu_frame_crew(delta)
 	_update_menu_floors(delta)
 	_update_photo()
 	_update_band(delta, down, mid, split_e)
