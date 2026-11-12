@@ -650,13 +650,17 @@ func _show(t) -> void:
 					_reading.scale = Vector3.ONE * 1.2 * pulse
 
 ## Whether the reading says the call for this truck hand: yes while they're
-## new to the job (their gold assist is still bright), no once they've got it,
-## and always when there's no person on the test.
+## new to the job (their gold assist is still bright), no once they've got it
+## or have made three right calls in a row (a wrong one brings it back), and
+## always when there's no person on the test.
 const SAYS_CALL_GOLD := 0.35
+const SAYS_CALL_STREAK := 3
 func says_call(t: Dictionary) -> bool:
 	var who = t.get("tester")
 	if who == null or not is_instance_valid(who) or who.bot or game == null:
 		return true
+	if game.has_method("calls_in_a_row") and int(game.calls_in_a_row(who)) >= SAYS_CALL_STREAK:
+		return false
 	return float(game.gold_level(who)) > SAYS_CALL_GOLD
 
 ## The four steps, in order: [step key, name, what you're doing and why].

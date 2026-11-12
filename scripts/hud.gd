@@ -395,6 +395,7 @@ func _frame_work(delta: float) -> void:
 	if assembly_on:
 		_feed_assembly()
 	_animate_crew(delta)
+	_deal_album(delta)
 	if _toast_t > 0.0:
 		_toast_t -= delta
 		toast_panel.modulate.a = clampf(_toast_t * 2.0, 0.0, 1.0)
@@ -904,13 +905,72 @@ func set_slab_photo(tex: Texture2D, caption: String) -> void:
 	pic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	pic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 	pv.add_child(pic)
-	var cap := UI.label(caption, 14, UI.INK, 0)
+	var cap := UI.label(caption, 18, UI.INK, 0)
 	cap.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	pv.add_child(cap)
 	_card_top.add_child(snap)
 	snap.modulate.a = 0.0
 	create_tween().tween_property(snap, "modulate:a", 1.0, 0.6)
 	_refit_card()
+
+## Top-out: the photo of every floor's pour, dealt one at a time onto a
+## pile down the left while the camera flies round the finished tower.
+## `items` is [{tex, caption}] from level 1 up.
+var _album: Control
+var _album_items: Array = []
+var _album_t := 0.0
+var _album_n := 0
+const ALBUM_EVERY := 1.8
+const ALBUM_PIC := Vector2(300, 200)
+
+func show_album(items: Array) -> void:
+	_album_items = items
+	_album_t = 0.6
+	_album_n = 0
+	if _album != null:
+		_album.queue_free()
+	_album = Control.new()
+	_album.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_root.add_child(_album)
+	UI.place(_album, Vector2(0, 0.5), Vector2(64, -40))
+
+func _deal_album(delta: float) -> void:
+	if _album == null or _album_n >= _album_items.size():
+		return
+	_album_t -= delta
+	if _album_t > 0.0:
+		return
+	_album_t = ALBUM_EVERY
+	var it: Dictionary = _album_items[_album_n]
+	var snap := UI.panel(UI.PAPER, 4, Color(0, 0, 0, 0.3), 1, Vector4(10, 10, 10, 8))
+	var pv := VBoxContainer.new()
+	pv.add_theme_constant_override("separation", 4)
+	snap.add_child(pv)
+	var pic := TextureRect.new()
+	pic.texture = it["tex"]
+	pic.custom_minimum_size = ALBUM_PIC
+	pic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	pic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	pv.add_child(pic)
+	var cap := UI.label(String(it["caption"]), 24, UI.INK, 0)
+	cap.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	pv.add_child(cap)
+	_album.add_child(snap)
+	# (each lands a little off square on the one before, as photos dropped
+	# on a site office desk do)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = _album_n * 7919 + 17
+	var rest := Vector2(rng.randf_range(-14.0, 14.0), rng.randf_range(-12.0, 12.0) - 140.0)
+	var ang := deg_to_rad(rng.randf_range(-7.0, 7.0))
+	snap.pivot_offset = (ALBUM_PIC + Vector2(20, 52)) * 0.5
+	snap.position = rest + Vector2(-420.0, 60.0)
+	snap.rotation = ang - 0.35
+	snap.modulate.a = 0.0
+	var tw := create_tween().set_parallel(true).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_property(snap, "position", rest, 0.5)
+	tw.tween_property(snap, "rotation", ang, 0.5)
+	tw.tween_property(snap, "modulate:a", 1.0, 0.2)
+	_album_n += 1
 
 ## How much of the report's countdown is left (0..1), and the seconds.
 func set_report_left(left: float, _secs: float) -> void:
@@ -1308,10 +1368,10 @@ func _feed_assembly() -> void:
 		st["next"] = ""
 	# The job list hangs under the end hose, the call-outs clear of the boom
 	var k := _root.size.y / 900.0
-	ticket_box.position = Vector2(24.0, 216.0) * k
-	toast_panel.position.y = 138.0 * k
+	ticket_box.position = Vector2(24.0, 190.0) * k
+	toast_panel.position.y = 116.0 * k
 	if banner.visible:
-		banner.position.y = 230.0 * k
+		banner.position.y = 204.0 * k
 
 func _place_tickets() -> void:
 	var sc: float = get_tree().root.content_scale_factor

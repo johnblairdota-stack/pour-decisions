@@ -334,7 +334,7 @@ func _refresh_crew() -> void:
 		else:
 			UI.style(ptag).bg_color = p.tag_color
 			(ptag.get_child(0) as Label).text = "P%d" % p.index
-			who.text = p.char_name + ("" if locked else "…")
+			who.text = p.char_name + (" · NEW" if game.learners.has(p.index) else "") + ("" if locked else "…")
 			who.add_theme_color_override("font_color", UI.BONE)
 			# Still choosing: the hat sways on its peg
 			hat.pivot_offset = Vector2(hat.size.x * 0.5, 0)
@@ -386,7 +386,7 @@ func _refresh_crew() -> void:
 	else:
 		_ring.frac = -1.0
 		_count_title.text = "Grab a hat"
-		_count_sub.text = "Pick a job, then lock in. You can swap on site."
+		_count_sub.text = "Pick a job, then lock in. You can swap on site. First time? Y gives you full help."
 	_ring.visible = any_locked
 
 ## A person locks in (or changes their mind).
@@ -504,6 +504,11 @@ func _process_crew(delta: float) -> void:
 				_pcool[i] = 0.22
 				game.sfx.hit("tink")
 		me = crew.human(i)
+		if me.slow_pressed():
+			# Y: "first time on the tools tonight": full help, learnt fresh
+			# for this session, whoever's hat it is (main.learners)
+			game.set_learner(i, not game.learners.has(i))
+			game.sfx.hit("ding" if game.learners.has(i) else "tink")
 		if me.action_pressed():
 			# The gold default: lock in
 			if not locked:
