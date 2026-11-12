@@ -5739,7 +5739,10 @@ func _tickets() -> Array:
 		var left: float = clampf(pour.edge_left / pour.open_time, 0.0, 1.0) if pour.poured > 2.0 else 1.0
 		var b: int = pour.cur_bay
 		var cov: float = clampf(pour.bay_cov[b], 0.0, 1.0)
-		out.append({"icon": "E", "text": "Bay %d of %d · %d%%" % [b + 1, pour.BAYS, int(cov * 100.0)], "frac": cov, "bar": UI.GREEN, "color": UI.ROLE["boom"], "role": "boom", "urgent": left < 0.15})
+		# (the boom across the top already reads "Bay 2 of 4" with its bar:
+		# the ticket only comes back when the wet edge is about to go off)
+		if not hud.assembly_on or left < 0.15:
+			out.append({"icon": "E", "text": "Bay %d of %d · %d%%" % [b + 1, pour.BAYS, int(cov * 100.0)], "frac": cov, "bar": UI.GREEN, "color": UI.ROLE["boom"], "role": "boom", "urgent": left < 0.15})
 	if pour.at_risk > 0.01:
 		out.append({"icon": "V", "text": "Going off unvibrated", "frac": 1.0 - minf(1.0, pour.at_risk * 8.0), "color": UI.ROLE["poker"], "role": "poker", "urgent": true})
 	# Pump and trucks
@@ -5844,7 +5847,8 @@ func _update_hud() -> void:
 				hud.set_progress(float(tk2[3]) if not tk2.is_empty() else 0.0)
 			else:
 				hud.set_task(("%s · " % dawn_clock() if is_dawn() else "") + "Pour · bay %d of %d" % [pour.cur_bay + 1, pour.BAYS], sub)
-				hud.set_progress(_filled_ratio())
+				# (with the boom reading "Bay 2 of 4", its bar is that bay filling)
+				hud.set_progress(clampf(pour.bay_cov[pour.cur_bay], 0.0, 1.0) if hud.assembly_on else _filled_ratio())
 		"screed", "cure":
 			hud.set_task("")   # (the slab report's up)
 		"sign":
