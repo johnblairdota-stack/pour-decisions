@@ -38,6 +38,7 @@ const KIT := 0.74         # the trucks, hopper and pump are drawn this much smal
 const TOP := 182.0        # the tower's collar
 const ARM_Y := 36.0       # the top of the boom's arms (at the tower end)
 const ARM_MID := 74.0     # the boom's pins, and the middle of the words on it
+const BOOM_END := 118.0   # the boom's inner end, in from the right edge: it meets the turret's side, leaving its roof clear for the wind gauge
 const TRUCK_L := 262.0    # a truck and its gap
 const AGE_WARN := 78.0
 const AGE_MAX := 90.0
@@ -383,7 +384,7 @@ func _line_run() -> PackedVector2Array:
 
 func _draw_boom_static() -> void:
 	var x0 := 262.0
-	var x1 := _w - 96.0
+	var x1 := _w - BOOM_END
 	var xm := lerpf(x0, x1, 0.43)
 	# The luffing ram over the knuckle, lying along the top of the arms
 	_c.draw_line(Vector2(xm - 84.0, ARM_Y - 2.0), Vector2(xm + 20.0, ARM_Y - 2.0), INK, 9.0)
@@ -414,7 +415,7 @@ func _draw_boom_static() -> void:
 ## the inner one.
 func _draw_boom_live() -> void:
 	var x0 := 262.0
-	var x1 := _w - 96.0
+	var x1 := _w - BOOM_END
 	var xm := lerpf(x0, x1, 0.43)
 	# The job in hand, on the outer arm
 	var title: String = st["title"]
