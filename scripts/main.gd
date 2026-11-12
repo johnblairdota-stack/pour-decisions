@@ -709,6 +709,7 @@ func _update_daylight(delta: float) -> void:
 ## toon.gdshader and ground.gdshader), and on a windy day leaves and grit
 ## blowing across the site.
 var _splash: CPUParticles3D
+var _rain_low: CPUParticles3D   # the same shower down at the street, for the street band
 var _blow: CPUParticles3D
 var _wet := 0.0
 var _wet_shown := -1.0
@@ -728,8 +729,8 @@ func _build_weather_fx() -> void:
 	_splash.scale_amount_min = 0.6
 	_splash.scale_amount_max = 1.2
 	var sm := SphereMesh.new()
-	sm.radius = 0.035
-	sm.height = 0.05
+	sm.radius = 0.06
+	sm.height = 0.08
 	sm.radial_segments = 6
 	sm.rings = 3
 	sm.material = F.flat_mat(Color(0.85, 0.9, 0.97, 0.7))
@@ -737,6 +738,13 @@ func _build_weather_fx() -> void:
 	_splash.mesh = sm
 	_splash.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(_splash)
+	_rain_low = rain.duplicate() as CPUParticles3D
+	_rain_low.emitting = false
+	_rain_low.amount = 500
+	_rain_low.emission_box_extents = Vector3(26, 0.5, 18)
+	_rain_low.position = Vector3(14.0, 17.0, 10.0)
+	_rain_low.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(_rain_low)
 	_blow = CPUParticles3D.new()
 	_blow.amount = 36
 	_blow.lifetime = 3.5
@@ -771,6 +779,9 @@ func _update_weather_fx(delta: float) -> void:
 		return
 	var raining: bool = rain != null and rain.emitting
 	_splash.emitting = raining
+	# (the deck's shower starts well above it, so it never gets down to the
+	# street once the deck's a few floors up: it falls there too)
+	_rain_low.emitting = raining and work_y > 4.0
 	if raining:
 		_splash.position = Vector3(SC.x, deck_top() + 0.04, SC.z)
 	# Soaked in a few seconds of a downpour, dry again a minute and a half after
@@ -1195,6 +1206,7 @@ func _build_world() -> void:
 	rm.size = Vector3(0.02, 0.5, 0.02)
 	rm.material = F.flat_mat(Color(0.75, 0.82, 0.92, 0.6))
 	rain.mesh = rm
+	rain.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(rain)
 	_build_weather_fx()
 
