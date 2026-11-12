@@ -1718,21 +1718,29 @@ const MENU_CLEAR_X := 330.0    # px, at 900 high: the rail's right edge and a na
 var _menu_h := 0.0
 
 func _menu_frame_crew(delta: float) -> void:
-	var on: bool = phase == "select" and is_instance_valid(selector) and selector.floor_pick() >= 0 and crew != null and crew.crew.has("boom")
-	if not on:
-		_menu_h = move_toward(_menu_h, 0.0, delta * 6.0)
-		camera.h_offset = _menu_h
-		return
-	var lead: Node3D = crew.crew["boom"]
-	var vs: Vector2 = get_viewport().get_visible_rect().size
-	var at := lead.global_position + Vector3(0, 2.2, 0)
-	if not camera.is_position_behind(at):
-		var sx := camera.unproject_position(at).x
-		var ppm := vs.y / maxf(1.0, 2.0 * camera.position.distance_to(cam_focus) * tan(deg_to_rad(camera.fov * 0.5)))
-		var err := MENU_CLEAR_X * vs.y / 900.0 - sx
-		# (only ever pushes the view along; with room to spare it eases back)
-		var want := clampf(_menu_h - err / ppm, -6.0, 0.0)
-		_menu_h = lerpf(_menu_h, want, minf(1.0, delta * 3.0))
+	var on: bool = phase == "select" and is_instance_valid(selector) and selector.floor_pick() >= 0 and crew != null and crew.crew.has("boom") and crew.crew.has("screed")
+	var want := 0.0
+	if on:
+		# (measured with the view square on, then slid: the left end clear of
+		# the rail, the right end still on the screen, or the row centred
+		# between them if it can't have both)
+		camera.h_offset = 0.0
+		var vs: Vector2 = get_viewport().get_visible_rect().size
+		var k := vs.y / 900.0
+		var l_at: Vector3 = (crew.crew["boom"] as Node3D).global_position + Vector3(0, 2.2, 0)
+		var r_at: Vector3 = (crew.crew["screed"] as Node3D).global_position + Vector3(0, 2.2, 0)
+		if not camera.is_position_behind(l_at) and not camera.is_position_behind(r_at):
+			var lx := camera.unproject_position(l_at).x
+			var rx := camera.unproject_position(r_at).x
+			var lo := MENU_CLEAR_X * k
+			var hi := vs.x - 90.0 * k
+			var px := maxf(0.0, lo - lx)
+			if rx + px > hi:
+				px = maxf(0.0, ((lo + hi) - (lx + rx)) * 0.5)
+			# (pixels a metre of slide moves them, at the crew's distance)
+			var ppm := vs.y / maxf(1.0, 2.0 * camera.global_position.distance_to(l_at.lerp(r_at, 0.5)) * tan(deg_to_rad(camera.fov * 0.5)))
+			want = clampf(-px / ppm, -6.0, 0.0)
+	_menu_h = lerpf(_menu_h, want, minf(1.0, delta * 3.0))
 	camera.h_offset = _menu_h
 
 ## Dev: `--only=coldopen` holds the cold open for its screenshot.

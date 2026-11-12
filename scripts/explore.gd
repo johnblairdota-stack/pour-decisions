@@ -711,6 +711,14 @@ func _process(delta: float) -> void:
 		if _badge.visible:
 			var k := 1.0 + 0.04 * sin(Time.get_ticks_msec() / 1000.0 * TAU / UI.BREATHE_T)
 			_badge.scale = Vector2(k, k)
+			_badge.pivot_offset = _badge.size * 0.5
+			# (with the kit drawn round the screen, the bottom right is the
+			# tower and the pump: it sits under the cash plate, top left)
+			var vs := get_viewport().get_visible_rect().size
+			if game.hud.assembly_on:
+				_badge.position = Vector2(30.0, 150.0 * vs.y / 900.0)
+			else:
+				_badge.position = vs - _badge.size - Vector2(36, 36)
 		if _demo and game != null and game._frames > 20 and _demo_t == 0.0 and can_enter():
 			enter(null)
 		if _live and game != null and game._frames > 20 and can_enter():
