@@ -140,7 +140,7 @@ const JOB_CARD := {
 			["X", "High or low output. Drop to low when a stiff load creeps", ["go high", "go low", "high", "low"]],
 			["Y", "Hold at the panel to signal the chute: keep the hopper between the lines", ["chute"]],
 			["A", "Washout: hold at the panel to load the sponge ball", ["sponge ball", "load the"]],
-			["A", "Hold to open the washout valve", ["valve", "release", "washout"]]]},
+			["A", "Hold at the panel to blow the washout water back", ["valve", "release", "washout"]]]},
 	"hose": {"goal": "Run the pour: where it lands and when it flows.", "watch": "heaps. Move on before it piles up.",
 		"steps": [["A", "Grab the end hose under the boom", ["end hose", "take"]],
 			["stick", "Walk it to the empty spot", ["walk"]],
@@ -167,7 +167,7 @@ const ROLE_HOW := {
 		"climb": [["stick", "push to a call: TROLLEY OUT / IN, SLEW LEFT / RIGHT · let go: STOP"], ["A", "hold: LOWER (when the ghost's four legs sit on their spots)"], ["X", "hold: HOIST"], ["Y", "hold: EASY · twice: ALL STOP"], ["A", "+ X together: DOG EVERYTHING (wind over the limit)"]],
 	},
 	"line": {
-		"climb": [["A", "hold at the LAYDOWN to sling the next section"], ["A", "a PIN BAG from the base, up the HAUL ROPE"]],
+		"climb": [["A", "hold at the LAYDOWN to sling the next section"], ["A", "a PIN BAG off the racking, up the HAUL ROPE"]],
 	},
 	"pump": {
 		"climb": [["A", "jack the frame · roll the section in"], ["stick", "line up the holes, A: podger"], ["A", "swing the hammer, let go in the gold"], ["A", "hold: R-clip back on (Y skips it: a safety note)"]],

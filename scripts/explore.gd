@@ -2951,6 +2951,7 @@ func _place_car(c: Dictionary, dt: float) -> void:
 	c["bob"] = float(c["bob"]) + dt * (6.0 + speed * 0.9)
 	body.position.y = float(n.get_meta("ride", 0.0)) + 0.02 + sin(float(c["bob"]) * 3.1) * 0.006 * clampf(speed / 20.0, 0.0, 1.0)
 	body.rotation = Vector3(c["pitch"], 0, c["roll"])
+	Utes.wings(n, speed, dt)
 	var bent: Dictionary = c["bent"]
 	var woff: Array = c.get("woff", [0.0, 0.0, 0.0, 0.0])
 	var wy0: Array = c.get("wy0", [])

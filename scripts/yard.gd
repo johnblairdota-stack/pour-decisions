@@ -13,7 +13,7 @@ const F := preload("res://scripts/factory.gd")
 const FENCE_Z := 13.35       # just behind the hardstand's kerb, on the site road
 const FENCE_E := -26.8       # the yard's east fence
 const FENCE_W := 47.3        # ...and its west one, at the west wing's end
-const GATE := Vector2(31.0, 42.0)   # the truck gate, open (x)
+const GATE := Vector2(21.2, 32.9)   # the truck gate, open (x): wide, for trucks backing in at 45 degrees
 const PANEL := 2.4
 const RUN := 12.0            # a run of five panels
 
@@ -58,7 +58,7 @@ static func build(parent: Node3D) -> void:
 	_put(parent, "PPESign", Vector3(GATE.x - 0.6, 0, FENCE_Z + 0.5))
 	for x in [GATE.x + 0.3, GATE.y - 0.3]:
 		_put(parent, "Bollard", Vector3(x, 0, FENCE_Z))
-	for at in [Vector3(31.6, 0, 12.2), Vector3(31.6, 0, 10.0), Vector3(42.4, 0, 12.4), Vector3(42.4, 0, 9.2)]:
+	for at in [Vector3(GATE.x - 0.5, 0, 12.6), Vector3(GATE.y + 0.3, 0, 12.5), Vector3(GATE.y + 0.3, 0, 10.4)]:
 		_put(parent, "Cone", at)
 
 	# The yard east of the hoist: two stacks of sheds (office and crib room
@@ -90,7 +90,7 @@ static func build(parent: Node3D) -> void:
 	_put(parent, "WashoutBay", Vector3(44.7, 0, 9.4), -PI * 0.5)
 	_put(parent, "SkipBin", Vector3(44.8, 0, 4.8), PI * 0.5)
 	_put(parent, "GasCage", Vector3(42.9, 0, 2.5))
-	_put(parent, "SpillKit", Vector3(14.6, 0, 12.4))
+	_put(parent, "SpillKit", Vector3(15.6, 0, 12.5))
 
 	# The south side, under the crane: ply, pallets, bar and mesh, and
 	# barrier mesh round the laydown

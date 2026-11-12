@@ -548,6 +548,15 @@ func _line(p, delta: float) -> void:
 			go(p, "ground", _gnd("sling"))
 			return
 		var pins_first: bool = g.climb.needs_pins() and g.climb.stage in ["roll", "pin"] and (p.held_kind == "pins" or not g.climb.pins_coming())
+		if g.climb.needs_sling() and not pins_first and not g.climb.gear_out:
+			# The lifting gear off the racking first, once a climb day
+			if p.held_kind == "gear":
+				walk(p, _gnd("sling"), 0.5)
+			elif p.held != null:
+				p.ai_leave = _tap()
+			elif walk(p, _gnd("pins"), 0.5):
+				p.ai_action = _tap()
+			return
 		if g.climb.needs_sling() and not pins_first:
 			if walk(p, _gnd("sling"), 0.5):
 				p.ai_action = g.climb.hook_ready()
@@ -564,14 +573,14 @@ func _line(p, delta: float) -> void:
 		walk(p, _gnd("sling") + Vector3(1.2, 0, 0.8), 0.6)
 		return
 	if p.zone != "ground":
-		go(p, "ground", _gnd("bay") + Vector3(0.7, 0, 0.8))
+		go(p, "ground", _gnd("bay") + line.rot(Vector3(0.7, 0, 0.8)))
 		return
 	if p.held != null:
 		p.ai_leave = _tap()
 	elif g.phase == "pour":
 		_bay(p, false)
 	else:
-		walk(p, _gnd("bay") + Vector3(0.7, 0, 0.8), 0.6)
+		walk(p, _gnd("bay") + line.rot(Vector3(0.7, 0, 0.8)), 0.6)
 
 ## The pump operator up the riser: grab the part, climb to the joint and fix
 ## it (the spike they killed has already taken the pressure off). True while
@@ -596,13 +605,13 @@ func _repair(p, delta: float) -> bool:
 				if walk(p, _deck("ladder"), 0.5):
 					p.ai_action = _tap()
 			else:
-				go(p, "ground", _gnd("ladder_g") + Vector3(0.2, 0, 1.5))
+				go(p, "ground", _gnd("ladder_g") + Vector3(0.2, 0, 1.9))
 		"ground":
 			if need_fetch:
 				if p.held != null:
 					p.ai_leave = _tap()
 					return true
-				var st: Vector3 = g.GROUND_STATIONS["spares" if part == "clamp" else "rack"]["pos"]
+				var st: Vector3 = g.GROUND_STATIONS["spares"]["pos"]
 				if walk(p, st, 0.5):
 					p.ai_action = _tap()
 			elif g.kit == "tower":
@@ -619,16 +628,11 @@ func _repair(p, delta: float) -> bool:
 			if need_fetch:
 				want_y = 0.0
 			elif line.blocked and not line.block_found and line.job_kind == "":
-				# Tap the riser every metre and a half, top down
-				if _tap_y < 0.0:
-					_tap_y = line.riser_top - 2.0
-				want_y = _tap_y - 1.0
+				# Knock the riser a pipe at a time from the bottom up: dull,
+				# dull, till one rings
+				want_y = line.tap_stop(line.tap_next())
 				if absf(p.position.y - clampf(want_y, 0.0, maxf(0.0, line.riser_top - 1.6))) < 0.1:
-					p.ai_action = fmod(g.phase_t, 0.4) < 0.1
-					if fmod(g.phase_t, 0.4) < delta:
-						_tap_y -= 1.5
-						if _tap_y < 0.5:
-							_tap_y = line.riser_top - 2.0
+					p.ai_action = fmod(g.phase_t, 0.7) < 0.1
 			else:
 				_tap_y = -1.0
 				want_y = line.clamps[maxi(0, target_j)]["pos"].y - 1.0
@@ -696,7 +700,7 @@ func _pump(p, delta: float) -> void:
 	# Start-up and washout jobs at the panel come first, and the release
 	# valve to blow the washout water back
 	if g.phase == "pour" and g.ops.role() == "pump":
-		if go(p, "ground", _gnd("valve" if g.ops.stage == "valve" else "panel"), 0.5):
+		if go(p, "ground", _gnd("panel"), 0.5):
 			p.ai_action = true
 		return
 	# Climb days: rigger on the climbing frame
@@ -714,7 +718,7 @@ func _pump(p, delta: float) -> void:
 		return
 	_tap_y = -1.0
 	if p.zone != "ground":
-		go(p, "ground", _gnd("panel") + Vector3(-4.6, 0, 0.7))
+		go(p, "ground", _gnd("panel"))
 		return
 	if g.phase == "setup":
 		for i in 4:
@@ -728,7 +732,7 @@ func _pump(p, delta: float) -> void:
 		p.ai_leave = _tap()
 		return
 	if g.phase != "pour":
-		walk(p, panel + Vector3(0.6, 0, 0.9), 0.6)
+		walk(p, panel + line.rot(Vector3(0.6, 0, 0.9)), 0.6)
 		return
 	# Tripped: back to the panel and hold A to restart
 	if line.tripped:
@@ -739,7 +743,7 @@ func _pump(p, delta: float) -> void:
 		if walk(p, panel, 0.6):
 			p.ai_action = fmod(g.phase_t, 0.3) < 0.1
 		return
-	walk(p, panel + Vector3(0.6, 0, 0.9), 0.6)
+	walk(p, panel + line.rot(Vector3(0.6, 0, 0.9)), 0.6)
 
 ## The truck bay. With `urgent_only`, only acts if a truck needs something now.
 func _bay(p, urgent_only: bool) -> bool:

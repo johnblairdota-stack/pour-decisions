@@ -693,6 +693,9 @@ func start(sections: int) -> void:
 	park_stage = "slew"
 	park_slew = 0.0
 	park_fold = 0.0
+	gear_out = false
+	if game.line.rack_gear != null:
+		game.line.rack_gear.visible = true
 	_begin_section()
 
 func _set_stage(s: String) -> void:
@@ -1686,6 +1689,21 @@ func deliver(p) -> void:
 	if _rigger != null:
 		_rigger.bark("Ta!")
 	game.hud.toast("Pin sets up on the frame", 1.4)
+
+## The lifting gear (chain slings) comes off its hooks on the parts racking
+## once a climb day, before the first section's slung.
+var gear_out := false
+
+func needs_gear() -> bool:
+	if not active or game.kit != "tower" or gear_out:
+		return false
+	for q in game.players:
+		if q.held_kind == "gear":
+			return false
+	for e in game.line.items:
+		if e["kind"] == "gear":
+			return false
+	return true
 
 func needs_pins() -> bool:
 	return active and game.kit == "tower" and bundle_state == "ground"
@@ -2710,6 +2728,19 @@ func handle_player(p, delta: float, near: String, act: String, alt: String, leav
 	match near:
 		"sling":
 			if needs_sling():
+				if not gear_out:
+					# The chains come off the racking first, once a climb day
+					if p.held_kind == "gear" and not p.grabbing():
+						var it: Node3D = p.release_item()
+						if it:
+							it.queue_free()
+						gear_out = true
+						game.sfx.hit("clank")
+						game.score.award(p, 5, "Lifting gear out")
+						game.hud.toast("Lifting gear's at the laydown", 1.4)
+					else:
+						p.say("lifting gear first: it's on the racking")
+					return true
 				if hook_ready():
 					p.cue("action", "sling it", sling_prog, true)
 					p.gold(not p.bot and hook_ready())
