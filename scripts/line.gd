@@ -34,7 +34,7 @@ const Settings := preload("res://scripts/settings.gd")
 const PIPE := 3.0                        # standard 3 m pipe lengths: a clamp at every joint
 const RISER := Vector3(12.0, 0, 1.45)
 const LADDER := Vector3(13.35, 0, 0.7)   # where a climber hangs on the tower ladder
-const LADDER_FOOT := Vector3(13.9, 0, 1.1)   # where they step off it, in the notch behind the pipe
+const LADDER_FOOT := Vector3(13.9, 0, 1.5)   # where they step off it, just over the pipe step-over
 # The pump, its hopper and both trucks stand on one line at 45 degrees to the
 # street: the pump's nose to the tower, the hopper at its street end and the
 # trucks backed in behind it. DIR is that line (pump to trucks) and SIDE is
@@ -58,7 +58,11 @@ const HAUL := Vector3(10.7, 0, 1.3)      # the haul rope hangs down the far side
 const RACKING := Vector3(12.85, 0, 5.0)
 const RACK_LEN := 3.3
 # The pipe step-over: where the walkway crosses the ground line to the ladder
-const STEP_OVER := Vector3(13.9, 0, 1.75)
+# (the ground line runs out from the pump's nose clear of the west wing's
+# corner, so the step-over and the ladder's foot are in the open, then turns
+# in to the riser at PIPE_TURN)
+const PIPE_TURN := Vector3(12.4, 0, 2.95)
+const STEP_OVER := Vector3(13.85, 0, 2.53)
 const QUEUE_X := 10.0
 const ROAD_Z := 15.6
 # The site road runs across the lot north of Riverlight (vacant in 2017) from
@@ -256,6 +260,8 @@ var stats := {}
 
 # Visuals
 var ground_pipe: MeshInstance3D
+var ground_pipe2: MeshInstance3D   # ...its second leg, in to the riser
+var _pipe_bend: MeshInstance3D
 var brackets: Array[MeshInstance3D] = []
 var ladder_rails: Array[MeshInstance3D] = []
 var ladder_rungs: MultiMeshInstance3D
@@ -327,6 +333,10 @@ func build(owner_game, which_kit: String) -> void:
 	kit = which_kit
 	ground_pipe = MeshInstance3D.new()
 	add_child(ground_pipe)
+	ground_pipe2 = MeshInstance3D.new()
+	add_child(ground_pipe2)
+	_pipe_bend = F.sphere(0.2, F.mat("pipe"), PIPE_TURN + Vector3(0, 0.6, 0))
+	add_child(_pipe_bend)
 	for sx in [-0.28, 0.28]:
 		var rail := F.box(Vector3(0.06, 1.0, 0.06), F.mat("yellow_dark"))
 		add_child(rail)
@@ -631,6 +641,7 @@ func _build_stores() -> void:
 	# the racking to the ladder
 	var stile := Node3D.new()
 	stile.position = STEP_OVER
+	stile.rotation.y = 0.27   # (square to the pipe)
 	add_child(stile)
 	var ym := F.mat("yellow", true)
 	stile.add_child(F.box(Vector3(0.9, 0.05, 0.5), ym, Vector3(0, 0.84, 0)))
@@ -824,7 +835,11 @@ func rebuild_riser() -> void:
 		for i in n:
 			mm.set_instance_transform(i, Transform3D(Basis(), Vector3(LADDER.x + 0.15, 0.3 + i * 0.35, LADDER.z)))
 		ladder_rungs.multimesh = mm
-	_line(ground_pipe, pf(-2.9, 0.0, 0.6), Vector3(RISER.x, 0.6, RISER.z) if kit == "tower" else pf(-2.91, 0.0, 0.6), 0.16)
+	var turn := PIPE_TURN + Vector3(0, 0.6, 0)
+	_line(ground_pipe, pf(-2.9, 0.0, 0.6), turn if kit == "tower" else pf(-2.91, 0.0, 0.6), 0.16)
+	_line(ground_pipe2, turn, Vector3(RISER.x, 0.6, RISER.z), 0.16)
+	ground_pipe2.visible = kit == "tower"
+	_pipe_bend.visible = kit == "tower"
 
 	# Joints: the bend at the base, then every 3 m up the riser. In the truck
 	# kit the joints are along the truck's own deck pipe, reachable from the ground.
@@ -3073,16 +3088,17 @@ func _ladder(p, delta: float) -> void:
 func _step_overs() -> void:
 	if kit != "tower":
 		return
-	var a := pf(-2.9, 0.0)
-	var b := Vector3(RISER.x, 0, RISER.z)
-	var ab := b - a
+	var run: Array[Vector3] = [pf(-2.9, 0.0), PIPE_TURN, Vector3(RISER.x, 0, RISER.z)]
 	for p in game.players:
 		var k := 0.0
 		var high := 0.0
 		if p.zone == "ground":
 			var q: Vector3 = Vector3(p.position.x, 0, p.position.z)
-			var u := clampf((q - a).dot(ab) / ab.length_squared(), 0.0, 1.0)
-			var d: float = (q - (a + ab * u)).length()
+			var d := 99.0
+			for i in run.size() - 1:
+				var ab: Vector3 = run[i + 1] - run[i]
+				var u := clampf((q - run[i]).dot(ab) / ab.length_squared(), 0.0, 1.0)
+				d = minf(d, (q - (run[i] + ab * u)).length())
 			k = clampf(1.0 - d / 0.7, 0.0, 1.0)
 			high = clampf(1.0 - absf(q.x - STEP_OVER.x) / 0.7, 0.0, 1.0)
 		if k > 0.75 and p.step_over <= 0.75 and not p.bot:

@@ -108,7 +108,7 @@ const GROUND_STATIONS := {
 	# side: pin bags and lifting gear).
 	"bay": {"pos": Vector3(18.8, 0, 10.86), "label": "TRUCK BAY", "color": Color("ffc72c")},
 	"panel": {"pos": Vector3(17.1, 0, 6.33), "label": "PUMP PANEL", "color": Color("ff7a1a")},
-	"ladder_g": {"pos": Vector3(13.9, 0, 1.1), "label": "LADDER", "color": Color("7cd992")},
+	"ladder_g": {"pos": Vector3(13.9, 0, 1.5), "label": "LADDER", "color": Color("7cd992")},
 	"hoist_g": {"pos": Vector3(HOIST_X + 1.6, 0, 5.8), "label": "HOIST", "color": Color("9fb3c8")},
 	"spares": {"pos": Vector3(14.35, 0, 5.0), "label": "PIPES · CLAMPS", "color": Color("4f8dff")},
 	"haul": {"pos": Vector3(9.9, 0, 1.9), "label": "HAUL ROPE", "color": Color("d9c27a")},
@@ -1069,7 +1069,7 @@ func _build_world() -> void:
 	var hard := F.color_mat(Color("8f908c"))
 	# (kept in _hardstand: it turns to lawn at the handover)
 	_hardstand.append(F.box(Vector3(26.5, 0.06, 11.3), hard, Vector3(21.75, 0.03, 7.35), false))
-	_hardstand.append(F.box(Vector3(5.9, 0.06, 2.9), hard, Vector3(11.35, 0.03, 0.25), false))
+	_hardstand.append(F.box(Vector3(NOTCH_E - 8.4, 0.06, 2.9), hard, Vector3((NOTCH_E + 8.4) * 0.5, 0.03, 0.25), false))
 	# Tyre tracks where the trucks back in at 45 degrees (the washout runs
 	# under the grates: ops.gd), and a kerb on the street each side of the gate
 	var track := F.color_mat(Color("7c7e7b"))
@@ -2625,7 +2625,7 @@ func _walkable(p: Vector3, zone: String, who = null) -> bool:
 			# Riverlight's two wings come right up to the street: the west wing
 			# east of x 14.3 and the east wing round the slab, with the boom
 			# tower in the notch between them
-			ok = (p.x >= 14.2 and p.x <= 33.5 and p.z >= 1.9 and p.z <= 12.5) or (p.x >= 8.4 and p.x <= 14.2 and p.z >= -1.2 and p.z <= 12.5) or (p.x >= -9.5 and p.x <= 8.4 and p.z >= 2.9 and p.z <= 12.5)
+			ok = (p.x >= NOTCH_E - 0.1 and p.x <= 33.5 and p.z >= 1.9 and p.z <= 12.5) or (p.x >= 8.4 and p.x <= NOTCH_E - 0.1 and p.z >= -1.2 and p.z <= 12.5) or (p.x >= -9.5 and p.x <= 8.4 and p.z >= 2.9 and p.z <= 12.5)
 		if not ok:
 			return false
 		if kit == "tower" and absf(p.x - LAT_X) < 1.4 and absf(p.z) < 1.4:
@@ -3192,8 +3192,11 @@ var _other_stacks: Node3D
 var west: WestWing          # the other crew building their next deck as we pour ours
 var _screens: Node3D        # our deck's edge screens (on the rig)
 const OTHER_WING := [Vector2(8.3, -12.1), Vector2(10.7, -12.1), Vector2(10.6, -19.7), Vector2(59.0, -20.0),
-	Vector2(55.0, -10.1), Vector2(49.6, -10.2), Vector2(47.1, -3.5), Vector2(47.7, 1.6), Vector2(14.3, 1.8),
-	Vector2(14.3, -1.15), Vector2(8.3, -1.15)]
+	Vector2(55.0, -10.1), Vector2(49.6, -10.2), Vector2(47.1, -3.5), Vector2(47.7, 1.6), Vector2(NOTCH_E, 1.8),
+	Vector2(NOTCH_E, -1.15), Vector2(8.3, -1.15)]
+## The east edge of the boom tower's notch: the west wing starts 3 m back from
+## the ladder and the pipe step-over, so nothing of it stands over them
+const NOTCH_E := 17.3
 
 ## The other crew's slab for `level`, and the storey of facade under it.
 func _other_crew_floor(level: int, instant: bool) -> void:
@@ -4807,7 +4810,7 @@ const PUMP_AREA_SHOTS := {
 	"rack": [Vector3(12.85, 1.2, 5.6), 9.0, 0.55, 0.45],
 	"rackwest": [Vector3(12.0, 1.2, 5.0), 9.0, -1.2, 0.45],
 	"pit": [Vector3(12.5, 0.0, 10.6), 10.0, 0.55, 0.62],
-	"stile": [Vector3(13.6, 0.5, 2.6), 12.0, 0.55, 0.55],
+	"stile": [Vector3(13.6, 0.5, 2.6), 11.0, 0.55, 0.62],
 	"knock": [Vector3(12.0, 5.0, 1.45), 20.0, 0.55, 0.3],
 	"plug": [Vector3(12.0, 5.0, 1.45), 20.0, 0.55, 0.3],
 	"trench": [Vector3(15.0, 0.0, 8.5), 17.0, 0.55, 0.7],
