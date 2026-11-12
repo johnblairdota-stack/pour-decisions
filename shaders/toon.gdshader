@@ -1,6 +1,7 @@
 // Stylized cel shading: hard light bands from Godot's toon diffuse, plus a soft rim.
 shader_type spatial;
 render_mode diffuse_toon, specular_toon;
+#include "res://shaders/look.gdshaderinc"
 
 uniform vec4 albedo : source_color = vec4(1.0);
 uniform vec4 emission_color : source_color = vec4(0.0, 0.0, 0.0, 1.0);
@@ -14,7 +15,6 @@ void fragment() {
 	ALBEDO = albedo.rgb * (1.0 - 0.3 * wet);
 	ROUGHNESS = mix(0.85, 0.3, wet);
 	SPECULAR = mix(0.2, 0.55, wet);
-	RIM = rim_amount;
-	RIM_TINT = 0.6;
+	lk_rim = rim_amount;
 	EMISSION = emission_color.rgb;
 }

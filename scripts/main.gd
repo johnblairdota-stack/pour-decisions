@@ -45,6 +45,7 @@ const Wildlife := preload("res://scripts/wildlife.gd")
 const Yard := preload("res://scripts/yard.gd")
 const WestWing := preload("res://scripts/west_wing.gd")
 const ExploreScript := preload("res://scripts/explore.gd")
+const Look := preload("res://scripts/look.gd")
 
 # Riverlight: 11 levels; 10 lattice sections reached a 41.4 m free-stand.
 const FLOORS := 11
@@ -390,7 +391,7 @@ func _setup_input() -> void:
 				jb.button_index = b
 				InputMap.action_add_event(act_name, jb)
 		device += 1
-	for pair in [["skyline", KEY_TAB], ["restart", KEY_R], ["dev_climb", KEY_F1], ["toggle_shake", KEY_F2], ["toggle_sound", KEY_F3], ["toggle_perf", KEY_F4]]:
+	for pair in [["skyline", KEY_TAB], ["restart", KEY_R], ["dev_climb", KEY_F1], ["toggle_shake", KEY_F2], ["toggle_sound", KEY_F3], ["toggle_perf", KEY_F4], ["cycle_look", KEY_F6]]:
 		if InputMap.has_action(pair[0]):
 			InputMap.erase_action(pair[0])
 		InputMap.add_action(pair[0])
@@ -440,6 +441,7 @@ func _build_environment() -> void:
 	sun.rotation_degrees = Vector3(-42, -24, 0)
 	_day_q = sun.quaternion
 	add_child(sun)
+	Look.cur = Look.pick(int(Settings.value("look")))
 	apply_graphics()
 
 ## Graphics: Full or Lite (Settings, or `--graphics=lite` / `full` to try one).
@@ -466,6 +468,19 @@ func apply_graphics() -> void:
 	env.ssao_detail = 0.3
 	env.ssao_light_affect = 0.25
 	RenderingServer.directional_shadow_atlas_set_size(2048 if lite else 4096, true)
+	# (the look sets the glow and Comic Ink's lines, which Lite leaves off)
+	Look.apply(self, Look.cur)
+
+## A new look's on (look.gd): the light's drawn again with its multipliers.
+func relight() -> void:
+	_day_shown = -1.0
+
+## Flick to the next look (F6), and keep it.
+func next_look() -> void:
+	Look.apply(self, (Look.cur + 1) % Look.KEYS.size())
+	Settings.put("look", Look.cur)
+	if hud != null:
+		hud.toast("Look: %s" % Look.NAMES[Look.cur], 1.6)
 
 ## The close-ups cost a whole extra drawing of the site each (shadows and
 ## all). On Lite, or with more than one up, each is drawn every other frame,
@@ -605,7 +620,7 @@ func _apply_daylight(u: float) -> void:
 	sky_mat.set_shader_parameter("sky_top", (a[1] as Color).lerp(b[1], w))
 	sky_mat.set_shader_parameter("sky_horizon", horizon)
 	env.fog_light_color = horizon
-	env.ambient_light_energy = lerpf(a[5], b[5], w)
+	env.ambient_light_energy = lerpf(a[5], b[5], w) * Look.k("amb")
 	sun.light_color = (a[3] as Color).lerp(b[3], w)
 	sun.light_energy = lerpf(a[4], b[4], w)
 	var elev := deg_to_rad(lerpf(a[6], b[6], w))
@@ -636,10 +651,10 @@ func _update_story_light(delta: float) -> void:
 	sky_mat.set_shader_parameter("sky_horizon", l[1])
 	sky_mat.set_shader_parameter("cover", l[8])
 	env.fog_light_color = l[1]
-	env.fog_density = l[7] * _haze_k()
-	env.adjustment_contrast = l[9]
-	env.adjustment_saturation = l[10]
-	env.ambient_light_energy = l[4]
+	env.fog_density = l[7] * _haze_k() * Look.k("haze")
+	env.adjustment_contrast = l[9] * Look.k("con")
+	env.adjustment_saturation = l[10] * Look.k("sat")
+	env.ambient_light_energy = l[4] * Look.k("amb")
 	sun.light_color = l[2]
 	sun.light_energy = l[3]
 	var elev := deg_to_rad(l[5])
@@ -671,10 +686,10 @@ func _update_daylight(delta: float) -> void:
 		_update_story_light(delta)
 		return
 	_light_now = []
-	env.fog_density = 0.00015 * _haze_k()
+	env.fog_density = 0.00015 * _haze_k() * Look.k("haze")
 	# (grey before sunrise, the colour coming up with the sun)
-	env.adjustment_contrast = 1.04
-	env.adjustment_saturation = lerpf(0.82, 1.06, smoothstep(0.2, 1.0, _day_u))
+	env.adjustment_contrast = 1.04 * Look.k("con")
+	env.adjustment_saturation = lerpf(0.82, 1.06, smoothstep(0.2, 1.0, _day_u)) * Look.k("sat")
 	sky_mat.set_shader_parameter("cover", 0.42)
 	if not is_dawn():
 		_day_u = move_toward(_day_u, 1.0, delta * 0.5)
@@ -3589,6 +3604,8 @@ func _process(delta: float) -> void:
 		hud.toast("Screen shake %s" % ("on" if shake_on else "off"), 1.2)
 	if Input.is_action_just_pressed("toggle_perf"):
 		perf.toggle()
+	if Input.is_action_just_pressed("cycle_look"):
+		next_look()
 	if Input.is_action_just_pressed("toggle_sound"):
 		sfx.toggle_mute()
 		hud.toast("Sound %s" % ("off" if sfx.muted else "on"), 1.2)

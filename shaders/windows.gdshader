@@ -1,6 +1,7 @@
 // Toon facade with procedural lit windows, placed in world space so any box tiles cleanly.
 shader_type spatial;
 render_mode diffuse_toon, specular_toon;
+#include "res://shaders/look.gdshaderinc"
 
 uniform vec4 frame_color : source_color = vec4(0.12, 0.17, 0.29, 1.0);
 uniform vec4 glass_color : source_color = vec4(0.20, 0.30, 0.46, 1.0);
@@ -32,6 +33,7 @@ float hash(vec2 p) {
 }
 
 void fragment() {
+	lk_rim = 0.0;
 	float h = abs(wnorm.x) > abs(wnorm.z) ? wpos.z : wpos.x;
 	vec2 uv = vec2(h, wpos.y) / cell;
 	vec2 f = fract(uv);

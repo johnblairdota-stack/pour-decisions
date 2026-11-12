@@ -4,6 +4,7 @@
 // Mottled like the rest of the grass (shaders/ground_detail.gdshaderinc).
 shader_type spatial;
 render_mode diffuse_toon, specular_toon;
+#include "res://shaders/look.gdshaderinc"
 
 #include "res://shaders/ground_detail.gdshaderinc"
 
@@ -31,6 +32,5 @@ void fragment() {
 	ALBEDO = ground_detail(albedo.rgb, GD_GRASS, wp, px);
 	ROUGHNESS = 0.85;
 	SPECULAR = 0.2;
-	RIM = 0.35;
-	RIM_TINT = 0.6;
+	lk_rim = 0.35;
 }

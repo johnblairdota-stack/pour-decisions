@@ -33,6 +33,43 @@ wetness={
 "value": 0.0
 }
 
+look_shade={
+"type": "float",
+"value": 0.0
+}
+look_wrap={
+"type": "float",
+"value": 0.0
+}
+look_bands={
+"type": "float",
+"value": 1.0
+}
+look_edge={
+"type": "float",
+"value": 0.05
+}
+look_tint={
+"type": "color",
+"value": Color(0, 0, 0, 0)
+}
+look_rim={
+"type": "float",
+"value": 1.0
+}
+look_spec={
+"type": "float",
+"value": 1.0
+}
+look_ink_w={
+"type": "float",
+"value": 1.0
+}
+look_ink={
+"type": "color",
+"value": Color(0, 0, 0, 0)
+}
+
 [rendering]
 
 anti_aliasing/quality/msaa_3d=2
