@@ -521,7 +521,10 @@ func _draw_pump_live() -> void:
 	if fill > 0.01:
 		var fy := lerpf(bot, top + 4.0, fill)
 		var half := lerpf(20.0, 32.0, (bot - fy) / (bot - top))
-		_c.draw_colored_polygon(PackedVector2Array([Vector2(hx - half + 2.0, fy), Vector2(hx + half - 2.0, fy), Vector2(hx + 18.0, bot - 2.0), Vector2(hx - 18.0, bot - 2.0)]), CONC)
+		# (a skim in the bottom: its top edge would sit under its floor, a
+		# polygon turned inside out, which Godot can't fill)
+		if fy < bot - 3.0:
+			_c.draw_colored_polygon(PackedVector2Array([Vector2(hx - half + 2.0, fy), Vector2(hx + half - 2.0, fy), Vector2(hx + 18.0, bot - 2.0), Vector2(hx - 18.0, bot - 2.0)]), CONC)
 		var band: Vector2 = st["band"]
 		for f in [band.x, band.y]:
 			var by := lerpf(bot, top + 4.0, f)
