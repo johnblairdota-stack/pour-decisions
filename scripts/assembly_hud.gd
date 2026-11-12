@@ -633,16 +633,18 @@ func _draw_truck(x: float, age: float, leaving: bool) -> void:
 
 # ------------------------------------------------------------------ wind, cash
 
-## The wind gauge, standing on top of the boom at the tower end: a sock that
-## lifts as it blows, a bar that reaches the red line when the boom has to
-## park, and the speed beside them.
+## The wind gauge, standing on the boom's head (the turret on top of the
+## tower), off the end of the boom: a sock on a tall pole that lifts as it
+## blows, a bar beside it that reaches the red line when the boom has to
+## park, and the speed up beside the sock.
 func _draw_wind() -> void:
 	var wind: float = st["wind"]
 	var stop: float = maxf(1.0, st["wind_stop"])
 	var over := wind >= stop
-	var px := _w - 96.0 - 46.0
-	var foot := ARM_Y + 2.0
-	var tip := 4.0
+	var tx := _tower_x()
+	var px := (tx.x + tx.y) * 0.5 + 18.0
+	var foot := TOP - 74.0       # the turret's roof
+	var tip := 6.0
 	_c.draw_line(Vector2(px, foot), Vector2(px, tip), INK, 5.0)
 	_c.draw_line(Vector2(px, foot), Vector2(px, tip), STEEL, 2.0)
 	# The sock lifts as it blows
@@ -651,23 +653,24 @@ func _draw_wind() -> void:
 	var nor := Vector2(dir.y, -dir.x)
 	var a0 := Vector2(px, tip + 6.0)
 	for i in 4:
-		var s0 := a0 + dir * (i * 10.0)
-		var s1 := a0 + dir * ((i + 1) * 10.0)
-		var w0 := 8.0 - i * 1.2
-		var w1 := 8.0 - (i + 1) * 1.2
+		var s0 := a0 + dir * (i * 11.0)
+		var s1 := a0 + dir * ((i + 1) * 11.0)
+		var w0 := 9.0 - i * 1.3
+		var w1 := 9.0 - (i + 1) * 1.3
 		_c.draw_colored_polygon(PackedVector2Array([s0 + nor * w0, s1 + nor * w1, s1 - nor * w1, s0 - nor * w0]), Color("ff5a2b") if i % 2 == 0 else Color("f4f7fa"))
-	var e := a0 + dir * 40.0
-	_c.draw_polyline(PackedVector2Array([a0 + nor * 8.0, e + nor * 3.2, e - nor * 3.2, a0 - nor * 8.0, a0 + nor * 8.0]), INK, 2.0, true)
-	# The bar, on its own post beside the sock
+	var e := a0 + dir * 44.0
+	_c.draw_polyline(PackedVector2Array([a0 + nor * 9.0, e + nor * 3.8, e - nor * 3.8, a0 - nor * 9.0, a0 + nor * 9.0]), INK, 2.0, true)
+	# The bar, on the turret's roof beside the pole
 	var bx := px + 22.0
-	var bh := foot - tip
-	_c.draw_rect(Rect2(bx - 5.0, tip, 10.0, bh), Color(INK, 0.9))
+	var bt := foot - 60.0
+	var bh := 56.0
+	_c.draw_rect(Rect2(bx - 5.0, bt, 10.0, bh), Color(INK, 0.9))
 	var f := clampf(wind / (stop * 1.25), 0.0, 1.0)
-	_c.draw_rect(Rect2(bx - 2.5, foot - 2.0 - (bh - 4.0) * f, 5.0, (bh - 4.0) * f), UI.ALARM if over else (AMBER if wind >= stop * 0.75 else UI.GREEN))
-	_c.draw_line(Vector2(bx - 8.0, foot - 2.0 - (bh - 4.0) * 0.8), Vector2(bx + 8.0, foot - 2.0 - (bh - 4.0) * 0.8), UI.ALARM, 2.5)
-	# The speed, on the boom's back to the left of them
+	_c.draw_rect(Rect2(bx - 2.5, bt + 2.0 + (bh - 4.0) * (1.0 - f), 5.0, (bh - 4.0) * f), UI.ALARM if over else (AMBER if wind >= stop * 0.75 else UI.GREEN))
+	_c.draw_line(Vector2(bx - 8.0, bt + 2.0 + (bh - 4.0) * 0.2), Vector2(bx + 8.0, bt + 2.0 + (bh - 4.0) * 0.2), UI.ALARM, 2.5)
+	# The speed, up beside the sock, over the end of the boom
 	var txt := "%d km/h" % int(wind)
-	_text(Vector2(px - 54.0 - _tw(txt, 30), foot - 8.0), txt, 30, UI.ALARM if over and _pulse(2.0) > 0.4 else Color.WHITE, 8)
+	_text(Vector2(px - 52.0 - _tw(txt, 30), 30.0), txt, 30, UI.ALARM if over and _pulse(2.0) > 0.4 else Color.WHITE, 8)
 
 func _draw_cash() -> void:
 	var r := Rect2(24.0, ARM_Y, 214.0, 96.0)
