@@ -70,11 +70,11 @@ PALETTE = {
 # the windscreen, roof and cab back are)
 SPECS = {
 	"hilux": dict(L=5.33, hw=0.905, H=1.815, wb=3.085, front=0.93, track=1.54, r=0.39, tw=0.265,
-		nose=0.97, lamp=1.02, cowl=1.11, belt=1.13, tub=1.17, cowl_z=1.3, roof_z=0.44, back_z=-1.07, glass_top=0.70),
+		nose=0.97, lamp=1.02, cowl=1.16, belt=1.2, tub=1.17, cowl_z=1.3, roof_z=0.44, back_z=-1.07, glass_top=0.70),
 	"ranger": dict(L=5.36, hw=0.915, H=1.85, wb=3.22, front=0.93, track=1.56, r=0.39, tw=0.265,
-		nose=1.05, lamp=1.08, cowl=1.17, belt=1.19, tub=1.21, cowl_z=1.26, roof_z=0.42, back_z=-1.1, glass_top=0.72),
+		nose=1.05, lamp=1.08, cowl=1.22, belt=1.24, tub=1.21, cowl_z=1.26, roof_z=0.42, back_z=-1.1, glass_top=0.72),
 	"shark": dict(L=5.457, hw=0.96, H=1.925, wb=3.26, front=0.98, track=1.67, r=0.405, tw=0.275,
-		nose=1.09, lamp=1.12, cowl=1.21, belt=1.23, tub=1.26, cowl_z=1.24, roof_z=0.36, back_z=-1.14, glass_top=0.76),
+		nose=1.09, lamp=1.12, cowl=1.26, belt=1.29, tub=1.26, cowl_z=1.24, roof_z=0.36, back_z=-1.14, glass_top=0.76),
 }
 
 ITEMS = ["bullbar", "winch", "spotlights", "snorkel", "lightbar", "mudtyres", "roofrack", "rooftent", "awning",
