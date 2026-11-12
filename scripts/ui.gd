@@ -121,7 +121,7 @@ const ROLE_CLIMB := {"boom": "Climb days: dogman", "line": "Climb days: slinger 
 ## you're on this step].
 const JOB_CARD := {
 	"boom": {"goal": "Steer the boom and fill each bay.", "watch": "where the hose hand is heading. Fast swings whip the hose.",
-		"steps": [["stick", "Swing the hose over the bay (push harder to go faster)", ["boom remote", "steer", "swing"]],
+		"steps": [["stick", "Swing the hose over the bay: SPEED bar for faster (pad: push harder)", ["boom remote", "steer", "swing"]],
 			["stick", "Keep the boom over the hose hand: they call the pump", ["pump", "bin"]],
 			["B", "Put the remote down", ["put down", "step off"]]]},
 	"line": {"goal": "Get good concrete off every truck.", "watch": "the docket. Wrong mix or too old: send it back.",

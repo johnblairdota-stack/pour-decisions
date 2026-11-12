@@ -4347,11 +4347,23 @@ func _handle_player(p, delta: float) -> void:
 			v = Vector2.ZERO
 		var mag := clampf((v.length() - BOOM_DEAD) / (1.0 - BOOM_DEAD), 0.0, 1.0)
 		var dir := _pad_dir(v) if mag > 0.0 else Vector3.ZERO
-		# Held hard over for a while, it winds up: faster and faster, until
-		# the hose starts to whip
-		_boom_hold_t = _boom_hold_t + delta if mag > 0.85 and not (p.bot or p.covering) else 0.0
-		var wind_up := 1.0 + (BOOM_RUSH_K - 1.0) * clampf((_boom_hold_t - BOOM_RUSH_AFTER) / BOOM_RUSH_T, 0.0, 1.0)
-		var spd := BOOM_SPEED * mag * mag * (BOOM_POUR_K if line.pumping else 1.0) * wind_up
+		var wind_up := 1.0
+		var spd := 0.0
+		if p.remote_id >= 0 and not (p.bot or p.covering):
+			# A phone: the stick's only which way, the SPEED bar's how fast
+			# (like the ute's gas): a creep with no bar, the top of it fast
+			# enough to whip the hose
+			var bar: float = (p.pedal as Vector2).x
+			spd = BOOM_SPEED * BOOM_RUSH_K * maxf(BOOM_CREEP, bar * bar) if mag > 0.0 else 0.0
+			wind_up = maxf(1.0, spd / BOOM_SPEED)
+			spd *= BOOM_POUR_K if line.pumping else 1.0
+			_boom_hold_t = 0.0
+		else:
+			# Held hard over for a while, it winds up: faster and faster, until
+			# the hose starts to whip
+			_boom_hold_t = _boom_hold_t + delta if mag > 0.85 and not (p.bot or p.covering) else 0.0
+			wind_up = 1.0 + (BOOM_RUSH_K - 1.0) * clampf((_boom_hold_t - BOOM_RUSH_AFTER) / BOOM_RUSH_T, 0.0, 1.0)
+			spd = BOOM_SPEED * mag * mag * (BOOM_POUR_K if line.pumping else 1.0) * wind_up
 		tip_target += dir * spd * delta * p.pace
 		var lead := tip_target - tip_pos
 		lead.y = 0.0
@@ -4939,6 +4951,7 @@ const BOOM_LEAD := 1.15     # m the aim can run ahead of the hose (it follows at
 const BOOM_RUSH_AFTER := 1.0  # s of full stick before the boom starts to wind up
 const BOOM_RUSH_T := 1.5      # s more to reach full rush
 const BOOM_RUSH_K := 2.0      # full rush: twice the speed
+const BOOM_CREEP := 0.03      # a phone's stick with no SPEED bar: a creep (fraction of top speed)
 const WHIP_FROM := 5.2        # m/s of the boom tip where the hose starts to whip
 const WHIP_FULL := 3.0        # m/s more to a full whip
 var _boom_hold_t := 0.0
