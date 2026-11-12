@@ -5868,9 +5868,6 @@ func _update_hud_shown() -> void:
 
 func _update_hud() -> void:
 	_update_hud_shown()
-	# (the top-out, the fly-past and the handover are the building's and
-	# the crew's: the kit steps aside. Signing keeps it, its title says how.)
-	hud.kit_hidden = phase == "topout"
 	hud.set_tickets(_tickets(), phase_t)
 	# (no docket card: the slump test and its reading are in the close-up)
 	hud.show_docket({})
