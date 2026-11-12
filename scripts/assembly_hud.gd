@@ -633,44 +633,45 @@ func _draw_truck(x: float, age: float, leaving: bool) -> void:
 
 # ------------------------------------------------------------------ wind, cash
 
-## The wind gauge, standing on the boom's head (the turret on top of the
-## tower), off the end of the boom: a sock on a tall pole that lifts as it
-## blows, a bar beside it that reaches the red line when the boom has to
-## park, and the speed up beside the sock.
+## The wind gauge, sitting on the boom's head (the turret on top of the
+## tower), in the gap past the end of the boom: a short mast on the turret's
+## roof with the sock streaming off it, the bar beside it that reaches the
+## red line when the boom has to park, and the speed above them.
 func _draw_wind() -> void:
 	var wind: float = st["wind"]
 	var stop: float = maxf(1.0, st["wind_stop"])
 	var over := wind >= stop
-	var tx := _tower_x()
-	var px := (tx.x + tx.y) * 0.5 + 18.0
+	var px := _w - 64.0
 	var foot := TOP - 74.0       # the turret's roof
-	var tip := 6.0
-	_c.draw_line(Vector2(px, foot), Vector2(px, tip), INK, 5.0)
-	_c.draw_line(Vector2(px, foot), Vector2(px, tip), STEEL, 2.0)
-	# The sock lifts as it blows
+	var tip := foot - 58.0
+	_c.draw_rect(Rect2(px - 8.0, foot - 4.0, 16.0, 5.0), INK)   # (its base plate)
+	_c.draw_line(Vector2(px, foot), Vector2(px, tip), INK, 6.0)
+	_c.draw_line(Vector2(px, foot), Vector2(px, tip), STEEL, 2.5)
+	# The sock lifts as it blows (streaming out over the tower, clear of the boom)
 	var ang := deg_to_rad(lerpf(72.0, 6.0, clampf(wind / 60.0, 0.0, 1.0))) + 0.05 * sin(_t * (2.0 + wind * 0.08))
-	var dir := Vector2(-cos(ang), sin(ang))
+	var dir := Vector2(cos(ang), sin(ang))
 	var nor := Vector2(dir.y, -dir.x)
 	var a0 := Vector2(px, tip + 6.0)
 	for i in 4:
-		var s0 := a0 + dir * (i * 11.0)
-		var s1 := a0 + dir * ((i + 1) * 11.0)
-		var w0 := 9.0 - i * 1.3
-		var w1 := 9.0 - (i + 1) * 1.3
+		var s0 := a0 + dir * (i * 10.0)
+		var s1 := a0 + dir * ((i + 1) * 10.0)
+		var w0 := 8.5 - i * 1.2
+		var w1 := 8.5 - (i + 1) * 1.2
 		_c.draw_colored_polygon(PackedVector2Array([s0 + nor * w0, s1 + nor * w1, s1 - nor * w1, s0 - nor * w0]), Color("ff5a2b") if i % 2 == 0 else Color("f4f7fa"))
-	var e := a0 + dir * 44.0
-	_c.draw_polyline(PackedVector2Array([a0 + nor * 9.0, e + nor * 3.8, e - nor * 3.8, a0 - nor * 9.0, a0 + nor * 9.0]), INK, 2.0, true)
-	# The bar, on the turret's roof beside the pole
-	var bx := px + 22.0
-	var bt := foot - 60.0
-	var bh := 56.0
+	var e := a0 + dir * 40.0
+	_c.draw_polyline(PackedVector2Array([a0 + nor * 8.5, e + nor * 3.7, e - nor * 3.7, a0 - nor * 8.5, a0 + nor * 8.5]), INK, 2.0, true)
+	# The bar, standing on the turret's roof beside the mast
+	var bx := px - 17.0
+	var bh := 48.0
+	var bt := foot - 2.0 - bh
 	_c.draw_rect(Rect2(bx - 5.0, bt, 10.0, bh), Color(INK, 0.9))
 	var f := clampf(wind / (stop * 1.25), 0.0, 1.0)
 	_c.draw_rect(Rect2(bx - 2.5, bt + 2.0 + (bh - 4.0) * (1.0 - f), 5.0, (bh - 4.0) * f), UI.ALARM if over else (AMBER if wind >= stop * 0.75 else UI.GREEN))
 	_c.draw_line(Vector2(bx - 8.0, bt + 2.0 + (bh - 4.0) * 0.2), Vector2(bx + 8.0, bt + 2.0 + (bh - 4.0) * 0.2), UI.ALARM, 2.5)
-	# The speed, up beside the sock, over the end of the boom
+	# The speed, above them
 	var txt := "%d km/h" % int(wind)
-	_text(Vector2(px - 52.0 - _tw(txt, 30), 30.0), txt, 30, UI.ALARM if over and _pulse(2.0) > 0.4 else Color.WHITE, 8)
+	var fs := 28
+	_text(Vector2(_w - 10.0 - _tw(txt, fs), tip - 10.0), txt, fs, UI.ALARM if over and _pulse(2.0) > 0.4 else Color.WHITE, 8)
 
 func _draw_cash() -> void:
 	var r := Rect2(24.0, ARM_Y, 214.0, 96.0)
