@@ -490,7 +490,8 @@ func _send_state(c: Dictionary) -> void:
 	var climb_day: bool = game.climb != null and game.climb.active
 	var now := {"t": "now", "i": -1, "verb": "", "btn": "", "climb": climb_day,
 		"go": game.where_to(p) if game.has_method("where_to") and scr == "play" else "",
-		"brief": game.brief_hold() if game.has_method("brief_hold") and scr == "play" else -1.0}
+		"brief": game.brief_hold() if game.has_method("brief_hold") and scr == "play" else -1.0,
+		"boom": p.busy == "boom" and scr == "play"}
 	if not p.cues.is_empty():
 		var cu: Array = p.cues[0]
 		now["btn"] = cu[0]

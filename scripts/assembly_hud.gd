@@ -36,6 +36,8 @@ const AMBER := Color("f2b51f")
 const LW := 3.0
 const KIT := 0.74         # the trucks, hopper and pump are drawn this much smaller than the tower
 const TOP := 182.0        # the tower's collar
+const ARM_Y := 36.0       # the top of the boom's arms (at the tower end)
+const ARM_MID := 74.0     # the boom's pins, and the middle of the words on it
 const TRUCK_L := 262.0    # a truck and its gap
 const AGE_WARN := 78.0
 const AGE_MAX := 90.0
@@ -383,19 +385,20 @@ func _draw_boom_static() -> void:
 	var x0 := 262.0
 	var x1 := _w - 96.0
 	var xm := lerpf(x0, x1, 0.43)
-	# The luffing ram over the knuckle
-	_c.draw_line(Vector2(xm - 84.0, 47.0), Vector2(xm + 20.0, 47.0), INK, 9.0)
-	_c.draw_line(Vector2(xm - 82.0, 47.0), Vector2(xm + 20.0, 47.0), STEEL, 4.0)
-	_box(Rect2(xm + 16.0, 39.0, 150.0, 16.0), Color("3a4252"), 8.0)
-	_box(Rect2(xm - 92.0, 40.0, 18.0, 14.0), Color("3a4252"), 3.0)
-	# Two tapered arms
-	_poly(PackedVector2Array([Vector2(x0, 64.0), Vector2(xm, 58.0), Vector2(xm, 110.0), Vector2(x0, 106.0)]), YEL)
-	_poly(PackedVector2Array([Vector2(xm, 58.0), Vector2(x1, 52.0), Vector2(x1, 114.0), Vector2(xm, 110.0)]), YEL)
+	# The luffing ram over the knuckle, lying along the top of the arms
+	_c.draw_line(Vector2(xm - 84.0, ARM_Y - 2.0), Vector2(xm + 20.0, ARM_Y - 2.0), INK, 9.0)
+	_c.draw_line(Vector2(xm - 82.0, ARM_Y - 2.0), Vector2(xm + 20.0, ARM_Y - 2.0), STEEL, 4.0)
+	_box(Rect2(xm + 16.0, ARM_Y - 10.0, 150.0, 16.0), Color("3a4252"), 8.0)
+	_box(Rect2(xm - 92.0, ARM_Y - 9.0, 18.0, 14.0), Color("3a4252"), 3.0)
+	# Two tapered arms, up into the top of the screen (the words on them
+	# drawn big)
+	_poly(PackedVector2Array([Vector2(x0, ARM_Y + 14.0), Vector2(xm, ARM_Y + 6.0), Vector2(xm, 110.0), Vector2(x0, 106.0)]), YEL)
+	_poly(PackedVector2Array([Vector2(xm, ARM_Y + 6.0), Vector2(x1, ARM_Y), Vector2(x1, 114.0), Vector2(xm, 110.0)]), YEL)
 	_c.draw_line(Vector2(x0 + 4.0, 101.0), Vector2(xm - 2.0, 105.0), YEL_D, 3.0)
 	_c.draw_line(Vector2(xm + 2.0, 105.0), Vector2(x1 - 4.0, 109.0), YEL_D, 3.0)
 	for bx in [x0 + 4.0, xm, x1 - 4.0]:
-		_disc(Vector2(bx, 84.0), 15.0, Color("2a3140"))
-		_c.draw_circle(Vector2(bx, 84.0), 5.0, STEEL_D, true, -1.0, true)
+		_disc(Vector2(bx, ARM_MID), 17.0, Color("2a3140"))
+		_c.draw_circle(Vector2(bx, ARM_MID), 6.0, STEEL_D, true, -1.0, true)
 	# The pipe clamped along it, and the end hose
 	var hose := PackedVector2Array([Vector2(244.0, 150.0), Vector2(247.0, 172.0), Vector2(241.0, 192.0), Vector2(238.0, 206.0)])
 	_c.draw_polyline(hose, INK, 15.0, true)
@@ -420,45 +423,48 @@ func _draw_boom_live() -> void:
 		var room := xm - 26.0 - x
 		var chip: String = st["chip"]
 		if chip != "":
-			var cw := _tw(chip, 28) + 24.0
-			_box(Rect2(x, 68.0, cw, 36.0), UI.ALARM if st["alarm"] else INK, 8.0, INK, 0.0)
-			_text(Vector2(x + 12.0, 96.0), chip, 28, Color.WHITE if st["alarm"] else YEL)
+			var cw := _tw(chip, 36) + 28.0
+			_box(Rect2(x, ARM_MID - 24.0, cw, 48.0), UI.ALARM if st["alarm"] else INK, 8.0, INK, 0.0)
+			_text(Vector2(x + 14.0, ARM_MID + 13.0), chip, 36, Color.WHITE if st["alarm"] else YEL)
 			x += cw + 14.0
 			room -= cw + 14.0
 		var clock: String = st["clock"]
-		var cw2 := (_tw(clock, 32) + 14.0) if clock != "" else 0.0
+		var cw2 := (_tw(clock, 42) + 14.0) if clock != "" else 0.0
 		var bar_w := 110.0 if float(st["progress"]) >= 0.0 else 0.0
-		var fs := _fit(title, 42, room - cw2 - (bar_w + 16.0 if bar_w > 0.0 else 0.0), 26)
+		var fs := _fit(title, 58, room - cw2 - (bar_w + 16.0 if bar_w > 0.0 else 0.0), 26)
 		# (a new job drops into place)
 		if _job_key(title) != _title_was:
 			_title_was = _job_key(title)
 			_title_at = _t
 		var te := _since(_title_at)
-		_text(Vector2(x, 84.0 + fs * 0.36 - (1.0 - te) * 16.0), title, fs, Color(INK, te))
+		_text(Vector2(x, ARM_MID + fs * 0.36 - (1.0 - te) * 16.0), title, fs, Color(INK, te))
 		x += minf(_tw(title, fs), room - cw2 - bar_w) + 16.0
 		if bar_w > 0.0 and x + bar_w + cw2 <= xm - 22.0:
 			bar_w = minf(160.0, xm - 26.0 - cw2 - x)
-			_c.draw_line(Vector2(x, 85.0), Vector2(x + bar_w, 85.0), INK, 9.0, true)
+			_c.draw_line(Vector2(x, ARM_MID + 1.0), Vector2(x + bar_w, ARM_MID + 1.0), INK, 11.0, true)
 			var p := clampf(float(st["progress"]), 0.0, 1.0)
 			if p > 0.01:
-				_c.draw_line(Vector2(x + 2.0, 85.0), Vector2(x + 2.0 + (bar_w - 4.0) * p, 85.0), ORANGE, 5.0, true)
+				_c.draw_line(Vector2(x + 2.0, ARM_MID + 1.0), Vector2(x + 2.0 + (bar_w - 4.0) * p, ARM_MID + 1.0), ORANGE, 6.0, true)
 		if clock != "":
-			_text(Vector2(xm - 24.0 - _tw(clock, 32), 96.0), clock, 32, INK)
+			_text(Vector2(xm - 24.0 - _tw(clock, 42), ARM_MID + 15.0), clock, 42, INK)
 	# What's coming, on the inner arm
 	var next: String = st["next"]
 	if next != "":
 		var nx := xm + 30.0
 		var nchip: String = st["next_chip"]
-		var lw := _tw(nchip, 28) + 24.0
-		_box(Rect2(nx, 68.0, lw, 36.0), INK, 8.0, INK, 0.0)
-		_text(Vector2(nx + 12.0, 96.0), nchip, 28, YEL)
-		nx += lw + 12.0
-		var fs2 := _fit(next, 30, x1 - 30.0 - nx, 24)
+		var lw := _tw(nchip, 36) + 28.0
+		var end := x1 - 30.0
+		# (a narrow screen: the words alone, without their chip)
+		if end - nx - lw - 12.0 >= _tw(next, 24):
+			_box(Rect2(nx, ARM_MID - 24.0, lw, 48.0), INK, 8.0, INK, 0.0)
+			_text(Vector2(nx + 14.0, ARM_MID + 13.0), nchip, 36, YEL)
+			nx += lw + 12.0
+		var fs2 := _fit(next, 42, end - nx, 18)
 		if _job_key(next) != _next_was:
 			_next_was = _job_key(next)
 			_next_at = _t
 		var ne := _since(_next_at)
-		_text(Vector2(nx + (1.0 - ne) * 22.0, 86.0 + fs2 * 0.36), next, fs2, Color(INK, ne))
+		_text(Vector2(nx + (1.0 - ne) * 22.0, ARM_MID + 2.0 + fs2 * 0.36), next, fs2, Color(INK, ne))
 
 # ------------------------------------------------------------------ the pump
 
@@ -624,44 +630,51 @@ func _draw_truck(x: float, age: float, leaving: bool) -> void:
 
 # ------------------------------------------------------------------ wind, cash
 
+## The wind gauge, standing on top of the boom at the tower end: a sock that
+## lifts as it blows, a bar that reaches the red line when the boom has to
+## park, and the speed beside them.
 func _draw_wind() -> void:
 	var wind: float = st["wind"]
 	var stop: float = maxf(1.0, st["wind_stop"])
-	var px := _w - 30.0
-	_c.draw_line(Vector2(px, 62.0), Vector2(px, 14.0), INK, 5.0)
-	_c.draw_line(Vector2(px, 62.0), Vector2(px, 14.0), STEEL, 2.0)
+	var over := wind >= stop
+	var px := _w - 96.0 - 46.0
+	var foot := ARM_Y + 2.0
+	var tip := 4.0
+	_c.draw_line(Vector2(px, foot), Vector2(px, tip), INK, 5.0)
+	_c.draw_line(Vector2(px, foot), Vector2(px, tip), STEEL, 2.0)
 	# The sock lifts as it blows
 	var ang := deg_to_rad(lerpf(72.0, 6.0, clampf(wind / 60.0, 0.0, 1.0))) + 0.05 * sin(_t * (2.0 + wind * 0.08))
 	var dir := Vector2(-cos(ang), sin(ang))
 	var nor := Vector2(dir.y, -dir.x)
-	var a0 := Vector2(px, 20.0)
+	var a0 := Vector2(px, tip + 6.0)
 	for i in 4:
-		var s0 := a0 + dir * (i * 11.0)
-		var s1 := a0 + dir * ((i + 1) * 11.0)
-		var w0 := 9.0 - i * 1.3
-		var w1 := 9.0 - (i + 1) * 1.3
+		var s0 := a0 + dir * (i * 10.0)
+		var s1 := a0 + dir * ((i + 1) * 10.0)
+		var w0 := 8.0 - i * 1.2
+		var w1 := 8.0 - (i + 1) * 1.2
 		_c.draw_colored_polygon(PackedVector2Array([s0 + nor * w0, s1 + nor * w1, s1 - nor * w1, s0 - nor * w0]), Color("ff5a2b") if i % 2 == 0 else Color("f4f7fa"))
-	var e := a0 + dir * 44.0
-	_c.draw_polyline(PackedVector2Array([a0 + nor * 9.0, e + nor * 3.8, e - nor * 3.8, a0 - nor * 9.0, a0 + nor * 9.0]), INK, 2.0, true)
-	# The bar: up to the red line and the boom has to park
-	var bx := _w - 14.0
-	_c.draw_rect(Rect2(bx - 4.0, 14.0, 8.0, 50.0), Color(INK, 0.85))
-	var over := wind >= stop
+	var e := a0 + dir * 40.0
+	_c.draw_polyline(PackedVector2Array([a0 + nor * 8.0, e + nor * 3.2, e - nor * 3.2, a0 - nor * 8.0, a0 + nor * 8.0]), INK, 2.0, true)
+	# The bar, on its own post beside the sock
+	var bx := px + 22.0
+	var bh := foot - tip
+	_c.draw_rect(Rect2(bx - 5.0, tip, 10.0, bh), Color(INK, 0.9))
 	var f := clampf(wind / (stop * 1.25), 0.0, 1.0)
-	_c.draw_rect(Rect2(bx - 2.0, 62.0 - 46.0 * f, 4.0, 46.0 * f), UI.ALARM if over else (AMBER if wind >= stop * 0.75 else UI.GREEN))
-	_c.draw_line(Vector2(bx - 7.0, 62.0 - 46.0 * 0.8), Vector2(bx + 7.0, 62.0 - 46.0 * 0.8), UI.ALARM, 2.5)
+	_c.draw_rect(Rect2(bx - 2.5, foot - 2.0 - (bh - 4.0) * f, 5.0, (bh - 4.0) * f), UI.ALARM if over else (AMBER if wind >= stop * 0.75 else UI.GREEN))
+	_c.draw_line(Vector2(bx - 8.0, foot - 2.0 - (bh - 4.0) * 0.8), Vector2(bx + 8.0, foot - 2.0 - (bh - 4.0) * 0.8), UI.ALARM, 2.5)
+	# The speed, on the boom's back to the left of them
 	var txt := "%d km/h" % int(wind)
-	_text(Vector2(px - 58.0 - _tw(txt, 26), 38.0), txt, 26, UI.ALARM if over and _pulse(2.0) > 0.4 else Color.WHITE, 8)
+	_text(Vector2(px - 54.0 - _tw(txt, 30), foot - 8.0), txt, 30, UI.ALARM if over and _pulse(2.0) > 0.4 else Color.WHITE, 8)
 
 func _draw_cash() -> void:
-	var r := Rect2(24.0, 14.0, 200.0, 86.0)
+	var r := Rect2(24.0, ARM_Y, 214.0, 96.0)
 	_box(r, Color("10151f"), 10.0, Color("f4f7fa"), 3.0)
 	var cash := "$" + UI.thousands(int(st["cash"]))
-	var fs := int(44.0 * (1.0 + 0.12 * float(st["bump"])))
-	fs = _fit(cash, fs, 184.0, 28)
-	_text(Vector2(r.get_center().x - _tw(cash, fs) * 0.5, 60.0), cash, fs, YEL)
+	var fs := int(52.0 * (1.0 + 0.12 * float(st["bump"])))
+	fs = _fit(cash, fs, 196.0, 28)
+	_text(Vector2(r.get_center().x - _tw(cash, fs) * 0.5, ARM_Y + 54.0), cash, fs, YEL)
 	var lv: String = st["level"]
-	_text(Vector2(r.get_center().x - _tw(lv, 24) * 0.5, 90.0), lv, 24, Color("f4f7fa"))
+	_text(Vector2(r.get_center().x - _tw(lv, 28) * 0.5, ARM_Y + 86.0), lv, 28, Color("f4f7fa"))
 
 # ------------------------------------------------------------------ people
 

@@ -9,6 +9,7 @@ render_mode diffuse_toon, specular_toon, cull_disabled;
 
 varying vec2 wp;
 varying flat int code;
+global uniform float wetness;   // after rain (as toon.gdshader)
 
 void vertex() {
 	wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xz;
@@ -22,7 +23,8 @@ void vertex() {
 
 void fragment() {
 	float px = max(length(dFdx(wp)), length(dFdy(wp)));
-	ALBEDO = ground_detail(COLOR.rgb, code, wp, px);
-	ROUGHNESS = 0.9;
-	SPECULAR = 0.25;
+	float wet = wetness * smoothstep(0.55, 0.85, (INV_VIEW_MATRIX * vec4(NORMAL, 0.0)).y);
+	ALBEDO = ground_detail(COLOR.rgb, code, wp, px) * (1.0 - 0.3 * wet);
+	ROUGHNESS = mix(0.9, 0.3, wet);
+	SPECULAR = mix(0.25, 0.55, wet);
 }

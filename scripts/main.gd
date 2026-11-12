@@ -424,6 +424,10 @@ func _build_environment() -> void:
 	env.fog_density = 0.00015   # (a light haze: the city 6 km off still shows)
 	env.fog_light_color = Color("cfdfe8")
 	env.fog_sky_affect = 0.0
+	# (the haze takes the sky's colour, so far off goes soft and pale)
+	env.fog_aerial_perspective = 0.35
+	# The day's finishing grade (Story.LIGHTS): a touch of contrast and colour
+	env.adjustment_enabled = true
 	var we := WorldEnvironment.new()
 	we.environment = env
 	add_child(we)
@@ -632,7 +636,9 @@ func _update_story_light(delta: float) -> void:
 	sky_mat.set_shader_parameter("sky_horizon", l[1])
 	sky_mat.set_shader_parameter("cover", l[8])
 	env.fog_light_color = l[1]
-	env.fog_density = l[7]
+	env.fog_density = l[7] * _haze_k()
+	env.adjustment_contrast = l[9]
+	env.adjustment_saturation = l[10]
 	env.ambient_light_energy = l[4]
 	sun.light_color = l[2]
 	sun.light_energy = l[3]
@@ -647,7 +653,16 @@ func _update_story_light(delta: float) -> void:
 		pour.smat.set_shader_parameter("low_light", 0.0)
 	_day_shown = -1.0
 
+## The background beyond the fence sits back: a little more haze than the
+## plain light gives, so the city and the river go calm and pale behind the
+## site. Not in Knock-off, where you drive out into it.
+const HAZE_K := 2.6
+
+func _haze_k() -> float:
+	return 1.0 if explore != null else HAZE_K
+
 func _update_daylight(delta: float) -> void:
+	_update_weather_fx(delta)
 	if not is_dawn() and _day_u >= 1.0:
 		if _floods_on:
 			_floods_on = false
@@ -656,7 +671,10 @@ func _update_daylight(delta: float) -> void:
 		_update_story_light(delta)
 		return
 	_light_now = []
-	env.fog_density = 0.00015
+	env.fog_density = 0.00015 * _haze_k()
+	# (grey before sunrise, the colour coming up with the sun)
+	env.adjustment_contrast = 1.04
+	env.adjustment_saturation = lerpf(0.82, 1.06, smoothstep(0.2, 1.0, _day_u))
 	sky_mat.set_shader_parameter("cover", 0.42)
 	if not is_dawn():
 		_day_u = move_toward(_day_u, 1.0, delta * 0.5)
@@ -689,6 +707,89 @@ func _update_daylight(delta: float) -> void:
 		for f in _floods:
 			if f["deck"]:
 				(f["node"] as Node3D).position.y = work_y
+
+# ------------------------------------------------------------------ weather touches
+
+## Rain bouncing off the deck while it pours down, everything that faces the
+## sky going dark and glossy and then drying off (the `wetness` shader global,
+## toon.gdshader and ground.gdshader), and on a windy day leaves and grit
+## blowing across the site.
+var _splash: CPUParticles3D
+var _blow: CPUParticles3D
+var _wet := 0.0
+var _wet_shown := -1.0
+
+func _build_weather_fx() -> void:
+	_splash = CPUParticles3D.new()
+	_splash.amount = 220
+	_splash.lifetime = 0.3
+	_splash.emitting = false
+	_splash.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
+	_splash.emission_box_extents = Vector3(BW * 0.5, 0.02, BD * 0.5)
+	_splash.direction = Vector3.UP
+	_splash.spread = 35.0
+	_splash.initial_velocity_min = 0.8
+	_splash.initial_velocity_max = 1.8
+	_splash.gravity = Vector3(0, -9.8, 0)
+	_splash.scale_amount_min = 0.6
+	_splash.scale_amount_max = 1.2
+	var sm := SphereMesh.new()
+	sm.radius = 0.035
+	sm.height = 0.05
+	sm.radial_segments = 6
+	sm.rings = 3
+	sm.material = F.flat_mat(Color(0.85, 0.9, 0.97, 0.7))
+	(sm.material as StandardMaterial3D).transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_splash.mesh = sm
+	_splash.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(_splash)
+	_blow = CPUParticles3D.new()
+	_blow.amount = 36
+	_blow.lifetime = 3.5
+	_blow.emitting = false
+	_blow.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
+	_blow.emission_box_extents = Vector3(22.0, 3.0, 2.0)
+	# (a northerly: it blows from the river side of the site to the south)
+	_blow.direction = Vector3(0.25, 0.08, -1.0)
+	_blow.spread = 14.0
+	_blow.initial_velocity_min = 6.0
+	_blow.initial_velocity_max = 10.0
+	_blow.gravity = Vector3(0, -0.6, 0)
+	_blow.angular_velocity_min = -540.0
+	_blow.angular_velocity_max = 540.0
+	_blow.particle_flag_rotate_y = true
+	_blow.scale_amount_min = 0.7
+	_blow.scale_amount_max = 1.4
+	_blow.color = Color("7a6a3e")
+	_blow.hue_variation_min = -0.06
+	_blow.hue_variation_max = 0.08
+	var lm := BoxMesh.new()
+	lm.size = Vector3(0.09, 0.01, 0.05)
+	var lmat := F.flat_mat(Color.WHITE)
+	lmat.vertex_color_use_as_albedo = true
+	lm.material = lmat
+	_blow.mesh = lm
+	_blow.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(_blow)
+
+func _update_weather_fx(delta: float) -> void:
+	if _splash == null:
+		return
+	var raining: bool = rain != null and rain.emitting
+	_splash.emitting = raining
+	if raining:
+		_splash.position = Vector3(SC.x, deck_top() + 0.04, SC.z)
+	# Soaked in a few seconds of a downpour, dry again a minute and a half after
+	_wet = move_toward(_wet, 1.0, delta * 0.2) if raining else move_toward(_wet, 0.0, delta * 0.011)
+	if explore != null or phase in ["roles", "select"]:
+		_wet = 0.0
+	if absf(_wet - _wet_shown) > 0.004 or (_wet == 0.0 and _wet_shown != 0.0):
+		_wet_shown = _wet
+		RenderingServer.global_shader_parameter_set("wetness", _wet)
+	var windy: bool = explore == null and climb != null and phase in ["climb", "columns", "deck", "inspect", "pour", "screed"] and (bool(cfg.get("gusty", false)) or climb.wind_gust > 45.0)
+	_blow.emitting = windy
+	if windy:
+		_blow.position = Vector3(SC.x, work_y + 2.5, SC.z + BD * 0.5 + 14.0)
 
 # ------------------------------------------------------------------ sign the slab
 
@@ -1099,6 +1200,7 @@ func _build_world() -> void:
 	rm.material = F.flat_mat(Color(0.75, 0.82, 0.92, 0.6))
 	rain.mesh = rm
 	add_child(rain)
+	_build_weather_fx()
 
 ## The water tower tutorial: a short, guided job on a round concrete water
 ## tower instead of Riverlight. Its shaft has already been cast in lifts with
@@ -2423,10 +2525,15 @@ func _place_pop(pt: Vector2, sz: Vector2, region: Rect2, taken: Array) -> Rect2:
 			best = r
 	return best
 
+## A person (not a bot) is on the pump.
+func _pump_played() -> bool:
+	return crew != null and crew.crew.has("pump") and not crew.crew["pump"].bot
+
 func _update_gauge_pop() -> void:
 	if gauge_pop == null:
 		return
-	gauge_pop.visible = phase == "pour" and line != null and line.gauge_popup() and not skyline
+	# (only for a person on the pump: with a bot there, it's its job, not theirs)
+	gauge_pop.visible = phase == "pour" and line != null and line.gauge_popup() and not skyline and _pump_played()
 	if not gauge_pop.visible:
 		return
 	var vs: Vector2 = get_viewport().get_visible_rect().size
@@ -4358,11 +4465,23 @@ func _handle_player(p, delta: float) -> void:
 			v = Vector2.ZERO
 		var mag := clampf((v.length() - BOOM_DEAD) / (1.0 - BOOM_DEAD), 0.0, 1.0)
 		var dir := _pad_dir(v) if mag > 0.0 else Vector3.ZERO
-		# Held hard over for a while, it winds up: faster and faster, until
-		# the hose starts to whip
-		_boom_hold_t = _boom_hold_t + delta if mag > 0.85 and not (p.bot or p.covering) else 0.0
-		var wind_up := 1.0 + (BOOM_RUSH_K - 1.0) * clampf((_boom_hold_t - BOOM_RUSH_AFTER) / BOOM_RUSH_T, 0.0, 1.0)
-		var spd := BOOM_SPEED * mag * mag * (BOOM_POUR_K if line.pumping else 1.0) * wind_up
+		var wind_up := 1.0
+		var spd := 0.0
+		if p.remote_id >= 0 and not (p.bot or p.covering):
+			# A phone: the stick's only which way, the SPEED bar's how fast
+			# (like the ute's gas): a creep with no bar, the top of it fast
+			# enough to whip the hose
+			var bar: float = (p.pedal as Vector2).x
+			spd = BOOM_SPEED * BOOM_RUSH_K * maxf(BOOM_CREEP, bar * bar) if mag > 0.0 else 0.0
+			wind_up = maxf(1.0, spd / BOOM_SPEED)
+			spd *= BOOM_POUR_K if line.pumping else 1.0
+			_boom_hold_t = 0.0
+		else:
+			# Held hard over for a while, it winds up: faster and faster, until
+			# the hose starts to whip
+			_boom_hold_t = _boom_hold_t + delta if mag > 0.85 and not (p.bot or p.covering) else 0.0
+			wind_up = 1.0 + (BOOM_RUSH_K - 1.0) * clampf((_boom_hold_t - BOOM_RUSH_AFTER) / BOOM_RUSH_T, 0.0, 1.0)
+			spd = BOOM_SPEED * mag * mag * (BOOM_POUR_K if line.pumping else 1.0) * wind_up
 		tip_target += dir * spd * delta * p.pace
 		var lead := tip_target - tip_pos
 		lead.y = 0.0
@@ -5009,6 +5128,7 @@ const BOOM_LEAD := 1.15     # m the aim can run ahead of the hose (it follows at
 const BOOM_RUSH_AFTER := 1.0  # s of full stick before the boom starts to wind up
 const BOOM_RUSH_T := 1.5      # s more to reach full rush
 const BOOM_RUSH_K := 2.0      # full rush: twice the speed
+const BOOM_CREEP := 0.03      # a phone's stick with no SPEED bar: a creep (fraction of top speed)
 const WHIP_FROM := 5.2        # m/s of the boom tip where the hose starts to whip
 const WHIP_FULL := 3.0        # m/s more to a full whip
 var _boom_hold_t := 0.0
@@ -5563,8 +5683,15 @@ func _update_boom() -> void:
 	var jit := 0.0
 	if line and line.fail_i >= 0 and line.pumping:
 		jit = 0.015 * line.wear * line.wear
-	arm1.rotation.z = phi + a + sin(phase_t * 11.0) * jit * 0.15
-	arm2.rotation.z = -(PI - b) + sin(phase_t * 12.7 + 1.0) * jit * 0.3
+	# (a boom's never still: each pump stroke lifts it a hair and lets it
+	# drop, and the wind leans on it)
+	var breathe := 0.0
+	if line != null and line.pumping:
+		breathe = 0.0035 * absf(sin(line._knock_phase * PI / 0.8))
+	var gust: float = climb.wind_gust if climb != null else 20.0
+	breathe += 0.0011 * (1.0 + gust / 40.0) * sin(phase_t * 0.9) + 0.0005 * sin(phase_t * 2.3 + 0.7)
+	arm1.rotation.z = phi + a + sin(phase_t * 11.0) * jit * 0.15 + breathe
+	arm2.rotation.z = -(PI - b) + sin(phase_t * 12.7 + 1.0) * jit * 0.3 - breathe * 0.6
 	# Packed away for a climb day: swung round off the crane's path and folded
 	# up tight and steep, as a parked boom stands on a real job. (Eased, so it
 	# moves there and back rather than jumping.)
