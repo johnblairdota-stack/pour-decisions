@@ -158,6 +158,18 @@ body.boomsp #B{left:22%;top:12%}
 #thead .sw svg{width:3.8vmin;height:3.8vmin}
 #thead:active{filter:brightness(1.1)}
 #goal{padding:1.6vmin 2.8vmin;font-size:3.3vmin;border-bottom:1px dashed #c9c4b5}
+#docket{display:none;margin:1.4vmin 2.4vmin 0;padding:1.6vmin 2.2vmin;border-radius:2.6vmin;background:#fff;border:2px solid #1b1a17;font-size:3.6vmin;line-height:1.2}
+#docket.on{display:block}
+#docket .dh{display:flex;justify-content:space-between;align-items:baseline;font-size:3vmin;letter-spacing:.08em;color:#5f5a4c}
+#docket table{width:100%;border-collapse:collapse;margin-top:.8vmin}
+#docket td{padding:.5vmin .8vmin;font-weight:700;font-size:3.8vmin}
+#docket td.l{font-family:"Barlow Condensed",sans-serif;font-size:3.2vmin;color:#5f5a4c;font-weight:800;width:1%;white-space:nowrap}
+#docket td.bad{background:#ffd9d6;color:#a10d0d}
+#docket .age{font-family:"Barlow Condensed",sans-serif;font-weight:800;font-size:5.4vmin}
+#docket .age.warn{color:#b17a00}
+#docket .age.old{color:#c41d12}
+#docket .sl{margin-top:.8vmin;font-size:3.4vmin}
+#docket .sl b{font-size:4.6vmin}
 #steps{padding:1.6vmin 2.4vmin;display:flex;flex-direction:column;gap:1.3vmin;flex-grow:1;overflow:hidden}
 .st{display:flex;gap:1.8vmin;align-items:flex-start;font-size:3.3vmin;line-height:1.25;padding:.6vmin;border-radius:2.6vmin;border:2px solid transparent}
 .st .k{min-width:5.6vmin;height:5.6vmin;padding:0 1vmin;border-radius:99px;display:flex;align-items:center;justify-content:center;font-family:"Barlow Condensed",sans-serif;font-weight:800;font-size:3.4vmin;flex-shrink:0}
@@ -283,6 +295,10 @@ body.boomsp #B{left:22%;top:12%}
 #ljobs .job.taken{opacity:.45}
 .charpick{display:flex;align-items:center;gap:1.4vmin;font-size:4.2vmin}
 .charpick button{width:9vmin;height:9vmin;border-radius:2.4vmin;background:#1a1c23;border:1px solid #2c2f39;font-size:4vmin}
+.newbie{border-radius:2.4vmin;background:#1a1c23;border:1px solid #2c2f39;color:#b9b6ad;font-size:3.2vmin;padding:1.4vmin 2.4vmin;text-align:left;line-height:1.15}
+.newbie b{display:block;font-size:3.8vmin;color:#fff}
+.newbie.on{background:#f5b700;border-color:#f5b700;color:#3a2a00}
+.newbie.on b{color:#1a1300}
 #locked{padding:5vmin 6vmin;gap:6vmin;align-items:center;background:radial-gradient(100% 120% at 25% 55%,color-mix(in srgb,var(--job) 25%,#0d0f14) 0%,#0d0f14 65%)}
 #locked .left{display:flex;flex-direction:column;align-items:center;gap:2vmin;width:56vmin;flex-shrink:0}
 #lhat{width:40vmin;height:33vmin;color:var(--job);animation:drop .7s cubic-bezier(.3,1.4,.5,1) both}
@@ -419,6 +435,7 @@ body.boomsp #B{left:22%;top:12%}
     <div id="goal"></div>
     <div id="smoko"><div class="h"></div><div class="row"></div></div>
     <div id="gauge"><svg viewBox="0 0 100 56"><path d="M8 50 A42 42 0 0 1 92 50" fill="none" stroke="#1a1d24" stroke-width="9"/><path id="g1" fill="none" stroke-width="9"/><path id="g2" fill="none" stroke-width="9"/><path id="g3" fill="none" stroke-width="9"/><line id="needle" x1="50" y1="50" x2="50" y2="12" stroke="#1b1a17" stroke-width="3.4" stroke-linecap="round"/><circle cx="50" cy="50" r="5" fill="#1b1a17"/></svg><div class="read hd" id="gread">STEADY</div></div>
+    <div id="docket"></div>
     <div id="steps"></div>
     <div id="tfoot"></div>
   </div>
@@ -441,6 +458,7 @@ body.boomsp #B{left:22%;top:12%}
   <div id="ljobs"></div>
   <div class="row">
     <div class="charpick"><button id="cprev" aria-label="Previous character" class="hd">&lt;</button><span class="hd" id="cname">…</span><button id="cnext" aria-label="Next character" class="hd">&gt;</button></div>
+    <button class="newbie" id="newbie">First time on the tools?<b>FULL HELP: OFF</b></button>
     <div class="sub" style="flex-grow:1">Tap a job, then hold LOCK IN. Greyed jobs belong to another player.</div>
     <button class="holdbtn" id="lockgo"><div class="fill"></div><span>HOLD TO LOCK IN</span></button>
   </div>
@@ -452,6 +470,7 @@ body.boomsp #B{left:22%;top:12%}
     <div class="k hd" id="lk">P? · LOCKED IN</div>
     <div class="n hd" id="ln">…</div>
     <button class="holdbtn" id="unlock" style="min-width:0;font-size:3.6vmin;padding:1.6vmin 4vmin;background:#1a1c23"><span>Change job</span></button>
+    <div class="sub" id="lnew" style="font-size:3.2vmin;color:#f5b700;display:none">Full help on: the game shows you each step</div>
   </div>
   <div class="right">
     <div class="hd" style="font-size:5vmin;color:#b9b6ad">Today's crew</div>
@@ -520,6 +539,7 @@ const P_COL = ['3d8bff', 'ff4f6d', 'ff8a3d', '7cd992', 'c49bff', '2fd3e8'];
 let token = null;
 try { token = localStorage.getItem('pd_token'); } catch (e) {}
 if (!token) { token = Math.random().toString(36).slice(2, 10); try { localStorage.setItem('pd_token', token); } catch (e) {} }
+let learner = false;
 let ws = null, ready = false, me = {p: 0, pc: '3d8bff'}, screen = '', roster = [], card = null, now = {i: -1}, picked = '', locked = false, nudge = 0;
 const status = $('status');
 function esc(t) { return String(t).replace(/[&<>]/g, (ch) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;'})[ch]); }
@@ -563,11 +583,13 @@ function onJson(j) {
     if (j.s !== screen) { screen = j.s; showScreen(); }
     $('cname').textContent = j.name || '';
     if (j.s === 'sign') { $('sgleft').textContent = j.done ? 'Pressed in. Nice.' : (j.left + ' s left'); signDone = !!j.done; $('slab').classList.toggle('done', signDone); $('sgok').disabled = signDone; $('sgclr').disabled = signDone; }
+    if (j.s === 'lobby') { learner = !!j.new; $('newbie').classList.toggle('on', learner); $('newbie').querySelector('b').textContent = learner ? 'FULL HELP: ON' : 'FULL HELP: OFF'; $('lnew').style.display = learner ? 'block' : 'none'; }
     if (j.s === 'lobby') { if (!!j.locked !== locked) { locked = !!j.locked; showScreen(); if (locked) buzz(BUZZ.done); } setCount(j.count, !!j.first); }
   } else if (j.t === 'roster') { roster = j.r; drawLobby(); drawSwap(); }
   else if (j.t === 'card') { card = j; drawTicket(); drawLobby(); }
   else if (j.t === 'now') { now = j; document.body.classList.toggle('boomsp', !!j.boom); drawSteps(); }
   else if (j.t === 'gauge') drawGauge(j);
+  else if (j.t === 'docket') drawDocket(j);
   else if (j.t === 'nudge') { setNudge(j.lvl); setSpray(j); }
   else if (j.t === 'toast') toast(j.msg);
   else if (j.t === 'dog') drawDog(j);
@@ -706,6 +728,20 @@ function drawSteps() {
   $('g2').setAttribute('d', arc(f(120), f(180))); $('g2').setAttribute('stroke', '#f2b51f');
   $('g3').setAttribute('d', arc(f(180), f(250))); $('g3').setAttribute('stroke', '#ff3b2f');
 })();
+// The truck hand's docket: the order against what came on the truck, the
+// load's age, the water held back and, once tested, the slump against spec
+function drawDocket(d) {
+  const el = $('docket');
+  el.classList.toggle('on', !!d.on);
+  if (!d.on) { el.innerHTML = ''; return; }
+  const row = (i) => '<tr><td class="l">' + ['STRENGTH', 'STONE', 'SITE'][i] + '</td><td>' + esc(d.order[i]) + '</td><td' + (d.bad[i] ? ' class="bad"' : '') + '>' + esc(d.docket[i]) + '</td></tr>';
+  const ac = d.old ? 'old' : (d.age > d.max - 12 ? 'warn' : '');
+  let h = '<div class="dh hd"><span>DOCKET</span><span class="age ' + ac + '">' + d.age + ' MIN</span></div>';
+  h += '<table><tr><td class="l"></td><td class="l">ORDERED</td><td class="l">ON THE TRUCK</td></tr>' + row(0) + row(1) + row(2) + '</table>';
+  h += '<div class="sl">' + (d.slump >= 0 ? 'Slump <b>' + d.slump + ' mm</b> · spec ' + d.spec[0] + '-' + d.spec[1] : 'Slump: test it · spec ' + d.spec[0] + '-' + d.spec[1] + ' mm') + '</div>';
+  h += '<div class="sl">' + (d.watered ? 'Water held back: all in' : 'Water held back: ' + d.water + ' L/m³') + ' · max ' + d.max + ' min</div>';
+  el.innerHTML = h;
+}
 let wasSpike = false;
 function drawGauge(g) {
   const v = Math.max(0, Math.min(1, g.bar / 250));
@@ -1061,6 +1097,7 @@ $('ljobs').addEventListener('pointerdown', (e) => {
   send('pick ' + b.dataset.id); buzz(BUZZ.press);
 });
 holdButton($('lockgo'), 800, () => send('lock'));
+$('newbie').addEventListener('pointerdown', (e) => { e.preventDefault(); send('new ' + (learner ? '0' : '1')); buzz(BUZZ.press); });
 $('unlock').addEventListener('pointerdown', (e) => { e.preventDefault(); send('unlock'); buzz(BUZZ.press); });
 $('cprev').addEventListener('pointerdown', (e) => { e.preventDefault(); send('char -1'); buzz(BUZZ.press); });
 $('cnext').addEventListener('pointerdown', (e) => { e.preventDefault(); send('char 1'); buzz(BUZZ.press); });

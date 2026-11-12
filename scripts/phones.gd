@@ -257,7 +257,7 @@ func _on_message(c: Dictionary, msg: String) -> void:
 			p.ai = true
 			p.remote_id = 1
 			(c["ws"] as WebSocketPeer).send_text("p %d %s" % [p.index, p.tag_color.to_html(false)])
-		"pick", "lock", "unlock", "char", "swap", "start":
+		"pick", "lock", "unlock", "char", "swap", "start", "new":
 			_on_pick(c, parts)
 			return
 		"buy":
@@ -481,6 +481,7 @@ func _send_state(c: Dictionary) -> void:
 		st["locked"] = bool(sel._ready_p.get(p.index, false))
 		st["count"] = int(ceil(sel._count_t)) if sel._count_t > 0.0 else -1
 		st["first"] = bool(sel.is_starter(p.index))
+		st["new"] = game.learners.has(p.index)
 	if scr == "sign":
 		st["left"] = int(ceil(game.ink_left()))
 		st["done"] = bool(game._ink_done.get(p, false))
@@ -499,6 +500,16 @@ func _send_state(c: Dictionary) -> void:
 		if not climb_day:
 			now["i"] = UI.step_for(p.role, cu[0], str(cu[1]))
 	_json(c, "now", now)
+	# The truck hand's docket: the paper in their hand, big, whenever a
+	# truck's at the bay (line.phone_docket)
+	var dk := {"t": "docket", "on": false}
+	if p.role == "line" and game.line != null and scr == "play" and not (game.climb != null and game.climb.active):
+		var d: Dictionary = game.line.phone_docket(p)
+		if not d.is_empty():
+			dk = d
+			dk["t"] = "docket"
+			dk["on"] = true
+	_json(c, "docket", dk)
 	if p.role == "pump" and game.line != null and scr == "play":
 		var ln = game.line
 		_json(c, "gauge", {"t": "gauge", "bar": int(ln.pressure / 5.0) * 5, "spike": bool(ln.spike_on), "warn": bool(ln.spike_warn), "tripped": bool(ln.tripped)})
@@ -614,6 +625,12 @@ func _on_pick(c: Dictionary, parts: PackedStringArray) -> void:
 		"start":
 			if sel != null and screen() == "lobby":
 				sel.phone_start(p.index)
+		"new":
+			# "First time on the tools tonight?": full help, learnt fresh this
+			# session whoever's hat it is (main.learners)
+			if screen() == "lobby":
+				game.set_learner(p.index, role == "1")
+				game.sfx.hit("ding" if role == "1" else "tink")
 		"char":
 			if sel != null and screen() == "lobby" and not bool(sel._ready_p.get(p.index, false)):
 				crew.cycle_char(p.index, 1 if role != "-1" else -1)

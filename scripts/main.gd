@@ -2628,13 +2628,72 @@ func gold_level(p) -> float:
 		return 0.0
 	if mode == 1 or tutorial or p.bot:
 		return 1.0
-	return clampf(1.0 - Wallet.skill(p.char_id, p.role) * 1.15, 0.0, 1.0)
+	return clampf(1.0 - skill_of(p) * 1.15, 0.0, 1.0)
 
-## A person pressed while their button was gold: a step toward their ticket.
+## Help follows the person, not the hat. Someone who says "first time on the
+## tools tonight" (Y on the hat rack, or the toggle on their phone) learns
+## from scratch for this session: their own skill per job, kept by their
+## P number (it survives a job swap and a phone dropping out), and the crew
+## character's saved skill is left alone. Everyone else uses the character's.
+var learners := {}   # P number -> {role: 0..1}
+
+func is_learner(p) -> bool:
+	return p != null and not p.bot and learners.has(p.index)
+
+func set_learner(index: int, on: bool) -> void:
+	if on and not learners.has(index):
+		learners[index] = {}
+	elif not on:
+		learners.erase(index)
+
+func skill_of(p) -> float:
+	if is_learner(p):
+		return float((learners[p.index] as Dictionary).get(p.role, 0.0))
+	return Wallet.skill(p.char_id, p.role)
+
+func _add_skill(p, d: float) -> void:
+	if is_learner(p):
+		var s: Dictionary = learners[p.index]
+		s[p.role] = clampf(float(s.get(p.role, 0.0)) + d, 0.0, 1.0)
+	else:
+		Wallet.add_skill(p.char_id, p.role, d)
+
+## A person pressed while their button was gold. Following the glow through a
+## routine step (rodding, lifting, spotting) is worth very little towards
+## their ticket at a job that has real calls in it; the calls themselves
+## (learned() below) are what fade the help.
 func gold_hit(p) -> void:
 	if not p.bot:
-		Wallet.add_skill(p.char_id, p.role, GOLD_STEP)
+		_add_skill(p, GOLD_STEP_ROUTINE if CALL_JOBS.has(p.role) else GOLD_STEP)
 		_gold_fx(p)
+
+## A person made a real call (a slump call, a docket, a poker lift on the
+## bubbles). Right is a big step towards their ticket (a poker lift, which
+## comes every few seconds, a smaller one) and builds the streak that takes
+## the slump reading's verdict away; wrong ends the streak.
+const CALL_JOBS := ["line", "poker"]
+const CALL_STEP := 0.05
+const GOLD_STEP_ROUTINE := 0.003
+var right_streak := {}   # "P number:job" -> right calls in a row (this session)
+
+func learned(p, right: bool, step := CALL_STEP) -> void:
+	if p == null or p.bot or p.get("covering"):
+		return
+	if right:
+		_add_skill(p, step)
+		right_streak[_streak_key(p)] = calls_in_a_row(p) + 1
+	else:
+		right_streak[_streak_key(p)] = 0
+		# (a wrong call that costs points has already slipped them, in
+		# score.award: this is for the ones that only show up later)
+		slipped(p, 0.03)
+
+## Three right calls in a row: they read the tape themselves now.
+func calls_in_a_row(p) -> int:
+	return int(right_streak.get(_streak_key(p), 0)) if p != null else 0
+
+func _streak_key(p) -> String:
+	return "%d:%s" % [p.index, p.role]
 
 ## The press landed on gold: the game holds its breath for a few frames and
 ## a gold ring runs out across the deck from their feet. (F2, the screen
@@ -2675,7 +2734,7 @@ func _gold_fx(p) -> void:
 ## them): the gold comes back up a bit.
 func slipped(p, amount: float) -> void:
 	if p != null and not p.bot:
-		Wallet.add_skill(p.char_id, p.role, -amount)
+		_add_skill(p, -amount)
 
 const GOLD_STEP := 0.01   # about a hundred right presses to lose the gold
 
@@ -2968,6 +3027,7 @@ func _start_inspect() -> void:
 	_set_phase("inspect")
 
 var _incidents: Array = []   # [{at: fill fraction, kind: "clamp"/"block"}]
+var _fault_slack := 0.0       # medal slack for this pour's planned faults (score.fault_slack)
 var _brief_ok := true        # someone's held A on the toolbox talk (or it ran out)
 
 ## How far through the hold to start the toolbox talk is (0..1), or -1 when
@@ -3051,6 +3111,8 @@ func _start_pour() -> void:
 	score.start_level()
 	clamp_trigger = randf_range(0.2, 0.55)
 	_incidents = _plan_incidents()
+	# (the medal times get slack for the trouble planned on this floor)
+	_fault_slack = score.fault_slack(_incidents) if kit != "truck" else 0.0
 	# (and the trucks come closer together and carry more, so the pump
 	# isn't kept waiting on changeovers)
 	line.load_m3 = line.TRUCK_LOAD * minf(BIG_SLAB_LOAD, sqrt(pour.vol_k))
@@ -3204,8 +3266,8 @@ func _grade() -> void:
 	var verdict := "Engineer's happy." if quality >= 85.0 else ("Passable." if quality >= 60.0 else "The builder's not impressed.")
 	var was_tier: int = score.bot_tier
 	var kit_key := "tutorial" if tutorial else ("truck" if kit == "truck" else "tower")
-	var medal: int = score.finish_slab(kit_key, k, crew.humans().size(), quality, pour_clock)
-	var tg: Vector2 = score.targets(kit_key, k, crew.humans().size())
+	var medal: int = score.finish_slab(kit_key, k, crew.humans().size(), quality, pour_clock, _fault_slack)
+	var tg: Vector2 = score.targets(kit_key, k, crew.humans().size(), _fault_slack)
 	var note := "poured in %s  ·  silver: %d%% in %s  ·  gold: %d%% in %s" % [_mmss(pour_clock), int(score.SILVER_Q), _mmss(tg.x), int(score.GOLD_Q), _mmss(tg.y)]
 	if score.bot_tier != was_tier:
 		note += "\nThe bots are working at %s pace now" % score.MEDALS[score.bot_tier].to_lower()
@@ -3216,7 +3278,7 @@ func _grade() -> void:
 	_save_medal(medal)
 	Wallet.save()
 	if autotest:
-			print("[autotest]   level %d: +%d pts (total %d, %s), quality %.0f, medal %s in %.1fs (bots %s) | %s | %s" % [k + 1, score.level, score.total, score.rank_name(), quality, score.MEDALS[medal], pour_clock, score.MEDALS[was_tier], " | ".join(score.report_rows()), " | ".join(rows)])
+			print("[autotest]   level %d: +%d pts (total %d, %s), quality %.0f, medal %s in %.1fs (silver %.0f, gold %.0f, fault slack %.0f) (bots %s) | %s | %s" % [k + 1, score.level, score.total, score.rank_name(), quality, score.MEDALS[medal], pour_clock, tg.x, tg.y, _fault_slack, score.MEDALS[was_tier], " | ".join(score.report_rows()), " | ".join(rows)])
 
 ## The slab report's contents: the medal, each hard hat's points and what
 ## earned them most, the crew star (the person with the most), and what's next.
@@ -5806,6 +5868,9 @@ func _update_hud_shown() -> void:
 
 func _update_hud() -> void:
 	_update_hud_shown()
+	# (the top-out, the fly-past and the handover are the building's and
+	# the crew's: the kit steps aside. Signing keeps it, its title says how.)
+	hud.kit_hidden = phase == "topout"
 	hud.set_tickets(_tickets(), phase_t)
 	# (no docket card: the slump test and its reading are in the close-up)
 	hud.show_docket({})

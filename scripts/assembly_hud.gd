@@ -54,7 +54,7 @@ var st := {
 	"pump": false, "bar": 0.0, "spike": false, "tripped": false, "hopper": 0.0, "band": Vector2(0.4, 0.85), "startup": false,
 	"trucks": [], "hats": [],
 }
-var lift := 0.0           # px the bottom's lifted, clear of the street band
+var lift := 0.0           # the street band's height (px); while it's open the drawn trucks stand down
 var fault_rect := Rect2()  # where the fault's call-out is on the screen (px), for the close-ups to keep off
 
 var _t := 0.0
@@ -143,7 +143,7 @@ func _frame_work(delta: float) -> void:
 			_truck_x.erase(id)
 	_tick += 1
 	var skey := "%s|%d" % [str(size), int(st["sections"])]
-	var tkey := skey
+	var tkey := skey + "|%d" % int(lift)
 	for tr in st["trucks"]:
 		tkey += "|%d:%d:%d" % [int(_truck_x.get(tr["id"], 0.0)), int(tr["age"]), int(tr["slot"])]
 	var moved := skey != _static_key
@@ -183,7 +183,11 @@ func _paint(c: CanvasItem, which: int) -> void:
 	_c.draw_set_transform(pivot * (1.0 - _gs) * k, 0.0, Vector2(k, k) * _gs)
 	match which:
 		0:
-			_draw_trucks()
+			# (with the street band open the real trucks are right there in
+			# it, each with its load's age over the drum: the drawn row would
+			# only sit on top of them)
+			if lift <= 0.0:
+				_draw_trucks()
 		1:
 			_draw_pump_static()
 			_c.draw_set_transform(Vector2.ZERO, 0.0, Vector2(k, k))

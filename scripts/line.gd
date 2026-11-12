@@ -1614,6 +1614,34 @@ func _order_lines(t: Dictionary) -> String:
 		"site": load["site"] = "Harbour St"
 	return "ORDER   %d MPa · %d mm stone · %s\nDOCKET %d MPa · %d mm stone · %s · %d min" % [ORDER["mpa"], ORDER["stone"], ORDER["site"], load["mpa"], load["stone"], load["site"], int(t["age"])]
 
+## The docket for the truck hand's phone: the order against what came on
+## the truck at the bay (or the one they're testing), its age, the water held
+## back and the slump once it's measured. Just the paper: whether it's right
+## is theirs to read (with docket help on, a wrong line is marked, as on the
+## TV). {} when no truck's at the bay.
+func phone_docket(p) -> Dictionary:
+	var t = null
+	for tr in trucks:
+		if tr.get("tester") == p and tr["state"] in ["bay", "check", "water", "ready", "docket"]:
+			t = tr
+	if t == null and bay_truck != null and bay_truck["state"] in ["bay", "check", "water", "ready", "docket"]:
+		t = bay_truck
+	if t == null:
+		return {}
+	var load := ORDER.duplicate()
+	match t.get("mix_wrong", ""):
+		"mpa": load["mpa"] = 32
+		"stone": load["stone"] = 10
+		"site": load["site"] = "Harbour St"
+	var help := assist()
+	return {"order": ["%d MPa" % ORDER["mpa"], "%d mm stone" % ORDER["stone"], String(ORDER["site"])],
+		"docket": ["%d MPa" % load["mpa"], "%d mm stone" % load["stone"], String(load["site"])],
+		"bad": [help and load["mpa"] != ORDER["mpa"], help and load["stone"] != ORDER["stone"], help and load["site"] != ORDER["site"]],
+		"age": int(t["age"]), "old": float(t["age"]) > MAX_AGE, "max": int(MAX_AGE),
+		"water": int(WATER_HELD), "watered": bool(t.get("watered", false)),
+		"slump": int(t["measured"]) if t["checked"] and t.has("measured") else -1,
+		"spec": [int(SPEC_SLUMP - SLUMP_TOL), int(SPEC_SLUMP + SLUMP_TOL)]}
+
 func docket_text(t: Dictionary) -> String:
 	if t.get("eyeballed", false):
 		var s0 := _order_lines(t)
@@ -1756,6 +1784,11 @@ func _update_trucks(delta: float) -> void:
 		drum.rotate_object_local(Vector3.RIGHT, delta * spin)
 		var lab: Label3D = node.get_node("Docket")
 		lab.text = ""
+		# (the truck at the bay carries the call: its docket reads from the
+		# couch; the queue's stay small)
+		var dfs := 52 if st in ["bay", "check", "water", "ready", "docket"] else 34
+		if lab.font_size != dfs:
+			lab.font_size = dfs
 		var ext: Node3D = node.get_node("ChuteExt")
 		var cside := _chute_side(t)
 		ext.visible = cside != 0.0 and st in ["bay", "check", "water", "ready", "pour", "docket"]
@@ -3640,6 +3673,10 @@ func right_call(t: Dictionary) -> String:
 ## plays out later: a weak patch in the slab, a blockage, or a short pour.
 func decide(p, t: Dictionary, call: String) -> void:
 	var v := _verdict(t)
+	# (a person's right call is what fades their help; a wrong one brings it
+	# back. Judged on what they measured, as the gold is.)
+	if game.has_method("learned") and not (call == "water" and t.get("watered", false)):
+		game.learned(p, call == right_call(t))
 	var at: Vector3 = (t["node"] as Node3D).position + Vector3(0, 3.5, 0)
 	p.bounce()
 	match call:

@@ -33,6 +33,9 @@ var _root: Control
 ## `--classichud` look) but kept hidden.
 var assembly: Assembly
 var assembly_on := true
+## The kit steps aside for the moments that belong to the building and the
+## crew (the top-out, the fly-past and the handover): main.gd sets it.
+var kit_hidden := false
 var _right: VBoxContainer
 var _sub := ""
 var _next := ""
@@ -389,7 +392,7 @@ func _process(delta: float) -> void:
 	PerfClock.took("hud", _t0)
 
 func _frame_work(delta: float) -> void:
-	_kit_layer.visible = visible and assembly_on
+	_kit_layer.visible = visible and assembly_on and not kit_hidden
 	_frames_up += 1
 	_place_tickets()
 	if assembly_on:

@@ -91,13 +91,33 @@ func start_level() -> void:
 	log_rows = {}
 	role_rows = {}
 
+## Seconds of slack for each line fault the day had planned beyond the one
+## the times above were tuned with (one clamp a pour). Trouble ramps up the
+## tower (main._trouble_n: 1, 2, 3 then 4 faults a pour, some of them
+## blockages), and each one stops the pump while someone climbs the riser:
+## the crew shouldn't lose a medal to the floor they're on.
+const FAULT_T := {"clamp": 14.0, "block": 24.0}
+const FAULTS_TUNED := 1
+
+## The slack for a day's planned faults ([{kind}] from main._plan_incidents).
+static func fault_slack(plan: Array) -> float:
+	var ts: Array = []
+	for inc in plan:
+		ts.append(float(FAULT_T.get(String(inc.get("kind", "clamp")), FAULT_T["clamp"])))
+	# (the cheapest ones are the ones already allowed for)
+	ts.sort()
+	var out := 0.0
+	for i in range(FAULTS_TUNED, ts.size()):
+		out += ts[i]
+	return out
+
 ## [silver time, gold time] for this slab.
-func targets(kit: String, k: int, people := 0) -> Vector2:
-	return Vector2(float(SILVER_T.get(kit, 80.0)), float(GOLD_T.get(kit, 70.0))) + Vector2.ONE * (T_PER_LEVEL * k + T_PER_PERSON * people)
+func targets(kit: String, k: int, people := 0, slack := 0.0) -> Vector2:
+	return Vector2(float(SILVER_T.get(kit, 80.0)), float(GOLD_T.get(kit, 70.0))) + Vector2.ONE * (T_PER_LEVEL * k + T_PER_PERSON * people + slack)
 
 ## This slab's medal; moves the bots a step toward it when people are playing.
-func finish_slab(kit: String, k: int, people: int, quality: float, pour_t: float) -> int:
-	var t := targets(kit, k, people)
+func finish_slab(kit: String, k: int, people: int, quality: float, pour_t: float, slack := 0.0) -> int:
+	var t := targets(kit, k, people, slack)
 	var m := 0
 	if quality >= GOLD_Q and pour_t <= t.y:
 		m = 2
