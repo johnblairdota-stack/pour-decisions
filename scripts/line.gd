@@ -34,20 +34,35 @@ const Settings := preload("res://scripts/settings.gd")
 const PIPE := 3.0                        # standard 3 m pipe lengths: a clamp at every joint
 const RISER := Vector3(12.0, 0, 1.45)
 const LADDER := Vector3(13.35, 0, 0.7)   # where a climber hangs on the tower ladder
-const PUMP_POS := Vector3(19.0, 0, 6.0)
-const HOPPER := Vector3(22.3, 0, 6.0)
-const BAY := Vector3(26.9, 0, 6.0)      # the truck pump's single truck
-# Twin feed (tower kit): both trucks back in from the east side by side, rears
-# just short of the hopper, each with a chute extension angled into it. That
-# leaves the south side of the pump clear: truck bay, pump panel and the parts
-# store at the tower's foot are all on one lane.
-const BAY_A2 := Vector3(27.6, 0, 4.4)
-const BAY_B := Vector3(27.6, 0, 7.6)
+const LADDER_FOOT := Vector3(13.9, 0, 1.5)   # where they step off it, just over the pipe step-over
+# The pump, its hopper and both trucks stand on one line at 45 degrees to the
+# street: the pump's nose to the tower, the hopper at its street end and the
+# trucks backed in behind it. DIR is that line (pump to trucks) and SIDE is
+# across it, towards the street (the pump panel's side).
+const PUMP_YAW := -PI * 0.25
+const DIR := Vector3(0.70710678, 0, 0.70710678)
+const SIDE := Vector3(-0.70710678, 0, 0.70710678)
+const PUMP_POS := Vector3(17.667, 0, 4.067)
+const HOPPER := Vector3(20.0, 0, 6.4)      # PUMP_POS + DIR * 3.3
+const BAY := Vector3(23.253, 0, 9.653)     # the truck pump's single truck (HOPPER + DIR * 4.6)
+# Twin feed (tower kit): both trucks back in side by side behind the hopper,
+# rears just short of it, each with a chute extension angled into it.
+const BAY_A2 := Vector3(24.879, 0, 9.016)  # HOPPER + DIR * 5.3 - SIDE * 1.6
+const BAY_B := Vector3(22.616, 0, 11.279)  # HOPPER + DIR * 5.3 + SIDE * 1.6
 const EXIT_Z := 19.4                      # the far lane, for trucks heading back to the plant
-const HAUL := Vector3(14.25, 0, 1.25)    # the haul rope hangs down beside the ladder
-const SPARES := Vector3(13.9, 0, 4.9)    # spares bin: clamp kits (clamp + gasket)
-const RACK := Vector3(10.4, 0, 5.4)      # pipe rack: spare 3 m sections
-const PIN_CRATE := Vector3(12.2, 0, 5.0) # bags of tower pins for climb days
+const HAUL := Vector3(10.7, 0, 1.3)      # the haul rope hangs down the far side of the riser from the ladder
+# The parts racking: pallet racking with a board down its middle, in line
+# with the tower and a touch to the right. The pump operator's side (pipes
+# and clamp kits) faces the pump; the winch side (pin bags, lifting gear)
+# faces the haul rope.
+const RACKING := Vector3(12.85, 0, 5.0)
+const RACK_LEN := 3.3
+# The pipe step-over: where the walkway crosses the ground line to the ladder
+# (the ground line runs out from the pump's nose clear of the west wing's
+# corner, so the step-over and the ladder's foot are in the open, then turns
+# in to the riser at PIPE_TURN)
+const PIPE_TURN := Vector3(12.4, 0, 2.95)
+const STEP_OVER := Vector3(13.85, 0, 2.53)
 const QUEUE_X := 10.0
 const ROAD_Z := 15.6
 # The site road runs across the lot north of Riverlight (vacant in 2017) from
@@ -245,6 +260,8 @@ var stats := {}
 
 # Visuals
 var ground_pipe: MeshInstance3D
+var ground_pipe2: MeshInstance3D   # ...its second leg, in to the riser
+var _pipe_bend: MeshInstance3D
 var brackets: Array[MeshInstance3D] = []
 var ladder_rails: Array[MeshInstance3D] = []
 var ladder_rungs: MultiMeshInstance3D
@@ -291,11 +308,35 @@ var _nagged := false
 
 # ------------------------------------------------------------------ build
 
+## A spot in the pump's own frame: `along` from the pump towards the trucks,
+## `across` towards the street.
+static func pf(along: float, across: float, up := 0.0) -> Vector3:
+	return PUMP_POS + DIR * along + SIDE * across + Vector3(0, up, 0)
+
+## An offset given in the pump's own frame (x along it to the trucks, z across
+## it to the panel side), turned into the world's.
+static func rot(v: Vector3) -> Vector3:
+	return DIR * v.x + SIDE * v.z + Vector3(0, v.y, 0)
+
+## A ground point in the pump's frame: (along, across).
+static func in_pf(p: Vector3) -> Vector2:
+	var d := p - PUMP_POS
+	return Vector2(d.x * DIR.x + d.z * DIR.z, d.x * SIDE.x + d.z * SIDE.z)
+
+var tap_marks := {}          # riser pipe -> {dull, node}: the chalk on each pipe knocked this blockage
+var tap_hint: Label3D        # "? knock" by the next pipe to try
+var racking: Node3D          # the parts racking
+var rack_gear: Node3D        # the chain sling on its hook (gone while it's out on a lift)
+
 func build(owner_game, which_kit: String) -> void:
 	game = owner_game
 	kit = which_kit
 	ground_pipe = MeshInstance3D.new()
 	add_child(ground_pipe)
+	ground_pipe2 = MeshInstance3D.new()
+	add_child(ground_pipe2)
+	_pipe_bend = F.sphere(0.2, F.mat("pipe"), PIPE_TURN + Vector3(0, 0.6, 0))
+	add_child(_pipe_bend)
 	for sx in [-0.28, 0.28]:
 		var rail := F.box(Vector3(0.06, 1.0, 0.06), F.mat("yellow_dark"))
 		add_child(rail)
@@ -331,6 +372,10 @@ func build(owner_game, which_kit: String) -> void:
 	tap_label = F.label3d("", 52, Color.WHITE)
 	tap_label.visible = false
 	add_child(tap_label)
+	tap_hint = F.label3d("? KNOCK", 40, Color("ffc72c"))
+	tap_hint.layers = 2
+	tap_hint.visible = false
+	add_child(tap_hint)
 
 	npc_op = F.chibi(Color("ff7a1a"), Color("f4f7fa"))
 	F.kit(npc_op, "pump")
@@ -451,80 +496,165 @@ func _set_open(c: Dictionary, u: float) -> void:
 	(c["ha"] as Node3D).rotation.y = -u * 1.35
 	(c["hb"] as Node3D).rotation.y = u * 1.35
 
-## The gear a concreting crew leaves by its stores: shovel and rake leant on
-## the spares bin, buckets, a barrow and the bull float by the pipe rack, and
-## (climb days) the chain sling and a coiled tag line by the pin crate. Just
-## to look at: nothing here is picked up.
-func _build_tool_corner(bin: Node3D, rack: Node3D) -> void:
-	var shovel := F.prop("Shovel")
-	shovel.position = Vector3(0.82, 0, 0.18)
-	shovel.rotation = Vector3(0, 0.3, 0.33)
-	bin.add_child(shovel)
-	var rake := F.prop("ConcreteRake")
-	rake.position = Vector3(0.85, 0, -0.2)
-	rake.rotation = Vector3(0, -0.2, 0.28)
-	bin.add_child(rake)
-	for i in 2:
-		var b := F.prop("Bucket")
-		b.position = Vector3(-0.9 - i * 0.4, 0, 0.15 - i * 0.12)
-		bin.add_child(b)
-	var mag := F.prop("MagFloat")
-	mag.position = Vector3(-0.9, 0.36, 0.15)
-	mag.rotation.y = 0.6
-	bin.add_child(mag)
-	var barrow := F.prop("Wheelbarrow")
-	barrow.position = Vector3(2.2, 0, 0.3)
-	barrow.rotation.y = 2.4
-	rack.add_child(barrow)
-	var bull := F.prop("BullFloat")
-	bull.position = Vector3(0.2, 0, 0.75)
-	bull.rotation.y = -1.45
-	rack.add_child(bull)
-	if kit == "tower":
-		var gear := Node3D.new()
-		gear.position = PIN_CRATE + Vector3(0.1, 0, 0.75)
-		add_child(gear)
-		gear.add_child(F.prop("ChainSling"))
-		var coil := F.prop("TagLineCoil")
-		coil.position = Vector3(0.75, 0, -0.1)
-		gear.add_child(coil)
-		var sh := F.prop("Shackle")
-		sh.position = Vector3(0.35, 0.012, 0.3)
-		sh.rotation = Vector3(PI * 0.5, 0.4, 0)
-		gear.add_child(sh)
+## A painted sign board on the racking's end, facing the camera (+z).
+func _rack_sign(parent: Node3D, text: String, at: Vector3) -> void:
+	var board := F.box(Vector3(1.0, 0.36, 0.04), F.color_mat(Color("f4f7fa"), true), at)
+	parent.add_child(board)
+	var l := Label3D.new()
+	l.text = text
+	l.font_size = 96
+	l.pixel_size = 0.00165 if text.length() > 8 else 0.0024
+	l.outline_size = 10
+	l.outline_modulate = Color("0f1b2d")
+	l.modulate = Color("0f1b2d")
+	l.position = at + Vector3(0, 0, 0.025)
+	l.add_to_group("rack_sign")
+	parent.add_child(l)
 
-## The spares bin (clamp kits) and the pipe rack (3 m sections), at ground level.
+## A lifting sling hung on a hook: a long loop of webbing.
+func _hung_sling(parent: Node3D, at: Vector3, drop: float, col: Color) -> void:
+	var m := MeshInstance3D.new()
+	var tm := TorusMesh.new()
+	tm.inner_radius = 0.085
+	tm.outer_radius = 0.125
+	tm.rings = 16
+	tm.ring_segments = 6
+	m.mesh = tm
+	m.material_override = F.color_mat(col, true)
+	# (the ring stood up on edge against the board, pulled long by its own weight)
+	m.rotation = Vector3(0, PI * 0.5, PI * 0.5)
+	m.scale = Vector3(drop / 0.25, 1, 1)
+	m.position = at + Vector3(0, -drop * 0.5, 0)
+	parent.add_child(m)
+
+## A chain sling hung on a hook: the master link, and its legs down to hooks.
+func _hung_chain(parent: Node3D, at: Vector3, legs: int) -> Node3D:
+	var n := Node3D.new()
+	n.position = at
+	parent.add_child(n)
+	var chain := F.color_mat(Color("3a3f48"), true)
+	n.add_child(F.box(Vector3(0.03, 0.16, 0.1), F.color_mat(Color("e0b400"), true), Vector3(0, -0.1, 0)))
+	n.add_child(F.beam(Vector3(0, -0.18, 0), Vector3(0, -0.5, 0), 0.035, chain))
+	for i in legs:
+		var z := (float(i) - (legs - 1) * 0.5) * 0.16
+		n.add_child(F.beam(Vector3(0, -0.5, 0), Vector3(0, -1.05, z), 0.035, chain))
+		n.add_child(F.box(Vector3(0.03, 0.12, 0.08), F.mat("red", true), Vector3(0, -1.11, z)))
+	return n
+
+## The parts racking: a bay of pallet racking with a board down its middle and
+## a corrugated iron canopy over it. The pump operator's side (east, facing
+## the pump) has 3 m pipes on the bottom rack and clamp kits on the top one;
+## the winch side (west, facing the haul rope) has the pin bags on the bottom
+## rack and, where a top rack would be, hooks hung with the lifting gear.
+## Signs on the end that faces the street say what lives where.
 func _build_stores() -> void:
-	var bin := Node3D.new()
-	bin.position = SPARES
-	add_child(bin)
-	bin.add_child(F.prop("SparesBin"))
-	for i in 3:
-		var c := _make_clamp(true)
-		c["node"].position = Vector3(-0.35 + i * 0.35, 0.65, 0)
-		c["node"].scale = Vector3.ONE * 0.7
-		bin.add_child(c["node"])
-	var rack := Node3D.new()
-	rack.position = RACK
-	add_child(rack)
-	rack.add_child(F.prop("PipeRack"))
-	for i in 3:
+	var rk := Node3D.new()
+	rk.position = RACKING
+	add_child(rk)
+	racking = rk
+	var blue := F.color_mat(Color("2f5fb3"), true)
+	var orange := F.color_mat(Color("f08a24"), true)
+	var half := RACK_LEN * 0.5
+	var d := 0.62           # each side's depth, out from the board
+	var lo := 0.42          # the bottom rack's beams
+	var hi := 1.42          # the top rack's (pump operator's side only)
+	# The two end frames: uprights, ties and a brace
+	for ez in [-half, half]:
+		for ex in [-d, d]:
+			rk.add_child(F.box(Vector3(0.09, 2.5, 0.09), blue, Vector3(ex, 1.25, ez)))
+		for y in [0.12, 2.42]:
+			rk.add_child(F.box(Vector3(d * 2.0, 0.05, 0.05), blue, Vector3(0, y, ez)))
+		if ez < 0.0:
+			rk.add_child(F.beam(Vector3(-d, 0.15, ez), Vector3(d, 1.25, ez), 0.04, blue))
+			rk.add_child(F.beam(Vector3(d, 1.25, ez), Vector3(-d, 2.38, ez), 0.04, blue))
+	# The board down the middle
+	rk.add_child(F.box(Vector3(0.05, 2.3, RACK_LEN - 0.12), F.mat("ply", true), Vector3(0, 1.27, 0)))
+	# Beams and slatted decks
+	for lvl in [[lo, 1.0], [hi, 1.0], [lo, -1.0]]:
+		var y: float = lvl[0]
+		var sx: float = lvl[1]
+		for x in [d, 0.07]:
+			rk.add_child(F.box(Vector3(0.06, 0.1, RACK_LEN), orange, Vector3(sx * x, y, 0)))
+		rk.add_child(F.box(Vector3(d - 0.06, 0.03, RACK_LEN - 0.14), F.color_mat(Color("b98a55")), Vector3(sx * (d + 0.07) * 0.5, y + 0.065, 0)))
+	# Pump operator's side, bottom rack: 3 m pipes, lying along it
+	for at in [Vector3(0.22, lo + 0.29, 0), Vector3(0.5, lo + 0.29, 0), Vector3(0.36, lo + 0.62, 0)]:
 		var pp := F.prop("Pipe3m")
-		pp.position = Vector3(0, 0.35 + i * 0.25, -0.2 + i * 0.2)
-		rack.add_child(pp)
-	_build_tool_corner(bin, rack)
-	# (named by its station label, not lettering of its own)
-	# The pin bags: a crate of sealed bags of four pins, for climb days
-	var crate := Node3D.new()
-	crate.position = PIN_CRATE
-	add_child(crate)
-	crate.add_child(F.box(Vector3(0.9, 0.5, 0.7), F.mat("orange", true), Vector3(0, 0.25, 0)))
+		pp.position = at
+		pp.rotation.y = PI * 0.5
+		pp.scale = Vector3(1.0, 0.85, 0.85)
+		rk.add_child(pp)
+	# ...top rack: clamp kits in a row
+	for i in 5:
+		var c := _make_clamp(true)
+		var cn: Node3D = c["node"]
+		cn.position = Vector3(0.36, hi + 0.2, -1.2 + i * 0.6)
+		cn.rotation = Vector3(PI * 0.5, 0.3, 0)
+		cn.scale = Vector3.ONE * 0.7
+		rk.add_child(cn)
+	# Winch side, bottom rack: sealed bags of tower pins
 	for i in 3:
 		var b := make_item("pins")
-		b.position = Vector3(-0.25 + i * 0.25, 0.62, 0)
-		b.rotation.z = 0.2 * (i - 1)
-		crate.add_child(b)
-	crate.visible = kit == "tower"
+		b.position = Vector3(-0.36, lo + 0.34, -0.95 + i * 0.95)
+		b.rotation = Vector3(0, PI * 0.5 + 0.15 * (i - 1), 0)
+		rk.add_child(b)
+	# ...and where a top rack would be, a rail of hooks with the lifting
+	# gear hung on it: chain slings, round slings and a string of shackles
+	var steel := F.color_mat(Color("56606e"), true)
+	var rail_y := 2.12
+	rk.add_child(F.box(Vector3(0.05, 0.06, RACK_LEN - 0.2), steel, Vector3(-0.16, rail_y, 0)))
+	for z in [-1.25, -0.75, -0.2, 0.25, 0.7, 1.15]:
+		rk.add_child(F.box(Vector3(0.16, 0.035, 0.035), steel, Vector3(-0.22, rail_y - 0.04, z)))
+	rack_gear = _hung_chain(rk, Vector3(-0.28, rail_y - 0.04, 1.15), 2)
+	_hung_chain(rk, Vector3(-0.28, rail_y - 0.04, 0.7), 4)
+	_hung_sling(rk, Vector3(-0.28, rail_y - 0.02, 0.25), 1.15, Color("e0b400"))
+	_hung_sling(rk, Vector3(-0.28, rail_y - 0.02, -0.2), 0.95, Color("7a3fb8"))
+	_hung_sling(rk, Vector3(-0.28, rail_y - 0.02, -0.75), 1.25, Color("2f9e55"))
+	for i in 3:
+		var sh := F.prop("Shackle")
+		sh.position = Vector3(-0.28, rail_y - 0.3 - i * 0.2, -1.25)
+		sh.rotation = Vector3(0, PI * 0.5, PI)
+		sh.scale = Vector3.ONE * 2.2
+		rk.add_child(sh)
+	# The canopy: a pitch of corrugated iron on four stubs, falling to the
+	# winch side, a little bigger than the racking all round
+	var iron := F.color_mat(Color("aeb7c2"), true)
+	var rib := F.color_mat(Color("8f99a6"))
+	var roof := Node3D.new()
+	roof.position = Vector3(0, 2.78, 0)
+	roof.rotation.z = 0.14
+	rk.add_child(roof)
+	roof.add_child(F.box(Vector3(d * 2.0 + 0.9, 0.04, RACK_LEN + 0.6), iron))
+	var nrib := int((RACK_LEN + 0.6) / 0.2)
+	for i in nrib:
+		roof.add_child(F.box(Vector3(d * 2.0 + 0.9, 0.035, 0.07), rib, Vector3(0, 0.03, -(RACK_LEN + 0.6) * 0.5 + 0.1 + i * 0.2), false))
+	for ez in [-half, half]:
+		for ex in [-d, d]:
+			rk.add_child(F.box(Vector3(0.06, 0.34, 0.06), blue, Vector3(ex, 2.62 + 0.14 * ex, ez)))
+	# The signs, on the end that faces the camera: each beside its own shelf
+	var sz := half + 0.09
+	_rack_sign(rk, "LIFTING GEAR", Vector3(-0.53, 1.62, sz))
+	_rack_sign(rk, "PIPE CLAMPS", Vector3(0.53, 1.62, sz))
+	_rack_sign(rk, "PIN BAG", Vector3(-0.53, 0.62, sz))
+	_rack_sign(rk, "PIPES", Vector3(0.53, 0.62, sz))
+	rk.visible = kit == "tower"
+	# The step-over: a yellow stile over the ground line, on the walkway from
+	# the racking to the ladder
+	var stile := Node3D.new()
+	stile.position = STEP_OVER
+	stile.rotation.y = 0.27   # (square to the pipe)
+	add_child(stile)
+	var ym := F.mat("yellow", true)
+	stile.add_child(F.box(Vector3(0.9, 0.05, 0.5), ym, Vector3(0, 0.84, 0)))
+	for sz2 in [-0.55, 0.55]:
+		stile.add_child(F.box(Vector3(0.9, 0.05, 0.32), ym, Vector3(0, 0.42, sz2)))
+		for sx2 in [-0.42, 0.42]:
+			stile.add_child(F.box(Vector3(0.05, 0.84, 0.05), ym, Vector3(sx2, 0.42, signf(sz2) * 0.25)))
+			stile.add_child(F.box(Vector3(0.05, 0.42, 0.05), ym, Vector3(sx2, 0.21, signf(sz2) * 0.69)))
+	# (a handrail on the side away from the camera's view of the ladder)
+	stile.add_child(F.box(Vector3(0.05, 0.9, 0.05), ym, Vector3(0.42, 1.3, -0.22)))
+	stile.add_child(F.box(Vector3(0.05, 0.9, 0.05), ym, Vector3(0.42, 1.3, 0.22)))
+	stile.add_child(F.box(Vector3(0.05, 0.05, 0.5), ym, Vector3(0.42, 1.75, 0)))
+	stile.visible = kit == "tower"
 
 ## A part to carry: a clamp kit (new clamp with its gasket) or a 3 m pipe.
 func make_item(kind: String) -> Node3D:
@@ -548,6 +678,15 @@ func make_item(kind: String) -> Node3D:
 		bmat.roughness = 0.1
 		bag.material_override = bmat
 		n.add_child(bag)
+	elif kind == "gear":
+		# The lifting gear off its hook: a chain sling's master link and legs,
+		# looped up in the hands
+		var chain := F.color_mat(Color("3a3f48"), true)
+		n.add_child(F.box(Vector3(0.1, 0.16, 0.03), F.color_mat(Color("e0b400"), true), Vector3(0, 0.12, 0)))
+		for sx in [-1.0, 1.0]:
+			n.add_child(F.beam(Vector3(0, 0.05, 0), Vector3(sx * 0.2, -0.3, 0), 0.04, chain))
+			n.add_child(F.beam(Vector3(sx * 0.2, -0.3, 0), Vector3(sx * 0.07, -0.55, 0.05), 0.04, chain))
+			n.add_child(F.box(Vector3(0.08, 0.12, 0.03), F.mat("red", true), Vector3(sx * 0.07, -0.6, 0.05)))
 	else:
 		var c := _make_clamp(true)
 		c["node"].scale = Vector3.ONE * 0.8
@@ -597,6 +736,7 @@ func _build_exhaust() -> void:
 func _build_pump() -> void:
 	pump_unit = Node3D.new()
 	pump_unit.position = PUMP_POS
+	pump_unit.rotation.y = PUMP_YAW
 	add_child(pump_unit)
 	# Stationary trailer pump, modelled (tools/blender/plant.py): drawbar and
 	# jack legs, engine canopy, delivery cylinders to the hopper end
@@ -640,11 +780,11 @@ func _build_pump() -> void:
 	(gauge_needle.get_child(1) as Node3D).rotation.x = PI * 0.5
 	gauge_label = F.label3d("0 bar", 64, Color.WHITE)
 	gauge_label.layers = 2   # (left out of the close-up cameras: the dial's right there)
-	gauge_label.position = PUMP_POS + Vector3(-1.0, 3.3, 1.0)
+	gauge_label.position = pf(-1.0, 1.0, 3.3)
 	add_child(gauge_label)
 	# Hopper: an open steel box at the rear with a grille
 	var hop := Node3D.new()
-	hop.position = HOPPER - PUMP_POS
+	hop.position = Vector3(3.3, 0, 0)
 	pump_unit.add_child(hop)
 	hop.add_child(F.prop("PumpHopper", {}, PLANT))
 	hopper_fill = F.box(Vector3(1.5, 0.05, 1.7), F.color_mat(Color("6c6f73")), Vector3(0, 0.95, 0))
@@ -697,7 +837,7 @@ func _build_pump() -> void:
 	# The slump test at the bay: cone, rod, tape, barrow (slump.gd)
 	slump = SlumpScript.new()
 	add_child(slump)
-	slump.setup(self, Vector3(25.7, 0, 10.7))
+	slump.setup(self, pf(6.7, 4.7))
 	slump_cone = slump.root
 
 ## (Re)builds the riser to the boom head: 3 m sections with a clamp at every
@@ -734,7 +874,11 @@ func rebuild_riser() -> void:
 		for i in n:
 			mm.set_instance_transform(i, Transform3D(Basis(), Vector3(LADDER.x + 0.15, 0.3 + i * 0.35, LADDER.z)))
 		ladder_rungs.multimesh = mm
-	_line(ground_pipe, Vector3(PUMP_POS.x - 2.4, 0.6, PUMP_POS.z), Vector3(RISER.x, 0.6, RISER.z) if kit == "tower" else Vector3(PUMP_POS.x - 2.4, 0.6, PUMP_POS.z - 0.01), 0.16)
+	var turn := PIPE_TURN + Vector3(0, 0.6, 0)
+	_line(ground_pipe, pf(-2.9, 0.0, 0.6), turn if kit == "tower" else pf(-2.91, 0.0, 0.6), 0.16)
+	_line(ground_pipe2, turn, Vector3(RISER.x, 0.6, RISER.z), 0.16)
+	ground_pipe2.visible = kit == "tower"
+	_pipe_bend.visible = kit == "tower"
 
 	# Joints: the bend at the base, then every 3 m up the riser. In the truck
 	# kit the joints are along the truck's own deck pipe, reachable from the ground.
@@ -1513,8 +1657,8 @@ static func _yaw_for(dir: Vector3) -> float:
 
 func _slot_pose(slot: String) -> Array:
 	if kit != "tower":
-		return [BAY, Vector3(1, 0, 0)]
-	return [BAY_A2, Vector3(1, 0, 0)] if slot == "A" else [BAY_B, Vector3(1, 0, 0)]
+		return [BAY, DIR]
+	return [BAY_A2, DIR] if slot == "A" else [BAY_B, DIR]
 
 ## Which way the chute extension angles to reach the hopper (local z).
 func _chute_side(t: Dictionary) -> float:
@@ -1522,15 +1666,27 @@ func _chute_side(t: Dictionary) -> float:
 		return 0.0
 	return 1.0 if t.get("slot", "A") == "A" else -1.0
 
+## The road's inbound lane swings out past the gate, clear of the cabs of the
+## trucks parked at 45 degrees in it.
+const LANE_OUT := 1.4
+static func _lane_z(x: float) -> float:
+	return ROAD_Z + LANE_OUT * smoothstep(15.0, 20.5, x)
+
+static func _lane_yaw(x: float) -> float:
+	return _yaw_for(Vector3(1.0, 0, (_lane_z(x + 0.5) - _lane_z(x - 0.5))))
+
 ## The reverse in: from the road (truck facing east) back onto the hopper.
 func _back_path(slot: String) -> Array:
+	# (along the lane past its own slot, then back on one 45 degree arc: `c`
+	# is where the slot's line meets the lane)
 	var to: Vector3 = _slot_pose(slot)[0]
-	return [Vector3(40.0, 0, ROAD_Z), Vector3(33.0, 0, ROAD_Z), Vector3(35.5, 0, to.z), to]
+	var c: Vector3 = to + DIR * ((ROAD_Z + LANE_OUT - to.z) / DIR.z)
+	return [c + Vector3(9.0, 0, 0), c + Vector3(1.0, 0, 0), c - DIR * 1.0, to]
 
 ## The drive out: forwards off the hopper and onto the far lane of the road.
 func _leave_path(slot: String) -> Array:
 	var at: Vector3 = _slot_pose(slot)[0]
-	return [at, at + Vector3(7.0, 0, 0), Vector3(37.0, 0, EXIT_Z), Vector3(40.0, 0, EXIT_Z)]
+	return [at, at + DIR * 7.0, Vector3(35.0, 0, EXIT_Z), Vector3(40.0, 0, EXIT_Z)]
 
 ## Whether a car in the street traffic is within `r` of `at` (game ground).
 func _street_busy(at: Vector3, r: float) -> bool:
@@ -1615,8 +1771,8 @@ func _update_trucks(delta: float) -> void:
 				if t["t"] < 0.3 and _yard_busy():
 					t["t"] = 0.0
 				node.position.x = move_toward(node.position.x, 40.0, 12.0 * delta)
-				node.position.z = ROAD_Z
-				node.rotation.y = 0.0
+				node.position.z = _lane_z(node.position.x)
+				node.rotation.y = _lane_yaw(node.position.x)
 				if node.position.x >= 39.95:
 					_set_truck(t, "road")
 			"arrive", "queue", "called":
@@ -1638,8 +1794,9 @@ func _update_trucks(delta: float) -> void:
 				var dist: float = absf(to_x - float(t["from_x"]))
 				var dur := maxf(1.0, dist / 15.0)
 				var u := clampf(t["t"] / dur, 0.0, 1.0)
-				node.position = Vector3(lerpf(t["from_x"], to_x, smoothstep(0.0, 1.0, u)), 0, ROAD_Z)
-				node.rotation.y = 0.0
+				var ax := lerpf(t["from_x"], to_x, smoothstep(0.0, 1.0, u))
+				node.position = Vector3(ax, 0, _lane_z(ax))
+				node.rotation.y = _lane_yaw(ax)
 				if u >= 1.0:
 					_set_truck(t, "back")
 			"back":
@@ -2539,6 +2696,16 @@ func update(delta: float, in_pour: bool) -> void:
 		if jk[1] > 10.0:
 			(jk[0] as Node).queue_free()
 	_junk = _junk.filter(func(jk): return jk[1] <= 10.0)
+	# The knock test: chalk on the pipes till the line's clear, and a nudge
+	# to the next pipe up while the plug's still to be found
+	if not blocked and not tap_marks.is_empty():
+		_clear_chalk()
+	tap_hint.visible = blocked and not block_found and kit == "tower" and not sections.is_empty()
+	if tap_hint.visible:
+		var ns := tap_next()
+		var nmid: float = (float(sections[ns]["a"].y) + float(sections[ns]["b"].y)) * 0.5
+		tap_hint.position = Vector3(RISER.x + 0.9, nmid + 0.12 * sin(_knock_phase * 4.0), RISER.z + 0.5)
+	_step_overs()
 	if _tap_t > 0.0:
 		_tap_t -= delta
 		tap_label.modulate.a = clampf(_tap_t, 0.0, 1.0)
@@ -2609,7 +2776,9 @@ func handle_player(p, delta: float, near: String) -> bool:
 		var j := joint_near(p)
 		if j >= 0 and _joint_work(p, j, delta):
 			return true
-		if j >= 0 and blocked and not block_found:
+		if j >= 0 and blocked and not block_found and kit != "tower":
+			# (on the tower the riser's knocked from the ladder, the bottom
+			# pipe from its bottom rung: nothing to press at its foot)
 			p.cue("action", "tap")
 			p.gold(not p.bot and (j == block_s or j == block_s + 1))
 			if p.action_pressed():
@@ -2628,26 +2797,46 @@ func handle_player(p, delta: float, near: String) -> bool:
 				p.face(Vector3(RISER.x, p.position.y, RISER.z))
 			return true
 		"pins":
-			if kit == "tower" and game.climb.needs_pins() and p.held == null and p.tool in ["", "screed"]:
+			# The racking's winch side: the lifting gear off its hooks before
+			# the first lift of a climb day, then a pin bag off the bottom rack
+			if kit != "tower" or p.held != null or not (p.tool in ["", "screed"]) or p.grabbing():
+				return false
+			if game.climb.needs_gear():
+				p.cue("action", "take the lifting gear", -1.0, true)
+				if p.action_pressed():
+					rack_gear.visible = false
+					p.grab(make_item("gear"), "gear", "hook", racking.global_position + Vector3(-0.3, 1.9, 1.15))
+					game.sfx.hit("clank")
+				return true
+			if game.climb.needs_pins():
 				p.cue("action", "take a pin bag", -1.0, true)
 				if p.action_pressed():
-					p.hold_item(make_item("pins"), "pins")
+					p.grab(make_item("pins"), "pins", "low", racking.global_position + Vector3(-0.4, 0.75, clampf(p.position.z - RACKING.z, -1.0, 1.0)))
 					game.sfx.hit("tink")
 				return true
 			return false
 		"spares", "rack":
-			var want := "clamp" if near == "spares" else "pipe"
-			if p.held == null and p.tool in ["", "screed"]:
-				p.cue("action", "take " + ("clamp kit" if want == "clamp" else "pipe"))
-				if p.action_pressed():
-					p.hold_item(make_item(want), want)
-					game.sfx.hit("clank")
-				return true
-			return false
+			# The racking's pump side: A takes what the job on needs, off the
+			# shelf it lives on (a pipe from the bottom rack for a plug,
+			# else a clamp kit from the top one)
+			if p.held != null or not (p.tool in ["", "screed"]) or p.grabbing():
+				return false
+			var want: String = game.bots.part_needed() if game.bots != null else ""
+			if want == "":
+				want = "clamp"
+			p.cue("action", "take " + ("a clamp kit" if want == "clamp" else "a pipe"), -1.0, game.bots != null and game.bots.part_needed() != "" and p.role == "pump")
+			if p.action_pressed():
+				var rz := clampf(p.position.z - RACKING.z, -1.0, 1.0)
+				if want == "pipe":
+					p.grab(make_item("pipe"), "pipe", "low", racking.global_position + Vector3(0.45, 0.8, 0))
+				else:
+					p.grab(make_item("clamp"), "clamp", "high", racking.global_position + Vector3(0.4, 1.65, rz))
+				game.sfx.hit("clank")
+			return true
 		"haul":
 			if kit != "tower":
 				return false
-			if p.held != null and p.held_kind in ["clamp", "pipe", "pins"] and hook["kind"] == "" and hook["state"] == "down":
+			if p.held != null and not p.grabbing() and p.held_kind in ["clamp", "pipe", "pins"] and hook["kind"] == "" and hook["state"] == "down":
 				p.cue("action", "send it up", -1.0, true)
 				if p.action_pressed():
 					send_up(p)
@@ -2858,6 +3047,9 @@ func _ladder(p, delta: float) -> void:
 		stops.append(clampf(float(clamps[jt]["pos"].y) - 1.0, 0.0, top))
 	if blocked and block_found and block_s >= 0:
 		stops.append(clampf(float(clamps[block_s]["pos"].y) - 1.0, 0.0, top))
+	if blocked and not block_found and kit == "tower":
+		# (the next pipe to knock: it catches you at the right rung)
+		stops.append(clampf(tap_stop(tap_next()), 0.0, top))
 	var detent: float = p.get_meta("ladder_detent", 0.0)
 	if p.ai:
 		stops = []   # bots climb to the exact height anyway
@@ -2902,7 +3094,7 @@ func _ladder(p, delta: float) -> void:
 	if down_t >= LADDER_OFF_T:
 		p.set_meta("ladder_down", 0.0)
 		p.zone = "ground"
-		p.position = Vector3(LADDER.x + 0.6, 0.0, LADDER.z + 1.3)
+		p.position = LADDER_FOOT
 		return
 	p.say("%d m" % int(round(p.position.y)))
 	var j := joint_near(p)
@@ -2915,10 +3107,9 @@ func _ladder(p, delta: float) -> void:
 	if not climbing and j >= 0 and _joint_work(p, j, delta):
 		return
 	if blocked and not block_found and not climbing:
-		p.cue("action", "tap pipe")
-		if not p.bot and block_s >= 0 and block_s + 1 < clamps.size():
-			var ty: float = p.position.y + 1.0
-			p.gold(ty > float(clamps[block_s]["pos"].y) - 0.2 and ty < float(clamps[block_s + 1]["pos"].y) + 0.2)
+		var here := _tap_section(p.position.y + 1.0)
+		p.cue("action", "knock the pipe", -1.0, not tap_marks.has(here))
+		p.gold(not p.bot and here == tap_next())
 		if p.action_pressed():
 			_worker = p
 			_tap(p.position.y + 1.0)
@@ -2935,37 +3126,124 @@ func _ladder(p, delta: float) -> void:
 		elif at_ground:
 			p.zone = "ground"
 			# (onto the street side of the ladder, clear of the west wing)
-			p.position = Vector3(LADDER.x + 0.6, 0.0, LADDER.z + 1.3)
+			p.position = LADDER_FOOT
 
-## Tap the pipe: a clear pipe rings, a packed one thuds.
+## Stepping over the ground line: anyone crossing the pipe on the street lifts
+## their knees over it, and at the stile by the ladder they climb up and over.
+func _step_overs() -> void:
+	if kit != "tower":
+		return
+	var run: Array[Vector3] = [pf(-2.9, 0.0), PIPE_TURN, Vector3(RISER.x, 0, RISER.z)]
+	for p in game.players:
+		var k := 0.0
+		var high := 0.0
+		if p.zone == "ground":
+			var q: Vector3 = Vector3(p.position.x, 0, p.position.z)
+			var d := 99.0
+			for i in run.size() - 1:
+				var ab: Vector3 = run[i + 1] - run[i]
+				var u := clampf((q - run[i]).dot(ab) / ab.length_squared(), 0.0, 1.0)
+				d = minf(d, (q - (run[i] + ab * u)).length())
+			k = clampf(1.0 - d / 0.7, 0.0, 1.0)
+			high = clampf(1.0 - absf(q.x - STEP_OVER.x) / 0.7, 0.0, 1.0)
+		if k > 0.75 and p.step_over <= 0.75 and not p.bot:
+			game.sfx.hit("tink" if high > 0.3 else "knock")
+		p.step_over = k
+		p.step_high = high
+
+## Which riser pipe a knock at height `y` lands on (0 = the bottom one).
+func _tap_section(y: float) -> int:
+	return clampi(int(floor((y - 0.6) / PIPE)), 0, maxi(0, sections.size() - 1))
+
+## The next pipe worth knocking, working up from the bottom: the one above
+## the highest pipe that's sounded dull (the bottom pipe to start with).
+func tap_next() -> int:
+	var s := 0
+	for k in tap_marks:
+		if tap_marks[k]["dull"]:
+			s = maxi(s, int(k) + 1)
+	return mini(s, maxi(0, sections.size() - 1))
+
+## Where to hang on the ladder to knock pipe `s`: the bottom rung for the
+## bottom pipe, else level with its middle.
+func tap_stop(s: int) -> float:
+	return 0.0 if s <= 0 else 1.1 + PIPE * s
+
+## A chalk mark on a knocked pipe, there till the line's clear again.
+func _chalk(s: int, dull: bool) -> void:
+	if tap_marks.has(s):
+		return
+	var mid := 2.1 + PIPE * s
+	if s < sections.size():
+		mid = (float(sections[s]["a"].y) + float(sections[s]["b"].y)) * 0.5
+	var lab := F.label3d("✗ DULL" if dull else "✓ RINGS", 30, Color("eef0e8") if dull else Color("7cd992"))
+	lab.position = Vector3(RISER.x - 0.75, mid, RISER.z + 0.45)
+	add_child(lab)
+	tap_marks[s] = {"dull": dull, "node": lab}
+
+func _clear_chalk() -> void:
+	for k in tap_marks:
+		(tap_marks[k]["node"] as Node).queue_free()
+	tap_marks.clear()
+
+## Knock the pipe. On the riser it's worked from the bottom up: every pipe
+## from the pump to the plug is packed and sounds dull, and above the plug
+## the line's drained and rings. So the first pipe that rings puts the plug
+## in the last dull one below it. (The truck pump's deck pipe: a knock at
+## the joint by the plug thuds.)
 func _tap(y: float, j := -1) -> void:
-	var near_block := false
-	if blocked and block_s >= 0 and block_s + 1 < clamps.size():
-		if j < 0:
-			var y0: float = clamps[block_s]["pos"].y
-			var y1: float = clamps[block_s + 1]["pos"].y
-			near_block = y > y0 - 0.2 and y < y1 + 0.2
-		else:
-			near_block = j == block_s or j == block_s + 1
-	var at: Vector3 = Vector3(RISER.x - 0.4, y, RISER.z + 0.7) if j < 0 else clamps[j]["pos"] + Vector3(0, 0.6, -0.5)
-	tap_label.position = at
 	_tap_t = 1.4
 	tap_label.visible = true
-	if near_block:
-		game.sfx.hit("thud")
-		tap_label.text = "THUD"
-		tap_label.modulate = Color("ff4d4d")
-		block_found = true
-		if _worker != null:
-			game.score.award(_worker, 25, "Blockage found by tap test", at + Vector3(0, 0.5, 0))
-		if game.autotest:
-			print("[autotest]   tap test found the plug above C%d" % (block_s + 1))
-		if job_kind == "":
-			_start_job("block", block_s)
+	if j >= 0:
+		var near_block: bool = blocked and block_s >= 0 and block_s + 1 < clamps.size() and (j == block_s or j == block_s + 1)
+		tap_label.position = clamps[j]["pos"] + Vector3(0, 0.6, -0.5)
+		if near_block:
+			_tap_found(tap_label.position)
+		else:
+			game.sfx.hit("ring")
+			tap_label.text = "ring"
+			tap_label.modulate = Color("7cd992")
+		return
+	var s := _tap_section(y)
+	var dull: bool = blocked and block_s >= 0 and s <= block_s
+	var at := Vector3(RISER.x - 0.4, y, RISER.z + 0.7)
+	tap_label.position = at
+	_chalk(s, dull)
+	if dull:
+		game.sfx.hit("thunk")
+		tap_label.text = "dull…"
+		tap_label.modulate = Color("eef0e8")
 	else:
 		game.sfx.hit("ring")
-		tap_label.text = "ring"
+		tap_label.text = "RINGS!"
 		tap_label.modulate = Color("7cd992")
+	if not blocked or block_found:
+		return
+	# Dull below and ringing right above it: that's the plug
+	var hi_dull := -1
+	var lo_ring := sections.size()
+	for k in tap_marks:
+		if tap_marks[k]["dull"]:
+			hi_dull = maxi(hi_dull, int(k))
+		else:
+			lo_ring = mini(lo_ring, int(k))
+	if hi_dull >= 0 and lo_ring <= hi_dull + 1:
+		var mid: float = (float(sections[hi_dull]["a"].y) + float(sections[hi_dull]["b"].y)) * 0.5
+		_tap_found(Vector3(RISER.x - 0.4, mid, RISER.z + 0.7))
+
+func _tap_found(at: Vector3) -> void:
+	game.sfx.hit("thud")
+	tap_label.position = at
+	tap_label.text = "THUD: PLUG'S HERE"
+	tap_label.modulate = Color("ff4d4d")
+	_tap_t = 2.2
+	block_found = true
+	if _worker != null:
+		game.score.award(_worker, 25, "Blockage found by tap test", at + Vector3(0, 0.5, 0))
+	if game.autotest:
+		print("[autotest]   tap test found the plug above C%d" % (block_s + 1))
+	if job_kind == "":
+		_start_job("block", block_s)
 
 ## Work on joint `j` if it needs work. Returns true if it took the controls.
 func _joint_work(p, j: int, delta: float) -> bool:
@@ -3443,7 +3721,8 @@ func stroke() -> void:
 
 func human_at_panel() -> bool:
 	for p in game.players:
-		if p.zone == "ground" and Vector2(p.position.x - 18.6, p.position.z - 8.6).length() < 1.4:
+		var at: Vector3 = game.GROUND_STATIONS["panel"]["pos"]
+		if p.zone == "ground" and Vector2(p.position.x - at.x, p.position.z - at.z).length() < 1.4:
 			return true
 	return false
 
@@ -3581,4 +3860,4 @@ func gauge_target() -> Vector3:
 	return gauge_face.global_position
 
 func gauge_eye() -> Vector3:
-	return gauge_face.global_position + Vector3(0.15, 0.25, 1.9)
+	return gauge_face.global_position + gauge_face.global_transform.basis * Vector3(0.15, 0.25, 1.9)

@@ -100,20 +100,26 @@ const DECK_STATIONS := {
 	"hose": {"pos": Vector3(0, 0, 0), "label": "END HOSE", "color": Color("2fd3e8")},
 }
 const GROUND_STATIONS := {
-	"bay": {"pos": Vector3(24.6, 0, 10.0), "label": "TRUCK BAY", "color": Color("ffc72c")},
-	"panel": {"pos": Vector3(18.6, 0, 8.6), "label": "PUMP PANEL", "color": Color("ff7a1a")},
-	"ladder_g": {"pos": Vector3(14.0, 0, 1.9), "label": "LADDER", "color": Color("7cd992")},
+	# The pump, hopper and trucks stand on one line at 45 degrees (line.gd
+	# DIR): the bay's spot is beside the trucks' rears and the panel's on the
+	# pump's street side. The ladder's behind the pipe step-over; the haul
+	# rope's round the tower's far side; and the parts racking between them
+	# has a spot on each side (pump operator's: pipes and clamps; winch
+	# side: pin bags and lifting gear).
+	"bay": {"pos": Vector3(18.8, 0, 10.86), "label": "TRUCK BAY", "color": Color("ffc72c")},
+	"panel": {"pos": Vector3(17.1, 0, 6.33), "label": "PUMP PANEL", "color": Color("ff7a1a")},
+	"ladder_g": {"pos": Vector3(13.9, 0, 1.5), "label": "LADDER", "color": Color("7cd992")},
 	"hoist_g": {"pos": Vector3(HOIST_X + 1.6, 0, 5.8), "label": "HOIST", "color": Color("9fb3c8")},
-	"spares": {"pos": Vector3(13.9, 0, 6.2), "label": "CLAMP KITS", "color": Color("4f8dff")},
-	"haul": {"pos": Vector3(14.9, 0, 2.6), "label": "HAUL ROPE", "color": Color("d9c27a")},
-	"rack": {"pos": Vector3(10.4, 0, 6.6), "label": "PIPES", "color": Color("dce1e6")},
-	"rig0": {"pos": Vector3(15.6, 0, 3.6), "label": "OUTRIGGER", "color": Color("ff7a1a")},
-	"rig1": {"pos": Vector3(15.6, 0, 8.4), "label": "OUTRIGGER", "color": Color("ff7a1a")},
-	"rig2": {"pos": Vector3(21.4, 0, 3.6), "label": "OUTRIGGER", "color": Color("ff7a1a")},
-	"rig3": {"pos": Vector3(21.4, 0, 8.4), "label": "OUTRIGGER", "color": Color("ff7a1a")},
-	"pins": {"pos": Vector3(12.2, 0, 6.4), "label": "PIN BAGS", "color": Color("ff7a1a")},
+	"spares": {"pos": Vector3(14.35, 0, 5.0), "label": "PIPES · CLAMPS", "color": Color("4f8dff")},
+	"haul": {"pos": Vector3(9.9, 0, 1.9), "label": "HAUL ROPE", "color": Color("d9c27a")},
+	# (the same spot as "spares": A there hands over whichever the job needs)
+	"rack": {"pos": Vector3(14.35, 0, 5.0), "label": "PIPES", "color": Color("dce1e6")},
+	"rig0": {"pos": Vector3(16.96, 0, 2.6), "label": "OUTRIGGER", "color": Color("ff7a1a")},
+	"rig1": {"pos": Vector3(13.57, 0, 3.36), "label": "OUTRIGGER", "color": Color("ff7a1a")},
+	"rig2": {"pos": Vector3(21.06, 0, 4.07), "label": "OUTRIGGER", "color": Color("ff7a1a")},
+	"rig3": {"pos": Vector3(17.67, 0, 7.46), "label": "OUTRIGGER", "color": Color("ff7a1a")},
+	"pins": {"pos": Vector3(11.35, 0, 5.0), "label": "PINS · LIFTING GEAR", "color": Color("ff7a1a")},
 	"sling": {"pos": Vector3(1.0, 0, 8.6), "label": "LAYDOWN", "color": Color("ff7a1a")},
-	"valve": {"pos": Vector3(16.4, 0, 10.0), "label": "RELEASE VALVE", "color": Color("ff7a1a")},
 	"van": {"pos": Vector3(31.0, 0, 12.1), "label": "COFFEE VAN", "color": Color("f4f7fa")},
 }
 const PLAYER_COLORS := UI.P_COLORS
@@ -1164,21 +1170,19 @@ func _build_world() -> void:
 	var hard := F.color_mat(Color("8f908c"))
 	# (kept in _hardstand: it turns to lawn at the handover)
 	_hardstand.append(F.box(Vector3(26.5, 0.06, 11.3), hard, Vector3(21.75, 0.03, 7.35), false))
-	_hardstand.append(F.box(Vector3(5.9, 0.06, 2.9), hard, Vector3(11.35, 0.03, 0.25), false))
-	# Wet slurry under the hopper and the chutes, a wash-out run to the
-	# settling tank, tyre tracks down the truck lane and a kerb on the street
-	var wet := F.color_mat(Color("6f7275"))
-	for at in [Vector3(22.3, 0, 6.0), Vector3(25.6, 0, 4.4), Vector3(25.6, 0, 7.6)]:
-		var patch := F.cylinder(1.6, 0.012, wet, at + Vector3(0, 0.079, 0), 16)
-		patch.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		_hardstand.append(patch)
-	_hardstand.append(F.box(Vector3(5.0, 0.012, 0.7), wet, Vector3(17.0, 0.079, 7.6), false))
+	_hardstand.append(F.box(Vector3(NOTCH_E - 8.4, 0.06, 2.9), hard, Vector3((NOTCH_E + 8.4) * 0.5, 0.03, 0.25), false))
+	# Tyre tracks where the trucks back in at 45 degrees (the washout runs
+	# under the grates: ops.gd), and a kerb on the street each side of the gate
 	var track := F.color_mat(Color("7c7e7b"))
-	for z in [3.6, 5.2, 6.8, 8.4]:
-		_hardstand.append(F.box(Vector3(11.0, 0.01, 0.45), track, Vector3(29.5, 0.065, z), false))
+	for across in [-2.55, -0.65, 0.65, 2.55]:
+		var tk := F.box(Vector3(3.2, 0.01, 0.45), track, LineScript.pf(8.6, across, 0.065), false)
+		tk.rotation.y = LineScript.PUMP_YAW
+		_hardstand.append(tk)
 	for h in _hardstand:
 		add_child(h)
-	add_child(F.box(Vector3(26.5, 0.15, 0.3), F.color_mat(Color("c8c4ba")), Vector3(21.75, 0.075, 13.05), false))
+	var kerb := F.color_mat(Color("c8c4ba"))
+	add_child(F.box(Vector3(Yard.GATE.x - 8.5, 0.15, 0.3), kerb, Vector3((Yard.GATE.x + 8.5) * 0.5, 0.075, 13.05), false))
+	add_child(F.box(Vector3(35.0 - Yard.GATE.y, 0.15, 0.3), kerb, Vector3((35.0 + Yard.GATE.y) * 0.5, 0.075, 13.05), false))
 
 	rain = CPUParticles3D.new()
 	rain.amount = 700
@@ -1465,7 +1469,7 @@ func _build_site() -> void:
 const STATION_ROLE := {"boom": "boom", "dogman": "boom", "screed": "screed", "poker": "poker", "tag": "poker", "tag2": "hose",
 	"rigger": "pump", "ladder": "pump", "ladder_g": "pump", "pinsets": "line", "bay": "line", "panel": "pump",
 	"spares": "pump", "haul": "line", "rack": "pump", "rig0": "pump", "rig1": "pump", "rig2": "pump",
-	"rig3": "pump", "pins": "line", "sling": "line", "bin": "boom", "hose": "hose", "valve": "pump", "van": "screed"}
+	"rig3": "pump", "pins": "line", "sling": "line", "bin": "boom", "hose": "hose", "van": "screed"}
 
 func _make_station(key: String, def: Dictionary, parent: Node3D, zone: String) -> void:
 	if STATION_ROLE.has(key):
@@ -2260,7 +2264,7 @@ func _update_band(delta: float, down: Array, mid: Array, split_e: float) -> void
 		if band_view.size != Vector2i(bw, bh):
 			band_view.size = Vector2i(bw, bh)
 		# Frame whoever's down there, with the pump and the truck bay in view
-		var target := Vector3(22.0, 0.0, 6.5)
+		var target := Vector3(20.5, 0.0, 7.0)
 		var spread := 0.0
 		if not down.is_empty():
 			# (on a climb day, where each one's job wants them too: the pin
@@ -2728,12 +2732,16 @@ func _walkable(p: Vector3, zone: String, who = null) -> bool:
 			# Riverlight's two wings come right up to the street: the west wing
 			# east of x 14.3 and the east wing round the slab, with the boom
 			# tower in the notch between them
-			ok = (p.x >= 14.2 and p.x <= 33.5 and p.z >= 1.9 and p.z <= 12.5) or (p.x >= 8.4 and p.x <= 14.2 and p.z >= -1.2 and p.z <= 12.5) or (p.x >= -9.5 and p.x <= 8.4 and p.z >= 2.9 and p.z <= 12.5)
+			ok = (p.x >= NOTCH_E - 0.1 and p.x <= 33.5 and p.z >= 1.9 and p.z <= 12.5) or (p.x >= 8.4 and p.x <= NOTCH_E - 0.1 and p.z >= -1.2 and p.z <= 12.5) or (p.x >= -9.5 and p.x <= 8.4 and p.z >= 2.9 and p.z <= 12.5)
 		if not ok:
 			return false
 		if kit == "tower" and absf(p.x - LAT_X) < 1.4 and absf(p.z) < 1.4:
 			return false
-		if p.x > 16.4 and p.x < 23.2 and absf(p.z - 6.0) < 1.2:
+		# The pump and its hopper (on their 45 degree line), and the racking
+		var pfr: Vector2 = LineScript.in_pf(p)
+		if pfr.x > -2.6 and pfr.x < 4.2 and absf(pfr.y) < 1.2:
+			return false
+		if kit == "tower" and absf(p.x - LineScript.RACKING.x) < 0.8 and absf(p.z - LineScript.RACKING.z) < LineScript.RACK_LEN * 0.5 + 0.15:
 			return false
 		if line and line.truck_blocks(p):
 			return false
@@ -3291,8 +3299,11 @@ var _other_stacks: Node3D
 var west: WestWing          # the other crew building their next deck as we pour ours
 var _screens: Node3D        # our deck's edge screens (on the rig)
 const OTHER_WING := [Vector2(8.3, -12.1), Vector2(10.7, -12.1), Vector2(10.6, -19.7), Vector2(59.0, -20.0),
-	Vector2(55.0, -10.1), Vector2(49.6, -10.2), Vector2(47.1, -3.5), Vector2(47.7, 1.6), Vector2(14.3, 1.8),
-	Vector2(14.3, -1.15), Vector2(8.3, -1.15)]
+	Vector2(55.0, -10.1), Vector2(49.6, -10.2), Vector2(47.1, -3.5), Vector2(47.7, 1.6), Vector2(NOTCH_E, 1.8),
+	Vector2(NOTCH_E, -1.15), Vector2(8.3, -1.15)]
+## The east edge of the boom tower's notch: the west wing starts 3 m back from
+## the ladder and the pipe step-over, so nothing of it stands over them
+const NOTCH_E := 17.3
 
 ## The other crew's slab for `level`, and the storey of facade under it.
 func _other_crew_floor(level: int, instant: bool) -> void:
@@ -4029,7 +4040,7 @@ var _band_tip := Vector3.ZERO
 ## concrete once it's poured there.
 func _underfoot(p) -> String:
 	if p.zone != "deck":
-		return "gravel" if p.zone == "ground" else "grate"
+		return "grate" if p.zone != "ground" or ops.on_grate(p.position) else "gravel"
 	var local := _pour_local(p.position)
 	if absf(local.x) > BW * 0.5 or absf(local.z) > BD * 0.5:
 		return "grate"
@@ -4229,8 +4240,8 @@ func _station_visible(key: String) -> bool:
 			return phase == "pour" and hose_holder == null
 		"bin":
 			return phase == "pour" and ops.wants_bin()
-		"valve":
-			return phase == "pour" and ops.stage == "valve"
+		"rack":
+			return false   # (one spot on the racking's pump side: "spares")
 		"van":
 			return climb.active and climb.smoko.stage == "run"
 	return true
@@ -4547,6 +4558,10 @@ func _handle_player(p, delta: float) -> void:
 
 	if p.zone in ["deck", "ground"] and climb.handle_player(p, delta, near, "", "", ""):
 		return
+	# The washout water's blown back from the pump panel (it runs down the
+	# grated trench to the settling tank in its pit)
+	if near == "panel" and p.role == "pump" and ops.valve(p, delta):
+		return
 	if line.handle_player(p, delta, near if near != "ladder_g" else "ladder"):
 		return
 	match near:
@@ -4555,9 +4570,6 @@ func _handle_player(p, delta: float) -> void:
 				p.cue("action", "take the end hose", -1.0, true)
 				if p.action_pressed():
 					take_hose(p)
-				return
-		"valve":
-			if p.role == "pump" and ops.valve(p, delta):
 				return
 
 	# Hand a part straight to whoever needs it
@@ -4743,8 +4755,10 @@ func _jobs() -> Array:
 			add.call("van", st_pos.call("van") + up, 0, "screed")
 		if climb.stage in ["jack", "roll", "pin"] and not has.has("rigger"):
 			add.call("rigger", st_pos.call("rigger") + up, 1, "pump")
-		if climb.needs_sling() and climb.sling_prog <= 0.0:
-			add.call("sling", st_pos.call("sling") + up + Vector3(0, 1.0, 0), 1 if climb.hook_ready() else 0, "line", "SLING IT")
+		if climb.needs_sling() and climb.needs_gear():
+			add.call("pins", st_pos.call("pins") + up, 1, "line", "LIFTING GEAR")
+		elif climb.needs_sling() and climb.sling_prog <= 0.0:
+			add.call("sling", st_pos.call("sling") + up + Vector3(0, 1.0, 0), 1 if climb.hook_ready() and climb.gear_out else 0, "line", "SLING IT" if climb.gear_out else "GEAR TO THE LAYDOWN")
 		if climb.needs_pins() and not climb.pins_coming():
 			add.call("pins", st_pos.call("pins") + up, 2 if climb.pin_sub == "wait" and climb.stage == "pin" else (1 if climb.stage in ["roll", "pin"] else 0), "line", "PIN BAG")
 		elif climb.needs_pins() and crew.crew["line"].held_kind == "pins":
@@ -4815,8 +4829,7 @@ func _jobs() -> Array:
 		add.call("block", Vector3(line.RISER.x + 0.9, maxf(2.0, line.riser_top * 0.5), line.RISER.z + 0.9), 2, "pump")
 	var part: String = bots.part_needed()
 	if part != "" and lh.held_kind != part and not line.part_coming(part, lh):
-		var key := "spares" if part == "clamp" else "rack"
-		add.call(key, st_pos.call(key) + up, 1, "pump")
+		add.call("spares" if part == "clamp" else "rack", st_pos.call("spares") + up, 1, "pump")
 	if line.hook["state"] == "up":
 		add.call("hook", line.hook_node.global_position + Vector3(0.5, 0.6, 0.0), 0, "pump")
 	return out
@@ -4909,6 +4922,63 @@ func where_to(p) -> String:
 				return "Up the LADDER, then the %s" % g[0]
 	return "Walk to the %s" % g[0]
 
+## Dev shots of the pump area (--only=padtop,rack,...): [focus, distance, yaw, pitch]
+const PUMP_AREA_SHOTS := {
+	"padtop": [Vector3(18.0, 0.0, 7.5), 30.0, 0.0, 1.25],
+	"padcam": [Vector3(17.0, 0.0, 7.0), 22.0, 0.55, 0.62],
+	"rack": [Vector3(12.85, 1.2, 5.6), 9.0, 0.55, 0.45],
+	"rackwest": [Vector3(12.0, 1.2, 5.0), 9.0, -1.2, 0.45],
+	"pit": [Vector3(12.5, 0.0, 10.6), 10.0, 0.55, 0.62],
+	"stile": [Vector3(13.6, 0.5, 2.6), 11.0, 0.55, 0.62],
+	"knock": [Vector3(12.0, 5.0, 1.45), 20.0, 0.55, 0.3],
+	"plug": [Vector3(12.0, 5.0, 1.45), 20.0, 0.55, 0.3],
+	"trench": [Vector3(15.0, 0.0, 8.5), 17.0, 0.55, 0.7],
+	"tankfull": [Vector3(13.0, 0.0, 10.0), 12.0, 0.55, 0.7],
+	"backin": [Vector3(22.0, 0.0, 10.0), 30.0, 0.55, 0.8],
+	"grab": [Vector3(13.6, 1.0, 5.0), 9.0, 0.55, 0.5],
+	"grabgear": [Vector3(12.2, 1.0, 5.0), 8.0, -1.2, 0.4],
+	"grabpins": [Vector3(12.2, 1.0, 5.0), 8.0, -1.2, 0.4],
+	"gear": [Vector3(8.0, 1.0, 7.0), 14.0, 0.2, 0.5],
+	"stepover": [Vector3(13.85, 0.8, 2.5), 10.0, 0.55, 0.55],
+}
+
+func _pump_area_shot() -> String:
+	if line == null:
+		return ""
+	var want := func(key: String) -> bool: return key in _shot_only and not _shots_taken.has(key)
+	if climb.active:
+		for p in players:
+			if want.call("gear") and p.held_kind == "gear" and not p.grabbing():
+				return "gear"
+			if want.call("grabgear") and p.held_kind == "gear" and p._grab_t > 0.2:
+				return "grabgear"
+			if want.call("grabpins") and p.held_kind == "pins" and p._grab_t > 0.3:
+				return "grabpins"
+	if phase != "pour":
+		return ""
+	if want.call("knock") and line.blocked and not line.block_found and line.tap_marks.size() >= 1:
+		return "knock"
+	if want.call("plug") and line.blocked and line.block_found and line.tap_marks.size() >= 2:
+		return "plug"
+	if want.call("trench") and ops.stage == "valve" and ops.hold > 0.3:
+		return "trench"
+	if want.call("tankfull") and ops.washed:
+		return "tankfull"
+	for t in line.trucks:
+		if want.call("backin") and t["state"] == "back" and float(t["t"]) > line.SPOT_LEN * 0.5 and line.bay_truck != null and line.bay_truck != t:
+			return "backin"
+	for p in players:
+		if want.call("grab") and p._grab_t > 0.05:
+			return "grab"
+		if want.call("stepover") and p.step_over > 0.4:
+			return "stepover"
+	if line.bay_truck == null or _filled_ratio() < 0.12:
+		return ""
+	for key in ["padtop", "padcam", "rack", "rackwest", "pit", "stile"]:
+		if want.call(key):
+			return key
+	return ""
+
 ## A hand sign's place, in the words on the station there (TRUCK BAY, PUMP
 ## PANEL, END HOSE), and where it is: "ground", "deck" or "riser".
 func _place_name(j: Dictionary) -> Array:
@@ -4916,7 +4986,7 @@ func _place_name(j: Dictionary) -> Array:
 	if key.begins_with("ops_"):
 		match String(ops.STEPS.get(key.substr(4), ["", "", "", ""])[2]):
 			"panel": key = "panel"
-			"valve": key = "valve"
+			"valve": key = "panel"
 			"bin": return ["BIN", "deck"]
 			"hose": return ["END HOSE", "deck"]
 	if key in ["joint", "block"]:
@@ -5422,7 +5492,7 @@ func _update_stations() -> void:
 		if step == "kit" or (line.fail_i >= 0 and line.job_kind == ""):
 			needed.append("spares")
 		if step == "pipe" or (line.blocked and line.block_found and step in ["", "open", "lower"]):
-			needed.append("rack")
+			needed.append("spares")
 		if line.bay_truck == null and line._next_queued() != null or line.bay_truck != null and line.bay_truck["state"] in ["bay", "check", "docket"]:
 			needed.append("bay")
 		if pour.at_risk > 0.01:
@@ -5434,6 +5504,8 @@ func _update_stations() -> void:
 		needed.append("sling")
 	if climb.needs_pins():
 		needed.append("pins" if not climb.pins_coming() else "haul")
+	if climb.needs_gear():
+		needed.append("pins")
 	# The poker pick-up spot follows its drive unit around the deck
 	(stations["poker"]["node"] as Node3D).position = poker.station_local() + Vector3(0, 0, 0)
 	(stations["screed"]["node"] as Node3D).position = screed.station_local()
@@ -5448,7 +5520,7 @@ func _update_stations() -> void:
 	if ops.wants_bin():
 		needed.append("bin")
 	if ops.stage == "valve":
-		needed.append("valve")
+		needed.append("panel")
 	if phase == "pour" and hose_holder == null:
 		needed.append("hose")
 	var pulse := 1.0 + 0.18 * sin(phase_t * 6.0)
@@ -6682,6 +6754,8 @@ func _maybe_shot() -> void:
 		key = "sling"
 	elif "layout" in _shot_only and phase == "pour" and line != null and line.bay_truck != null and line.staged != null and _filled_ratio() > 0.2 and not _shots_taken.has("layout"):
 		key = "layout"
+	elif _pump_area_shot() != "":
+		key = _pump_area_shot()
 	elif "startup" in _shot_only and ops != null and ops.stage == "slurry_out" and ops.left < ops.SLURRY * 0.6 and not _shots_taken.has("startup"):
 		key = "startup"
 	elif "spray" in _shot_only and lead_hand.who != null and lead_hand.shouting() and not _shots_taken.has("spray"):
@@ -6822,6 +6896,12 @@ func _maybe_shot() -> void:
 		_shot_cam = [subject.global_position + Vector3(0, 1.2, 0), dist]
 	if key == "layout":
 		_shot_cam = [Vector3(19.5, 0.0, 7.0), 24.0]
+	if PUMP_AREA_SHOTS.has(key):
+		var pa: Array = PUMP_AREA_SHOTS[key]
+		_shot_cam = [pa[0], pa[1]]
+		cam_yaw = pa[2]
+		cam_pitch = pa[3]
+		hud.visible = false
 	if key in ["startup", "washout"] and _cam_roles.is_empty():
 		_shot_cam = [ops.bin_world() + Vector3(-1.5, -0.5, 1.0), 12.0]
 	if key == "hose":

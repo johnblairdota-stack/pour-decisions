@@ -111,12 +111,14 @@ func _tip(p) -> String:
 	if g.phase == "climb":
 		match p.role:
 			"line":
+				if climb.needs_sling() and not climb.gear_out:
+					return "Carry it to the LAYDOWN." if p.held_kind == "gear" else "Grab the LIFTING GEAR off the racking: A."
 				if climb.needs_sling():
 					return "Hold A at the LAYDOWN to sling it." if climb.hook_ready() or p.position.distance_to(climb.LAYDOWN) > 3.5 else "Wait for the hook, then hold A."
 				if climb.needs_pins():
 					if p.held_kind == "pins":
 						return "Take the bag to the HAUL ROPE: A."
-					return "Grab a PIN BAG at the tower foot: A."
+					return "Grab a PIN BAG off the racking: A."
 				if game.line.wash.wanted():
 					return "Hose the hopper down: hold A at the hopper."
 				return "Done. Watch it fly."
@@ -192,7 +194,7 @@ func _tip(p) -> String:
 			"catch":
 				return "Watch the hose end: A the moment the ball pops out."
 			"valve":
-				return "Hold A at the RELEASE VALVE."
+				return "Hold A at the PUMP PANEL: blow the water back."
 	if p.role == "line" and g.line.wash.wanted():
 		return "Washout: hose the HOPPER down, hold A."
 	if ops.busy() and p.role in ["boom", "hose"]:

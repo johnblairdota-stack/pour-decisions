@@ -66,7 +66,7 @@ const STEPS := {
 	"ball_in": ["Sponge ball into the line", "pump", "panel", "SPONGE BALL"],
 	"push": ["The last of it into the bin", "boom", "bin", "BIN"],
 	"catch": ["Catch the sponge ball", "hose", "hose", "CATCH THE BALL"],
-	"valve": ["Blow the water back", "pump", "valve", "OPEN THE VALVE"],
+	"valve": ["Blow the water back", "pump", "valve", "BLOW THE WATER BACK"],
 }
 const PRIME_ORDER := ["start", "air", "slurry_in", "slurry_go", "slurry_out", "concrete"]
 const WASH_ORDER := ["water_in", "ball_in", "push", "catch", "valve"]
@@ -89,11 +89,9 @@ var steam: CPUParticles3D
 var water_fx: CPUParticles3D
 var tank: Node3D
 var tank_label: Label3D
-var hose: MeshInstance3D    # from the release valve over the tank's lip
 var _tank_water: MeshInstance3D
 var _tank_ring: MeshInstance3D
 var _tank_ring_mat: StandardMaterial3D
-var _tank_arrow: Label3D
 var _tank_t := 0.0
 var _spill_t := 0.0
 var ball: Node3D             # the sponge ball, when it's out of the line
@@ -139,83 +137,16 @@ func setup(owner_game) -> void:
 	sm.material = stm
 	steam.mesh = sm
 	game.add_child(steam)
-	# The settling tank by the pump, where the washout water runs back to:
-	# a bright blue tank on a big blue ground ring (seen through trucks and
-	# crowds, like a station spot), a hose from the release valve into it,
-	# and a name over it that's scaled like a station's
-	tank = Node3D.new()
-	var blue := Color("3fa7ff")
-	tank.add_child(F.box(Vector3(1.9, 1.2, 1.2), F.color_mat(Color("d9dde2")), Vector3(0, 0.6, 0)))
-	tank.add_child(F.box(Vector3(1.94, 0.22, 1.24), F.color_mat(blue), Vector3(0, 0.95, 0)))
-	_tank_water = F.box(Vector3(1.7, 0.06, 1.0), F.color_mat(Color("5aa6d6"), false, Color("2d6fa8")), Vector3(0, 0.75, 0))
-	tank.add_child(_tank_water)
-	_tank_ring = MeshInstance3D.new()
-	var tr := TorusMesh.new()
-	tr.inner_radius = 1.45
-	tr.outer_radius = 1.75
-	tr.rings = 32
-	tr.ring_segments = 4
-	_tank_ring.mesh = tr
-	_tank_ring_mat = StandardMaterial3D.new()
-	_tank_ring_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	_tank_ring_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	_tank_ring_mat.albedo_color = Color(blue, 0.7)
-	_tank_ring.material_override = _tank_ring_mat
-	_tank_ring.scale = Vector3(1, 0.1, 1)
-	_tank_ring.position.y = 0.05
-	_tank_ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	_tank_ring.layers = 4
-	var xr := MeshInstance3D.new()
-	xr.mesh = tr
-	var xm := StandardMaterial3D.new()
-	xm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	xm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	xm.no_depth_test = true
-	xm.render_priority = -1
-	xm.albedo_color = Color(blue, 0.25)
-	xr.material_override = xm
-	xr.layers = 4
-	xr.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	_tank_ring.add_child(xr)
-	tank.add_child(_tank_ring)
-	# A bobbing arrow over it while the water's to be blown back
-	_tank_arrow = F.label3d("▼", 72, blue)
-	_tank_arrow.layers = 2
-	_tank_arrow.position = Vector3(0, 2.9, 0)
-	_tank_arrow.visible = false
-	tank.add_child(_tank_arrow)
-	# (out in front of the pump, on the street side, clear of its outriggers,
-	# so it's never lost behind the pump or under its gauge reading)
-	tank.position = game.GROUND_STATIONS["valve"]["pos"] + Vector3(-2.6, 0, 0.6)
-	game.add_child(tank)
-	tank_label = F.label3d("SETTLING TANK", 34, Color("6cc3ff"))
-	tank_label.layers = 2
-	tank_label.render_priority = 9
-	tank_label.position = tank.position + Vector3(0, 1.9, 0)
-	game.add_child(tank_label)
-	# The hose from the release valve over the tank's lip
-	var vp: Vector3 = game.GROUND_STATIONS["valve"]["pos"] + Vector3(0.3, 0.55, 0)
-	var lip := tank.position + Vector3(-0.7, 1.25, 0.1)
-	hose = MeshInstance3D.new()
-	var hm := CylinderMesh.new()
-	hm.top_radius = 0.07
-	hm.bottom_radius = 0.07
-	hm.height = vp.distance_to(lip)
-	hm.radial_segments = 8
-	hose.mesh = hm
-	hose.material_override = F.color_mat(blue)
-	game.add_child(hose)
-	hose.position = (vp + lip) * 0.5
-	hose.look_at(lip + Vector3(0, 0.0001, 0), Vector3.UP)
-	hose.rotate_object_local(Vector3.RIGHT, PI * 0.5)
+	_build_pit()
 	water_fx = CPUParticles3D.new()
 	water_fx.amount = 40
 	water_fx.lifetime = 0.6
 	water_fx.emitting = false
-	water_fx.direction = Vector3(-0.95, 0.3, 0.2)
-	water_fx.spread = 18.0
-	water_fx.initial_velocity_min = 2.0
-	water_fx.initial_velocity_max = 3.4
+	water_fx.direction = Vector3(-0.5, 0.25, 0.8)
+	water_fx.spread = 14.0
+	water_fx.initial_velocity_min = 1.2
+	water_fx.initial_velocity_max = 2.2
+	water_fx.position = PIT + Vector3(-0.1, 0.12, -PIT_SIZE.y * 0.5 + 0.05)
 	water_fx.gravity = Vector3(0, -6, 0)
 	var wm := SphereMesh.new()
 	wm.radius = 0.06
@@ -226,6 +157,227 @@ func setup(owner_game) -> void:
 	water_fx.mesh = wm
 	game.add_child(water_fx)
 	place()
+
+# ------------------------------------------------------------------ the grated trench and the tank pit
+
+# The washout runs under the yard: a steel grate set flush in the hardstand
+# under the pump, its hopper and the trucks' rears back to their rear wheels
+# (in the pump's own frame, line.gd pf: along it, across it), a grated trench
+# from there to the fence, and the settling tank sat in a pit there, parallel
+# with the fence, under a lift-off grate lid. Everyone walks straight over
+# all of it.
+const PAD_PUMP := Rect2(-2.2, -1.1, 4.6, 2.6)     # under the pump: along -2.2..2.4, across -1.1..1.5
+const PAD_BAY := Rect2(2.4, -3.3, 4.5, 6.6)       # under the hopper and the truck rears
+const TRENCH := Rect2(0.0, 1.5, 0.7, 6.7)         # from the pump's street side out to the pit
+const PIT := Vector3(11.9, 0, 10.85)
+const PIT_SIZE := Vector2(3.2, 1.5)
+const GRATE_Y := 0.068
+# How far a point 1 m down in the pit shows towards the camera, on the flat
+# (the game's camera: yaw 0.55, pitch 0.62)
+const PIT_LEAN := Vector2(0.73, 1.19)
+var _tank_in := Rect2()     # the tank's open top, as painted (pit's own x, z)
+var _tank_lvl := 0.0
+
+var _pad_water: Array[MeshInstance3D] = []
+var _trench_water: MeshInstance3D
+var _ripples: Array[MeshInstance3D] = []
+var _flow := 0.0            # how far down the trench the water's got, 0..1
+var _flow_t := 0.0
+
+## Whether this ground point is on a grate (for the footsteps).
+func on_grate(p: Vector3) -> bool:
+	var q: Vector2 = game.LineScript.in_pf(p)
+	if PAD_PUMP.has_point(q) or PAD_BAY.has_point(q) or TRENCH.has_point(q):
+		return true
+	return absf(p.x - PIT.x) < PIT_SIZE.x * 0.5 and absf(p.z - PIT.z) < PIT_SIZE.y * 0.5
+
+## A grate over a rectangle of `parent`'s ground (x0..x1, z0..z1): the dark
+## under it, bearing bars across the short way and a frame round it.
+func _grate(parent: Node3D, r: Rect2, y: float, framed := true) -> void:
+	var c := r.get_center()
+	var dark := F.color_mat(Color("23272e"))
+	parent.add_child(F.box(Vector3(r.size.x, 0.008, r.size.y), dark, Vector3(c.x, y, c.y), false))
+	var steel := F.color_mat(Color("8e98a6"))
+	var along_x := r.size.x >= r.size.y    # (the bars lie across the long way)
+	var n := int((r.size.x if along_x else r.size.y) / 0.17)
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	var bm := BoxMesh.new()
+	bm.size = Vector3(0.055, 0.02, r.size.y) if along_x else Vector3(r.size.x, 0.02, 0.055)
+	bm.material = steel
+	mm.mesh = bm
+	mm.instance_count = n
+	for i in n:
+		var t := (i + 0.5) / float(n)
+		var at := Vector3(r.position.x + r.size.x * t, y + 0.02, c.y)
+		if not along_x:
+			at = Vector3(c.x, y + 0.02, r.position.y + r.size.y * t)
+		mm.set_instance_transform(i, Transform3D(Basis(), at))
+	var mi := MultiMeshInstance3D.new()
+	mi.multimesh = mm
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	parent.add_child(mi)
+	# (two flats the other way tie the bars together)
+	for k in [0.3, 0.7]:
+		var tsize := Vector3(r.size.x, 0.012, 0.04)
+		var tat := Vector3(c.x, y + 0.034, r.position.y + r.size.y * k)
+		if not along_x:
+			tsize = Vector3(0.04, 0.012, r.size.y)
+			tat = Vector3(r.position.x + r.size.x * k, y + 0.034, c.y)
+		parent.add_child(F.box(tsize, steel, tat, false))
+	if framed:
+		var fr := F.color_mat(Color("56606e"))
+		for sx in [0.0, 1.0]:
+			parent.add_child(F.box(Vector3(0.07, 0.03, r.size.y + 0.07), fr, Vector3(r.position.x + r.size.x * sx, y + 0.012, c.y), false))
+			parent.add_child(F.box(Vector3(r.size.x + 0.07, 0.03, 0.07), fr, Vector3(c.x, y + 0.012, r.position.y + r.size.y * sx), false))
+
+func _water_plane(parent: Node3D, r: Rect2, y: float, col: Color) -> MeshInstance3D:
+	var c := r.get_center()
+	var w := F.box(Vector3(r.size.x - 0.1, 0.006, r.size.y - 0.1), F.color_mat(col, false, col * 0.35), Vector3(c.x, y, c.y), false)
+	w.visible = false
+	parent.add_child(w)
+	return w
+
+func _build_pit() -> void:
+	var blue := Color("3fa7ff")
+	# The grated pad and trench, laid out in the pump's frame
+	var pad := Node3D.new()
+	pad.position = game.LineScript.PUMP_POS
+	pad.rotation.y = game.LineScript.PUMP_YAW
+	game.add_child(pad)
+	for r in [PAD_PUMP, PAD_BAY, TRENCH]:
+		_grate(pad, r, GRATE_Y)
+	for r in [PAD_PUMP, PAD_BAY]:
+		_pad_water.append(_water_plane(pad, r, GRATE_Y + 0.008, Color("5d8fb0")))
+	# (the water in the trench runs from the pump end out to the pit)
+	_trench_water = _water_plane(pad, TRENCH, GRATE_Y + 0.008, blue)
+	for i in 7:
+		var rp := F.box(Vector3(TRENCH.size.x - 0.16, 0.006, 0.22), F.color_mat(Color("cfeaff"), false, Color("6fb7ff")), Vector3.ZERO, false)
+		rp.visible = false
+		pad.add_child(rp)
+		_ripples.append(rp)
+	# The pit by the fence, parallel with it: a concrete rim, the tank down
+	# in it, and a grate lid in three lift-off panels, one propped open so
+	# the tank shows
+	tank = Node3D.new()
+	tank.position = PIT
+	game.add_child(tank)
+	var hx := PIT_SIZE.x * 0.5
+	var hz := PIT_SIZE.y * 0.5
+	var conc := F.color_mat(Color("c8c4ba"))
+	for sx in [-1.0, 1.0]:
+		tank.add_child(F.box(Vector3(0.16, 0.035, PIT_SIZE.y + 0.32), conc, Vector3(sx * (hx + 0.08), GRATE_Y + 0.005, 0), false))
+		tank.add_child(F.box(Vector3(PIT_SIZE.x + 0.32, 0.035, 0.16), conc, Vector3(0, GRATE_Y + 0.005, sx * (hz + 0.08)), false))
+	# The pit's inside is painted on the flat the way the game's camera sees
+	# down into it (a point `d` m down shows d * PIT_LEAN nearer the camera):
+	# the far wall and the west wall, the tank's top 0.3 m down, the dark
+	# inside the tank and the water in it, which comes into view from the
+	# near side as it rises
+	var flat := func(x0: float, x1: float, z0: float, z1: float, lift: float, col: Color) -> MeshInstance3D:
+		var m := F.box(Vector3(x1 - x0, 0.004, z1 - z0), F.color_mat(col), Vector3((x0 + x1) * 0.5, GRATE_Y + lift, (z0 + z1) * 0.5), false)
+		tank.add_child(m)
+		return m
+	var top := PIT_LEAN * 0.3
+	flat.call(-hx, hx, -hz, hz, 0.0, Color("8d9093"))                      # far wall
+	flat.call(-hx, -hx + 0.12 + top.x, -hz, hz, 0.003, Color("6c6f73"))    # west wall, in shade
+	flat.call(-hx, hx, -hz + 0.1 + top.y, -hz + 0.14 + top.y, 0.003, Color("3a3f45"))   # the gap behind the tank
+	var tx0 := -hx + 0.12 + top.x
+	var tz0 := -hz + 0.12 + top.y
+	flat.call(tx0, hx, tz0, hz, 0.006, Color("d9dde2"))                    # tank top
+	flat.call(tx0, hx, tz0, tz0 + 0.07, 0.009, blue)
+	_tank_in = Rect2(tx0 + 0.1, tz0 + 0.12, hx - tx0 - 0.1, hz - tz0 - 0.12)
+	flat.call(_tank_in.position.x, hx, _tank_in.position.y, hz, 0.009, Color("2b3038"))   # inside the tank
+	_tank_water = F.box(Vector3.ONE, F.color_mat(Color("5aa6d6"), false, Color("2d6fa8")), Vector3.ZERO, false)
+	tank.add_child(_tank_water)
+	var pw := PIT_SIZE.x / 3.0
+	for i in 3:
+		var lid := Node3D.new()
+		tank.add_child(lid)
+		var r := Rect2(-pw * 0.5 + 0.02, 0.0, pw - 0.04, PIT_SIZE.y)
+		if i == 0:
+			# Propped open: hinged on its far edge, with a stay under it
+			lid.position = Vector3(-hx + pw * 0.5, GRATE_Y + 0.03, -hz)
+			lid.rotation.x = -0.95
+			tank.add_child(F.beam(Vector3(-hx + pw * 0.5, GRATE_Y, hz * 0.2), Vector3(-hx + pw * 0.5, GRATE_Y + 0.75, -hz + 0.55), 0.04, F.color_mat(Color("56606e"))))
+			_grate_panel(lid, r)
+		else:
+			lid.position = Vector3(-hx + pw * (i + 0.5), GRATE_Y + 0.03, -hz)
+			_grate_panel(lid, r)
+	# The blue ring round it, seen through trucks and crowds like a station spot
+	_tank_ring = MeshInstance3D.new()
+	var tr := TorusMesh.new()
+	tr.inner_radius = 1.45
+	tr.outer_radius = 1.7
+	tr.rings = 32
+	tr.ring_segments = 4
+	_tank_ring.mesh = tr
+	_tank_ring_mat = StandardMaterial3D.new()
+	_tank_ring_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_tank_ring_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_tank_ring_mat.albedo_color = Color(blue, 0.0)
+	_tank_ring.material_override = _tank_ring_mat
+	_tank_ring.scale = Vector3(1.35, 0.06, 0.8)
+	_tank_ring.position.y = 0.12
+	_tank_ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_tank_ring.layers = 4
+	tank.add_child(_tank_ring)
+	tank_label = F.label3d("SETTLING TANK", 34, Color("6cc3ff"))
+	tank_label.layers = 2
+	tank_label.render_priority = 9
+	tank_label.position = PIT + Vector3(0.5, 1.5, 0)
+	game.add_child(tank_label)
+
+## One lift-off lid panel: bars and a frame, with no dark under it (the tank
+## shows through).
+func _grate_panel(parent: Node3D, r: Rect2) -> void:
+	var steel := F.color_mat(Color("8e98a6"))
+	var n := int(r.size.y / 0.17)
+	for i in n:
+		parent.add_child(F.box(Vector3(r.size.x, 0.02, 0.055), steel, Vector3(r.get_center().x, 0, r.position.y + r.size.y * (i + 0.5) / float(n)), false))
+	var fr := F.color_mat(Color("56606e"))
+	for sx in [0.0, 1.0]:
+		parent.add_child(F.box(Vector3(0.06, 0.03, r.size.y), fr, Vector3(r.position.x + r.size.x * sx, 0, r.get_center().y), false))
+		parent.add_child(F.box(Vector3(r.size.x, 0.03, 0.06), fr, Vector3(r.get_center().x, 0, r.position.y + r.size.y * sx), false))
+	# (a lifting handle each end)
+	for k in [0.25, 0.75]:
+		parent.add_child(F.box(Vector3(0.22, 0.03, 0.05), F.color_mat(Color("ffc72c")), Vector3(r.get_center().x, 0.02, r.position.y + r.size.y * k), false))
+
+## The washout water, there to see: it lies under the pump's grate from the
+## moment the hopper's cleaned out, and when the pump operator blows the line
+## back it runs down the trench and falls into the tank, which fills.
+func _update_water(delta: float) -> void:
+	var washing: bool = stage in WASH_ORDER or washed
+	for w in _pad_water:
+		w.visible = washing
+	var call := stage == "valve"
+	var want := 1.0 if washed else (clampf(hold * 1.6, 0.0, 1.0) if call else 0.0)
+	_flow = move_toward(_flow, want, delta * (0.9 if want > _flow else 0.25))
+	_trench_water.visible = _flow > 0.01
+	if _trench_water.visible:
+		var ln := (TRENCH.size.y - 0.1) * _flow
+		_trench_water.scale.z = _flow
+		_trench_water.position.z = TRENCH.position.y + 0.05 + ln * 0.5
+	var running: bool = call and hold > 0.02 and not washed
+	_flow_t += delta
+	for i in _ripples.size():
+		var rp := _ripples[i]
+		var u := fmod(_flow_t * 0.45 + float(i) / _ripples.size(), 1.0)
+		rp.visible = running and u < _flow
+		rp.position = Vector3(TRENCH.get_center().x, GRATE_Y + 0.013, TRENCH.position.y + 0.15 + (TRENCH.size.y - 0.3) * u)
+	water_fx.emitting = running and _flow > 0.9
+	# (the water in the tank: the higher it stands, the more of it shows
+	# past the tank's near lip)
+	var lvl := 1.0 if washed else (clampf((hold - 0.4) * 1.7, 0.0, 1.0) if call else 0.0)
+	_tank_lvl = move_toward(_tank_lvl, lvl, delta * 0.8)
+	var down := lerpf(0.62, 0.12, _tank_lvl)
+	var wx0 := _tank_in.position.x + PIT_LEAN.x * down
+	var wz0 := _tank_in.position.y + PIT_LEAN.y * down
+	var wx1 := PIT_SIZE.x * 0.5
+	var wz1 := PIT_SIZE.y * 0.5
+	_tank_water.visible = wz1 - wz0 > 0.03
+	_tank_water.scale = Vector3(maxf(0.01, wx1 - wx0), 0.004, maxf(0.01, wz1 - wz0))
+	_tank_water.position = Vector3((wx0 + wx1) * 0.5, GRATE_Y + 0.012, (wz0 + wz1) * 0.5)
+	_tank_ring_mat.albedo_color.a = (0.5 + 0.35 * sin(_tank_t * 6.0)) if call else 0.0
 
 ## Puts the bin on this site's scaffold.
 func place() -> void:
@@ -434,13 +586,12 @@ func showing_sign() -> bool:
 func valve(p, delta: float) -> bool:
 	if stage != "valve":
 		return false
-	p.cue("action", "open the release valve", hold, true)
+	p.cue("action", "blow the water back to the tank", hold, true)
 	p.gold(not p.bot)
+	p.face(game.line.PUMP_POS)
 	if p.action_held():
 		hold = minf(1.0, hold + delta / HOLD_T)
 		p.pose_arms(Vector3(-1.0, 0, -0.3), Vector3(-1.0 + 0.4 * hold, 0, 0.3))
-		water_fx.position = game.GROUND_STATIONS["valve"]["pos"] + Vector3(0.4, 0.6, 0)
-		water_fx.emitting = true
 		if hold >= 1.0:
 			_done_by(p, 15)
 	else:
@@ -483,17 +634,8 @@ func update(delta: float) -> void:
 	steam.emitting = stage == "air" and step_t >= SIGNAL_AIR
 	if steam.emitting:
 		steam.global_position = game.discharge()
-	if stage != "valve":
-		water_fx.emitting = false
-	# The tank calls out while the washout water's to be blown back into it
 	_tank_t += delta
-	var call := stage == "valve"
-	_tank_arrow.visible = call
-	_tank_arrow.position.y = 2.9 + 0.25 * sin(_tank_t * 5.0)
-	_tank_ring_mat.albedo_color.a = (0.55 + 0.4 * sin(_tank_t * 6.0)) if call else 0.7
-	# (the water in it rises as the washout comes back)
-	var lvl := 1.0 if washed else (hold if call else 0.0)
-	_tank_water.position.y = 0.75 + 0.35 * lvl
+	_update_water(delta)
 	_ball_update(delta)
 	if not busy():
 		return
@@ -576,7 +718,7 @@ func job() -> Array:
 		"panel":
 			pos = game.GROUND_STATIONS["panel"]["pos"] + Vector3(0, 2.0, 0)
 		"valve":
-			pos = game.GROUND_STATIONS["valve"]["pos"] + Vector3(0, 2.0, 0)
+			pos = game.GROUND_STATIONS["panel"]["pos"] + Vector3(0, 2.0, 0)
 		"bin":
 			pos = bin_world() + Vector3(0, 1.2, 0)
 		"hose":

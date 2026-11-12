@@ -34,7 +34,8 @@ func setup(owner_line) -> void:
 	for k in STRIPES:
 		var side := -1.0 if k < STRIPES / 2 else 1.0
 		var i := k % (STRIPES / 2)
-		var s := F.box(Vector3(0.22, 0.6, 0.03), mat, line.HOPPER + Vector3(-0.5 + 0.5 * i, 0.55, side * 0.9))
+		var s := F.box(Vector3(0.22, 0.6, 0.03), mat, line.HOPPER + line.rot(Vector3(-0.5 + 0.5 * i, 0.55, side * 0.9)))
+		s.rotation.y = line.PUMP_YAW
 		add_child(s)
 		_stripes.append(s)
 		_dirt.append(1.0)
