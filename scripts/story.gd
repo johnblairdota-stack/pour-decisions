@@ -36,18 +36,19 @@ const DAYS := [
 ## The light presets: [sky top, horizon, sun colour, sun energy, ambient,
 ## sun elevation (deg), where the sun is (a flat direction in the game's
 ## frame: x is west, z is north; late October, so it rises and sets a little
-## south of east and west), haze density, cloud cover]
+## south of east and west), haze density, cloud cover, and the day's
+## finishing grade: contrast, colour (saturation)]
 const LIGHTS := {
-	"morning": [Color("3a78c9"), Color("cfdfe8"), Color("fff2df"), 1.2, 0.6, 42.0, Vector2(-0.4, 0.92), 0.00015, 0.42],
-	"midmorning": [Color("3574c6"), Color("d4e2ea"), Color("fff5e6"), 1.3, 0.62, 55.0, Vector2(-0.25, 0.97), 0.00015, 0.35],
-	"noon": [Color("3c7fd0"), Color("d9e5ec"), Color("fffaf2"), 1.4, 0.66, 70.0, Vector2(0.0, 1.0), 0.00014, 0.25],
-	"hot": [Color("5a8fcf"), Color("ebe6d6"), Color("fff8ea"), 1.55, 0.72, 74.0, Vector2(0.1, 1.0), 0.00032, 0.08],
-	"arvo": [Color("3a6fb8"), Color("e8dcc4"), Color("ffe6c0"), 1.1, 0.56, 30.0, Vector2(0.75, 0.65), 0.00018, 0.38],
-	"overcast": [Color("7b8796"), Color("b7c0c8"), Color("e9ecef"), 0.6, 0.85, 50.0, Vector2(0.4, 0.9), 0.00030, 0.92],
-	"storm": [Color("434c58"), Color("858e97"), Color("c5cbd1"), 0.28, 0.62, 50.0, Vector2(0.4, 0.9), 0.00055, 1.0],
-	"grey": [Color("8794a2"), Color("c3cad0"), Color("eef0f2"), 0.7, 0.82, 45.0, Vector2(-0.5, 0.85), 0.00026, 0.85],
-	"golden": [Color("3a66ad"), Color("f0cf9c"), Color("ffcf94"), 1.0, 0.5, 16.0, Vector2(0.95, -0.1), 0.00020, 0.3],
-	"sunset": [Color("2c4b8a"), Color("f2a670"), Color("ff9f62"), 0.85, 0.42, 7.0, Vector2(0.95, -0.3), 0.00022, 0.35],
+	"morning": [Color("3a78c9"), Color("cfdfe8"), Color("fff2df"), 1.2, 0.6, 42.0, Vector2(-0.4, 0.92), 0.00015, 0.42, 1.04, 1.06],
+	"midmorning": [Color("3574c6"), Color("d4e2ea"), Color("fff5e6"), 1.3, 0.62, 55.0, Vector2(-0.25, 0.97), 0.00015, 0.35, 1.04, 1.05],
+	"noon": [Color("3c7fd0"), Color("d9e5ec"), Color("fffaf2"), 1.4, 0.66, 70.0, Vector2(0.0, 1.0), 0.00014, 0.25, 1.06, 1.02],
+	"hot": [Color("5a8fcf"), Color("ebe6d6"), Color("fff8ea"), 1.55, 0.72, 74.0, Vector2(0.1, 1.0), 0.00032, 0.08, 1.08, 0.97],
+	"arvo": [Color("3a6fb8"), Color("e8dcc4"), Color("ffe6c0"), 1.1, 0.56, 30.0, Vector2(0.75, 0.65), 0.00018, 0.38, 1.03, 1.08],
+	"overcast": [Color("7b8796"), Color("b7c0c8"), Color("e9ecef"), 0.6, 0.85, 50.0, Vector2(0.4, 0.9), 0.00030, 0.92, 0.97, 0.88],
+	"storm": [Color("434c58"), Color("858e97"), Color("c5cbd1"), 0.28, 0.62, 50.0, Vector2(0.4, 0.9), 0.00055, 1.0, 0.95, 0.8],
+	"grey": [Color("8794a2"), Color("c3cad0"), Color("eef0f2"), 0.7, 0.82, 45.0, Vector2(-0.5, 0.85), 0.00026, 0.85, 0.97, 0.86],
+	"golden": [Color("3a66ad"), Color("f0cf9c"), Color("ffcf94"), 1.0, 0.5, 16.0, Vector2(0.95, -0.1), 0.00020, 0.3, 1.05, 1.14],
+	"sunset": [Color("2c4b8a"), Color("f2a670"), Color("ff9f62"), 0.85, 0.42, 7.0, Vector2(0.95, -0.3), 0.00022, 0.35, 1.06, 1.16],
 }
 
 static func day(level: int) -> Array:

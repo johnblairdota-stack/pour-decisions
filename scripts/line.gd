@@ -556,6 +556,44 @@ func make_item(kind: String) -> Node3D:
 	n.set_meta("kind", kind)
 	return n
 
+var _exhaust: CPUParticles3D
+
+## Exhaust off the pump's stack (on the canopy roof, tools/blender/plant.py).
+func _build_exhaust() -> void:
+	_exhaust = CPUParticles3D.new()
+	_exhaust.position = Vector3(-0.8, 3.12, -0.6)
+	_exhaust.amount = 14
+	_exhaust.lifetime = 1.8
+	_exhaust.emitting = false
+	_exhaust.direction = Vector3.UP
+	_exhaust.spread = 10.0
+	_exhaust.initial_velocity_min = 0.9
+	_exhaust.initial_velocity_max = 1.4
+	_exhaust.gravity = Vector3(0.35, 0.4, 0.0)
+	_exhaust.damping_min = 0.4
+	_exhaust.damping_max = 0.8
+	var grow := Curve.new()
+	grow.add_point(Vector2(0.0, 0.35))
+	grow.add_point(Vector2(1.0, 1.6))
+	_exhaust.scale_amount_curve = grow
+	var fade := Gradient.new()
+	fade.set_color(0, Color(0.42, 0.42, 0.44, 0.45))
+	fade.set_color(1, Color(0.62, 0.63, 0.66, 0.0))
+	_exhaust.color_ramp = fade
+	var m := SphereMesh.new()
+	m.radius = 0.16
+	m.height = 0.3
+	m.radial_segments = 8
+	m.rings = 4
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.vertex_color_use_as_albedo = true
+	m.material = mat
+	_exhaust.mesh = m
+	_exhaust.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	pump_unit.add_child(_exhaust)
+
 func _build_pump() -> void:
 	pump_unit = Node3D.new()
 	pump_unit.position = PUMP_POS
@@ -563,6 +601,7 @@ func _build_pump() -> void:
 	# Stationary trailer pump, modelled (tools/blender/plant.py): drawbar and
 	# jack legs, engine canopy, delivery cylinders to the hopper end
 	pump_unit.add_child(F.prop("LinePump", {}, PLANT))
+	_build_exhaust()
 	var lbl := Label3D.new()
 	lbl.text = Settings.brand("pumper")
 	lbl.add_to_group("brand_pumper")
@@ -2410,9 +2449,15 @@ func update(delta: float, in_pour: bool) -> void:
 	# (not in the start-up: an empty hopper's normal before the first load)
 	hopper_label.text = "LOW" if fill < 0.2 and in_pour and game.ops != null and game.ops.primed else ""
 	hopper_label.modulate = Color("ff4d4d")
-	# Pump body thumps with each stroke
+	# Pump body thumps with each stroke, and shivers on the idle between
 	var stroke_u := absf(sin(_knock_phase * PI / 0.8)) if pumping else 0.0
-	pump_unit.position = PUMP_POS + Vector3(0, stroke_u * 0.03, 0)
+	var idle_u := 0.006 * sin(_knock_phase * 57.0) if in_pour and not pumping else 0.0
+	pump_unit.position = PUMP_POS + Vector3(0, stroke_u * 0.03 + idle_u, 0)
+	# (the diesel's breath out the stack: a lazy wisp on the idle, a puff
+	# with every stroke when it's working)
+	if _exhaust != null:
+		_exhaust.emitting = in_pour
+		_exhaust.speed_scale = 1.8 if pumping else 1.0
 
 	# Clamps: the weeping one drips, knocks each stroke and glows
 	beacon.visible = false
