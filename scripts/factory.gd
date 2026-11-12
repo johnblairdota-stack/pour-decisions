@@ -180,14 +180,14 @@ const CREW_GLB := "res://assets/crew/crew.glb"
 const CREW_COLORS := {
 	"tape": Color("dfe4e8"), "pants": Color("24324f"), "kneepad": Color("3a3f47"),
 	"belt": Color("2a2a2a"), "steel": Color("afc0d2"), "boot": Color("8a5a32"), "sole": Color("2b2b2b"),
-	"gumboot": Color("eef0f2"), "glove": Color("d9b26b"), "skin": Color("f2c9a0"), "nose": Color("e8bd94"), "hair": Color("4a3122"),
+	"gumboot": Color("eef0f2"), "glove": Color("d9b26b"), "skin": Color("f2c9a0"), "nose": Color("e8bd94"), "hair": Color("4a3122"), "brow": Color("30200f"),
 	"eye": Color("151515"), "eye_hi": Color("ffffff"), "cheek": Color("f08a7a"), "mouth": Color("7a3030"),
 	"lens": Color("1f2a3d"), "lens_hi": Color("e8f4ff"), "frame": Color("1d1f22"), "muff": Color("ff4d4d"), "kit_muff": Color("3d4a2f"), "radio": Color("1d1f22"),
 	"remote": Color("ffc72c"), "red": Color("e5383b"), "harness": Color("22262b"), "docket": Color("fff4c2"),
 	"splat": Color("a9adb3"),
 }
 ## Small or painted-on parts: no outline (it would swallow them)
-const CREW_NO_OUTLINE := ["lens_hi", "frame", "air_text", "nose", "eye", "eye_hi", "cheek", "mouth", "tape", "pocket", "splat", "docket",
+const CREW_NO_OUTLINE := ["brow", "harness", "lens_hi", "frame", "air_text", "nose", "eye", "eye_hi", "cheek", "mouth", "tape", "pocket", "splat", "docket",
 	"wet", "wet_crust", "chain", "rope", "fence_wire", "barrier", "band", "lamp", "sign_blue", "rebar"]
 ## What each job wears (role keys as in crew.gd)
 const CREW_KIT := {
@@ -358,6 +358,8 @@ static func dress(root: Node3D, ch: Dictionary) -> void:
 		"skin": color_mat(Color(ch.get("skin", "f2c9a0")), true),
 		"nose": color_mat(Color(ch.get("skin", "f2c9a0")).darkened(0.04), false),
 		"hair": color_mat(Color(ch.get("hair", "4a3122")), true),
+		# (brows a shade darker than the hair, so even grey ones show)
+		"brow": color_mat(Color(ch.get("hair", "4a3122")).darkened(0.35), false),
 	})
 	var look := String(ch.get("look", ""))
 	for n in _crew_parts(root):
