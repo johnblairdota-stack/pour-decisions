@@ -125,6 +125,10 @@ func put_down(p) -> void:
 	st["state"] = ""
 	p.model.position = Vector3.ZERO
 
+## How much a lift on the bubbles fades the poker's help (a right slump call
+## is 0.05; there are a lot more lifts than loads).
+const LIFT_STEP := 0.012
+
 func _crew(who) -> bool:
 	return who.get("role") != null and who.get("role") != ""
 
@@ -174,10 +178,16 @@ func _work(who, st: Dictionary, holding: bool, delta: float, compact_t: float) -
 					game.sfx.hit("hiss")
 					if _crew(who):
 						game.score.award(who, -10, "Over-vibrated")
+						if game.has_method("learned"):
+							game.learned(who, false)
 						game.pop("bleed water!", pour.global_position + local + Vector3(0, 1.2, 0), Color("6fa8dc"))
 			if not holding:
 				if st["done_t"] > 0.0 and not st["bled"] and _crew(who):
 					game.score.award(who, 2, "Poker")
+					# (lifted on the bubbles, before the bleed: the poker's
+					# real call, and what fades their help)
+					if game.has_method("learned"):
+						game.learned(who, true, LIFT_STEP)
 				st["state"] = "out"
 				st["t"] = 0.0
 				fx.set("rate", 0.0)
