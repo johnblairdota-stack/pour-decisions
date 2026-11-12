@@ -126,6 +126,14 @@ body.roam.drive #pedals{display:block}
 #brake small{font-size:1.9vmin;letter-spacing:0}
 #gas{--pc:#7cd992;left:82vw;width:15vw;top:16vh;bottom:4vh}
 body.roam #ticket,body.roam #helping{display:none}
+/* --- on the boom remote: the stick's which way, a SPEED bar (like the ute's gas) how fast */
+#speed{display:none;--pc:#ffd23f;left:86vw;width:12vw;top:16vh;bottom:4vh}
+body.boomsp #speed{display:flex}
+#speed .whip{position:absolute;left:0;right:0;top:0;height:24%;background:repeating-linear-gradient(135deg,rgba(255,90,95,.28) 0 2vmin,transparent 2vmin 4vmin);border-bottom:2px dashed #ff5a5f}
+#speed .whip span{position:absolute;left:0;right:0;top:1.4vmin;text-align:center;font-family:"Barlow Condensed",sans-serif;font-weight:800;font-size:3vmin;color:#ff8a80;letter-spacing:.06em}
+body.boomsp #X,body.boomsp #Y{display:none}
+body.boomsp #A{left:0;top:46%;width:24vmin;height:24vmin}
+body.boomsp #B{left:22%;top:12%}
 /* --- climb days: the dogman's landing view, a tag hand's line gauge (over the ticket's top) */
 #climbp{position:absolute;left:34vw;width:33vw;top:2.6vmin;z-index:6;display:none;background:#0c0e12;border:2px solid #23262e;border-radius:4vmin;padding:2vmin;box-sizing:border-box}
 #climbp.on{display:block}
@@ -397,6 +405,7 @@ body.roam #ticket,body.roam #helping{display:none}
     <div class="pedal" id="brake"><div class="pf"></div><b>BRAKE/<wbr>REVERSE</b><small>HOLD AT A STOP TO BACK UP</small></div>
     <div class="pedal" id="gas"><div class="pf"></div><b>GAS</b><small>SLIDE UP = MORE</small></div>
   </div>
+  <div class="pedal" id="speed"><div class="pf"></div><div class="whip"><span>HOSE WHIPS</span></div><b>SPEED</b><small>SLIDE UP = FASTER</small></div>
   <div id="climbp"><div id="dialbox"><svg id="dial" viewBox="0 0 100 100"></svg><div id="dialv" class="hd"></div></div>
     <div id="tagg"><div class="row"><span class="hd" id="tagn">LINE 1</span><span class="hd" id="tagw">SLACK</span></div>
       <div id="tagtrack"><i class="s"></i><i class="w"></i><i class="t"></i><b id="tagbar"></b></div>
@@ -557,7 +566,7 @@ function onJson(j) {
     if (j.s === 'lobby') { if (!!j.locked !== locked) { locked = !!j.locked; showScreen(); if (locked) buzz(BUZZ.done); } setCount(j.count, !!j.first); }
   } else if (j.t === 'roster') { roster = j.r; drawLobby(); drawSwap(); }
   else if (j.t === 'card') { card = j; drawTicket(); drawLobby(); }
-  else if (j.t === 'now') { now = j; drawSteps(); }
+  else if (j.t === 'now') { now = j; document.body.classList.toggle('boomsp', !!j.boom); drawSteps(); }
   else if (j.t === 'gauge') drawGauge(j);
   else if (j.t === 'nudge') { setNudge(j.lvl); setSpray(j); }
   else if (j.t === 'toast') toast(j.msg);
@@ -936,7 +945,8 @@ function sendPedals(force) {
     pTimer = setTimeout(() => { pTimer = null; sendPedals(true); }, 34 - (t - pLast));
   }
 }
-function pedal(id, lo, set) {
+function pedal(id, lo, set, sendFn) {
+  sendFn = sendFn || sendPedals;
   const el = $(id), pf = el.querySelector('.pf');
   let pid = null;
   const at = (e) => {
@@ -944,12 +954,12 @@ function pedal(id, lo, set) {
     const k = Math.max(0, Math.min(1, (r.bottom - e.clientY) / r.height));
     const v = lo + (1 - lo) * k;
     pf.style.height = (v * 100) + '%';
-    set(v); sendPedals(false);
+    set(v); sendFn(false);
   };
   const up = (e) => {
     if (pid === null || (e && e.pointerId !== pid)) return;
     pid = null; el.classList.remove('down'); pf.style.height = '0';
-    set(0); sendPedals(true);
+    set(0); sendFn(true);
   };
   el.addEventListener('pointerdown', (e) => {
     e.preventDefault(); pid = e.pointerId;
@@ -963,6 +973,19 @@ function pedal(id, lo, set) {
 }
 pedal('gas', .3, (v) => { gasV = v; });
 pedal('brake', .5, (v) => { brkV = v; });
+// On the boom remote: the SPEED bar rides the gas pedal's channel (no brake)
+let spdV = 0, sLast = 0, sTimer = null;
+function sendSpeed(force) {
+  const t = performance.now();
+  if (force || t - sLast > 33) {
+    sLast = t;
+    if (sTimer) { clearTimeout(sTimer); sTimer = null; }
+    send('pd ' + spdV.toFixed(2) + ' 0');
+  } else if (!sTimer) {
+    sTimer = setTimeout(() => { sTimer = null; sendSpeed(true); }, 34 - (t - sLast));
+  }
+}
+pedal('speed', .2, (v) => { spdV = v; }, sendSpeed);
 // ---------------------------------------------------------------- knocked off: the 4x4 dash, and back to work
 $('dd').addEventListener('pointerdown', (e) => { e.preventDefault(); send('dash drive'); buzz(BUZZ.press); });
 $('dl').addEventListener('pointerdown', (e) => { e.preventDefault(); send('dash lock'); buzz(BUZZ.press); });
