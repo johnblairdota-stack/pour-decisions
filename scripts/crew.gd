@@ -75,10 +75,10 @@ func place_start() -> void:
 			"hose": p.position = Vector3(3.0, wy, -1.0)
 			"line":
 				p.zone = "ground"
-				p.position = Vector3(14.6, 0, 3.4)
+				p.position = Vector3(17.6, 0, 10.2)
 			"pump":
 				p.zone = "ground"
-				p.position = Vector3(19.4, 0, 9.2)
+				p.position = Vector3(16.4, 0, 7.4)
 
 ## A bot driver. `keep` is the character it takes over as (a person leaving a
 ## job leaves their character with them, so the bot picks up a free one).

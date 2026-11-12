@@ -821,6 +821,81 @@ func show_cues(cam_right: Vector3, t: float, cam_pos := Vector3.ZERO, cam_k := 1
 
 # ------------------------------------------------------------------ carrying
 
+## A pick-up off the racking: a reach (down to the bottom rack, up to the
+## top one, or up to a hook), the thing comes away in the hands and is
+## carried off. `from` is where it sits (world).
+const GRAB_T := 0.75
+var _grab_t := -1.0
+var _grab_style := ""
+var _grab_from := Vector3.ZERO     # in the model's space
+var _grab_to := Vector3.ZERO
+var _grab_rot := Vector3.ZERO
+var step_over := 0.0               # 0..1: how far into stepping over the ground pipe (line.gd)
+var step_high := 0.0               # ...at the stile, where it's a climb up and over
+var _lifted := false
+
+func grabbing() -> bool:
+	return _grab_t >= 0.0
+
+func grab(item: Node3D, kind: String, style: String, from: Vector3) -> void:
+	face(from)
+	hold_item(item, kind)
+	_grab_to = item.position
+	_grab_rot = item.rotation
+	_grab_from = model.global_transform.affine_inverse() * from
+	item.position = _grab_from
+	if kind == "pipe":
+		# (lying along the rack, as it was)
+		item.rotation = Vector3(0, 0, 0)
+	_grab_t = 0.0
+	_grab_style = style
+	_bounce = 0.0
+
+## The reach and lift, over the top of the walk cycle. Returns the body's
+## lift off the ground (m).
+func _grab_anim(delta: float) -> float:
+	_grab_t += delta
+	var u := clampf(_grab_t / GRAB_T, 0.0, 1.0)
+	# In to the shelf by 0.35, hands on it till 0.45, then away with it
+	var reach := smoothstep(0.0, 0.35, u) * (1.0 - smoothstep(0.55, 1.0, u))
+	var take := smoothstep(0.45, 1.0, u)
+	var lift := 0.0
+	var arm := -1.2
+	match _grab_style:
+		"low":
+			# Knees bent and a lean in to the bottom rack
+			model.rotation.x = 0.55 * reach
+			lift = -0.22 * reach
+			arm = lerpf(-1.2, -0.75, reach)
+			model.get_node("LegL").rotation.x = -0.5 * reach
+			model.get_node("LegR").rotation.x = 0.35 * reach
+		"high":
+			# Up on the toes to the top rack
+			lift = 0.1 * reach
+			arm = lerpf(-1.2, -2.35, reach)
+			(model.get_node("Head") as Node3D).rotation.x = -0.3 * reach
+		_:
+			# Up to the hook: lifted off it before it comes away
+			lift = 0.14 * reach
+			arm = lerpf(-1.2, -2.75, reach)
+			(model.get_node("Head") as Node3D).rotation.x = -0.4 * reach
+	if held != null:
+		var from := _grab_from + (Vector3(0, 0.14 * smoothstep(0.3, 0.45, u), 0) if _grab_style == "hook" else Vector3.ZERO)
+		held.position = from.lerp(_grab_to, take)
+		if held_kind == "pipe":
+			# Slid off the rack, then swung up across the shoulders
+			held.rotation = Vector3(0, 0, lerp_angle(0.0, _grab_rot.z, take))
+			arm = lerpf(arm, -2.7, take)
+		pose_arms(Vector3(arm, 0, 0.2 - 0.45 * reach), Vector3(arm, 0, -0.2 + 0.45 * reach))
+	if u >= 1.0:
+		_grab_t = -1.0
+		if held != null:
+			held.position = _grab_to
+			held.rotation = _grab_rot
+		model.rotation.x = 0.0
+		bounce()
+	return lift
+
 func hold_item(item: Node3D, kind: String) -> void:
 	held = item
 	held_kind = kind
@@ -840,6 +915,7 @@ func release_item() -> Node3D:
 	var it := held
 	held = null
 	held_kind = ""
+	_grab_t = -1.0
 	if it and it.get_parent():
 		it.get_parent().remove_child(it)
 	return it
@@ -851,7 +927,7 @@ func release_item() -> Node3D:
 func walk(delta: float, walkable: Callable, cam_yaw: float) -> void:
 	var v := move_input()
 	# (on the hose, or on a tag line, they walk it themselves)
-	if (busy != "" and not (busy in ["hose", "tag", "tag2"])) or zone == "ladder" or zone == "hoist":
+	if (busy != "" and not (busy in ["hose", "tag", "tag2"])) or zone == "ladder" or zone == "hoist" or _grab_t >= 0.0:
 		v = Vector2.ZERO
 	var dir := Vector3(v.x, 0, v.y).rotated(Vector3.UP, cam_yaw)
 	var run := run_to != Vector3.INF
@@ -859,7 +935,7 @@ func walk(delta: float, walkable: Callable, cam_yaw: float) -> void:
 		var to := Vector3(run_to.x - position.x, 0, run_to.z - position.z)
 		dir = to.normalized() if to.length() > 0.15 else Vector3.ZERO
 	run_to = Vector3.INF
-	var sp := speed * (0.7 if held_kind == "pipe" else 1.0) * (1.3 if hurry or run else 1.0) * (1.0 - 0.35 * weary) * pace
+	var sp := speed * (0.7 if held_kind == "pipe" else 1.0) * (1.3 if hurry or run else 1.0) * (1.0 - 0.35 * weary) * pace * (1.0 - (0.3 + 0.25 * step_high) * step_over)
 	stepped = false
 	if dir.length() > 0.05:
 		var step := dir * sp * delta
@@ -908,6 +984,21 @@ func animate(delta: float) -> void:
 			# Arms swing as you walk; worn out, they just hang and dangle
 			var dangle := sin(_phase * 1.1) * 0.08 * weary
 			pose_arms(Vector3(-s * 0.5 * (1.0 - 0.6 * weary) + 0.25 * weary + dangle, 0, -0.25 + 0.15 * weary), Vector3(s * 0.5 * (1.0 - 0.6 * weary) + 0.25 * weary - dangle, 0, 0.25 - 0.15 * weary))
+	# Over the ground pipe: knees right up, arms out for balance, and at the
+	# stile a climb up onto its tread and down the far side
+	var lift := 0.0
+	if step_over > 0.0 and zone == "ground":
+		var k := smoothstep(0.0, 1.0, step_over)
+		model.get_node("LegL").rotation.x = lerpf(s * 0.6, -0.55 + s * 1.15, k)
+		model.get_node("LegR").rotation.x = lerpf(-s * 0.6, -0.55 - s * 1.15, k)
+		lift = k * (0.1 + 0.45 * step_high) + absf(s) * 0.06 * k
+		if busy == "" and tool == "" and held == null:
+			pose_arms(Vector3(-s * 0.3, 0, -0.25 - 0.75 * k), Vector3(s * 0.3, 0, 0.25 + 0.75 * k))
+	if _grab_t >= 0.0:
+		lift = _grab_anim(delta)
+	if lift != 0.0 or _lifted:
+		model.position.y = lift
+		_lifted = lift != 0.0
 	# Squash and stretch after an action (and a slump when worn out)
 	_bounce = maxf(0.0, _bounce - delta * 4.0)
 	var b := sin(_bounce * PI) * 0.18

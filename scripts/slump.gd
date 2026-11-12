@@ -414,7 +414,7 @@ func fetch_tick(t: Dictionary, chute: Vector3, delta: float) -> void:
 		# (round the trucks, not through them: across to the lane beside the
 		# hopper first, then along it)
 		var at0: Vector3 = st["at"]
-		st["via"] = Vector3(at0.x, 0, stand.z - 0.8)
+		st["via"] = line.pf(line.in_pf(at0).x, line.in_pf(stand).y - 0.8)
 	var at: Vector3 = st["at"]
 	var via: Vector3 = st["via"]
 	var tray_full := false
@@ -470,7 +470,7 @@ func _fetch_spot(chute: Vector3, stand: Vector3) -> Vector3:
 	var c := Vector3(chute.x, 0, chute.z)
 	var to_stand := Vector3(stand.x - c.x, 0, stand.z - c.z).normalized()
 	var first := Vector3.INF
-	for off in [Vector3(1.15, 0, 0), Vector3(1.15, 0, 0.5), Vector3(1.15, 0, -0.5), Vector3(1.3, 0, 0), to_stand * 1.5, to_stand * 2.5]:
+	for off in [line.rot(Vector3(1.15, 0, 0)), line.rot(Vector3(1.15, 0, 0.5)), line.rot(Vector3(1.15, 0, -0.5)), line.rot(Vector3(1.3, 0, 0)), to_stand * 1.5, to_stand * 2.5]:
 		var pt: Vector3 = c + off
 		if game._walkable(pt, "ground"):
 			if not _behind_a_truck(pt):
