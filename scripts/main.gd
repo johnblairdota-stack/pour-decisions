@@ -4816,11 +4816,11 @@ const PUMP_AREA_SHOTS := {
 	"trench": [Vector3(15.0, 0.0, 8.5), 17.0, 0.55, 0.7],
 	"tankfull": [Vector3(13.0, 0.0, 10.0), 12.0, 0.55, 0.7],
 	"backin": [Vector3(22.0, 0.0, 10.0), 30.0, 0.55, 0.8],
-	"grab": [Vector3(13.2, 1.0, 5.0), 8.0, 0.9, 0.4],
+	"grab": [Vector3(13.6, 1.0, 5.0), 9.0, 0.55, 0.5],
 	"grabgear": [Vector3(12.2, 1.0, 5.0), 8.0, -1.2, 0.4],
 	"grabpins": [Vector3(12.2, 1.0, 5.0), 8.0, -1.2, 0.4],
 	"gear": [Vector3(8.0, 1.0, 7.0), 14.0, 0.2, 0.5],
-	"stepover": [Vector3(13.8, 0.8, 1.8), 7.0, 0.9, 0.45],
+	"stepover": [Vector3(13.85, 0.8, 2.5), 10.0, 0.55, 0.55],
 }
 
 func _pump_area_shot() -> String:
@@ -4841,7 +4841,7 @@ func _pump_area_shot() -> String:
 		return "knock"
 	if want.call("plug") and line.blocked and line.block_found and line.tap_marks.size() >= 2:
 		return "plug"
-	if want.call("trench") and ops.stage == "valve" and ops.hold > 0.75:
+	if want.call("trench") and ops.stage == "valve" and ops.hold > 0.3:
 		return "trench"
 	if want.call("tankfull") and ops.washed:
 		return "tankfull"
@@ -4849,9 +4849,9 @@ func _pump_area_shot() -> String:
 		if want.call("backin") and t["state"] == "back" and float(t["t"]) > line.SPOT_LEN * 0.5 and line.bay_truck != null and line.bay_truck != t:
 			return "backin"
 	for p in players:
-		if want.call("grab") and p._grab_t > 0.22 and p._grab_t < 0.4:
+		if want.call("grab") and p._grab_t > 0.05:
 			return "grab"
-		if want.call("stepover") and p.step_over > 0.85:
+		if want.call("stepover") and p.step_over > 0.4:
 			return "stepover"
 	if line.bay_truck == null or _filled_ratio() < 0.12:
 		return ""

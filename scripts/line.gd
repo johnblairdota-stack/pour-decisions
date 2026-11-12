@@ -503,7 +503,7 @@ func _rack_sign(parent: Node3D, text: String, at: Vector3) -> void:
 	var l := Label3D.new()
 	l.text = text
 	l.font_size = 96
-	l.pixel_size = 0.0019 if text.length() > 8 else 0.0024
+	l.pixel_size = 0.00165 if text.length() > 8 else 0.0024
 	l.outline_size = 10
 	l.outline_modulate = Color("0f1b2d")
 	l.modulate = Color("0f1b2d")
@@ -1642,7 +1642,7 @@ func _back_path(slot: String) -> Array:
 	# is where the slot's line meets the lane)
 	var to: Vector3 = _slot_pose(slot)[0]
 	var c: Vector3 = to + DIR * ((ROAD_Z + LANE_OUT - to.z) / DIR.z)
-	return [c + Vector3(9.0, 0, 0), c + Vector3(2.0, 0, 0), c - DIR * 2.0, to]
+	return [c + Vector3(9.0, 0, 0), c + Vector3(1.0, 0, 0), c - DIR * 1.0, to]
 
 ## The drive out: forwards off the hopper and onto the far lane of the road.
 func _leave_path(slot: String) -> Array:

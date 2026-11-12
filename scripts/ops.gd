@@ -172,6 +172,11 @@ const TRENCH := Rect2(0.0, 1.5, 0.7, 6.7)         # from the pump's street side 
 const PIT := Vector3(11.9, 0, 10.85)
 const PIT_SIZE := Vector2(3.2, 1.5)
 const GRATE_Y := 0.068
+# How far a point 1 m down in the pit shows towards the camera, on the flat
+# (the game's camera: yaw 0.55, pitch 0.62)
+const PIT_LEAN := Vector2(0.73, 1.19)
+var _tank_in := Rect2()     # the tank's open top, as painted (pit's own x, z)
+var _tank_lvl := 0.0
 
 var _pad_water: Array[MeshInstance3D] = []
 var _trench_water: MeshInstance3D
@@ -263,13 +268,26 @@ func _build_pit() -> void:
 	for sx in [-1.0, 1.0]:
 		tank.add_child(F.box(Vector3(0.16, 0.035, PIT_SIZE.y + 0.32), conc, Vector3(sx * (hx + 0.08), GRATE_Y + 0.005, 0), false))
 		tank.add_child(F.box(Vector3(PIT_SIZE.x + 0.32, 0.035, 0.16), conc, Vector3(0, GRATE_Y + 0.005, sx * (hz + 0.08)), false))
-	tank.add_child(F.box(Vector3(PIT_SIZE.x, 0.008, PIT_SIZE.y), F.color_mat(Color("1b1e24")), Vector3(0, GRATE_Y, 0), false))
-	# (the tank's rim and the dark inside it, seen from above through the lid)
-	tank.add_child(F.box(Vector3(PIT_SIZE.x - 0.3, 0.008, PIT_SIZE.y - 0.3), F.color_mat(Color("d9dde2")), Vector3(0, GRATE_Y + 0.006, 0), false))
-	tank.add_child(F.box(Vector3(PIT_SIZE.x - 0.3, 0.008, 0.1), F.color_mat(blue), Vector3(0, GRATE_Y + 0.012, hz - 0.2), false))
-	tank.add_child(F.box(Vector3(PIT_SIZE.x - 0.3, 0.008, 0.1), F.color_mat(blue), Vector3(0, GRATE_Y + 0.012, -hz + 0.2), false))
-	tank.add_child(F.box(Vector3(PIT_SIZE.x - 0.52, 0.008, PIT_SIZE.y - 0.56), F.color_mat(Color("2b3038")), Vector3(0, GRATE_Y + 0.012, 0), false))
-	_tank_water = F.box(Vector3(PIT_SIZE.x - 0.6, 0.008, PIT_SIZE.y - 0.64), F.color_mat(Color("5aa6d6"), false, Color("2d6fa8")), Vector3(0, GRATE_Y + 0.018, 0), false)
+	# The pit's inside is painted on the flat the way the game's camera sees
+	# down into it (a point `d` m down shows d * PIT_LEAN nearer the camera):
+	# the far wall and the west wall, the tank's top 0.3 m down, the dark
+	# inside the tank and the water in it, which comes into view from the
+	# near side as it rises
+	var flat := func(x0: float, x1: float, z0: float, z1: float, lift: float, col: Color) -> MeshInstance3D:
+		var m := F.box(Vector3(x1 - x0, 0.004, z1 - z0), F.color_mat(col), Vector3((x0 + x1) * 0.5, GRATE_Y + lift, (z0 + z1) * 0.5), false)
+		tank.add_child(m)
+		return m
+	var top := PIT_LEAN * 0.3
+	flat.call(-hx, hx, -hz, hz, 0.0, Color("8d9093"))                      # far wall
+	flat.call(-hx, -hx + 0.12 + top.x, -hz, hz, 0.003, Color("6c6f73"))    # west wall, in shade
+	flat.call(-hx, hx, -hz + 0.1 + top.y, -hz + 0.14 + top.y, 0.003, Color("3a3f45"))   # the gap behind the tank
+	var tx0 := -hx + 0.12 + top.x
+	var tz0 := -hz + 0.12 + top.y
+	flat.call(tx0, hx, tz0, hz, 0.006, Color("d9dde2"))                    # tank top
+	flat.call(tx0, hx, tz0, tz0 + 0.07, 0.009, blue)
+	_tank_in = Rect2(tx0 + 0.1, tz0 + 0.12, hx - tx0 - 0.1, hz - tz0 - 0.12)
+	flat.call(_tank_in.position.x, hx, _tank_in.position.y, hz, 0.009, Color("2b3038"))   # inside the tank
+	_tank_water = F.box(Vector3.ONE, F.color_mat(Color("5aa6d6"), false, Color("2d6fa8")), Vector3.ZERO, false)
 	tank.add_child(_tank_water)
 	var pw := PIT_SIZE.x / 3.0
 	for i in 3:
@@ -347,9 +365,18 @@ func _update_water(delta: float) -> void:
 		rp.visible = running and u < _flow
 		rp.position = Vector3(TRENCH.get_center().x, GRATE_Y + 0.013, TRENCH.position.y + 0.15 + (TRENCH.size.y - 0.3) * u)
 	water_fx.emitting = running and _flow > 0.9
-	# (the water in the tank spreads out from the middle as it comes up)
-	var lvl := 1.0 if washed else (clampf((hold - 0.5) * 2.0, 0.0, 1.0) if call else 0.0)
-	_tank_water.scale = Vector3(0.45 + 0.55 * lvl, 1, 0.3 + 0.7 * lvl)
+	# (the water in the tank: the higher it stands, the more of it shows
+	# past the tank's near lip)
+	var lvl := 1.0 if washed else (clampf((hold - 0.4) * 1.7, 0.0, 1.0) if call else 0.0)
+	_tank_lvl = move_toward(_tank_lvl, lvl, delta * 0.8)
+	var down := lerpf(0.62, 0.12, _tank_lvl)
+	var wx0 := _tank_in.position.x + PIT_LEAN.x * down
+	var wz0 := _tank_in.position.y + PIT_LEAN.y * down
+	var wx1 := PIT_SIZE.x * 0.5
+	var wz1 := PIT_SIZE.y * 0.5
+	_tank_water.visible = wz1 - wz0 > 0.03
+	_tank_water.scale = Vector3(maxf(0.01, wx1 - wx0), 0.004, maxf(0.01, wz1 - wz0))
+	_tank_water.position = Vector3((wx0 + wx1) * 0.5, GRATE_Y + 0.012, (wz0 + wz1) * 0.5)
 	_tank_ring_mat.albedo_color.a = (0.5 + 0.35 * sin(_tank_t * 6.0)) if call else 0.0
 
 ## Puts the bin on this site's scaffold.
