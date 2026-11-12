@@ -23,12 +23,12 @@ const OWN_PAINT := {"Hilux": Color("f2f2ef"), "Ranger": Color("1f5fae"), "Shark"
 
 const COLORS := {
 	"glass": Color("26323d"), "tyre": Color("1e1e1e"), "rim": Color("b9bfc4"), "rim_dark": Color("3a3e44"),
-	"light": Color("eef3f6"), "drl": Color("ffffff"), "tail": Color("c8282a"), "amber": Color("ff9a1f"),
+	"light": Color("eef3f6"), "drl": Color("ffffff"), "tail": Color("c8282a"), "tail_hi": Color("ff5a4a"), "glass_hi": Color("6f8494"), "amber": Color("ff9a1f"),
 	"trim": Color("25282c"), "chrome": Color("d8dde2"), "grille": Color("1a1c1f"), "plate": Color("f4f4f2"),
 	"liner": Color("2c2e31"), "skid": Color("9aa0a6"), "badge": Color("d8dde2"), "ford_blue": Color("1f4f9a"),
 	# underneath (<Name>Under, <Name>AxleR) and the arch wells
 	"chassis": Color("26282b"), "diff": Color("4a4d52"), "spring": Color("1b1d20"), "shock": Color("3a3e44"),
-	"drum": Color("6b6460"), "exhaust": Color("8a847b"), "battery": Color("39424d"), "well": Color("1c1d1f"),
+	"drum": Color("6b6460"), "exhaust": Color("8a847b"), "battery": Color("39424d"), "well": Color("1c1d1f"), "lamp_in": Color("2e343b"),
 }
 
 static var _lib: Node
@@ -87,6 +87,14 @@ static func drivable(name: String, paint: Color) -> Node3D:
 	bm.mesh = mesh(name + "Body")
 	bm.set_instance_shader_parameter("tint", paint)
 	body.add_child(bm)
+	# the sports bar over the tub (a canopy hides it: apply_kit)
+	var bar := mesh(name + "SportsBar")
+	if bar != null:
+		var sb := MeshInstance3D.new()
+		sb.name = "SportsBar"
+		sb.mesh = bar
+		sb.set_instance_shader_parameter("tint", paint)
+		body.add_child(sb)
 	# (what's underneath: rails, front diff, sump guard, tow bar; and the
 	# rear axle, which rolls with the back wheels)
 	var under := mesh(name + "Under")
@@ -174,6 +182,9 @@ static func apply_kit(node: Node3D, ute: String, kit: Array) -> void:
 	var K: Script = load("res://scripts/ute_kit.gd")
 	var body := node.get_node("Body") as Node3D
 	var ride := 0.0
+	var sb := body.get_node_or_null("SportsBar") as Node3D
+	if sb != null:
+		sb.visible = not kit.any(func(it): return String(it) == "canopy")
 	for item in kit:
 		var it := String(item)
 		if it == "lift":
