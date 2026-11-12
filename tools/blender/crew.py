@@ -34,7 +34,7 @@ PALETTE = {
 	"nose": "f2c9a0", "eye": "151515", "eye_hi": "ffffff", "cheek": "f08a7a", "mouth": "7a3030",
 	"hat": "ffc72c", "hat_dark": "e0a800", "hat_rib": "f0b81f", "lens": "1f2a3d", "lens_hi": "e8f4ff", "frame": "1d1f22", "muff": "ff4d4d",
 	"kit_muff": "3d4a2f", "radio": "1d1f22", "remote": "ffc72c", "red": "ff4d4d",
-	"harness": "22262b", "docket": "fff4c2", "splat": "a9adb3", "pocket": "e86d14",
+	"harness": "22262b", "brow": "3a2414", "docket": "fff4c2", "splat": "a9adb3", "pocket": "e86d14",
 }
 
 HIP_Y = 0.44
@@ -146,10 +146,17 @@ def head(root):
 	smile = tube(arc_points((0, -0.115, 0.0), 0.075, math.pi * 0.7, math.pi * 1.3, 8, plane="xy"), 0.011,
 		"mouth")
 	smile.warp(lambda v: (v.x, v.y, math.sqrt(max(0.0, 0.405 ** 2 - v.x ** 2 - (v.y * 1.05) ** 2))))
+	# Brows: a soft arch each, thickest near the nose and tapering out, in
+	# their own colour (a shade darker than the hair) with no outline, so they
+	# read as clean strokes rather than scribbles
 	brows = []
 	for s in (-1, 1):
-		b = tube(arc_points((0.14 * s, 0.04, 0), 0.08, -0.55, 0.55, 6, plane="xy"), 0.016, "hair")
-		b.warp(lambda v: (v.x, v.y, math.sqrt(max(0.0, 0.425 ** 2 - v.x ** 2 - (v.y * 1.04) ** 2))))
+		pts = arc_points((0.14 * s, 0.035, 0), 0.085, -0.6, 0.6, 12, plane="xy")
+		def thick(u, s=s):
+			t = u if s < 0 else 1 - u          # 0 at the outer tip, 1 by the nose
+			return 0.007 + 0.014 * t ** 0.6 * (1 - 0.5 * t ** 6)
+		b = tube(pts, thick, "brow", 8)
+		b.warp(lambda v: (v.x, v.y, math.sqrt(max(0.0, 0.424 ** 2 - v.x ** 2 - (v.y * 1.04) ** 2)) + 0.004))
 		brows.append(b)
 	# Hair under the brim: round the back and sides
 	hair = sphere(0.432, "hair", 24, 12, s=(1.0, 0.96, 0.96))
@@ -339,7 +346,7 @@ def kits(root, h):
 		for k in range(1, 9):
 			pts.append(on_shirt(math.pi - 0.42 * s, 0.96 - 0.3 * k / 8))
 		pts.append(on_shirt(math.pi - 0.2 * s, 0.6))
-		straps.append(tube(pts, 0.016, "harness", 6))
+		straps.append(tube(pts, 0.021, "harness", 8))
 	build("Kit_BellyBox", [bx, face, *sticks, estop, antenna, *straps], PALETTE, root, hidden=True)
 	# Dogman and rigger: full-body harness, lanyard, whistle
 	parts = []
@@ -351,8 +358,8 @@ def kits(root, h):
 		pts += [on_shirt(0.35 * s, 0.985, 0.03), (0.13 * s, 1.0, 0.0), on_shirt(math.pi - 0.3 * s, 0.97, 0.03)]
 		for k in range(1, 10):
 			pts.append(on_shirt(math.pi - 0.3 * s, 0.96 - 0.49 * k / 9))
-		parts.append(tube(pts, 0.018, "harness", 6))
-	parts.append(tube([on_shirt(a, 0.74, 0.03) for a in [-0.45 + 0.9 * k / 6 for k in range(7)]], 0.016,
+		parts.append(tube(pts, 0.022, "harness", 8))
+	parts.append(tube([on_shirt(a, 0.74, 0.03) for a in [-0.45 + 0.9 * k / 6 for k in range(7)]], 0.02,
 		"harness", 6))
 	ring_pts = [(0.0 + math.sin(a) * 0.04, 0.88 + math.cos(a) * 0.04, -shirt_r(0.88) * TORSO_DEPTH - 0.03)
 		for a in [2 * math.pi * k / 10 for k in range(10)]]
