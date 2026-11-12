@@ -21,13 +21,14 @@ middle, front towards +z), so it goes under the ute's body with no offset.
   roofrack    a flat platform rack on the cab's roof
   rooftent    a hard shell rooftop tent, closed, on the rack (needs the rack)
   awning      a rolled awning in its bag down the rack's left side (ditto)
-  canopy      a powder coated canopy over the tub with lift up side windows
-              (hide the sports bar when it's on)
+  canopy      a powder coated canopy over the tub: frame, roof, front and back
+              door; its sides are the gull wing doors (canopywing)
   drawers     a twin drawer unit across the back of the tub, 0.30 m tall
-  fridge      a 40 L fridge in the tub's front left corner
+  fridge      a 40 L fridge side on across the tub's front left corner
   jerrycans   two jerry cans in a holder in the tub's front right corner
   swag        a rolled swag across the back of the tub (on the tub floor:
-              raise it 0.30 m when the drawers are in)
+              raise it 0.30 m when the drawers are in; with the canopy on,
+              swagroof instead: strapped on the canopy's roof rails)
 
 Not sold on their own (they go with the mud tyres and the bull bar):
 
@@ -35,6 +36,9 @@ Not sold on their own (they go with the mud tyres and the bull bar):
                  bowed out, round all the way so it still spins
   mudtyresbulge  its squashed bottom, the flat patch and the bagged
                  sidewalls; doesn't spin, goes at the hub
+  canopywing     one gull wing door, origin on its hinge along the canopy's
+                 top edge, outside towards +x: swung up about z to open
+  swagroof       the swag on the canopy's roof
   bullbarscrape  a bash plate under the bull bar's pan, scuffed where it's
                  dragged over rocks
 
@@ -288,7 +292,9 @@ def bullbar_scrape(u):
 # ------------------------------------------------------------------ the roof
 
 def _rack_span(u):
-	return u.rz + 0.02, u.bz + 0.02             # front and back of the rack (z)
+	# front and back of the rack (z): its front sits back off the roof's
+	# edge, clear of the light bar and the snorkel's head
+	return u.rz - 0.03, u.bz + 0.02
 
 
 def roofrack(u):
@@ -339,8 +345,10 @@ def awning(u):
 	zf, zb = _rack_span(u)
 	x = u.gt + 0.06 + 0.1
 	y = u.rack_y - 0.02
-	length = (zf - zb) + 0.7
-	zc = (zf + zb) / 2 - 0.3
+	# (from just behind the snorkel's head, back over the tub)
+	zf -= 0.1
+	length = (zf - zb) + 0.65
+	zc = (zf + zb - 0.65) / 2
 	p = [tube([(x, y, zc - length / 2), (x, y, zc + length / 2)], 0.08, "canvas", 10)]
 	# the zip line and end caps, two brackets onto the rack
 	p.append(box(0.01, 0.02, length - 0.04, "bar", at=(x + 0.075, y + 0.02, zc)))
@@ -353,24 +361,60 @@ def awning(u):
 
 # ------------------------------------------------------------------ the tub
 
-def canopy(u):
+def _canopy_dims(u):
 	w = 2 * u.hw - 0.02
-	y0 = u.tub
-	y1 = u.H - 0.02
+	y0, y1 = u.tub, u.H - 0.02
 	length = u.t0 - u.tz - 0.02
 	zc = (u.t0 + u.tz) / 2 - 0.01
-	p = [box(w, y1 - y0, length, "canopy", bevel=0.02, at=(0, (y0 + y1) / 2, zc))]
-	# the gull wing side windows, the back door with its glass, a rack rail on top
-	for side in (1, -1):
-		p.append(box(0.01, (y1 - y0) * 0.6, length * 0.7, "glass", at=(side * (w / 2 + 0.003), y0 + (y1 - y0) * 0.55, zc + 0.05)))
-		p.append(box(0.012, 0.025, length * 0.72, "steel", at=(side * (w / 2 + 0.006), y0 + (y1 - y0) * 0.86, zc + 0.05)))
-		p.append(box(0.02, 0.04, 0.14, "handle", at=(side * (w / 2 + 0.012), y0 + (y1 - y0) * 0.22, zc + 0.05)))
-		p.append(box(0.04, 0.035, length - 0.1, "rack", at=(side * (w / 2 - 0.1), y1 + 0.02, zc)))
-	p.append(box(w - 0.3, (y1 - y0) * 0.5, 0.01, "glass", at=(0, y0 + (y1 - y0) * 0.6, u.tz + 0.005)))
+	return w, y0, y1, length, zc
+
+
+def canopy(u):
+	"""The canopy's frame, roof, front and back: its sides are the gull wing
+	doors (canopywing), so with them up the gear in the tub shows."""
+	w, y0, y1, length, zc = _canopy_dims(u)
+	t = 0.04
+	p = [box(w, t, length, "canopy", bevel=0.01, at=(0, y1 - t / 2, zc)),
+		box(w, y1 - y0, t, "canopy", bevel=0.01, at=(0, (y0 + y1) / 2, zc + length / 2 - t / 2))]
+	# the back: a lift up door with its glass, the handle, the stop light
+	p.append(box(w, y1 - y0, t, "canopy", bevel=0.01, at=(0, (y0 + y1) / 2, u.tz + t / 2)))
+	p.append(box(w - 0.3, (y1 - y0) * 0.5, 0.01, "glass", at=(0, y0 + (y1 - y0) * 0.6, u.tz + 0.002)))
 	p.append(box(0.2, 0.035, 0.02, "handle", at=(0, y0 + (y1 - y0) * 0.25, u.tz)))
-	# the stop light at the top of the back
 	p.append(box(0.3, 0.03, 0.02, "hook", at=(0, y1 - 0.05, u.tz)))
+	for side in (1, -1):
+		# the corner posts, the sill along the tub rail the doors close on
+		for z in (zc + length / 2 - 0.03, u.tz + 0.03):
+			p.append(box(0.05, y1 - y0, 0.05, "canopy", at=(side * (w / 2 - 0.025), (y0 + y1) / 2, z)))
+		p.append(box(0.05, 0.05, length, "canopy", at=(side * (w / 2 - 0.025), y0 + 0.025, zc)))
+		# the rack rails on top, and a strip light inside along each side
+		p.append(box(0.04, 0.035, length - 0.1, "rack", at=(side * (w / 2 - 0.1), y1 + 0.02, zc)))
+		p.append(box(0.03, 0.015, length * 0.7, "light", at=(side * (w / 2 - 0.08), y1 - t - 0.008, zc)))
 	return p
+
+
+WING_OPEN = 2.5      # how far the gull wing doors swing up (rad)
+
+
+def canopy_wing(u):
+	"""One gull wing door, hanging from its hinge at the origin (the canopy's
+	top edge), its outside towards +x: the game swings it up about z."""
+	w, y0, y1, length, zc = _canopy_dims(u)
+	h = y1 - y0 - 0.03
+	ln = length - 0.1
+	p = [box(0.03, h, ln, "canopy", bevel=0.008, at=(0.0, -h / 2, 0))]
+	p.append(box(0.01, h * 0.6, ln * 0.78, "glass", at=(0.016, -h * 0.42, 0.02)))
+	p.append(box(0.012, 0.025, ln * 0.8, "steel", at=(0.019, -h * 0.1, 0.02)))
+	p.append(box(0.02, 0.04, 0.14, "handle", at=(0.025, -h * 0.82, 0.02)))
+	# the hinge along its top, a gas strut at each end
+	p.append(cylinder(0.018, ln, "steel", 8).rot("x", math.pi / 2).move(0, 0, -ln / 2))
+	for z in (ln / 2 - 0.08, -ln / 2 + 0.08):
+		p.append(box(0.02, h * 0.5, 0.02, "steel", at=(-0.03, -h * 0.25, z)))
+	return p
+
+
+def wing_hinge(u):
+	w, y0, y1, length, zc = _canopy_dims(u)
+	return (w / 2, y1, zc)
 
 
 DRAWER_H = 0.30
@@ -394,17 +438,19 @@ def drawers(u):
 
 
 def fridge(u):
-	w, h, d = 0.38, 0.47, 0.62
+	"""Across the tub's front left corner, side on, so it clears the drawers."""
+	w, h, d = 0.62, 0.47, 0.38
 	x = u.tw / 2 - w / 2 - 0.04
 	z = u.t0 - d / 2 - 0.04
 	y = u.tub
 	p = [box(w, h - 0.06, d, "fridge", bevel=0.03, at=(x, y + (h - 0.06) / 2, z)),
 		box(w + 0.01, 0.07, d + 0.01, "fridge_lid", bevel=0.025, at=(x, y + h - 0.035, z))]
-	# handles at each end, the control panel, the tie down strap
+	# handles at each end, the control panel facing back, the tie down strap
 	for e in (1, -1):
-		p.append(box(w * 0.5, 0.03, 0.04, "fridge_lid", at=(x, y + h - 0.12, z + e * (d / 2 + 0.01))))
-	p.append(box(0.012, 0.08, 0.14, "fridge_lid", at=(x - w / 2 - 0.005, y + h - 0.16, z)))
-	p.append(box(w + 0.04, 0.03, 0.04, "strap", at=(x, y + h + 0.01, z)))
+		p.append(box(0.04, 0.03, d * 0.5, "fridge_lid", at=(x + e * (w / 2 + 0.01), y + h - 0.12, z)))
+	p.append(box(0.14, 0.08, 0.012, "fridge_lid", at=(x - 0.12, y + h - 0.16, z - d / 2 - 0.005)))
+	p.append(box(0.18, 0.03, 0.03, "light", at=(x - 0.12, y + h - 0.15, z - d / 2 - 0.012)))
+	p.append(box(0.04, 0.03, d + 0.04, "strap", at=(x, y + h + 0.01, z)))
 	return p
 
 
@@ -430,11 +476,22 @@ def jerrycans(u):
 	return p
 
 
-def swag(u):
+SWAG_W = 1.0   # a rolled single swag, end to end
+
+
+def swag(u, roof=False):
+	"""A rolled swag across the back of the tub (on the tub floor: raise it
+	DRAWER_H when the drawers are in); `roof`: strapped on the canopy's roof
+	rails instead."""
 	r = 0.15
-	w = u.tw - 0.06
-	z = u.t1 + 0.12 + r
-	y = u.tub + r
+	w = SWAG_W
+	if roof:
+		_, _, y1, length, zc = _canopy_dims(u)
+		z = zc - 0.15
+		y = y1 + 0.04 + r
+	else:
+		z = u.t1 + 0.12 + r
+		y = u.tub + r
 	p = [tube([(-w / 2, y, z), (w / 2, y, z)], r, "swag", 14)]
 	for x in (-w / 2, w / 2):
 		p.append(cylinder(r * 0.82, 0.02, "canvas", 14).rot("z", math.pi / 2).move(x + (0.01 if x > 0 else -0.01), y, z))
@@ -468,11 +525,15 @@ def main():
 		r = s["r"] + MUD_UP
 		w = s["tw"] + 0.04
 		for nm, pcs in (("mudtyreslow", air_down(mudtyre(u), r, r * 0.6, w)), ("mudtyresbulge", bulge(r, w)),
-				("bullbarscrape", bullbar_scrape(u))):
+				("bullbarscrape", bullbar_scrape(u)), ("swagroof", swag(u, roof=True))):
 			o = put("kit_%s_%s" % (nm, ute), pcs)
 			t = tri_count([o])
 			tot += t
 			print("  %-22s %6d triangles" % (o.name, t))
+		# the canopy's gull wing door, its origin on the hinge (the game
+		# reads where that is off the node)
+		o = build("kit_canopywing_%s" % ute, canopy_wing(u), PALETTE, None, at=wing_hinge(u), smooth=False)
+		tot += tri_count([o])
 	print("  total %d" % tot)
 	if "--preview" in sys.argv:
 		_preview(sys.argv[sys.argv.index("--preview") + 1])

@@ -174,11 +174,10 @@ func _add_ghost(ute: String, kit: Array, item: String) -> void:
 			spin.add_child(tyre)
 			_ghosts.append(tyre)
 		return
-	var part = K.part(item, ute)
-	if part is Node3D:
-		if item == "swag" and "drawers" in kit:
-			part.position.y = K.DRAWER_H
-		part.material_override = _ghost_mat
+	for part in K.fit(item, ute, kit + [item]):
+		for mi in [part] + part.find_children("*", "MeshInstance3D", true, false):
+			if mi is MeshInstance3D:
+				(mi as MeshInstance3D).material_override = _ghost_mat
 		_car.get_node("Body").add_child(part)
 		_ghosts.append(part)
 
@@ -197,9 +196,11 @@ func installed(ute: String, kit: Array, item: String) -> void:
 	elif item == "lift":
 		found.append(body)
 	else:
-		var n := body.get_child_count()
-		if n > 1:
-			found.append(body.get_child(n - 1))
+		var got := body.get_node_or_null(item)
+		if got != null:
+			found.append(got)
+		elif body.get_child_count() > 1:
+			found.append(body.get_child(body.get_child_count() - 1))
 	var at := Vector3(0, 1.4, 0)
 	for f in found:
 		_pop.append({"node": f, "t": 0.0, "base": (f as Node3D).scale})

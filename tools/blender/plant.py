@@ -70,10 +70,32 @@ def truck():
 	for s in (-1, 1):
 		p.append(box(0.8, 0.65, 0.03, "glass", at=(3.2, 2.55, s * 1.16)))
 		p.append(box(0.04, 0.9, 0.03, "grille", at=(2.75, 1.85, s * 1.16)))
-	p.append(box(0.06, 0.5, 1.6, "grille", bevel=0.02, at=(3.87, 1.5, 0)))
+	# The grille: a dark panel in a steel surround, five chrome slats and a
+	# badge; a sun visor over the windscreen and two wipers along its foot
+	p.append(box(0.04, 0.56, 1.5, "grille", at=(3.87, 1.55, 0)))
+	for y in (1.27, 1.83):
+		p.append(box(0.05, 0.04, 1.58, "steel", at=(3.885, y, 0)))
+	for z in (-0.77, 0.77):
+		p.append(box(0.05, 0.6, 0.04, "steel", at=(3.885, 1.55, z)))
+	for k in range(5):
+		p.append(box(0.03, 0.03, 1.46, "steel", at=(3.895, 1.37 + k * 0.09, 0)))
+	p.append(box(0.03, 0.08, 0.36, "dark_steel", at=(3.91, 1.73, 0)))
+	p.append(box(0.3, 0.04, 2.25, "grille").rot("z", -0.12).move(3.98, 3.0, 0))
+	for z in (-0.5, 0.4):
+		p.append(box(0.03, 0.03, 0.7, "grille").rot("x", 0.18).move(3.885, 2.24, z))
+	# Headlights in their bezels, the indicators outboard, the bumper's
+	# number plate, step and tow pin
 	for s in (-1, 1):
-		p.append(box(0.06, 0.18, 0.35, "light", bevel=0.03, at=(3.87, 1.25, s * 0.85)))
-		p.append(box(0.06, 0.12, 0.12, "amber", bevel=0.02, at=(3.87, 1.25, s * 1.08)))
+		p.append(box(0.05, 0.24, 0.42, "grille", at=(3.87, 1.13, s * 0.86)))
+		p.append(box(0.04, 0.17, 0.32, "light", at=(3.9, 1.13, s * 0.83)))
+		p.append(box(0.03, 0.06, 0.06, "glass", at=(3.92, 1.13, s * 0.95)))
+		p.append(box(0.05, 0.14, 0.13, "amber", at=(3.88, 1.13, s * 1.1)))
+	p.append(box(0.02, 0.15, 0.48, "rim", at=(3.94, 0.72, 0)))
+	p.append(box(0.06, 0.03, 0.46, "chassis", at=(3.94, 0.79, 0)))
+	p.append(box(0.18, 0.05, 2.3, "dark_steel", at=(3.88, 0.53, 0)))
+	p.append(box(0.08, 0.08, 0.12, "tail", at=(3.97, 0.62, 0.55)))
+	# Mirrors on their arms
+	for s in (-1, 1):
 		p.append(tube([(3.7, 2.5, s * 1.15), (3.95, 2.5, s * 1.35), (3.95, 2.0, s * 1.38)], 0.025, "dark_steel", 6))
 		p.append(box(0.06, 0.4, 0.18, "grille", bevel=0.02, at=(3.97, 2.25, s * 1.4)))
 		# Step and grab handle up to the door

@@ -12,6 +12,8 @@ const UTES := ["hilux", "ranger", "shark"]
 const MUD_UP := 0.045
 ## The swag lies on the tub floor; on top of the drawers it sits this much higher
 const DRAWER_H := 0.30
+## How far the canopy's gull wing doors swing up when they're open (rad)
+const WING_OPEN := 2.5
 
 const COLORS := {
 	"bar": Color("1d1f22"), "bar_plate": Color("2a2d31"), "steel": Color("9aa0a6"), "light": Color("eef3f6"),
@@ -37,6 +39,54 @@ static func part(item: String, ute: String) -> MeshInstance3D:
 	mi.name = item
 	mi.mesh = m
 	return mi
+
+## What fitting `item` puts on the ute's body, given all the `kit` that's on
+## it, placed: the swag goes on the drawers if they're in, or up on the
+## canopy's roof if that's on; the canopy brings its two gull wing doors
+## (pivots "WingL"/"WingR" on their hinges, open: see wings()).
+static func fit(item: String, ute: String, kit: Array) -> Array:
+	var out: Array = []
+	if item == "swag" and "canopy" in kit:
+		var roof := part("swagroof", ute)
+		if roof != null:
+			roof.name = "swag"
+			return [roof]
+	var p := part(item, ute)
+	if p == null:
+		return out
+	if item == "swag" and "drawers" in kit:
+		p.position.y = DRAWER_H
+	out.append(p)
+	if item == "canopy":
+		var hinge := origin("canopywing", ute)
+		for side in [1.0, -1.0]:
+			var m := part("canopywing", ute)
+			if m == null:
+				break
+			var pv := Node3D.new()
+			pv.name = "WingL" if side > 0.0 else "WingR"
+			pv.position = Vector3(hinge.x * side, hinge.y, hinge.z)
+			pv.rotation.z = WING_OPEN * side
+			if side < 0.0:
+				m.rotation.y = PI
+			pv.add_child(m)
+			out.append(pv)
+	return out
+
+## Opens (1) or shuts (0) the canopy's gull wing doors, if it has them.
+static func wings(body: Node3D, open: float) -> void:
+	for side in [1.0, -1.0]:
+		var pv := body.get_node_or_null("WingL" if side > 0.0 else "WingR") as Node3D
+		if pv != null:
+			pv.rotation.z = WING_OPEN * side * open
+
+## Where a part's origin sits on the ute (its node's place in the library).
+static func origin(item: String, ute: String) -> Vector3:
+	mesh(item, ute)
+	if _lib == null:
+		return Vector3.ZERO
+	var n := _lib.get_node_or_null("kit_%s_%s" % [item, ute.to_lower()]) as Node3D
+	return n.position if n != null else Vector3.ZERO
 
 static func mesh(item: String, ute: String) -> Mesh:
 	var key := "kit_%s_%s" % [item, ute.to_lower()]

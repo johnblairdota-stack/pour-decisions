@@ -194,12 +194,24 @@ static func apply_kit(node: Node3D, ute: String, kit: Array) -> void:
 					tyre.rotation.y = PI
 				spin.add_child(tyre)
 			continue
-		var part = K.part(it, ute)
-		if part is Node3D:
-			if it == "swag" and "drawers" in kit:
-				part.position.y = K.DRAWER_H
+		for part in K.fit(it, ute, kit):
 			body.add_child(part)
 	node.set_meta("ride", ride)
+
+## The canopy's gull wing doors swing up once the ute's sat still a couple of
+## seconds (so the gear in the tub shows), and shut as soon as it moves off.
+static func wings(node: Node3D, speed: float, dt: float) -> void:
+	var body := node.get_node_or_null("Body") as Node3D
+	if body == null or body.get_node_or_null("WingL") == null:
+		return
+	var still := float(node.get_meta("wing_still", 0.0))
+	still = still + dt if speed < 0.3 else 0.0
+	node.set_meta("wing_still", still)
+	var t := float(node.get_meta("wing_t", 1.0))
+	t = move_toward(t, 1.0 if still > 2.0 else 0.0, dt * (0.8 if still > 2.0 else 2.5))
+	node.set_meta("wing_t", t)
+	var K: Script = load("res://scripts/ute_kit.gd")
+	K.wings(body, t * t * (3.0 - 2.0 * t))
 
 ## What drives each one, near enough the real thing: kerb mass (kg), peak
 ## power (kW) and torque (Nm) and where it makes them, idle and redline

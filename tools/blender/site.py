@@ -183,15 +183,50 @@ def fences():
 		put(name + "Run", p, smooth=False)
 
 
+def _pictogram(kind, x, y, face):
+	"""One white-on-blue mandatory PPE symbol on the sign's `face` (+1/-1 z)."""
+	z = face * 0.025
+	p = [cylinder(0.105, 0.012, "sign_blue", 20).rot("x", math.pi / 2).move(x, y, z - face * 0.006)]
+	zz = face * 0.034
+	if kind == "hat":
+		# a hard hat: dome and brim
+		p.append(sphere(0.05, "white", 10, 5, at=(x, y - 0.02, zz), s=(1.0, 0.85, 0.15)).cull(lambda c: c.y < y - 0.02))
+		p.append(box(0.13, 0.016, 0.01, "white", at=(x, y - 0.022, zz)))
+	elif kind == "vest":
+		# a hi-vis vest: body, neck V, a reflective band
+		p.append(box(0.1, 0.12, 0.01, "white", at=(x, y - 0.005, zz)))
+		p.append(box(0.04, 0.04, 0.012, "sign_blue", at=(x, y + 0.04, zz + face * 0.001)))
+		p.append(box(0.1, 0.012, 0.012, "sign_blue", at=(x, y - 0.03, zz + face * 0.001)))
+	elif kind == "boot":
+		# a safety boot side on
+		p.append(box(0.05, 0.09, 0.01, "white", at=(x - 0.02, y + 0.015, zz)))
+		p.append(box(0.11, 0.035, 0.01, "white", at=(x + 0.008, y - 0.045, zz)))
+	else:
+		# safety glasses: two lenses and a bridge
+		for sx in (-1, 1):
+			p.append(cylinder(0.03, 0.01, "white", 12).rot("x", math.pi / 2).move(x + sx * 0.04, y, zz))
+		p.append(box(0.03, 0.01, 0.01, "white", at=(x, y + 0.012, zz)))
+	return p
+
+
 def ppe_sign():
-	"""The mandatory PPE sign at the gate: blue circles on white, on a post."""
-	p = [box(0.9, 0.62, 0.03, "sign", at=(0, 1.75, 0))]
-	p.append(box(0.9, 0.14, 0.035, "sign_blue", at=(0, 1.99, 0)))
-	for x in (-0.28, 0.0, 0.28):
-		p.append(cylinder(0.11, 0.02, "sign_blue", 14).rot("x", math.pi / 2).move(x, 1.68, -0.03))
-	p.append(bar((0, 0, -0.03), (0, 1.5, -0.03), 0.03, "steel"))
-	p.append(box(0.4, 0.1, 0.3, "fence_foot", bevel=0.02, at=(0, 0.05, -0.03)))
-	put("PPESign", p)
+	"""The mandatory PPE sign at the gate: a blue band over four blue circles
+	(hard hat, hi-vis, boots, glasses), the same both sides, on a post."""
+	p = [box(0.9, 0.72, 0.04, "sign", at=(0, 1.78, 0))]
+	for face in (1, -1):
+		p.append(box(0.9, 0.14, 0.005, "sign_blue", at=(0, 2.07, face * 0.022)))
+		# the band's "words": three white bars
+		ws = (0.3, 0.16, 0.22)
+		for i, w in enumerate(ws):
+			p.append(box(w, 0.03, 0.004, "white", at=(-0.38 + sum(ws[:i]) + i * 0.04 + w / 2, 2.07, face * 0.026)))
+		for i, kind in enumerate(("hat", "vest", "boot", "glasses")):
+			x = -0.315 + i * 0.21
+			p += _pictogram(kind, x, 1.78, face)
+		# a line of "small print" under the symbols
+		p.append(box(0.6, 0.025, 0.004, "sign_blue", at=(0, 1.58, face * 0.023)))
+	p.append(bar((0, 0, -0.04), (0, 1.5, -0.04), 0.03, "steel"))
+	p.append(box(0.4, 0.1, 0.3, "fence_foot", bevel=0.02, at=(0, 0.05, -0.04)))
+	put("PPESign", p, smooth=False)
 
 
 # ---------------------------------------------------------------- bins and laydown
@@ -367,10 +402,15 @@ def extinguisher_stand():
 
 
 def first_aid():
-	p = [box(0.5, 0.4, 0.18, "first_aid", bevel=0.03, at=(0, 0, 0))]
-	p.append(box(0.18, 0.06, 0.02, "white", at=(0, 0, 0.095)))
-	p.append(box(0.06, 0.18, 0.02, "white", at=(0, 0, 0.095)))
-	put("FirstAid", p)
+	"""A wall-mounted first aid box: green, a raised white cross, a carry
+	handle on top and the catch on its side."""
+	p = [box(0.5, 0.4, 0.16, "first_aid", bevel=0.01, at=(0, 0, 0))]
+	p.append(box(0.5, 0.012, 0.165, "first_aid", at=(0, 0.11, 0)))           # the lid's seam
+	p.append(box(0.17, 0.055, 0.012, "white", at=(0, -0.02, 0.085)))
+	p.append(box(0.055, 0.17, 0.012, "white", at=(0, -0.02, 0.085)))
+	p.append(tube([(-0.09, 0.2, 0), (-0.07, 0.24, 0), (0.07, 0.24, 0), (0.09, 0.2, 0)], 0.012, "white", 6))
+	p.append(box(0.03, 0.06, 0.03, "white", at=(0.255, 0.1, 0.03)))
+	put("FirstAid", p, smooth=False)
 
 
 def spill_kit():
@@ -421,12 +461,26 @@ def crib_table():
 
 
 def crib_chair():
-	p = [box(0.46, 0.05, 0.44, "chair", bevel=0.02, at=(0, 0.44, 0))]
-	p.append(box(0.46, 0.42, 0.04, "chair", bevel=0.02, at=(0, 0.68, -0.22)).rot("x", -0.12))
+	"""A blue plastic stacking chair facing +z: seat, a curved back held by
+	the back legs running up into it, and front legs."""
+	p = [box(0.44, 0.04, 0.42, "chair", bevel=0.01, at=(0, 0.45, 0.01))]
+	# the seat's rolled front edge
+	p.append(tube([(-0.22, 0.45, 0.22), (0.22, 0.45, 0.22)], 0.022, "chair", 8))
+	# back legs: straight up from the floor past the seat into the backrest,
+	# leaning back a touch
 	for x in (-0.2, 0.2):
-		for z in (-0.18, 0.18):
-			p.append(bar((x, 0.42, z), (x * 1.1, 0.0, z * 1.15), 0.016, "chair", 5))
-	put("CribChair", p)
+		p.append(tube([(x * 1.08, 0.0, -0.24), (x, 0.45, -0.19), (x * 0.98, 0.86, -0.25)], 0.017, "chair", 6))
+		p.append(tube([(x * 1.08, 0.0, 0.24), (x, 0.43, 0.18)], 0.017, "chair", 6))
+	# the backrest: a curved panel between the back legs
+	back = []
+	for k in range(7):
+		t = -1 + 2 * k / 6
+		back.append((t * 0.2, 0.0, -0.03 * (1 - t * t)))
+	for i, (y, h) in enumerate(((0.79, 0.15), (0.6, 0.05))):
+		for a, b in zip(back[:-1], back[1:]):
+			zc = -0.19 - (y - 0.45) * 0.15 + (a[2] + b[2]) / 2
+			p.append(box(abs(b[0] - a[0]) + 0.005, h, 0.025, "chair", at=((a[0] + b[0]) / 2, y, zc)))
+	put("CribChair", p, smooth=False)
 
 
 def esky():
