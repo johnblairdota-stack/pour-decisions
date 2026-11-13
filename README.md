@@ -12,8 +12,6 @@ Chapter 1, Riverlight at Hamilton Reach: 11 levels, plus a short water tower tut
 4. **Slab report.** Your medal, what each person earned, what went wrong, whose job it was, and how not to do it again.
 5. **Up a floor.** Every few floors is a climb day: the crew jacks the boom tower up with the crane.
 
-Playing alone? When your job's quiet and another job needs someone, **Y** hops you onto it.
-
 ## Run it
 
 1. Install **Godot 4.7 or newer** (the standard build, not .NET) from godotengine.org.
