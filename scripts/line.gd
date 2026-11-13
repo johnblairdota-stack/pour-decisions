@@ -29,6 +29,7 @@ extends Node3D
 signal whip
 
 const F := preload("res://scripts/factory.gd")
+const Terrain := preload("res://scripts/terrain.gd")
 const LookFx := preload("res://scripts/look_fx.gd")
 const Settings := preload("res://scripts/settings.gd")
 
@@ -1977,6 +1978,8 @@ func _update_trucks(delta: float) -> void:
 					node.rotation.y = _yaw_for(_bez_d(p0, c1, c2, p3, clampf(u, 0.02, 0.98)))
 				else:
 					node.position = p3 + ANGORA_DIR * 9.0 * (t["t"] - TURN_T)
+					# (off the site pad and down Angora Road on the real ground)
+					node.position.y = Terrain.y_game(node.position)
 					node.rotation.y = _yaw_for(ANGORA_DIR)
 				if node.position.z < -70.0:
 					t["state"] = "gone"

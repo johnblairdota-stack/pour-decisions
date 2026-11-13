@@ -20,6 +20,7 @@ const Cars := preload("res://scripts/cars.gd")
 const CityCat := preload("res://scripts/citycat.gd")
 const Fences := preload("res://scripts/fences.gd")
 const Wildlife := preload("res://scripts/wildlife.gd")
+const Terrain := preload("res://scripts/terrain.gd")
 
 const DATA := "res://data/riverlight_osm.json"
 const SKYLINE := "res://data/riverlight_skyline.json"   # tools/skyline_to_game.py
@@ -75,17 +76,13 @@ const CONTAINERS := [Color("b04a3a"), Color("2f5f8f"), Color("6f7a72"), Color("c
 
 static func build(root: Node3D) -> void:
 	var ground := MeshInstance3D.new()
-	var pm := PlaneMesh.new()
-	pm.size = Vector2(40000, 40000)
-	ground.mesh = pm
+	ground.mesh = _base_mesh()
 	var gm := ShaderMaterial.new()
 	gm.shader = preload("res://shaders/base_ground.gdshader")
 	gm.set_shader_parameter("albedo", F.COLORS["grass"])
 	gm.set_shader_parameter("wet", load(MASK))
 	ground.material_override = gm
-	# (sunk a little: with the camera reaching 16 km the map's own ground,
-	# 2 cm up, would fight it for the depth buffer)
-	ground.position.y = -0.4
+	ground.set_meta("no_drape", true)
 	root.add_child(ground)
 	# (the trucks' site road is part of the map's road surface, joined to the
 	# streets at each end: tools/osm_to_game.py SITE_ROAD)
@@ -121,6 +118,10 @@ static func build(root: Node3D) -> void:
 		var grass := func(p: Vector2) -> bool: return _street_ok(p) and not _on_road(p, roads, 1.0) and not _is_taken(p, taken, 1.5)
 		Wildlife.build(root, d, grass, _seeded(12))
 		_lamps(root, d)
+		# everything so far was laid out on flat ground: onto the real ground
+		# with it (scripts/terrain.gd); the far haze, the bridge, the CityCat
+		# terminal and the skyline are past it or pinned at 0
+		Terrain.drape(root)
 		_haze_ring(root, d, rng)
 		_gateway(root, d)
 		for fe in d.get("ferry", []):
@@ -166,11 +167,16 @@ static func _ground(root: Node3D, d: Dictionary) -> void:
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var wt := SurfaceTool.new()
 	wt.begin(Mesh.PRIMITIVE_TRIANGLES)
+	# (the dry ground already cut to follow the real ground and set at its
+	# heights, by tools/terrain_to_game.py; the water from the map, flat)
+	var baked := _ground_3d()
 	for g in d.get("ground", []):
 		var kind: String = g["kind"]
 		var wet := kind in ["water", "drain"]
+		if not wet and baked.has(kind):
+			continue
 		var t: SurfaceTool = wt if wet else st
-		t.set_color(Color.WHITE if wet else (ROAD if kind == "road" else (PATH if kind == "path" else AREA.get(kind, ROAD))))
+		t.set_color(Color.WHITE if wet else _ground_color(kind))
 		t.set_normal(Vector3.UP)
 		if not wet:
 			t.set_uv(Vector2(SURFACE.get(kind, 0), 0))
@@ -178,31 +184,147 @@ static func _ground(root: Node3D, d: Dictionary) -> void:
 		for i in range(0, tris.size() - 5, 6):
 			for k in 3:
 				t.add_vertex(Vector3(tris[i + k * 2], RIVER_Y if wet else GROUND_Y, tris[i + k * 2 + 1]))
-	st.set_uv(Vector2.ZERO)
+	var land := MeshInstance3D.new()
+	land.mesh = st.commit()
+	for kind in baked:
+		_baked_surface(land.mesh as ArrayMesh, kind, baked[kind])
+	land.material_override = ground_mat()
+	land.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	land.set_meta("no_drape", true)
+	root.add_child(land)
+	# the piers and the banks, laid out flat like everything else and draped
+	# onto the ground after (the banks' feet stay down in the river)
+	var bt := SurfaceTool.new()
+	bt.begin(Mesh.PRIMITIVE_TRIANGLES)
+	bt.set_uv(Vector2.ZERO)
 	for pr in piers(d):
 		var line: PackedVector2Array
 		if pr.has("pts"):
 			line = _v2(pr["pts"])
-			_flat(st, line, 0.3, Color("9a968c"))
+			_flat(bt, line, 0.3, Color("9a968c"))
 		else:
 			line = _v2(pr["line"])
-			_ribbon(st, line, pr["w"], 0.3, Color("9a968c"), false)
+			_ribbon(bt, line, pr["w"], 0.3, Color("9a968c"), false)
 		# on piles down into the river
 		for i in line.size() - 1:
 			var n := maxi(1, ceili(line[i].distance_to(line[i + 1]) / 6.0))
 			for k in n:
-				_post(st, line[i].lerp(line[i + 1], float(k) / n), 0.3, RIVER_Y - 0.5, 0.18, Color("5a5650"))
-	_banks(st)
-	var land := MeshInstance3D.new()
-	land.mesh = st.commit()
-	land.material_override = ground_mat()
-	land.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	root.add_child(land)
+				_post(bt, line[i].lerp(line[i + 1], float(k) / n), 0.3, RIVER_Y - 0.5, 0.18, Color("5a5650"))
+	_banks(bt)
+	var banks := MeshInstance3D.new()
+	banks.name = "Banks"
+	banks.mesh = bt.commit()
+	banks.material_override = ground_mat()
+	banks.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	banks.set_meta("drape_vertices", true)
+	root.add_child(banks)
 	var water := MeshInstance3D.new()
 	water.mesh = wt.commit()
 	water.material_override = _water()
 	water.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	water.set_meta("no_drape", true)
 	root.add_child(water)
+
+static func _ground_color(kind: String) -> Color:
+	return ROAD if kind == "road" else (PATH if kind == "path" else AREA.get(kind, ROAD))
+
+## data/ground_3d.bin (tools/terrain_to_game.py): {kind: PackedVector3Array},
+## each kind's triangles, or {} if it's not there.
+static func _ground_3d() -> Dictionary:
+	var out := {}
+	if not FileAccess.file_exists(Terrain.GROUND) or not Terrain.ready():
+		return out
+	var b := FileAccess.get_file_as_bytes(Terrain.GROUND)
+	var at := 4
+	for k in b.decode_u32(0):
+		var nl := b[at]
+		var kind := b.slice(at + 1, at + 1 + nl).get_string_from_utf8()
+		at += 1 + nl
+		var nv := b.decode_u32(at)
+		at += 4
+		var f := b.slice(at, at + nv * 12).to_float32_array()
+		at += nv * 12
+		var v := PackedVector3Array()
+		v.resize(nv)
+		for i in nv:
+			v[i] = Vector3(f[i * 3], f[i * 3 + 1] + GROUND_Y, f[i * 3 + 2])
+		out[kind] = v
+	return out
+
+## One kind of baked ground as a surface of `mesh`, coloured and textured as
+## the flat ground was, lit by the ground's own lean.
+static func _baked_surface(mesh: ArrayMesh, kind: String, v: PackedVector3Array) -> void:
+	var n := v.size()
+	var nrm := PackedVector3Array()
+	nrm.resize(n)
+	var col := PackedColorArray()
+	col.resize(n)
+	col.fill(_ground_color(kind))
+	var uv := PackedVector2Array()
+	uv.resize(n)
+	uv.fill(Vector2(SURFACE.get(kind, 0), 0))
+	for i in range(0, n, 3):
+		var fn := (v[i + 2] - v[i]).cross(v[i + 1] - v[i])
+		fn = fn.normalized() if fn.length_squared() > 1e-10 else Vector3.UP
+		if fn.y < 0.0:
+			fn = -fn
+		nrm[i] = fn
+		nrm[i + 1] = fn
+		nrm[i + 2] = fn
+	var arr := []
+	arr.resize(Mesh.ARRAY_MAX)
+	arr[Mesh.ARRAY_VERTEX] = v
+	arr[Mesh.ARRAY_NORMAL] = nrm
+	arr[Mesh.ARRAY_COLOR] = col
+	arr[Mesh.ARRAY_TEX_UV] = uv
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+
+## The grass under the whole world (where the map's ground leaves a gap):
+## over the heightmap a grid a bit under the real ground, then out to 20 km
+## flat, sunk a little (with the camera reaching 16 km the map's own ground
+## would fight it for the depth buffer).
+static func _base_mesh() -> ArrayMesh:
+	const SINK := 0.5
+	const FAR_OUT := 20000.0
+	const STEP := 8.0
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	st.set_normal(Vector3.UP)
+	var half := 0.0
+	if Terrain.ready():
+		half = floorf(800.0 / STEP) * STEP
+		var n := int(half * 2.0 / STEP)
+		var ys := PackedFloat32Array()
+		ys.resize((n + 1) * (n + 1))
+		for j in n + 1:
+			for i in n + 1:
+				ys[j * (n + 1) + i] = Terrain.y(Vector2(-half + i * STEP, -half + j * STEP)) - SINK
+		for j in n:
+			for i in n:
+				var x0 := -half + i * STEP
+				var z0 := -half + j * STEP
+				var a := Vector3(x0, ys[j * (n + 1) + i], z0)
+				var b := Vector3(x0 + STEP, ys[j * (n + 1) + i + 1], z0)
+				var c := Vector3(x0 + STEP, ys[(j + 1) * (n + 1) + i + 1], z0 + STEP)
+				var e := Vector3(x0, ys[(j + 1) * (n + 1) + i], z0 + STEP)
+				for q in [a, b, c, a, c, e]:
+					st.add_vertex(q)
+	# (out to the horizon round it, flat; a hole where the grid is)
+	var y := -SINK
+	var rings := [[Vector2(-FAR_OUT, -FAR_OUT), Vector2(FAR_OUT, -half)], [Vector2(-FAR_OUT, half), Vector2(FAR_OUT, FAR_OUT)],
+		[Vector2(-FAR_OUT, -half), Vector2(-half, half)], [Vector2(half, -half), Vector2(FAR_OUT, half)]]
+	for r in rings:
+		var p0: Vector2 = r[0]
+		var p1: Vector2 = r[1]
+		if p1.x - p0.x < 0.01 or p1.y - p0.y < 0.01:
+			continue
+		var a := Vector3(p0.x, y, p0.y)
+		var b := Vector3(p1.x, y, p0.y)
+		var c := Vector3(p1.x, y, p1.y)
+		var e := Vector3(p0.x, y, p1.y)
+		for q in [a, b, c, a, c, e]:
+			st.add_vertex(q)
+	return st.commit()
 
 ## The map's piers and jetties, less the one OSM draws where the CityCat
 ## terminal is: citycat.gd builds that gangway and pontoon itself, lower

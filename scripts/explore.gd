@@ -18,6 +18,7 @@ const Icons := preload("res://scripts/icons.gd")
 const Utes := preload("res://scripts/utes.gd")
 const Wallet := preload("res://scripts/wallet.gd")
 const Surrounds := preload("res://scripts/surrounds.gd")
+const Terrain := preload("res://scripts/terrain.gd")
 const Water := preload("res://scripts/water.gd")
 const Cars := preload("res://scripts/cars.gd")
 const Crash := preload("res://scripts/crash.gd")
@@ -190,6 +191,8 @@ func setup(owner_game) -> void:
 	add_child(park)
 	if not _d.is_empty():
 		park.build(_d)
+		# (built on flat ground: onto the real ground with it)
+		Terrain.drape(park)
 	cam = Camera3D.new()
 	cam.fov = 55.0
 	cam.near = 0.1
@@ -337,14 +340,15 @@ func floor_y(p: Vector2) -> float:
 		return f[0]
 	for pr in _piers:
 		if (pr[0] as Rect2).has_point(p) and Geometry2D.is_point_in_polygon(p, pr[1]):
-			return 0.3
+			return Terrain.lift(p, 0.3)
 	if _is_wet(p):
-		# (down the bank's wall, then away to the channel: well over your head)
+		# (down the bank's wall, then away to the channel: well over your
+		# head; the wall's top on the real ground, its foot in the river)
 		var a := _from_bank(p)
 		if a <= 3.6:
-			return Water.wall_y(a)
-		return lerpf(Water.wall_y(3.6), DEEP, clampf((a - 3.6) / 8.0, 0.0, 1.0))
-	return park.height(p) if park != null else 0.0
+			return Terrain.lift(p, Water.wall_y(a))
+		return lerpf(Terrain.lift(p, Water.wall_y(3.6)), DEEP, clampf((a - 3.6) / 8.0, 0.0, 1.0))
+	return park.height(p) if park != null else Terrain.y(p)
 
 func _blocked(p: Vector2) -> bool:
 	return p.length() > EDGE or _in_building(p) or _ferry_solid(p)
@@ -1258,7 +1262,7 @@ func _drive(dt: float, inp: Dictionary) -> void:
 	match surf:
 		"mud":
 			grip = 0.6
-			res = 0.1 + 0.12 * clampf(-park.height(c["pos"]) / 0.42, 0.0, 1.0)
+			res = 0.1 + 0.12 * clampf(-park.rel_height(c["pos"]) / 0.42, 0.0, 1.0)
 		"sand":
 			grip = 0.65
 			res = 0.09
@@ -2532,7 +2536,7 @@ func _tumble(c: Dictionary, dt: float) -> void:
 		_impact(c, Vector2(big_at.x, big_at.z), Vector2(big_n.x, big_n.z).normalized() if absf(big_n.y) < 0.5 else -(c["v"] as Vector2).normalized(),
 			biggest, "ground", {})
 		if absf(big_n.y) > 0.5:
-			_dust(Vector3(big_at.x, 0.0, big_at.z))
+			_dust(Vector3(big_at.x, big_at.y, big_at.z))
 	# props, birds and people in its way (it's still a box going through them)
 	_move_props(c)
 	if _is_wet(Vector2(P.x, P.z)) and P.y < Water.RIVER_Y + 0.8:
@@ -2793,7 +2797,7 @@ func _park_challenges(c: Dictionary, dt: float) -> void:
 		_park_t += dt
 		if ch != "":
 			var r := _park_run
-			r["low"] = minf(float(r.get("low", 0.0)), park.height(c["pos"]))
+			r["low"] = minf(float(r.get("low", 0.0)), park.rel_height(c["pos"]))
 			if (c["v"] as Vector2).length() < 0.5:
 				r["stopped"] = float(r.get("stopped", 0.0)) + dt
 			if c.get("air", false):
@@ -4399,7 +4403,7 @@ func _demo_4x4(t: float) -> void:
 					bb = bb.expand(q)
 				for ix in range(int(bb.position.x), int(bb.end.x), 2):
 					for iz in range(int(bb.position.y), int(bb.end.y), 2):
-						var hq := park.height(Vector2(ix, iz))
+						var hq := park.rel_height(Vector2(ix, iz))
 						if hq < dh:
 							dh = hq
 							deep = Vector2(ix, iz)
@@ -4407,7 +4411,7 @@ func _demo_4x4(t: float) -> void:
 				for k in 16:
 					var d := Vector2.from_angle(k * TAU / 16.0)
 					var q := deep + d * 9.0
-					if park.height(q) > -0.35 and not park.on_track(q, park.TRACK_W):
+					if park.rel_height(q) > -0.35 and not park.on_track(q, park.TRACK_W):
 						from = deep + d * 14.0
 						break
 				print("[explore] dam deep end %s %.2f m; in from %s" % [deep, dh, from])

@@ -12,6 +12,7 @@ const PerfClock := preload("res://scripts/perf.gd")
 
 const F := preload("res://scripts/factory.gd")
 const Flora := preload("res://scripts/flora.gd")
+const Terrain := preload("res://scripts/terrain.gd")
 
 ## Street models: what a ute does to it, and its radius (m)
 const STREET := {
@@ -187,7 +188,7 @@ func squash(w: Dictionary, push: Vector2) -> void:
 	var n: Node3D = w["node"]
 	_squashed.append([w, n.transform])
 	var at := n.position + Vector3(push.x, 0, push.y).normalized() * 0.6
-	n.position = Vector3(at.x, 0.02, at.z)
+	n.position = Vector3(at.x, Terrain.y(Vector2(at.x, at.z)) + 0.02, at.z)
 	n.rotation = Vector3(0, randf() * TAU, 0)
 	n.scale = Vector3(1.35, 0.14, 1.35)
 	var cols: Array = FEATHERS.get(w["kind"], [Color("8d8578"), Color("f2efe6")])
@@ -280,12 +281,13 @@ func _fly(it: Dictionary, dt: float) -> bool:
 	if it.has("bike"):
 		var bk: Node3D = it["bike"]
 		var bv: Vector3 = it["bvel"]
-		if bk.position.y > 0.0 or bv.y > 0.0:
+		var bg := Terrain.y(Vector2(bk.position.x, bk.position.z))
+		if bk.position.y > bg or bv.y > 0.0:
 			bv.y -= GRAVITY * dt
 			bk.position += bv * dt
 			bk.rotation += (it["bspin"] as Vector3) * dt
-			if bk.position.y <= 0.0:
-				bk.position.y = 0.0
+			if bk.position.y <= bg:
+				bk.position.y = bg
 				bv = Vector3.ZERO
 				# down on its side
 				bk.rotation = Vector3(0, bk.rotation.y, PI * 0.5 * (1.0 if randf() < 0.5 else -1.0))
@@ -303,8 +305,9 @@ func _fly(it: Dictionary, dt: float) -> bool:
 				if jn != null:
 					var ph := float(j.hash() % 7)
 					jn.rotation = Vector3(sin(_t * 17.0 + ph) * 1.5 - 0.5, 0, sin(_t * 11.0 + ph) * 1.0)
-			if n.position.y <= 0.15:
-				n.position.y = 0.15
+			var g := Terrain.y(Vector2(n.position.x, n.position.z))
+			if n.position.y <= g + 0.15:
+				n.position.y = g + 0.15
 				if absf(v.y) > 2.5:
 					v = Vector3(v.x * 0.6, -v.y * 0.4, v.z * 0.6)
 					it["spin"] = sp * 0.5
@@ -319,7 +322,7 @@ func _fly(it: Dictionary, dt: float) -> bool:
 			if float(it["t"]) > 2.6:
 				# up, dusted off, back on their way (or back on the bike)
 				n.basis = Basis(Vector3.UP, yaw)
-				n.position.y = 0.0
+				n.position.y = Terrain.y(Vector2(n.position.x, n.position.z))
 				for j in ["ArmL", "ArmR", "LegL", "LegR"]:
 					var jn := n.get_node_or_null(j) as Node3D
 					if jn != null:
