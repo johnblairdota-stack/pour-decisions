@@ -95,8 +95,10 @@ func start_level() -> void:
 ## the times above were tuned with (one clamp a pour). Trouble ramps up the
 ## tower (main._trouble_n: 1, 2, 3 then 4 faults a pour, some of them
 ## blockages), and each one stops the pump while someone climbs the riser:
-## the crew shouldn't lose a medal to the floor they're on.
-const FAULT_T := {"clamp": 14.0, "block": 24.0}
+## the crew shouldn't lose a medal to the floor they're on. (Measured 13 Nov
+## on level 11, four faults: silver and gold bots took 188-226 s against a
+## 125 s base, about 29 s for each fault past the first.)
+const FAULT_T := {"clamp": 30.0, "block": 40.0}
 const FAULTS_TUNED := 1
 
 ## The slack for a day's planned faults ([{kind}] from main._plan_incidents).
