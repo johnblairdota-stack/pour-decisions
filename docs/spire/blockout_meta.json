@@ -1,0 +1,127 @@
+{
+ "frame": {
+  "origin_mga56": [
+   503046.57,
+   6962279.05
+  ],
+  "origin_latlon": [
+   -27.4630417,
+   153.0308272
+  ],
+  "axes": "x east, y north, z metres AHD",
+  "model_half_m": 400.0
+ },
+ "modules": [
+  {
+   "module": "ground",
+   "objects": [
+    "ground_dem",
+    "river_water"
+   ],
+   "mesh_step_m": 2.0,
+   "verts": 160801,
+   "z_min_ahd": -2.9,
+   "z_max_ahd": 44.89,
+   "spire_ground_ahd": 20.88,
+   "water_level_ahd": 0.3,
+   "dem_cells_under_water_level": 56748,
+   "source": "reference/sites/spire/dem_1m.f32.gz",
+   "seconds": 0.42
+  },
+  {
+   "module": "streets",
+   "objects": [
+    "roads",
+    "footpaths_kerbs",
+    "footways"
+   ],
+   "car_ways": 283,
+   "walk_ways": 467,
+   "width_source": {
+    "class default": 112,
+    "lanes x 3.3": 171
+   },
+   "footpath_width_m": 3.5,
+   "kerb_m": 0.15,
+   "note": "Footpath widths are a CBD default, not measured. Bridges/tunnels/upper layers left out (Story Bridge is in landmarks.py).",
+   "seconds": 0.77
+  },
+  {
+   "module": "buildings",
+   "objects": [
+    "buildings_tagged",
+    "buildings_height_guess",
+    "SPIRE"
+   ],
+   "footprints": 325,
+   "parents_replaced_by_parts": 17,
+   "height_source": {
+    "osm height": 53,
+    "default (no tag)": 223,
+    "osm levels": 49
+   },
+   "spire": {
+    "ground_ahd": 16.34,
+    "height_m": 131.1,
+    "footprint_pts": 8,
+    "footprint_area_m2": 1491.8
+   },
+   "note": "Untagged buildings are 12 m (blue-grey); levels-only ones use 3.2 m a level.",
+   "seconds": 0.06
+  },
+  {
+   "module": "landmarks",
+   "objects": [
+    "story_bridge_deck",
+    "story_bridge_truss_line"
+   ],
+   "story_bridge_outline_ways": 5,
+   "axis_from": [
+    493.6,
+    145.4
+   ],
+   "axis_to": [
+    499.3,
+    -844.6
+   ],
+   "span_m": 990.0,
+   "note": "Deck and truss heights are rough placeholders for the skyline; the bridge sits mostly outside the 800 m square (SE of Spire).",
+   "seconds": 0.01
+  },
+  {
+   "module": "logistics",
+   "objects": [
+    "crane",
+    "hoist",
+    "truck_gate",
+    "site_sheds"
+   ],
+   "roof_ahd": 152.0,
+   "crane": {
+    "mast_xy": [
+     -25.7,
+     8.1
+    ],
+    "top_ahd": 170.0,
+    "confidence": "medium"
+   },
+   "hoist": {
+    "mast_xy": [
+     -9.5,
+     18.5
+    ],
+    "confidence": "low"
+   },
+   "truck_gate": {
+    "centre_xy": [
+     -16.0,
+     14.4
+    ],
+    "street": "Ann Street",
+    "confidence": "medium"
+   },
+   "note": "Markers only (not models). See layout.py CRANE/HOIST/TRUCK_GATE for the evidence.",
+   "seconds": 0.0
+  }
+ ]
+}
