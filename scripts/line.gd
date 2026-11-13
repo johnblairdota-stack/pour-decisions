@@ -837,7 +837,10 @@ func _build_pump() -> void:
 	# The slump test at the bay: cone, rod, tape, barrow (slump.gd)
 	slump = SlumpScript.new()
 	add_child(slump)
-	slump.setup(self, pf(6.7, 4.7))
+	# (well inside the fence, so its close-up camera, 2.5 m to the street side,
+	# stays in the yard and looks back at the pump instead of through the mesh;
+	# the tester's spot must stay inside the TRUCK BAY station's reach)
+	slump.setup(self, Vector3(17.58, 0, 10.35))
 	slump_cone = slump.root
 
 ## (Re)builds the riser to the boom head: 3 m sections with a clamp at every
