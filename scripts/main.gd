@@ -2731,7 +2731,7 @@ var _hop_idle := 0.0
 var _hop_cool := 0.0
 var _hop_offer := ""
 func _solo_hop(p, delta: float) -> void:
-	if p.bot or tutorial or phase != "pour" or crew.humans().size() != 1 or p.covering:
+	if p.bot or tutorial or autotest or phase != "pour" or crew.humans().size() != 1 or p.covering:
 		return
 	_hop_cool = maxf(0.0, _hop_cool - delta)
 	if _hop_offer != "" and p.slow_pressed() and crew.is_bot(_hop_offer):
