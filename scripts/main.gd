@@ -107,7 +107,7 @@ const GROUND_STATIONS := {
 	# rope's round the tower's far side; and the parts racking between them
 	# has a spot on each side (pump operator's: pipes and clamps; winch
 	# side: pin bags and lifting gear).
-	"bay": {"pos": Vector3(18.8, 0, 10.86), "label": "TRUCK BAY", "color": Color("ffc72c")},
+	"bay": {"pos": Vector3(17.24, 0, 9.58), "label": "TRUCK BAY", "color": Color("ffc72c")},
 	"panel": {"pos": Vector3(17.1, 0, 6.33), "label": "PUMP PANEL", "color": Color("ff7a1a")},
 	"ladder_g": {"pos": Vector3(13.9, 0, 1.5), "label": "LADDER", "color": Color("7cd992")},
 	"hoist_g": {"pos": Vector3(HOIST_X + 1.6, 0, 5.8), "label": "HOIST", "color": Color("9fb3c8")},

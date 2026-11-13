@@ -214,8 +214,12 @@ func work(p, t: Dictionary, delta: float) -> bool:
 		return false   # (walking to the chute and back: fetch_tick)
 	# Stand at the plate, behind the cone, so the close-up has you in it
 	var stand := _stand()
-	p.position.x = move_toward(p.position.x, stand.x, 3.0 * delta)
-	p.position.z = move_toward(p.position.z, stand.z, 3.0 * delta)
+	# (held there firmly: a bot's walk back to the bay must not drag the
+	# tester out in front of the close-up camera)
+	p.position.x = move_toward(p.position.x, stand.x, 6.0 * delta)
+	p.position.z = move_toward(p.position.z, stand.z, 6.0 * delta)
+	if auto:
+		p.ai_move = Vector2.ZERO
 	p.face(root.global_position + Vector3(TEST_X, 0, 0) * S)
 	var done := false
 	match st["step"]:
