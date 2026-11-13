@@ -313,6 +313,13 @@ func _on_message(c: Dictionary, msg: String) -> void:
 				ws.send_text("full")
 				ws.close()
 				return
+			# A phone the game's never seen starts on FULL HELP (it might be a
+			# guest on a regular's hat); a returning one keeps what it had
+			var seen: Array = (Settings.value("phones_seen") as Array).duplicate() if Settings.value("phones_seen") is Array else []
+			if not tokens.has(token) and not seen.has(token):
+				game.set_learner(p.index, true)
+				seen.append(token)
+				Settings.put("phones_seen", seen.slice(maxi(0, seen.size() - 60)))
 			tokens[token] = p
 			c["player"] = p
 			p.ai = true
@@ -645,7 +652,7 @@ func roster() -> Dictionary:
 	var sel = game.selector if is_instance_valid(game.selector) else null
 	for role in game.crew.ROLES:
 		var q = game.crew.crew[role]
-		out.append({"id": role, "name": UI.ROLE_NAME[role], "col": UI.ROLE[role].to_html(false), "line": UI.ROLE_SHORT[role], "ask": UI.ROLE_ASK[role],
+		out.append({"id": role, "name": UI.ROLE_NAME[role], "col": UI.ROLE[role].to_html(false), "line": UI.ROLE_DO[role], "ask": UI.ROLE_ASK[role],
 			"p": 0 if q.bot else q.index, "pc": q.tag_color.to_html(false), "who": q.char_name,
 			"lock": (not q.bot) and sel != null and bool(sel._ready_p.get(q.index, false))})
 	return {"t": "roster", "r": out}

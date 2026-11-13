@@ -289,6 +289,21 @@ func _ready() -> void:
 	toast_panel.add_child(toast_label)
 	toast_panel.visible = false
 
+	# --- A person's first go at a job: what it's for and what to watch
+	intro_panel = UI.panel(Color(0.04, 0.07, 0.12, 0.88), 14, UI.GOLD, 2, Vector4(20, 10, 20, 12))
+	_root.add_child(intro_panel)
+	UI.place(intro_panel, Vector2(0.5, 1), Vector2(0, -132))
+	var iv := VBoxContainer.new()
+	iv.add_theme_constant_override("separation", 2)
+	intro_panel.add_child(iv)
+	intro_head = UI.head("", 26, UI.GOLD)
+	iv.add_child(intro_head)
+	intro_label = UI.label("", 22, UI.BONE, 0)
+	intro_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	intro_label.custom_minimum_size = Vector2(640, 0)
+	iv.add_child(intro_label)
+	intro_panel.visible = false
+
 	# --- The dogman's whistle call
 	signal_panel = UI.panel(Color(0.04, 0.07, 0.12, 0.75), 22, Color(0, 0, 0, 0), 0, Vector4(22, 8, 22, 9))
 	_root.add_child(signal_panel)
@@ -396,6 +411,7 @@ func _frame_work(delta: float) -> void:
 		_feed_assembly()
 	_animate_crew(delta)
 	_deal_album(delta)
+	_tick_intro(delta)
 	if _toast_t > 0.0:
 		_toast_t -= delta
 		toast_panel.modulate.a = clampf(_toast_t * 2.0, 0.0, 1.0)
@@ -748,6 +764,39 @@ func set_alert(text: String) -> void:
 	elif _toast_t <= 0.0:
 		toast_panel.visible = false
 
+var intro_panel: PanelContainer
+var intro_head: Label
+var intro_label: Label
+var _intros: Array = []        # [head, body, colour] waiting their turn
+var _intro_t := 0.0
+const INTRO_T := 7.0
+
+## A person's first go at a job: "P2 · TRUCK HAND" and what it's for, along
+## the bottom for a few seconds. Several queue up, one at a time.
+func job_intro(head: String, body: String, col: Color) -> void:
+	_intros.append([head, body, col])
+
+func _tick_intro(delta: float) -> void:
+	if intro_panel == null:
+		return
+	if _intro_t > 0.0:
+		_intro_t -= delta
+		intro_panel.modulate.a = clampf(_intro_t * 2.0, 0.0, 1.0)
+		if _intro_t <= 0.0:
+			intro_panel.visible = false
+		return
+	if _intros.is_empty():
+		return
+	var it: Array = _intros.pop_front()
+	intro_head.text = it[0]
+	UI.font_color(intro_head, it[2])
+	intro_label.text = it[1]
+	UI.style(intro_panel).border_color = it[2]
+	intro_panel.visible = true
+	intro_panel.modulate.a = 1.0
+	_intro_t = INTRO_T
+	_pop(intro_panel)
+
 func toast(text: String, seconds := 2.2) -> void:
 	if _alert != "":
 		return
@@ -837,6 +886,34 @@ func show_slab(d: Dictionary, seconds := 6.0) -> void:
 	_card_box.add_child(row)
 	for r in d.get("crew", []):
 		row.add_child(_hat_card(r, String(r["role"]) == String(d.get("star", ""))))
+	# What went wrong: the three biggest costs, whose job it was, when it
+	# first happened and how not to do it again
+	var wrong: Array = d.get("wrong", [])
+	if not wrong.is_empty():
+		var wv := VBoxContainer.new()
+		wv.add_theme_constant_override("separation", 2)
+		wv.custom_minimum_size = Vector2(860, 0)
+		_card_box.add_child(wv)
+		wv.add_child(UI.head("WHAT WENT WRONG", 15, UI.DIM))
+		for w in wrong:
+			var role := String(w["role"])
+			var who := String(UI.ROLE_NAME.get(role, "Whole crew"))
+			var t := float(w["t"])
+			var line := "%s%s  ·  %s  ·  %s  ·  -$%s" % [String(w["why"]), (" ×%d" % int(w["n"])) if int(w["n"]) > 1 else "",
+				who, ("first at %d:%02d" % [int(t) / 60, int(t) % 60]) if t > 0.0 else "before the pour", _thousands(-int(w["pts"]))]
+			var h := HBoxContainer.new()
+			h.add_theme_constant_override("separation", 8)
+			wv.add_child(h)
+			var dot := ColorRect.new()
+			dot.color = UI.ROLE.get(role, UI.ALARM)
+			dot.custom_minimum_size = Vector2(6, 0)
+			h.add_child(dot)
+			var tv2 := VBoxContainer.new()
+			tv2.add_theme_constant_override("separation", 0)
+			h.add_child(tv2)
+			tv2.add_child(UI.head(line, 17, Color("ffb3ad")))
+			if String(w["hint"]) != "":
+				tv2.add_child(UI.label(String(w["hint"]), 15, UI.BONE, 0))
 	# What cost quality
 	var losses: Array = d.get("losses", [])
 	if not losses.is_empty():
@@ -1021,6 +1098,13 @@ func _hat_card(r: Dictionary, star: bool) -> PanelContainer:
 	if int(r.get("covered", 0)) > 0 and not bool(r["bot"]):
 		# The leading hand did some of it for them, and everyone sees it
 		v.add_child(UI.label("%s covered %d s" % [String(r.get("lh", "Macca")), int(r["covered"])], 13, UI.ALARM, 0))
+	if String(r.get("bad", "")) != "":
+		# (a person's own costliest slip this slab)
+		var bl := UI.label("✕ " + String(r["bad"]), 13, Color("ffb3ad"), 0)
+		bl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		bl.custom_minimum_size = Vector2(122, 0)
+		bl.max_lines_visible = 2
+		v.add_child(bl)
 	if String(r.get("good", "")) != "":
 		# Something done right that pays nothing big: a gold glint on the card
 		v.add_child(UI.label("✦ " + String(r["good"]), 13, UI.GOLD, 0))
@@ -1312,7 +1396,8 @@ func set_toolbox(hold: float, left: float, secs: float) -> void:
 		return
 	_tb_hold.show_cue(["A", "", hold, true, Vector2(-1, -1), false, false, false])
 	_tb_fill.size.x = 712.0 * clampf(left, 0.0, 1.0)
-	_tb_left.text = "STARTS ITSELF IN %ds" % int(ceil(secs))
+	# (secs < 0: it waits for the hold, however long that takes)
+	_tb_left.text = "HOLD A WHEN YOU'RE READY" if secs < 0.0 else "STARTS ITSELF IN %ds" % int(ceil(secs))
 
 func show_topout(text: String) -> void:
 	if not banner.visible:

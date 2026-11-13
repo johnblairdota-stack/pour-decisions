@@ -73,6 +73,36 @@ var by_person := {}            # "P1" etc -> dollars over the chapter
 var wallet_pour := {}          # char id -> dollars into their wallet this slab
 var log_rows := {}             # what earned them this slab: label -> points
 var role_rows := {}            # role -> {label -> points} this slab
+var costs: Array = []          # everything that cost money this slab: {why, pts, role, t}
+
+## The job that owns a crew-wide cost (a burst is the pump operator's to stop)
+const COST_OWNER := {"Clamp burst": "pump", "Line blocked": "pump", "Hose whip": "boom", "Finished by hand": "boom",
+	"Start-up and washout held up": "pump"}
+## One line on how not to do it again, for the slab report's WHAT WENT WRONG
+const COST_HINT := {
+	"Clamp burst": "A spike was left too long. Kill the pump the moment the gauge flashes, then fix the clamp.",
+	"Line blocked": "A stiff or old load on HIGH packs the line. Drop to LOW while the gauge creeps.",
+	"Pumped into a blockage": "When A goes red and shakes, let go and wait for the fix.",
+	"Hose whip": "The boom swung too fast. Small pushes near the hose hand.",
+	"Bad load accepted": "Slump test every truck. Too wet or too old goes back with B.",
+	"Bad concrete in before the call": "Make the load call before that truck's concrete goes in.",
+	"Driver had to make the call": "The truck sat waiting. Test it before the driver gives up.",
+	"Trucks spotted in": "Call STOP before the truck backs into the hopper.",
+	"Hopper spilled over": "Ease the chute back when the hopper's near the brim.",
+	"Over-vibrated": "Pull the poker out once the bubbles stop.",
+	"Footprints in the finish": "Keep off concrete that's been screeded.",
+	"Floated too early": "Wait for the concrete to firm up before floating.",
+	"Finished by hand": "Get the boom over every corner of the slab.",
+	"Sections wrecked": "Slow the crane near the landing and steady it with the tag lines.",
+	"Pins left without an R-clip": "Every tower pin gets its R-clip.",
+	"Missed the bin": "Keep the boom over the slurry bin while it pumps.",
+	"Missed the sponge ball": "Be at the end hose to catch the sponge ball at the washout.",
+	"Start-up and washout held up": "Get the start-up slurry and washout done promptly.",
+	"Water added past the docket": "Never add more water than the docket allows.",
+	"Water added to a good load": "Only add water when the slump test reads stiff.",
+	"Water added to a wet load": "A wet load needs no water. Send it back if it's too wet.",
+	"Water added to an old load": "An old load can't be saved with water. Send it back.",
+}
 var rank_i := 0
 var bump := 0.0                # HUD counter bump after a gain
 var _pops: Array = []          # {label, t, who, amount}
@@ -90,6 +120,7 @@ func start_level() -> void:
 	by_role = {}
 	log_rows = {}
 	role_rows = {}
+	costs = []
 
 ## Seconds of slack for each line fault the day had planned beyond the one
 ## the times above were tuned with (one clamp a pour). Trouble ramps up the
@@ -171,6 +202,9 @@ func award(who, pts: int, why: String, at := Vector3.INF) -> void:
 	total = maxi(0, total + pts)
 	level += pts
 	var role: String = who.role if who != null else "crew"
+	if pts < 0:
+		costs.append({"why": base, "pts": pts, "role": role if who != null else String(COST_OWNER.get(base, "crew")),
+			"t": float(game.pour_clock) if game != null and "pour_clock" in game else 0.0})
 	by_role[role] = int(by_role.get(role, 0)) + pts
 	log_rows[why] = int(log_rows.get(why, 0)) + pts
 	var rr: Dictionary = role_rows.get(role, {})
@@ -313,6 +347,31 @@ func report_rows() -> Array:
 		var v: int = log_rows[k]
 		rows.append("%s   %s%d" % [k, "+" if v > 0 else "", v])
 	return rows
+
+## The slab's biggest costs, worst first: [{why, pts, n, role, t (first time),
+## hint}], grouped by what happened.
+func worst(n := 3) -> Array:
+	var by := {}
+	for c in costs:
+		var key: String = c["why"]
+		if not by.has(key):
+			by[key] = {"why": key, "pts": 0, "n": 0, "role": c["role"], "t": c["t"], "hint": String(COST_HINT.get(key, ""))}
+		by[key]["pts"] += int(c["pts"])
+		by[key]["n"] += 1
+	var out: Array = by.values()
+	out.sort_custom(func(a, b): return int(a["pts"]) < int(b["pts"]))
+	return out.slice(0, n)
+
+## What cost this job the most this slab ("" if nothing did).
+func worst_reason(role: String) -> String:
+	var rr: Dictionary = role_rows.get(role, {})
+	var w := ""
+	var wv := 0
+	for k in rr:
+		if int(rr[k]) < wv:
+			wv = int(rr[k])
+			w = k
+	return w
 
 ## What earned this job the most this slab ("" if nothing).
 func top_reason(role: String) -> String:

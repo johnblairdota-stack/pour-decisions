@@ -19,6 +19,7 @@
 ##   vol_site, vol_band, vol_alerts   the three volumes (0..1): the site, the band, alarms
 ##   medals      the best medal (0 bronze, 1 silver, 2 gold; -1 not poured) for
 ##               each of Riverlight's floors, for the site page
+##   phones_seen the phones that have joined before (a new one starts on full help)
 ##   room_code   the four digits a phone needs to join (made on first run)
 ##   tut_done    this save's played the water tower (the site page stops picking it)
 ##   tower_started  this save's started a pour on the building (the water tower card goes)
@@ -31,7 +32,7 @@ const DOG_HELP_NAMES := ["First Day", "On Site", "Ticketed"]
 const GOLD_NAMES := ["fades as you learn", "full sparkle", "off"]
 const GRAPHICS_NAMES := ["Full", "Lite"]
 
-static var data := {"incidents": 1, "ui_scale": 1.25, "world_text": 1.25, "docket_help": false, "fullscreen": false, "gold_assist": true, "gold_mode": 0, "dog_help": 0, "real_names": true, "split": true, "band": true, "vol_site": 1.0, "vol_band": 1.0, "vol_alerts": 1.0, "ver": 2, "medals": [], "tut_done": false, "tower_started": false, "graphics": 0, "look": 4, "room_code": ""}
+static var data := {"incidents": 1, "ui_scale": 1.25, "world_text": 1.25, "docket_help": false, "fullscreen": false, "gold_assist": true, "gold_mode": 0, "dog_help": 0, "real_names": true, "split": true, "band": true, "vol_site": 1.0, "vol_band": 1.0, "vol_alerts": 1.0, "ver": 2, "medals": [], "tut_done": false, "tower_started": false, "graphics": 0, "look": 4, "room_code": "", "phones_seen": []}
 static var _loaded := false
 
 ## Camera test (not saved: it's for trying out the multiplayer cameras on

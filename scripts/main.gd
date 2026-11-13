@@ -2706,6 +2706,26 @@ var learners := {}   # P number -> {role: 0..1}
 func is_learner(p) -> bool:
 	return p != null and not p.bot and learners.has(p.index)
 
+## Bots keep their hand signs to themselves while a person's being asked for
+## something urgent, or there are already three signs up.
+const MAX_SIGNS := 3
+func bots_quiet() -> bool:
+	var live := 0
+	for p in players:
+		live += (p._balloons as Array).size()
+		if not p.bot:
+			for cu in p.cues:
+				if bool(cu[3]) or bool(cu[5]):
+					return true
+	return live >= MAX_SIGNS
+
+## How much help someone gets on their job now, in words for the crew page.
+func help_level(p) -> String:
+	if is_learner(p):
+		return "FULL HELP"
+	var s := skill_of(p)
+	return "FIRST DAY" if s < 0.34 else ("ON SITE" if s < 0.67 else "TICKETED")
+
 func set_learner(index: int, on: bool) -> void:
 	if on and not learners.has(index):
 		learners[index] = {}
@@ -3382,6 +3402,8 @@ func _slab_report(quality: float, verdict: String, medal: int, note: String, los
 			crew_rows[-1]["good"] = "Caught the sponge ball"
 		if not p.bot:
 			crew_rows[-1]["wallet"] = int(score.wallet_pour.get(p.char_id, 0))
+			# (and what cost them most, so a person sees their own slip)
+			crew_rows[-1]["bad"] = score.worst_reason(role)
 		# (never the star if the leading hand had to do their job for them)
 		if (not p.bot or _cam_roles.has(role)) and pts > star_pts and cov < 10:
 			star_pts = pts
@@ -3395,9 +3417,18 @@ func _slab_report(quality: float, verdict: String, medal: int, note: String, los
 		nxt = "Level %d" % (k + 2) + (" · climb day first" if (k + 1) in climb_levels() else "")
 	return {"title": ("WATER TOWER" if tutorial else "LEVEL %d" % (k + 1)) + " · SLAB REPORT", "points": score.level,
 		"quality": quality, "verdict": verdict, "medal": medal, "medal_note": note, "crew": crew_rows,
-		"star": star, "losses": losses, "next": nxt, "last": k + 1 >= floors()}
+		"star": star, "losses": losses, "wrong": score.worst(3), "next": nxt, "last": k + 1 >= floors()}
 
 ## Keeps the best medal for each of the building's floors, for the site page.
+## Till this save's finished a slab on the building, nothing moves on by
+## itself (the site page, the toolbox talk, the slab report): first-timers
+## read at their own pace and press A when they're ready.
+func first_day() -> bool:
+	if autotest:
+		return false
+	var m = Settings.value("medals")
+	return not (m is Array and not (m as Array).is_empty())
+
 func _save_medal(medal: int) -> void:
 	if tutorial and not autotest and not bool(Settings.value("tut_done")):
 		Settings.put("tut_done", true)
@@ -3617,6 +3648,7 @@ func _process(delta: float) -> void:
 		hud.toast("Sound %s" % ("off" if sfx.muted else "on"), 1.2)
 	_join_players()
 	_swap_keys()
+	_job_intros()
 	if phase == "select" or phase == "roles":
 		if is_instance_valid(selector):
 			selector.set_join(_join_text(), phones.join_url() if phones.running else "")
@@ -3804,14 +3836,15 @@ func _process(delta: float) -> void:
 						fac.scale.y = maxf(0.01, clampf(phase_t / 0.8, 0.0, 1.0))
 			# The slab report stays up till someone presses A
 			if hud.card_waiting():
-				hud.set_report_left(1.0 - hud.card_age() / REPORT_AUTO, REPORT_AUTO - hud.card_age())
+				var patient := first_day()
+				hud.set_report_left(1.0 if patient else 1.0 - hud.card_age() / REPORT_AUTO, REPORT_AUTO - hud.card_age())
 				var swap_by := -1
 				for p in players:
 					if not p.bot and p.slow_pressed():
 						swap_by = p.index
 				if swap_by > 0 and hud.card_age() > 1.0 and k + 1 < floors():
 					pause_menu.open_on("swap", swap_by)
-				elif (_human_a and hud.card_age() > 1.0) or hud.card_age() > REPORT_AUTO:
+				elif (_human_a and hud.card_age() > 1.0) or (hud.card_age() > REPORT_AUTO and not patient):
 					hud.dismiss_card()
 			if phase_t > 1.4 and not hud.card_waiting():
 				k += 1
@@ -3931,6 +3964,22 @@ func _join_players() -> void:
 	var open_slots: bool = crew.humans().size() < crew.MAX_PEOPLE and not autotest
 	hud.set_join(_join_text() if phase != "topout" and phase != "select" and phase != "roles" else "", phones.join_url() if phones.running and open_slots and phase != "topout" else "")
 
+## A person's first go at a job (this session; every floor while they've
+## FULL HELP on): what it's for in plain words and what to watch, along the
+## bottom. Not in the water tower, where the coach talks them through.
+var _intro_seen := {}
+func _job_intros() -> void:
+	if tutorial or autotest or not (phase == "inspect" or phase == "pour"):
+		return
+	for p in crew.humans():
+		var key := "P%d:%s" % [p.index, p.role]
+		if _intro_seen.has(key) and not (is_learner(p) and int(_intro_seen[key]) != k):
+			continue
+		_intro_seen[key] = k
+		var jc: Dictionary = UI.JOB_CARD.get(p.role, {})
+		hud.job_intro("P%d · %s" % [p.index, String(UI.ROLE_NAME.get(p.role, "")).to_upper()],
+			String(UI.ROLE_DO.get(p.role, "")) + ("  Watch " + String(jc["watch"]) if jc.has("watch") else ""), UI.ROLE.get(p.role, UI.GOLD))
+
 ## P1's number keys swap jobs on the fly (1 boom, 2 line, 3 pump, 4 poker, 5 screed, 6 hose hand).
 func _swap_keys() -> void:
 	if autotest:
@@ -3982,8 +4031,9 @@ func _update_inspect(delta: float) -> void:
 			if not p.bot and p.action_held():
 				holding = true
 		_brief_hold = (_brief_hold + delta) if holding and phase_t > 0.5 else maxf(0.0, _brief_hold - delta * 2.0)
-		hud.set_toolbox(_brief_hold / BRIEF_HOLD, 1.0 - phase_t / BRIEF_AUTO, maxf(0.0, BRIEF_AUTO - phase_t))
-		if _brief_hold >= BRIEF_HOLD or phase_t > BRIEF_AUTO:
+		var patient := first_day()
+		hud.set_toolbox(_brief_hold / BRIEF_HOLD, 1.0 if patient else 1.0 - phase_t / BRIEF_AUTO, -1.0 if patient else maxf(0.0, BRIEF_AUTO - phase_t))
+		if _brief_hold >= BRIEF_HOLD or (phase_t > BRIEF_AUTO and not patient):
 			_brief_ok = true
 			sfx.hit("ding")
 			hud.show_brief(false)
