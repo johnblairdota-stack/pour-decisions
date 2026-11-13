@@ -1,9 +1,32 @@
 {
- "source": "2019 LiDAR bare ground (c) State of Queensland, CC BY 4.0; tools/terrain_to_game.py",
+ "source": "QldDem bare ground (2019 LiDAR round the site) (c) State of Queensland, CC BY 4.0; tools/terrain_to_game.py",
  "half": 800.0,
  "cell": 2.0,
  "grid": 801,
  "datum_ahd": 3.5,
  "step": 8.0,
- "frame": "map frame of data/riverlight_osm.json; rows from z = -half, x = -half first"
+ "layers": [
+  {
+   "name": "near",
+   "file": "res://data/terrain.bin",
+   "half": 800.0,
+   "cell": 2.0,
+   "grid": 801
+  },
+  {
+   "name": "mid",
+   "file": "res://data/terrain_mid.bin",
+   "half": 2600.0,
+   "cell": 5.0,
+   "grid": 1041
+  },
+  {
+   "name": "far",
+   "file": "res://data/terrain_far.bin",
+   "half": 16000.0,
+   "cell": 40.0,
+   "grid": 801
+  }
+ ],
+ "frame": "map frame of data/riverlight_osm.json; rows from z = -half, x = -half first; layers finest first, each meeting the next at its edge"
 }

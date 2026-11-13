@@ -1,7 +1,12 @@
 ## The real lie of the land round Riverlight: the 2019 LiDAR's bare ground,
 ## turned into the map frame by tools/terrain_to_game.py (data/terrain.bin).
 ## Northshore's reclaimed and flat, so it's gentle: the golf course a metre
-## or two down, the riverwalk and the estate a bit up, the drains low.
+## or two down, the riverwalk and the estate a bit up, the drains low. Out
+## past it the real hills: Hamilton and Ascot north, Bulimba and Morningside
+## over the river, Mt Gravatt and Mt Coot-tha on the skyline, from two
+## coarser grids round it (data/terrain_mid.bin to 2.6 km, 5 m apart, the
+## map's streets and buildings levelled into it too; data/terrain_far.bin to
+## 16 km, 40 m apart). Each grid meets the next one out exactly at its edge.
 ##
 ## Everything outside the game's own site asks here how high the ground is:
 ## the map's ground and the banks (surrounds.gd), the buildings, kerbs,
@@ -12,7 +17,7 @@
 ##   - the river at Water.RIVER_Y, and dry land at least 0.5 m above it
 ##   - the CityCat's bank at 0, where the gangway lands
 ##   - each street level across, each building on a level pad
-## Out past the heightmap it's 0 again: the flat world beyond.
+## Out past 16 km it's 0 again: the flat world beyond.
 ##
 ## The map frame (x = west, z = north, origin Riverlight's centroid) is the
 ## Surrounds node's; the game's own frame is it less main.gd's REAL_ORIGIN.
@@ -33,6 +38,8 @@ static var _n := 0
 static var _half := 0.0
 static var _cell := 1.0
 static var _tried := false
+## the coarser grids round the near one, finest first: [heights, n, half, cell]
+static var _outer: Array = []
 
 static func _load() -> void:
 	_tried = true
@@ -50,6 +57,18 @@ static func _load() -> void:
 		push_warning("terrain: %s is the wrong size" % BIN)
 		_h = PackedFloat32Array()
 		_n = 0
+		return
+	for l in meta.get("layers", []):
+		if String(l["file"]) == BIN:
+			continue
+		var n := int(l["grid"])
+		var h := PackedFloat32Array()
+		if FileAccess.file_exists(l["file"]):
+			h = FileAccess.get_file_as_bytes(l["file"]).to_float32_array()
+		if h.size() != n * n:
+			push_warning("terrain: %s missing or the wrong size, flat past it" % l["file"])
+			break
+		_outer.append([h, n, float(l["half"]), float(l["cell"])])
 
 static func ready() -> bool:
 	if not _tried:
@@ -65,7 +84,7 @@ static func y(p: Vector2) -> float:
 	var fx := (p.x + _half) / _cell
 	var fz := (p.y + _half) / _cell
 	if fx < 0.0 or fz < 0.0 or fx >= _n - 1 or fz >= _n - 1:
-		return 0.0
+		return _out_y(p)
 	var ix := int(fx)
 	var iz := int(fz)
 	var tx := fx - ix
@@ -75,13 +94,31 @@ static func y(p: Vector2) -> float:
 	var b := lerpf(_h[i + _n], _h[i + _n + 1], tx)
 	return lerpf(a, b, tz)
 
+## ...past the near grid: the finest of the others that reaches.
+static func _out_y(p: Vector2) -> float:
+	for l in _outer:
+		var h: PackedFloat32Array = l[0]
+		var n: int = l[1]
+		var half: float = l[2]
+		var cell: float = l[3]
+		var fx := (p.x + half) / cell
+		var fz := (p.y + half) / cell
+		if fx < 0.0 or fz < 0.0 or fx >= n - 1 or fz >= n - 1:
+			continue
+		var ix := int(fx)
+		var iz := int(fz)
+		var tx := fx - ix
+		var tz := fz - iz
+		var i := iz * n + ix
+		return lerpf(lerpf(h[i], h[i + 1], tx), lerpf(h[i + n], h[i + n + 1], tx), tz)
+	return 0.0
+
 ## ...at a spot in the game's own frame (main.gd's, the site's).
 static func y_game(p: Vector3) -> float:
 	return y(Vector2(p.x + ORIGIN.x, p.z + ORIGIN.y))
 
-## Which way the ground leans at `p` (map frame).
-static func normal(p: Vector2) -> Vector3:
-	var e := 1.0
+## Which way the ground leans at `p` (map frame), over `e` m each way.
+static func normal(p: Vector2, e := 1.0) -> Vector3:
 	var hx := y(p + Vector2(e, 0)) - y(p - Vector2(e, 0))
 	var hz := y(p + Vector2(0, e)) - y(p - Vector2(0, e))
 	return Vector3(-hx, 2.0 * e, -hz).normalized()
@@ -95,7 +132,7 @@ static func lift(p: Vector2, h: float) -> float:
 	var k := clampf((h - ANCHOR) / -ANCHOR, 0.0, 1.0)
 	return h + y(p) * k
 
-## Whether `p` is on the heightmap at all (outside it's all 0).
+## Whether `p` is on the near grid, the 2 m one round the site.
 static func covers(p: Vector2) -> bool:
 	if not _tried:
 		_load()

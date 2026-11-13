@@ -49,3 +49,12 @@ Made: 2026-10-18, from one LiDAR tile that John ordered from ELVIS.
 Notes on the capture year:
 - "nothing tall here in 2019: may postdate the capture" means the footprint was under 2.5 m in 2019. **Riverlight North Apartments** is one of these (1.2 m in 2019).
 - "OSM start_date ... postdates the 2019 capture" is added when OSM gives a build year after 2019.
+
+## Wider area (for the hills round about)
+
+Downloaded: 2026-11-13, from the same `QldDem` image service (`exportImage`, bilinear, the service's default mix: LiDAR on land, coarse bathymetry in the river), same licence and credit as above. Used by `tools/terrain_to_game.py` for the ground past the 1500 m box: Hamilton and Ascot north, Bulimba and Morningside over the river, Mt Gravatt and Mt Coot-tha on the skyline.
+
+| file | size | what it is |
+|---|---|---|
+| qld_dem_10m_10km_mga56.tif | 4.2 MB | 10 m DEM, 10 km x 10 km centred on Riverlight. 1000 x 1000, Float32, EPSG:28356, nodata -9999. Box E 503450 to 513450, N 6959420 to 6969420. Heights -18 to 79 m AHD. |
+| qld_dem_30m_34km_mga56.tif | 5.3 MB | About 30 m DEM (29.98 m pixels), 34 km x 34 km centred on Riverlight. 1134 x 1134, Float32, EPSG:28356, nodata -9999. Box E 491450 to 525450, N 6947420 to 6981420. Heights -18 to 284 m AHD (Mt Coot-tha). Out east over Moreton Bay it's nodata or sea bed. |
