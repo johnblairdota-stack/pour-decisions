@@ -331,7 +331,7 @@ func _play_blasts(delta: float) -> void:
 		if k <= 0.0:
 			p.stop()
 		else:
-			p.volume_db = float(p.get_meta("db")) + linear_to_db(maxf(0.001, k))
+			_set_db(p, float(p.get_meta("db")) + linear_to_db(maxf(0.001, k)))
 
 func _play_blast(blast: String, alert: bool) -> void:
 	var takes: Array = _takes.get(blast, [])
@@ -459,7 +459,18 @@ func _update_mix(delta: float) -> void:
 		var a: Dictionary = _loops[id]
 		a["lv"] = move_toward(float(a["lv"]), float(a["want"]), delta * float(a["fade"]))
 		if a["pl"] != null:
-			(a["pl"] as AudioStreamPlayer).volume_db = -80.0 if muted else volume_db + float(a["db"]) + linear_to_db(maxf(0.0001, float(a["lv"]) * _g_site * dip))
+			_set_db(a["pl"], -80.0 if muted else volume_db + float(a["db"]) + linear_to_db(maxf(0.0001, float(a["lv"]) * _g_site * dip)))
+
+## Turns a player up or down, but only when it's really moved (half a dB).
+## (Every change hands Godot's audio thread a fresh copy of the player's bus
+## volumes and bins the old copy two frames later, whether the audio thread
+## has finished reading it or not. Setting every loop's volume every frame
+## made thousands of those a second, and now and then the audio thread read
+## one already binned and the game crashed. Held loops now make none.)
+static func _set_db(pl: AudioStreamPlayer, db: float) -> void:
+	var now := pl.volume_db
+	if absf(now - db) >= 0.5 or (db <= -79.0) != (now <= -79.0):
+		pl.volume_db = db
 
 ## One soft-edged beep of `f` Hz, `len` s long, starting `at` s into a hit
 ## (a square wave when `hard`, for alarms).
