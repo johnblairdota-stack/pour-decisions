@@ -1,0 +1,9 @@
+{
+ "source": "2019 LiDAR bare ground (c) State of Queensland, CC BY 4.0; tools/terrain_to_game.py",
+ "half": 800.0,
+ "cell": 2.0,
+ "grid": 801,
+ "datum_ahd": 3.5,
+ "step": 8.0,
+ "frame": "map frame of data/riverlight_osm.json; rows from z = -half, x = -half first"
+}
