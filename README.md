@@ -4,18 +4,30 @@ Chapter 1, Riverlight at Hamilton Reach: 11 levels, plus a short water tower tut
 
 ![Swapping a weeping clamp on the riser](docs/screenshots/ladder.png)
 
+## How a pour goes (one screen)
+
+1. **Grab a hat.** Each person picks one of six jobs on the crew page; bots take the rest. New? Press **Y** (or tap FULL HELP on the phone) for full help.
+2. **Toolbox talk.** The day's plan. Hold **A** when you're ready.
+3. **Pour.** Trucks back in, the truck hand tests each load, the pump pushes it up the riser, the boom and hose hand put it in the bays, the pokers shake it, the screeder levels it. Press what glows over your chibi.
+4. **Slab report.** Your medal, what each person earned, what went wrong, whose job it was, and how not to do it again.
+5. **Up a floor.** Every few floors is a climb day: the crew jacks the boom tower up with the crane.
+
+Playing alone? When your job's quiet and another job needs someone, **Y** hops you onto it.
+
 ## Run it
 
 1. Install **Godot 4.7 or newer** (the standard build, not .NET) from godotengine.org.
 2. Open Godot, choose **Import**, and pick `project.godot` in this folder.
 3. Press **F5** (or the play button). The first open takes a few seconds while Godot imports the project.
 
+**What it needs:** a GPU with Vulkan (Godot's Forward+ renderer). **Full** graphics is for a gaming PC or a recent laptop with its own graphics card; integrated graphics and tablets should use **Lite** (Smoko > Settings > Graphics). If a pour runs under 40 fps for 10 seconds on Full, the game switches itself to Lite and says so.
+
 ## Play on the TV with phones as controllers
 
 Run the game on a laptop or PC plugged into the TV. The start screens and the pause menu show a QR code and an address like `http://192.168.1.23:8080`.
 
 1. Each player connects their phone to the **same Wi-Fi** as the computer.
-2. Everyone scans the same QR code on the crew screen (top right; it's big enough to scan from the couch), or types the address under it into the phone's browser. It's in the pause menu too, under **Add a player**.
+2. Everyone scans the same QR code on the crew screen (top right; it's big enough to scan from the couch), or types the address under it into the phone's browser. It's in the pause menu too, under **Add a player**. The QR carries a four-digit **room code** (shown beside the address); a phone that types the address in is asked for it, so only people who can see the TV can join. The code stays the same on this computer, so a phone that's joined before (or a home-screen copy) gets straight in.
 3. Tap to join, and turn the phone sideways.
 
 ![Phone controller](docs/screenshots/phone_controller.png)
@@ -29,6 +41,8 @@ In the game the phone is a controller in three parts, in the Site Kit look the T
 **Pause from the phone.** The Pause button, top left, pauses the game; the stick, A and B then work the pause menu.
 
 **Full screen on the phone.** On Android the controller goes full screen on the first tap (and a corner button puts it back if you swipe out). An iPhone doesn't let a web page do that, so the join screen says how: tap Share, then **Add to Home Screen**, and open Pour Decisions from the home screen. It then opens like an app, sideways, with no browser bars, and joins the same way.
+
+If phones can't join, the crew page says why in red: another program has the ports, the computer isn't on a network, or a phone loaded the page but can't reach the game (almost always the firewall). Guest and hotel Wi-Fi often stop phones reaching a computer at all: use a home network or a phone hotspot.
 
 On Windows the first run asks whether Godot may use the network: allow it on **private networks**, or the phones can't connect. If the page won't load on the phone: check the phone's on the same Wi-Fi (not mobile data), allow Godot through the Windows firewall for private networks, and try the other addresses the Join in card lists (a computer with VirtualBox, Hyper-V or a VPN has more than one, and the game picks the Wi-Fi or Ethernet one first). If something else on the computer has ports 8080 and 8081, the game moves to the next free pair and shows that address.
 
@@ -96,7 +110,7 @@ Anyone partway up the ladder (the pump operator swapping a clamp halfway up) get
 
 The crew page is a hat rack: six hard hats, one per job, each tagged with who's wearing it (a P tag) or the bot that is. Every person picks a job with the stick (up/down) and one of the named crew (left/right), then presses A to lock in: Macca, Tash, Gus, Priya, Robbo, Jules, Nev or Kiri, each with their own look. The hard hat is always the job's colour with the job's icon big on its crown, and the icon is on the tickets, hand signs, close-ups and phone too, so jobs are never told apart by colour alone. Once everyone's locked in there's a three-second count (B stops it); if anyone's still choosing, a 20-second ring starts the game anyway. Then the site page shows the tower floor by floor with the medals poured so far and picks the next floor and kit for you; anyone can change it, and it starts on its own after 15 seconds.
 
-Every menu keeps casual players moving the same way: one gold default that any player can press, a countdown that picks it if nobody does, and B to go back. Before each pour a **toolbox talk** shows the day's conditions, the plan and every job's first move; anyone holds A to start, or it starts itself. After it the **slab report** shows the medal, points and quality, one card per hard hat with what earned it most, and a gold **crew star**; A pours the next floor (or it moves on after 15 seconds) and Y swaps jobs.
+Every menu keeps casual players moving the same way: one gold default that any player can press, a countdown that picks it if nobody does, and B to go back. Before each pour a **toolbox talk** shows the day's conditions, the plan and every job's first move; anyone holds A to start, or it starts itself. After it the **slab report** shows the medal, points and quality, one card per hard hat with what earned it most (and, for a person, what cost them most), a gold **crew star**, **WHAT WENT WRONG** (the three costliest things that happened, whose job each was, when it first happened and one line on how not to do it again) and how far it is to the next rank; A pours the next floor (or it moves on after 15 seconds) and Y swaps jobs. Until a save has finished its first slab on the building, nothing moves on by itself: the site page, the toolbox talk and the slab report all wait for A. A person's first go at each job puts a caption along the bottom saying what the job's for in plain words and what to watch.
 
 ![Toolbox talk](docs/screenshots/toolbox.png)
 
@@ -133,7 +147,7 @@ Gold belongs to the assist and nothing else: the assist ring has its own look (a
 
 **Gold fades as you learn.** The gold is on a spectrum, kept for each person (their crew name) at each job. Someone new at a job gets the lot: bright gold, the ring, the sparks, the trickle and the buzz. At the jobs with real calls in them (the truck hand and the poker) it's the calls that teach: a right slump call or docket check is a big step, a lift on the bubbles a smaller one, and following the glow through a routine step (rodding, lifting the cone, spotting a truck) barely counts. Three right slump calls in a row and the tape stops saying what to do (a wrong call brings it back). At the other jobs every press on the gold takes their sureness up a notch, and the effects fall away one by one (the trickle, then the sparks, then the buzz, then the ring) until only the button's gold tint is left, then nothing but the action itself. If they slip, it comes back: a call-out for their step, a crewmate covering them, a cue left waiting over 4 seconds or a costly mistake each knock their sureness down, so the gold brightens again until they've got it back. The tutorial and the bots always show full gold.
 
-**First time on the tools tonight?** The help follows the person, not the hat. On the hat rack a pad player presses **Y** (a phone taps **FULL HELP** beside LOCK IN) and their name shows NEW: they get full help at every job and learn fresh for the night, kept by their P number through job swaps and a dropped phone, and the crew character's saved sureness is left alone. So a guest who picks the host's usual Priya doesn't get Priya's three nights of experience.
+**First time on the tools tonight?** The help follows the person, not the hat. On the hat rack a pad player presses **Y** (a phone taps **FULL HELP** beside LOCK IN) and their name shows FULL HELP: they get full help at every job and learn fresh for the night, kept by their P number through job swaps and a dropped phone, and the crew character's saved sureness is left alone. So a guest who picks the host's usual Priya doesn't get Priya's three nights of experience. Everyone else's name on the rack shows how much help they'll get at that job (FIRST DAY, ON SITE or TICKETED), and a phone that's never joined on this computer before starts on FULL HELP by itself.
 
 **Gold assist** in the pause menu has three settings: *fades as you learn* (the default), *full sparkle* (locked on at full for everyone, for casual nights) and *off*. The hammer's gold band is the mechanic itself, so it always shows.
 

@@ -173,6 +173,26 @@ func rank_frac() -> float:
 func next_rank() -> String:
 	return RANKS[rank_i + 1][1] if rank_i < RANKS.size() - 1 else ""
 
+## The way to the next rank, in words for the slab report: how much more,
+## and roughly how many slabs like this one ("" at the top).
+func next_rank_line(per_slab: int) -> String:
+	if rank_i >= RANKS.size() - 1:
+		return ""
+	var need: int = int(RANKS[rank_i + 1][0]) - total
+	var slabs := ""
+	if per_slab > 0:
+		var n := int(ceil(float(need) / float(per_slab)))
+		slabs = "  ·  about %d more slab%s like this" % [n, "" if n == 1 else "s"]
+	return "Next rank: %s in $%s%s" % [next_rank(), _thou(maxi(0, need)), slabs]
+
+static func _thou(n: int) -> String:
+	var s := str(n)
+	var out := ""
+	while s.length() > 3:
+		out = "," + s.substr(s.length() - 3) + out
+		s = s.substr(0, s.length() - 3)
+	return s + out
+
 ## Pay comes in real notes: under $150 a job pays the one note nearest its
 ## rate ($5, $10, $20, $50 or $100, judged on a log scale, so $35 is a $50
 ## and $25 a $20); more than that rounds to $50s and comes as a fan of notes.

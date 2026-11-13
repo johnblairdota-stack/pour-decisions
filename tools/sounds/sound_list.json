@@ -392,6 +392,54 @@
    "seconds": 0.8,
    "loop": false,
    "text": "One pea whistle blast with two quick peaks in a single breath, a fast twee-tweet with no silence between the two peaks, about half a second, blown by a crane signaller on a building site outdoors. Just this one blast, then silence."
+  },
+  {
+   "folder": "sfx",
+   "name": "hiss",
+   "text": "Short hiss of compressed air and water escaping from a steel concrete pump pipe clamp, outdoors, close.",
+   "seconds": 0.6
+  },
+  {
+   "folder": "sfx",
+   "name": "knock",
+   "text": "Two sharp knocks of a steel hammer tapping a steel concrete pump pipe to find a blockage, outdoors.",
+   "seconds": 0.5
+  },
+  {
+   "folder": "sfx",
+   "name": "ring",
+   "text": "A heavy steel pipe clamp ringing as it is struck with a hammer, metallic clang with a short ring, outdoors.",
+   "seconds": 0.8
+  },
+  {
+   "folder": "sfx",
+   "name": "thud",
+   "text": "A heavy bag of wet concrete slapping down onto a plywood deck, dull thud, outdoors.",
+   "seconds": 0.5
+  },
+  {
+   "folder": "sfx",
+   "name": "whip",
+   "text": "A thick rubber concrete hose whipping through the air and slapping the ground, with wet concrete splatter.",
+   "seconds": 0.8
+  },
+  {
+   "folder": "sfx",
+   "name": "scrape",
+   "text": "A long aluminium screed board scraping across wet concrete, one short stroke, outdoors.",
+   "seconds": 0.5
+  },
+  {
+   "folder": "sfx",
+   "name": "plop",
+   "text": "A dollop of wet concrete plopping onto a steel plate, short and wet.",
+   "seconds": 0.5
+  },
+  {
+   "folder": "sfx",
+   "name": "birds",
+   "text": "A small flock of Australian rainbow lorikeets chattering as they fly past overhead, short, outdoors.",
+   "seconds": 1.5
   }
  ]
 }

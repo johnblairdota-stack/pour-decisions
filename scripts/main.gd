@@ -477,6 +477,23 @@ func apply_graphics() -> void:
 	# (the look sets the glow and Comic Ink's lines, which Lite leaves off)
 	Look.apply(self, Look.cur)
 
+## On Full graphics, a pour that's run under 40 fps for 10 seconds straight
+## drops to Lite (once a session, kept, and said on screen): a laptop on a
+## TV shouldn't have to find the setting mid-pour.
+const SLOW_FPS := 40.0
+const SLOW_FOR := 10.0
+var _slow_t := 0.0
+var _slow_done := false
+func _watch_fps(delta: float) -> void:
+	if _slow_done or lite or autotest or DisplayServer.get_name() == "headless" or phase != "pour" or get_tree().paused:
+		return
+	_slow_t = (_slow_t + delta) if Engine.get_frames_per_second() < SLOW_FPS else 0.0
+	if _slow_t >= SLOW_FOR:
+		_slow_done = true
+		Settings.put("graphics", 1)
+		apply_graphics()
+		hud.toast("Running slow: switched to Lite graphics (Smoko > Settings to change back)", 4.0)
+
 ## A new look's on (look.gd): the light's drawn again with its multipliers.
 func relight() -> void:
 	_day_shown = -1.0
@@ -2706,6 +2723,40 @@ var learners := {}   # P number -> {role: 0..1}
 func is_learner(p) -> bool:
 	return p != null and not p.bot and learners.has(p.index)
 
+## Playing alone: when your own job's gone quiet and another job's urgent,
+## Y hops you onto it (you take over that bot's chibi, where it stands, and
+## the bot takes yours). A crew of one sees the whole pour, not one corner.
+const HOP_IDLE := 3.0
+var _hop_idle := 0.0
+var _hop_cool := 0.0
+var _hop_offer := ""
+func _solo_hop(p, delta: float) -> void:
+	if p.bot or tutorial or phase != "pour" or crew.humans().size() != 1 or p.covering:
+		return
+	_hop_cool = maxf(0.0, _hop_cool - delta)
+	if _hop_offer != "" and p.slow_pressed() and crew.is_bot(_hop_offer):
+		var to := _hop_offer
+		_hop_offer = ""
+		_hop_idle = 0.0
+		_hop_cool = 5.0
+		if crew.assign(p.index, to):
+			hud.toast("You're on the %s job" % UI.ROLE_NAME[to].to_lower(), 1.6)
+			sfx.hit("ding")
+		return
+	_hop_idle = (_hop_idle + delta) if not p.had_cues and p.cues.is_empty() else 0.0
+	_hop_offer = ""
+	if _hop_idle < HOP_IDLE or _hop_cool > 0.0:
+		return
+	var best := ""
+	var best_lv := 0
+	for role in urgent:
+		if role != p.role and crew.is_bot(role) and int(urgent[role]) >= 1 and int(urgent[role]) > best_lv:
+			best = role
+			best_lv = int(urgent[role])
+	if best != "":
+		_hop_offer = best
+		p.cue("Y", "hop on: " + UI.ROLE_NAME[best].to_lower())
+
 ## Bots keep their hand signs to themselves while a person's being asked for
 ## something urgent, or there are already three signs up.
 const MAX_SIGNS := 3
@@ -3374,6 +3425,10 @@ func _grade() -> void:
 	var note := "poured in %s  ·  silver: %d%% in %s  ·  gold: %d%% in %s" % [_mmss(pour_clock), int(score.SILVER_Q), _mmss(tg.x), int(score.GOLD_Q), _mmss(tg.y)]
 	if score.bot_tier != was_tier:
 		note += "\nThe bots are working at %s pace now" % score.MEDALS[score.bot_tier].to_lower()
+	if not tutorial:
+		var nr: String = score.next_rank_line(score.level)
+		if nr != "":
+			note += "\n" + nr
 	if tutorial:
 		# (the coach keeps it short during the pour; the facts are here)
 		note += "\nDid you know? " + ("The shaft below was cast in 3 m lifts with jump forms, and the cone up top flares out to carry the tank." if k == TUT_FIRST else "Before any concrete goes in, slurry coats the inside of the line so the concrete slides, and the washout pushes the last of it out with water.")
@@ -3649,6 +3704,7 @@ func _process(delta: float) -> void:
 	_join_players()
 	_swap_keys()
 	_job_intros()
+	_watch_fps(delta)
 	if phase == "select" or phase == "roles":
 		if is_instance_valid(selector):
 			selector.set_join(_join_text(), phones.join_url() if phones.running else "")
@@ -3725,6 +3781,7 @@ func _process(delta: float) -> void:
 			_a_by = p
 		if phase != "sign":
 			_handle_player(p, delta)
+		_solo_hop(p, delta)
 		p.end_frame()
 	perf.mark("players")
 	if autotest and phase == "columns" and k == 0 and OS.get_cmdline_user_args().has("--skip") and kit == "tower":
