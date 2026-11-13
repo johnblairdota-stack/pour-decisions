@@ -4390,7 +4390,7 @@ func _demo_4x4(t: float) -> void:
 			_fake["run"] = t > 0.3 and t < 1.3
 			if t > 0.6 and not _shots.has("4x4_airpost"):
 				var ap: Vector2 = park.air_posts[1]
-				_demo_dv["cam"] = [Vector3(ap.x - 6.0, 2.2, ap.y + 5.0), Vector3(ap.x + 2.0, 0.8, ap.y - 1.0)]
+				_demo_dv["cam"] = [Vector3(ap.x - 6.0, park.height(ap) + 2.2, ap.y + 5.0), Vector3(ap.x + 2.0, park.height(ap) + 0.8, ap.y - 1.0)]
 				_shot("4x4_airpost")
 			if float(car["psi"]) >= Offroad.PSI_ROAD - 0.1 or t > 12.0:
 				print("[explore] pumped up to %d psi at %.1f s" % [roundi(float(car["psi"])), t])
