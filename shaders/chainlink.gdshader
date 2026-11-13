@@ -33,4 +33,5 @@ void fragment() {
 	}
 	ALBEDO = wire.rgb;
 	ROUGHNESS = 0.6;
+	LOOK_END
 }

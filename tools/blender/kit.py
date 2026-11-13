@@ -337,8 +337,47 @@ def build(name, pieces, palette, parent=None, at=(0, 0, 0), smooth=True, subsurf
 	return o
 
 
-def export_glb(path, objects=None):
+def bake_ao(objects=None, samples=32, distance=0.5):
+	"""Bakes ambient occlusion into each mesh's vertex colours ("AO", one
+	value in r/g/b): dark in the tower's lattice, under guards, where an arm
+	meets the body. The game multiplies the toon colour by it (toon.gdshader
+	vc_ao), so the grounding SSAO gives on the PC costs nothing on the tablet.
+	Each object is baked on its own (only itself casting occlusion), so the
+	looks and kit pieces that overlap in the file don't darken each other."""
+	sc = bpy.context.scene
+	sc.render.engine = "CYCLES"
+	sc.cycles.device = "CPU"
+	sc.cycles.samples = samples
+	if sc.world is None:
+		sc.world = bpy.data.worlds.new("World")
+	sc.world.light_settings.distance = distance
+	meshes = [o for o in (objects or sc.objects) if o.type == "MESH"]
+	everything = [o for o in sc.objects if o.type == "MESH"]
+	was = {o: o.hide_render for o in everything}
+	for o in meshes:
+		if len(o.data.polygons) == 0:
+			continue
+		for other in everything:
+			other.hide_render = other is not o
+		me = o.data
+		ca = me.color_attributes.get("AO") or me.color_attributes.new("AO", "BYTE_COLOR", "CORNER")
+		me.color_attributes.active_color = ca
+		me.color_attributes.render_color_index = me.color_attributes.active_color_index
+		for x in sc.objects:
+			x.select_set(x is o)
+		bpy.context.view_layer.objects.active = o
+		hid = o.hide_get()
+		o.hide_set(False)
+		bpy.ops.object.bake(type="AO", target="VERTEX_COLORS")
+		o.hide_set(hid)
+	for o, h in was.items():
+		o.hide_render = h
+
+
+def export_glb(path, objects=None, ao=False):
 	os.makedirs(os.path.dirname(path), exist_ok=True)
+	if ao:
+		bake_ao(objects)
 	for o in bpy.context.scene.objects:
 		o.select_set(objects is None or o in objects)
 	bpy.ops.export_scene.gltf(
@@ -352,6 +391,7 @@ def export_glb(path, objects=None):
 		export_normals=True,
 		export_texcoords=False,
 		export_animations=False,
+		export_vertex_color="ACTIVE" if ao else "MATERIAL",
 	)
 
 

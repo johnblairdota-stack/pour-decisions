@@ -8,8 +8,20 @@ uniform float rim_amount : hint_range(0.0, 1.0) = 0.3;
 // camera that ends up in a crown still sees the site
 uniform float fade_near = 10.0;
 uniform float fade_far = 30.0;
+// The crown's depth (flora.gd): darker deep inside and low in the crown,
+// brighter at the tips and the top, as light really falls into a tree.
+// crown_top 0 leaves it off.
+uniform float crown_top = 0.0;   // m, the model's top at scale 1
+uniform float crown_r = 1.0;     // m, the crown's half-width at scale 1
+varying float crown_k;
 
 void vertex() {
+	crown_k = 1.0;
+	if (crown_top > 0.0) {
+		float up = smoothstep(0.3, 1.0, VERTEX.y / crown_top);
+		float outw = smoothstep(0.15, 1.0, length(VERTEX.xz) / crown_r);
+		crown_k = mix(0.7, 1.08, up * 0.55 + outw * 0.45);
+	}
 	vec3 o = MODEL_MATRIX[3].xyz;
 	float ph = o.x * 0.11 + o.z * 0.07;
 	float h = max(VERTEX.y, 0.0) * 0.1;
@@ -30,8 +42,9 @@ void fragment() {
 			discard;
 		}
 	}
-	ALBEDO = albedo.rgb * COLOR.rgb;
+	ALBEDO = albedo.rgb * COLOR.rgb * crown_k;
 	ROUGHNESS = 0.9;
 	SPECULAR = 0.15;
 	lk_rim = rim_amount;
+	LOOK_END
 }

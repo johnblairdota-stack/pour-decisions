@@ -6,14 +6,18 @@ const TOON := preload("res://shaders/toon.gdshader")
 const OUTLINE := preload("res://shaders/outline.gdshader")
 const WINDOWS := preload("res://shaders/windows.gdshader")
 
+## The site palette (W8): one family of concrete greys with a touch of warmth
+## (fresh concrete, columns, core, the podium in Riverlight's charcoal), steel
+## a cool grey rather than candy blue, so the hi-vis yellow and orange, the
+## formwork ply and the job colours are what pop.
 const COLORS := {
-	"concrete": Color("b9bec5"),
-	"column": Color("8a929c"),
-	"core": Color("b7bcc3"),
+	"concrete": Color("bebdb7"),
+	"column": Color("8b8e90"),
+	"core": Color("bab9b3"),
 	"yellow": Color("ffc72c"),
 	"yellow_dark": Color("e0a800"),
 	"orange": Color("ff7a1a"),
-	"steel": Color("afc0d2"),
+	"steel": Color("a8b5c1"),
 	"pipe": Color("dce1e6"),
 	"hose": Color("2b2b2b"),
 	"navy": Color("24324f"),
@@ -30,7 +34,7 @@ const COLORS := {
 	"tree": Color("4f8a4a"),
 	"trunk": Color("7a5a3a"),
 	"bridge": Color("c4c3bc"),
-	"podium": Color("7d848e"),
+	"podium": Color("7c7f82"),
 	"red": Color("ff4d4d"),
 	"green": Color("7cd992"),
 	"blue": Color("4fa3ff"),
@@ -47,6 +51,9 @@ const COLORS := {
 	"sand": Color("e6d7aa"),
 	"citycat_blue": Color("1f4f8f"),
 }
+
+## How much of the baked ambient occlusion shows (W3).
+const VC_AO := 0.6
 
 static var _cache := {}
 
@@ -312,6 +319,9 @@ static func _crew_mat(key: String, outline := 0.0) -> ShaderMaterial:
 	if not _cache.has(ck):
 		var c: Color = CREW_COLORS.get(key, PROP_COLORS.get(key, Color.MAGENTA))
 		var m := color_mat(c, not key in CREW_NO_OUTLINE)
+		# (the modelled assets carry ambient occlusion baked into their
+		# vertex colours: tools/blender/kit.py bake_ao)
+		m.set_shader_parameter("vc_ao", VC_AO)
 		if outline > 0.0 and m.next_pass != null:
 			(m.next_pass as ShaderMaterial).set_shader_parameter("thickness", outline)
 		_cache[ck] = m

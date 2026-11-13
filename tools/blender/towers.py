@@ -356,7 +356,7 @@ def main():
 			tot += t
 			print("  %-18s %5d triangles" % (o.name, t))
 	print("  total %d" % tot)
-	export_glb(OUT)
+	export_glb(OUT, ao=True)
 	print("wrote", OUT)
 
 

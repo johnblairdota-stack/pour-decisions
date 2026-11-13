@@ -61,4 +61,5 @@ void fragment() {
 	}
 	EMISSION = win * lit * lit_color.rgb * glow;
 	ROUGHNESS = 0.6;
+	LOOK_END
 }

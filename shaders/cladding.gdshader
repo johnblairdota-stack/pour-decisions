@@ -43,4 +43,5 @@ void fragment() {
 	ALBEDO = c;
 	ROUGHNESS = 0.7;
 	SPECULAR = 0.3;
+	LOOK_END
 }

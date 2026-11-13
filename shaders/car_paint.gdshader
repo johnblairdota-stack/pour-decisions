@@ -12,4 +12,5 @@ void fragment() {
 	ALBEDO = tint.rgb * pow(COLOR.rgb, vec3(2.2));
 	ROUGHNESS = 0.35;
 	SPECULAR = 0.6;
+	LOOK_END
 }

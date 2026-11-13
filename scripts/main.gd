@@ -46,6 +46,7 @@ const Yard := preload("res://scripts/yard.gd")
 const WestWing := preload("res://scripts/west_wing.gd")
 const ExploreScript := preload("res://scripts/explore.gd")
 const Look := preload("res://scripts/look.gd")
+const LookFx := preload("res://scripts/look_fx.gd")
 
 # Riverlight: 11 levels; 10 lattice sections reached a 41.4 m free-stand.
 const FLOORS := 11
@@ -421,6 +422,9 @@ func _build_environment() -> void:
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	env.glow_enabled = true
 	env.glow_intensity = 0.3
+	# (only what's really bright glows: floodlights, lit windows, lamps, the
+	# hammer, not the pale concrete and the sky)
+	env.glow_hdr_threshold = 1.2
 	env.fog_enabled = true
 	env.fog_density = 0.00015   # (a light haze: the city 6 km off still shows)
 	env.fog_light_color = Color("cfdfe8")
@@ -441,6 +445,13 @@ func _build_environment() -> void:
 	sun.rotation_degrees = Vector3(-42, -24, 0)
 	_day_q = sun.quaternion
 	add_child(sun)
+	# Cloud shadows drift across the site with the day's cover (look.gdshaderinc),
+	# things standing on the ground or the deck darken a touch at the base
+	RenderingServer.global_shader_parameter_set("look_wind", Vector2(2.6, 1.1))
+	RenderingServer.global_shader_parameter_set("look_base", 0.22)
+	# Mist sits low over the river (thick at dawn, lifting by day)
+	env.fog_height = Surrounds.RIVER_Y + 1.6
+	LookFx.vignette(self)
 	Look.cur = Look.pick(int(Settings.value("look")))
 	apply_graphics()
 
@@ -460,6 +471,15 @@ func apply_graphics() -> void:
 	var vp := get_viewport()
 	vp.msaa_3d = aa
 	vp.scaling_3d_scale = 0.8 if lite else 1.0
+	# Lite: FXAA takes the jagged edges off for next to nothing, and FSR
+	# scales the smaller picture up sharper than a plain stretch
+	vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA if lite else Viewport.SCREEN_SPACE_AA_DISABLED
+	vp.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR if lite else Viewport.SCALING_3D_MODE_BILINEAR
+	# (blob shadows under the crew and the trucks, where Lite's soft shadows
+	# would leave them floating)
+	LookFx.lite = lite
+	for b in get_tree().get_nodes_in_group("look_blob"):
+		(b as Node3D).visible = lite
 	env.glow_enabled = not lite
 	env.ssao_enabled = not lite
 	env.ssao_radius = 0.7
@@ -513,6 +533,9 @@ func _pace_views() -> void:
 const FAR_CASTERS := ["OnTheRiver", "Park4x4", "Terminal", "CityCatRun"]
 
 func far_shadows(on: bool) -> void:
+	# (and on site the shadow only has to reach as far as the camera looks,
+	# so it's spread over less ground and comes out crisper)
+	sun.directional_shadow_max_distance = 160.0 if on else 100.0
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS if on else DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
 	for nm in FAR_CASTERS:
 		var at := find_child(nm, true, false)
@@ -650,6 +673,8 @@ func _update_story_light(delta: float) -> void:
 	sky_mat.set_shader_parameter("sky_top", l[0])
 	sky_mat.set_shader_parameter("sky_horizon", l[1])
 	sky_mat.set_shader_parameter("cover", l[8])
+	_set_clouds(float(l[8]))
+	env.fog_height_density = MIST_DAY
 	env.fog_light_color = l[1]
 	env.fog_density = l[7] * _haze_k() * Look.k("haze")
 	env.adjustment_contrast = l[9] * Look.k("con")
@@ -667,6 +692,26 @@ func _update_story_light(delta: float) -> void:
 	if pour != null and pour.smat != null:
 		pour.smat.set_shader_parameter("low_light", 0.0)
 	_day_shown = -1.0
+
+## River mist (env.fog_height_density under fog_height, just over the water):
+## thick before sunrise on the dawn pour, a light breath the rest of the time.
+const MIST_DAWN := 0.45
+const MIST_DAY := 0.1
+
+var _clouds_shown := -1.0
+var _deck_shown := -999.0
+
+## Cloud shadows from the sky's cover (0 clear .. 1 overcast): patchy and
+## darkest at half cover, gone again under a full overcast.
+func _set_clouds(cover: float) -> void:
+	var k := 0.45 * smoothstep(0.1, 0.45, cover) * (1.0 - smoothstep(0.75, 0.95, cover))
+	if absf(k - _clouds_shown) > 0.005:
+		_clouds_shown = k
+		RenderingServer.global_shader_parameter_set("look_clouds", k)
+	var d := deck_top()
+	if absf(d - _deck_shown) > 0.01:
+		_deck_shown = d
+		RenderingServer.global_shader_parameter_set("look_deck", d)
 
 ## The background beyond the fence sits back: a little more haze than the
 ## plain light gives, so the city and the river go calm and pale behind the
@@ -691,6 +736,8 @@ func _update_daylight(delta: float) -> void:
 	env.adjustment_contrast = 1.04 * Look.k("con")
 	env.adjustment_saturation = lerpf(0.82, 1.06, smoothstep(0.2, 1.0, _day_u)) * Look.k("sat")
 	sky_mat.set_shader_parameter("cover", 0.42)
+	_set_clouds(0.42)
+	env.fog_height_density = lerpf(MIST_DAWN, MIST_DAY, smoothstep(0.3, 1.0, _day_u))
 	if not is_dawn():
 		_day_u = move_toward(_day_u, 1.0, delta * 0.5)
 	else:
@@ -2069,6 +2116,9 @@ func _apply_kit(which: String) -> void:
 		_start_level = selector.start_level
 	line = LineScript.new()
 	add_child(line)
+	# (the site's wear on the ground round the pump and the truck bay)
+	if not tutorial:
+		LookFx.grime(self, LineScript, OpsScript)
 	if kit == "truck":
 		# The boom rides on the pump truck itself; no tower, no riser, no climbs
 		lattice.visible = false
@@ -6414,7 +6464,7 @@ func _cut_of(src: Material) -> Material:
 		return null
 	var m := ShaderMaterial.new()
 	m.shader = TOON_CUT
-	for k in ["albedo", "emission_color", "rim_amount"]:
+	for k in ["albedo", "emission_color", "rim_amount", "vc_ao"]:
 		var v = (src as ShaderMaterial).get_shader_parameter(k)
 		if v != null:
 			m.set_shader_parameter(k, v)

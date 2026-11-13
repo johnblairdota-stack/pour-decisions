@@ -29,6 +29,7 @@ extends Node3D
 signal whip
 
 const F := preload("res://scripts/factory.gd")
+const LookFx := preload("res://scripts/look_fx.gd")
 const Settings := preload("res://scripts/settings.gd")
 
 const PIPE := 3.0                        # standard 3 m pipe lengths: a clamp at every joint
@@ -979,6 +980,9 @@ func _truck_mesh() -> Node3D:
 	age.position = Vector3(0, 6.3, 0)
 	age.visible = false
 	t.add_child(age)
+	# (a blob shadow under it, on Lite: look_fx.gd)
+	var blob := LookFx.blob(Vector2(9.0, 2.9))
+	t.add_child(blob)
 	return t
 
 

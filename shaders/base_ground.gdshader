@@ -33,4 +33,5 @@ void fragment() {
 	ROUGHNESS = 0.85;
 	SPECULAR = 0.2;
 	lk_rim = 0.35;
+	LOOK_END
 }
