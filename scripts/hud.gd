@@ -1368,10 +1368,10 @@ func _feed_assembly() -> void:
 		st["next"] = ""
 	# The job list hangs under the end hose, the call-outs clear of the boom
 	var k := _root.size.y / 900.0
-	ticket_box.position = Vector2(24.0, 190.0) * k
-	toast_panel.position.y = 116.0 * k
+	ticket_box.position = Vector2(24.0, 132.0) * k
+	toast_panel.position.y = 72.0 * k
 	if banner.visible:
-		banner.position.y = 204.0 * k
+		banner.position.y = 140.0 * k
 
 func _place_tickets() -> void:
 	var sc: float = get_tree().root.content_scale_factor

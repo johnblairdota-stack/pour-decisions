@@ -35,10 +35,10 @@ const CONC := Color("a4abb3")
 const AMBER := Color("f2b51f")
 const LW := 3.0
 const KIT := 0.74         # the trucks, hopper and pump are drawn this much smaller than the tower
-const TOP := 156.0        # the tower's collar
-const ARM_Y := 10.0       # the top of the boom's arms (at the tower end)
-const ARM_MID := 48.0     # the boom's pins, and the middle of the words on it
-const BOOM_END := 118.0   # the boom's inner end, in from the right edge: it meets the turret's side, leaving its roof clear for the wind gauge
+const TOP := 128.0        # the tower's collar
+const ARM_Y := 6.0        # the top of the boom's arms (at the tower end)
+const ARM_MID := 30.0     # the boom's pins, and the middle of the words on it
+const BOOM_END := 96.0    # the boom's inner end, in from the right edge: it meets the turret's side, leaving its roof clear for the wind gauge
 const TRUCK_L := 262.0    # a truck and its gap
 const AGE_WARN := 78.0
 const AGE_MAX := 90.0
@@ -282,10 +282,10 @@ func _pulse(rate := 2.0) -> float:
 # ------------------------------------------------------------------ the tower
 
 func _tower_x() -> Vector2:
-	return Vector2(_w - 112.0, _w - 48.0)   # its two legs
+	return Vector2(_w - 84.0, _w - 44.0)   # its two legs
 
 func _riser_x() -> float:
-	return _w - 128.0
+	return _w - 98.0
 
 func _base() -> float:
 	return _g - 6.0
@@ -338,10 +338,10 @@ func _draw_tower_static() -> void:
 		var px := lerpf(tx.x - 21.0, tx.y + 33.0, i / 4.0)
 		_c.draw_line(Vector2(px, TOP - 26.0), Vector2(px, TOP - 10.0), ORANGE, 2.5)
 	_box(Rect2(cx - 20.0, TOP - 22.0, 40.0, 12.0), Color("3a4252"), 3.0)
-	_box(Rect2(tx.y + 6.0, TOP - 62.0, 36.0, 34.0), Color("3a4252"), 5.0)          # counterweight
-	_box(Rect2(cx - 36.0, TOP - 74.0, 76.0, 54.0), YEL, 9.0)                        # turret
-	_box(Rect2(tx.y - 4.0, TOP - 66.0, 20.0, 40.0), Color("f4f7fa"), 4.0, INK, 2.5) # hydraulic tank
-	_c.draw_rect(Rect2(tx.y + 2.0, TOP - 72.0, 8.0, 7.0), INK)
+	_box(Rect2(tx.y + 6.0, TOP - 52.0, 30.0, 28.0), Color("3a4252"), 5.0)          # counterweight
+	_box(Rect2(cx - 30.0, TOP - 62.0, 62.0, 44.0), YEL, 8.0)                        # turret
+	_box(Rect2(tx.y - 4.0, TOP - 56.0, 16.0, 32.0), Color("f4f7fa"), 4.0, INK, 2.5) # hydraulic tank
+	_c.draw_rect(Rect2(tx.y + 0.0, TOP - 61.0, 8.0, 6.0), INK)
 
 ## What changes on the tower: the deck's plate, the dashes in the line, and
 ## the clamps (the one in trouble rings red).
@@ -381,7 +381,7 @@ func _line_run() -> PackedVector2Array:
 	var rx := _riser_x()
 	var low := _g - 20.0 * _gs
 	return PackedVector2Array([_gp(Vector2(_hopper_x() + 118.0, _g - 20.0)), Vector2(rx - 8.0, low), Vector2(rx, low - 8.0),
-			Vector2(rx, 108.0), Vector2(rx - 10.0, 98.0), Vector2(254.0, 98.0), Vector2(244.0, 108.0), Vector2(244.0, 126.0)])
+			Vector2(rx, 74.0), Vector2(rx - 10.0, 64.0), Vector2(254.0, 64.0), Vector2(244.0, 74.0), Vector2(244.0, 84.0)])
 
 # ------------------------------------------------------------------ the boom
 
@@ -396,22 +396,22 @@ func _draw_boom_static() -> void:
 	_box(Rect2(xm - 92.0, ARM_Y - 9.0, 18.0, 14.0), Color("3a4252"), 3.0)
 	# Two tapered arms, up into the top of the screen (the words on them
 	# drawn big)
-	_poly(PackedVector2Array([Vector2(x0, ARM_Y + 14.0), Vector2(xm, ARM_Y + 6.0), Vector2(xm, 84.0), Vector2(x0, 80.0)]), YEL)
-	_poly(PackedVector2Array([Vector2(xm, ARM_Y + 6.0), Vector2(x1, ARM_Y), Vector2(x1, 88.0), Vector2(xm, 84.0)]), YEL)
-	_c.draw_line(Vector2(x0 + 4.0, 75.0), Vector2(xm - 2.0, 79.0), YEL_D, 3.0)
-	_c.draw_line(Vector2(xm + 2.0, 79.0), Vector2(x1 - 4.0, 83.0), YEL_D, 3.0)
+	_poly(PackedVector2Array([Vector2(x0, ARM_Y + 8.0), Vector2(xm, ARM_Y + 3.0), Vector2(xm, 55.0), Vector2(x0, 52.0)]), YEL)
+	_poly(PackedVector2Array([Vector2(xm, ARM_Y + 3.0), Vector2(x1, ARM_Y), Vector2(x1, 58.0), Vector2(xm, 55.0)]), YEL)
+	_c.draw_line(Vector2(x0 + 4.0, 48.0), Vector2(xm - 2.0, 51.0), YEL_D, 3.0)
+	_c.draw_line(Vector2(xm + 2.0, 51.0), Vector2(x1 - 4.0, 54.0), YEL_D, 3.0)
 	for bx in [x0 + 4.0, xm, x1 - 4.0]:
-		_disc(Vector2(bx, ARM_MID), 17.0, Color("2a3140"))
-		_c.draw_circle(Vector2(bx, ARM_MID), 6.0, STEEL_D, true, -1.0, true)
+		_disc(Vector2(bx, ARM_MID), 13.0, Color("2a3140"))
+		_c.draw_circle(Vector2(bx, ARM_MID), 4.5, STEEL_D, true, -1.0, true)
 	# The pipe clamped along it, and the end hose
-	var hose := PackedVector2Array([Vector2(244.0, 124.0), Vector2(247.0, 146.0), Vector2(241.0, 166.0), Vector2(238.0, 180.0)])
+	var hose := PackedVector2Array([Vector2(244.0, 82.0), Vector2(246.0, 94.0), Vector2(241.0, 104.0), Vector2(239.0, 112.0)])
 	_c.draw_polyline(hose, INK, 15.0, true)
 	_c.draw_polyline(hose, Color("2a3140"), 9.0, true)
-	_box(Rect2(235.0, 118.0, 20.0, 9.0), STEEL, 3.0, INK, 2.0)
-	_box(Rect2(235.0, 129.0, 20.0, 7.0), STEEL, 3.0, INK, 2.0)
+	_box(Rect2(235.0, 77.0, 20.0, 8.0), STEEL, 3.0, INK, 2.0)
+	_box(Rect2(235.0, 87.0, 20.0, 6.0), STEEL, 3.0, INK, 2.0)
 	var cxp := 304.0
 	while cxp < _riser_x() - 40.0:
-		_box(Rect2(cxp - 4.0, 91.0, 8.0, 14.0), STEEL, 2.0, INK, 2.0)
+		_box(Rect2(cxp - 4.0, 57.0, 8.0, 14.0), STEEL, 2.0, INK, 2.0)
 		cxp += 96.0
 
 ## The words on the boom: the job in hand on the outer arm, what's coming on
@@ -427,48 +427,48 @@ func _draw_boom_live() -> void:
 		var room := xm - 26.0 - x
 		var chip: String = st["chip"]
 		if chip != "":
-			var cw := _tw(chip, 36) + 28.0
-			_box(Rect2(x, ARM_MID - 24.0, cw, 48.0), UI.ALARM if st["alarm"] else INK, 8.0, INK, 0.0)
-			_text(Vector2(x + 14.0, ARM_MID + 13.0), chip, 36, Color.WHITE if st["alarm"] else YEL)
+			var cw := _tw(chip, 28) + 22.0
+			_box(Rect2(x, ARM_MID - 18.0, cw, 36.0), UI.ALARM if st["alarm"] else INK, 7.0, INK, 0.0)
+			_text(Vector2(x + 11.0, ARM_MID + 10.0), chip, 28, Color.WHITE if st["alarm"] else YEL)
 			x += cw + 14.0
 			room -= cw + 14.0
 		var clock: String = st["clock"]
-		var cw2 := (_tw(clock, 42) + 14.0) if clock != "" else 0.0
+		var cw2 := (_tw(clock, 34) + 14.0) if clock != "" else 0.0
 		var bar_w := 110.0 if float(st["progress"]) >= 0.0 else 0.0
-		var fs := _fit(title, 58, room - cw2 - (bar_w + 16.0 if bar_w > 0.0 else 0.0), 26)
+		var fs := _fit(title, 42, room - cw2 - (bar_w + 16.0 if bar_w > 0.0 else 0.0), 26)
 		# (a new job drops into place)
 		if _job_key(title) != _title_was:
 			_title_was = _job_key(title)
 			_title_at = _t
 		var te := _since(_title_at)
-		_text(Vector2(x, ARM_MID + fs * 0.36 - (1.0 - te) * 16.0), title, fs, Color(INK, te))
+		_text(Vector2(x, ARM_MID + fs * 0.36 - (1.0 - te) * 12.0), title, fs, Color(INK, te))
 		x += minf(_tw(title, fs), room - cw2 - bar_w) + 16.0
 		if bar_w > 0.0 and x + bar_w + cw2 <= xm - 22.0:
 			bar_w = minf(160.0, xm - 26.0 - cw2 - x)
-			_c.draw_line(Vector2(x, ARM_MID + 1.0), Vector2(x + bar_w, ARM_MID + 1.0), INK, 11.0, true)
+			_c.draw_line(Vector2(x, ARM_MID + 1.0), Vector2(x + bar_w, ARM_MID + 1.0), INK, 9.0, true)
 			var p := clampf(float(st["progress"]), 0.0, 1.0)
 			if p > 0.01:
-				_c.draw_line(Vector2(x + 2.0, ARM_MID + 1.0), Vector2(x + 2.0 + (bar_w - 4.0) * p, ARM_MID + 1.0), ORANGE, 6.0, true)
+				_c.draw_line(Vector2(x + 2.0, ARM_MID + 1.0), Vector2(x + 2.0 + (bar_w - 4.0) * p, ARM_MID + 1.0), ORANGE, 5.0, true)
 		if clock != "":
-			_text(Vector2(xm - 24.0 - _tw(clock, 42), ARM_MID + 15.0), clock, 42, INK)
+			_text(Vector2(xm - 24.0 - _tw(clock, 34), ARM_MID + 12.0), clock, 34, INK)
 	# What's coming, on the inner arm
 	var next: String = st["next"]
 	if next != "":
 		var nx := xm + 30.0
 		var nchip: String = st["next_chip"]
-		var lw := _tw(nchip, 36) + 28.0
+		var lw := _tw(nchip, 28) + 22.0
 		var end := x1 - 30.0
 		# (a narrow screen: the words alone, without their chip)
 		if end - nx - lw - 12.0 >= _tw(next, 24):
-			_box(Rect2(nx, ARM_MID - 24.0, lw, 48.0), INK, 8.0, INK, 0.0)
-			_text(Vector2(nx + 14.0, ARM_MID + 13.0), nchip, 36, YEL)
+			_box(Rect2(nx, ARM_MID - 18.0, lw, 36.0), INK, 7.0, INK, 0.0)
+			_text(Vector2(nx + 11.0, ARM_MID + 10.0), nchip, 28, YEL)
 			nx += lw + 12.0
-		var fs2 := _fit(next, 42, end - nx, 18)
+		var fs2 := _fit(next, 34, end - nx, 18)
 		if _job_key(next) != _next_was:
 			_next_was = _job_key(next)
 			_next_at = _t
 		var ne := _since(_next_at)
-		_text(Vector2(nx + (1.0 - ne) * 22.0, ARM_MID + 2.0 + fs2 * 0.36), next, fs2, Color(INK, ne))
+		_text(Vector2(nx + (1.0 - ne) * 22.0, ARM_MID + 1.0 + fs2 * 0.36), next, fs2, Color(INK, ne))
 
 # ------------------------------------------------------------------ the pump
 
@@ -646,8 +646,8 @@ func _draw_wind() -> void:
 	var stop: float = maxf(1.0, st["wind_stop"])
 	var over := wind >= stop
 	var px := _w - 64.0
-	var foot := TOP - 74.0       # the turret's roof
-	var tip := foot - 46.0
+	var foot := TOP - 62.0       # the turret's roof
+	var tip := foot - 36.0
 	_c.draw_rect(Rect2(px - 8.0, foot - 4.0, 16.0, 5.0), INK)   # (its base plate)
 	_c.draw_line(Vector2(px, foot), Vector2(px, tip), INK, 6.0)
 	_c.draw_line(Vector2(px, foot), Vector2(px, tip), STEEL, 2.5)
@@ -657,16 +657,16 @@ func _draw_wind() -> void:
 	var nor := Vector2(dir.y, -dir.x)
 	var a0 := Vector2(px, tip + 6.0)
 	for i in 4:
-		var s0 := a0 + dir * (i * 10.0)
-		var s1 := a0 + dir * ((i + 1) * 10.0)
-		var w0 := 8.5 - i * 1.2
-		var w1 := 8.5 - (i + 1) * 1.2
+		var s0 := a0 + dir * (i * 8.0)
+		var s1 := a0 + dir * ((i + 1) * 8.0)
+		var w0 := 7.0 - i * 1.0
+		var w1 := 7.0 - (i + 1) * 1.0
 		_c.draw_colored_polygon(PackedVector2Array([s0 + nor * w0, s1 + nor * w1, s1 - nor * w1, s0 - nor * w0]), Color("ff5a2b") if i % 2 == 0 else Color("f4f7fa"))
-	var e := a0 + dir * 40.0
-	_c.draw_polyline(PackedVector2Array([a0 + nor * 8.5, e + nor * 3.7, e - nor * 3.7, a0 - nor * 8.5, a0 + nor * 8.5]), INK, 2.0, true)
+	var e := a0 + dir * 32.0
+	_c.draw_polyline(PackedVector2Array([a0 + nor * 7.0, e + nor * 3.0, e - nor * 3.0, a0 - nor * 7.0, a0 + nor * 7.0]), INK, 2.0, true)
 	# The bar, standing on the turret's roof beside the mast
 	var bx := px - 17.0
-	var bh := 48.0
+	var bh := 38.0
 	var bt := foot - 2.0 - bh
 	_c.draw_rect(Rect2(bx - 5.0, bt, 10.0, bh), Color(INK, 0.9))
 	var f := clampf(wind / (stop * 1.25), 0.0, 1.0)
@@ -674,18 +674,18 @@ func _draw_wind() -> void:
 	_c.draw_line(Vector2(bx - 8.0, bt + 2.0 + (bh - 4.0) * 0.2), Vector2(bx + 8.0, bt + 2.0 + (bh - 4.0) * 0.2), UI.ALARM, 2.5)
 	# The speed, above them
 	var txt := "%d km/h" % int(wind)
-	var fs := 26
-	_text(Vector2(_w - 10.0 - _tw(txt, fs), tip - 8.0), txt, fs, UI.ALARM if over and _pulse(2.0) > 0.4 else Color.WHITE, 8)
+	var fs := 24
+	_text(Vector2(_w - 8.0 - _tw(txt, fs), tip - 6.0), txt, fs, UI.ALARM if over and _pulse(2.0) > 0.4 else Color.WHITE, 8)
 
 func _draw_cash() -> void:
-	var r := Rect2(24.0, ARM_Y, 214.0, 80.0)
+	var r := Rect2(24.0, ARM_Y, 214.0, 62.0)
 	_box(r, Color("10151f"), 10.0, Color("f4f7fa"), 3.0)
 	var cash := "$" + UI.thousands(int(st["cash"]))
-	var fs := int(46.0 * (1.0 + 0.12 * float(st["bump"])))
-	fs = _fit(cash, fs, 196.0, 28)
-	_text(Vector2(r.get_center().x - _tw(cash, fs) * 0.5, ARM_Y + 47.0), cash, fs, YEL)
+	var fs := int(38.0 * (1.0 + 0.12 * float(st["bump"])))
+	fs = _fit(cash, fs, 196.0, 26)
+	_text(Vector2(r.get_center().x - _tw(cash, fs) * 0.5, ARM_Y + 37.0), cash, fs, YEL)
 	var lv: String = st["level"]
-	_text(Vector2(r.get_center().x - _tw(lv, 24) * 0.5, ARM_Y + 72.0), lv, 24, Color("f4f7fa"))
+	_text(Vector2(r.get_center().x - _tw(lv, 20) * 0.5, ARM_Y + 56.0), lv, 20, Color("f4f7fa"))
 
 # ------------------------------------------------------------------ people
 
@@ -697,7 +697,7 @@ func _draw_hats() -> void:
 		var at := Vector2.ZERO
 		match String(h["where"]):
 			"deck":
-				at = Vector2(316.0 + deck_i * 62.0, 148.0)
+				at = Vector2(292.0 + deck_i * 52.0, 90.0)
 				deck_i += 1
 			"truck":
 				at = _gp(Vector2(_hopper_x() - 62.0, _g - 150.0)) - Vector2(0, 26)
@@ -712,15 +712,18 @@ func _draw_hats() -> void:
 		var nudge: int = h.get("nudge", 0)
 		if nudge > 0:
 			var a := _pulse(1.6)
-			_c.draw_arc(at, 27.0 + 3.0 * a, 0.0, TAU, 32, Color(UI.ALARM, 0.6 + 0.4 * a), 4.0, true)
-		_disc(at, 22.0, col)
-		_c.draw_texture_rect(Icons.texture(h["role"], 64), Rect2(at - Vector2(15, 15), Vector2(30, 30)), false, INK)
+			_c.draw_arc(at, (23.0 if String(h["where"]) == "deck" else 27.0) + 3.0 * a, 0.0, TAU, 32, Color(UI.ALARM, 0.6 + 0.4 * a), 4.0, true)
+		var hr := 18.0 if String(h["where"]) == "deck" else 22.0
+		_disc(at, hr, col)
+		_c.draw_texture_rect(Icons.texture(h["role"], 64), Rect2(at - Vector2(hr, hr) * 0.68, Vector2(hr, hr) * 1.36), false, INK)
 		if not h.get("bot", true):
 			var tag := "P%d" % int(h["p"])
-			var tw := _tw(tag, 22) + 14.0
-			var r := Rect2(at.x + 8.0, at.y - 34.0, tw, 26.0)
-			_box(r, UI.P_COLORS[(int(h["p"]) - 1) % UI.P_COLORS.size()], 13.0, INK, 0.0)
-			_text(Vector2(r.position.x + 7.0, r.position.y + 21.0), tag, 22, Color.WHITE)
+			var tw := _tw(tag, 20) + 12.0
+			# (the deck crew's tags hang under their hats, clear of the boom's pipe)
+			var ty := at.y + hr - 6.0 if String(h["where"]) == "deck" else at.y - 34.0
+			var r := Rect2(at.x + 6.0, ty, tw, 24.0)
+			_box(r, UI.P_COLORS[(int(h["p"]) - 1) % UI.P_COLORS.size()], 12.0, INK, 0.0)
+			_text(Vector2(r.position.x + 6.0, r.position.y + 19.0), tag, 20, Color.WHITE)
 
 ## A fault, at its real spot: who, what, and which button.
 func _draw_fault() -> void:
@@ -737,7 +740,7 @@ func _draw_fault() -> void:
 	var fe := _since(_fault_at, 0.3)
 	var sub: String = f.get("sub", "")
 	var on_riser: bool = f.get("where", "riser") == "riser"
-	var y := 212.0
+	var y := 160.0
 	var w := clampf(maxf(_tw(title, 30), _tw(sub, 24)) + 96.0, 250.0, 430.0)
 	var r := Rect2(_riser_x() - 44.0 - w, y - 36.0, w, 72.0)
 	# (the call-out's always in the one place, clear of the close-ups; a

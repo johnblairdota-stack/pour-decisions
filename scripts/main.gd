@@ -2560,7 +2560,7 @@ func _pop_spot(world: Vector3, street: bool) -> Dictionary:
 func _pop_region(vs: Vector2, band_h: float) -> Rect2:
 	if hud != null and hud.assembly_on:
 		var s := vs.y / 900.0
-		return Rect2(16, 184.0 * s, vs.x - 16 - 190.0 * s, vs.y - 184.0 * s - maxf(150.0 * s, band_h))
+		return Rect2(16, 128.0 * s, vs.x - 16 - 150.0 * s, vs.y - 128.0 * s - maxf(150.0 * s, band_h))
 	return Rect2(16, 96, vs.x - 32, vs.y - 112 - band_h)
 
 ## A box of `sz` near `pt` (above it, beside it, then below), inside `region`,

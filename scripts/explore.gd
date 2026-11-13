@@ -716,7 +716,7 @@ func _process(delta: float) -> void:
 			# tower and the pump: it sits under the cash plate, top left)
 			var vs := get_viewport().get_visible_rect().size
 			if game.hud.assembly_on:
-				_badge.position = Vector2(30.0, 108.0 * vs.y / 900.0)
+				_badge.position = Vector2(30.0, 84.0 * vs.y / 900.0)
 			else:
 				_badge.position = vs - _badge.size - Vector2(36, 36)
 		if _demo and game != null and game._frames > 20 and _demo_t == 0.0 and can_enter():
