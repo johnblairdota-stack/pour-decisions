@@ -361,7 +361,7 @@ var let_burst := OS.get_cmdline_user_args().has("--letburst")
 func _setup_input() -> void:
 	var keys := {
 		"p1_": {"left": [KEY_A], "right": [KEY_D], "up": [KEY_W], "down": [KEY_S], "action": [KEY_SPACE], "alt": [KEY_E], "slow": [KEY_F], "leave": [KEY_Q]},
-		"p2_": {"left": [KEY_LEFT], "right": [KEY_RIGHT], "up": [KEY_UP], "down": [KEY_DOWN], "action": [KEY_ENTER, KEY_KP_ENTER], "alt": [KEY_CTRL], "slow": [KEY_ALT, KEY_KP_0], "leave": [KEY_SHIFT, KEY_BACKSPACE]},
+		"p2_": {"left": [KEY_LEFT], "right": [KEY_RIGHT], "up": [KEY_UP], "down": [KEY_DOWN], "action": [KEY_ENTER, KEY_KP_ENTER], "alt": [KEY_CTRL], "slow": [KEY_SLASH, KEY_KP_0], "leave": [KEY_SHIFT, KEY_BACKSPACE]},
 		"p3_": {"left": [], "right": [], "up": [], "down": [], "action": [], "alt": [], "slow": [], "leave": []},
 		"p4_": {"left": [], "right": [], "up": [], "down": [], "action": [], "alt": [], "slow": [], "leave": []},
 	}
@@ -392,12 +392,18 @@ func _setup_input() -> void:
 				jb.button_index = b
 				InputMap.action_add_event(act_name, jb)
 		device += 1
-	for pair in [["skyline", KEY_TAB], ["restart", KEY_R], ["dev_climb", KEY_F1], ["toggle_shake", KEY_F2], ["toggle_sound", KEY_F3], ["toggle_perf", KEY_F4], ["cycle_look", KEY_F6]]:
+	# Restart and skip-to-climb are dev keys: Ctrl+Shift with them, so a stray R
+	# from P1's side of the keyboard can't throw a pour away (Start again is in
+	# the pause menu).
+	for pair in [["skyline", KEY_TAB], ["restart", KEY_R, true], ["dev_climb", KEY_F1, true], ["toggle_shake", KEY_F2], ["toggle_sound", KEY_F3], ["toggle_perf", KEY_F4], ["cycle_look", KEY_F6]]:
 		if InputMap.has_action(pair[0]):
 			InputMap.erase_action(pair[0])
 		InputMap.add_action(pair[0])
 		var e := InputEventKey.new()
 		e.keycode = pair[1]
+		if pair.size() > 2:
+			e.ctrl_pressed = true
+			e.shift_pressed = true
 		InputMap.action_add_event(pair[0], e)
 
 var env: Environment
@@ -490,6 +496,23 @@ func apply_graphics() -> void:
 	RenderingServer.directional_shadow_atlas_set_size(2048 if lite else 4096, true)
 	# (the look sets the glow and Comic Ink's lines, which Lite leaves off)
 	Look.apply(self, Look.cur)
+
+## On Full graphics, a pour that's run under 40 fps for 10 seconds straight
+## drops to Lite (once a session, kept, and said on screen): a laptop on a
+## TV shouldn't have to find the setting mid-pour.
+const SLOW_FPS := 40.0
+const SLOW_FOR := 10.0
+var _slow_t := 0.0
+var _slow_done := false
+func _watch_fps(delta: float) -> void:
+	if _slow_done or lite or autotest or DisplayServer.get_name() == "headless" or phase != "pour" or get_tree().paused:
+		return
+	_slow_t = (_slow_t + delta) if Engine.get_frames_per_second() < SLOW_FPS else 0.0
+	if _slow_t >= SLOW_FOR:
+		_slow_done = true
+		Settings.put("graphics", 1)
+		apply_graphics()
+		hud.toast("Running slow: switched to Lite graphics (Smoko > Settings to change back)", 4.0)
 
 ## A new look's on (look.gd): the light's drawn again with its multipliers.
 func relight() -> void:
@@ -2750,6 +2773,60 @@ var learners := {}   # P number -> {role: 0..1}
 func is_learner(p) -> bool:
 	return p != null and not p.bot and learners.has(p.index)
 
+## Playing alone: when your own job's gone quiet and another job's urgent,
+## Y hops you onto it (you take over that bot's chibi, where it stands, and
+## the bot takes yours). A crew of one sees the whole pour, not one corner.
+const HOP_IDLE := 3.0
+var _hop_idle := 0.0
+var _hop_cool := 0.0
+var _hop_offer := ""
+func _solo_hop(p, delta: float) -> void:
+	if p.bot or tutorial or autotest or phase != "pour" or crew.humans().size() != 1 or p.covering:
+		return
+	_hop_cool = maxf(0.0, _hop_cool - delta)
+	if _hop_offer != "" and p.slow_pressed() and crew.is_bot(_hop_offer):
+		var to := _hop_offer
+		_hop_offer = ""
+		_hop_idle = 0.0
+		_hop_cool = 5.0
+		if crew.assign(p.index, to):
+			hud.toast("You're on the %s job" % UI.ROLE_NAME[to].to_lower(), 1.6)
+			sfx.hit("ding")
+		return
+	_hop_idle = (_hop_idle + delta) if not p.had_cues and p.cues.is_empty() else 0.0
+	_hop_offer = ""
+	if _hop_idle < HOP_IDLE or _hop_cool > 0.0:
+		return
+	var best := ""
+	var best_lv := 0
+	for role in urgent:
+		if role != p.role and crew.is_bot(role) and int(urgent[role]) >= 1 and int(urgent[role]) > best_lv:
+			best = role
+			best_lv = int(urgent[role])
+	if best != "":
+		_hop_offer = best
+		p.cue("Y", "hop on: " + UI.ROLE_NAME[best].to_lower())
+
+## Bots keep their hand signs to themselves while a person's being asked for
+## something urgent, or there are already three signs up.
+const MAX_SIGNS := 3
+func bots_quiet() -> bool:
+	var live := 0
+	for p in players:
+		live += (p._balloons as Array).size()
+		if not p.bot:
+			for cu in p.cues:
+				if bool(cu[3]) or bool(cu[5]):
+					return true
+	return live >= MAX_SIGNS
+
+## How much help someone gets on their job now, in words for the crew page.
+func help_level(p) -> String:
+	if is_learner(p):
+		return "FULL HELP"
+	var s := skill_of(p)
+	return "FIRST DAY" if s < 0.34 else ("ON SITE" if s < 0.67 else "TICKETED")
+
 func set_learner(index: int, on: bool) -> void:
 	if on and not learners.has(index):
 		learners[index] = {}
@@ -3398,6 +3475,10 @@ func _grade() -> void:
 	var note := "poured in %s  ·  silver: %d%% in %s  ·  gold: %d%% in %s" % [_mmss(pour_clock), int(score.SILVER_Q), _mmss(tg.x), int(score.GOLD_Q), _mmss(tg.y)]
 	if score.bot_tier != was_tier:
 		note += "\nThe bots are working at %s pace now" % score.MEDALS[score.bot_tier].to_lower()
+	if not tutorial:
+		var nr: String = score.next_rank_line(score.level)
+		if nr != "":
+			note += "\n" + nr
 	if tutorial:
 		# (the coach keeps it short during the pour; the facts are here)
 		note += "\nDid you know? " + ("The shaft below was cast in 3 m lifts with jump forms, and the cone up top flares out to carry the tank." if k == TUT_FIRST else "Before any concrete goes in, slurry coats the inside of the line so the concrete slides, and the washout pushes the last of it out with water.")
@@ -3426,6 +3507,8 @@ func _slab_report(quality: float, verdict: String, medal: int, note: String, los
 			crew_rows[-1]["good"] = "Caught the sponge ball"
 		if not p.bot:
 			crew_rows[-1]["wallet"] = int(score.wallet_pour.get(p.char_id, 0))
+			# (and what cost them most, so a person sees their own slip)
+			crew_rows[-1]["bad"] = score.worst_reason(role)
 		# (never the star if the leading hand had to do their job for them)
 		if (not p.bot or _cam_roles.has(role)) and pts > star_pts and cov < 10:
 			star_pts = pts
@@ -3439,9 +3522,18 @@ func _slab_report(quality: float, verdict: String, medal: int, note: String, los
 		nxt = "Level %d" % (k + 2) + (" · climb day first" if (k + 1) in climb_levels() else "")
 	return {"title": ("WATER TOWER" if tutorial else "LEVEL %d" % (k + 1)) + " · SLAB REPORT", "points": score.level,
 		"quality": quality, "verdict": verdict, "medal": medal, "medal_note": note, "crew": crew_rows,
-		"star": star, "losses": losses, "next": nxt, "last": k + 1 >= floors()}
+		"star": star, "losses": losses, "wrong": score.worst(3), "next": nxt, "last": k + 1 >= floors()}
 
 ## Keeps the best medal for each of the building's floors, for the site page.
+## Till this save's finished a slab on the building, nothing moves on by
+## itself (the site page, the toolbox talk, the slab report): first-timers
+## read at their own pace and press A when they're ready.
+func first_day() -> bool:
+	if autotest:
+		return false
+	var m = Settings.value("medals")
+	return not (m is Array and not (m as Array).is_empty())
+
 func _save_medal(medal: int) -> void:
 	if tutorial and not autotest and not bool(Settings.value("tut_done")):
 		Settings.put("tut_done", true)
@@ -3661,9 +3753,11 @@ func _process(delta: float) -> void:
 		hud.toast("Sound %s" % ("off" if sfx.muted else "on"), 1.2)
 	_join_players()
 	_swap_keys()
+	_job_intros()
+	_watch_fps(delta)
 	if phase == "select" or phase == "roles":
 		if is_instance_valid(selector):
-			selector.set_join(_join_text(), phones.url() if phones.running else "")
+			selector.set_join(_join_text(), phones.join_url() if phones.running else "")
 		for p in players:
 			p.begin_cues()
 			p.animate(delta)
@@ -3737,6 +3831,7 @@ func _process(delta: float) -> void:
 			_a_by = p
 		if phase != "sign":
 			_handle_player(p, delta)
+		_solo_hop(p, delta)
 		p.end_frame()
 	perf.mark("players")
 	if autotest and phase == "columns" and k == 0 and OS.get_cmdline_user_args().has("--skip") and kit == "tower":
@@ -3848,14 +3943,15 @@ func _process(delta: float) -> void:
 						fac.scale.y = maxf(0.01, clampf(phase_t / 0.8, 0.0, 1.0))
 			# The slab report stays up till someone presses A
 			if hud.card_waiting():
-				hud.set_report_left(1.0 - hud.card_age() / REPORT_AUTO, REPORT_AUTO - hud.card_age())
+				var patient := first_day()
+				hud.set_report_left(1.0 if patient else 1.0 - hud.card_age() / REPORT_AUTO, REPORT_AUTO - hud.card_age())
 				var swap_by := -1
 				for p in players:
 					if not p.bot and p.slow_pressed():
 						swap_by = p.index
 				if swap_by > 0 and hud.card_age() > 1.0 and k + 1 < floors():
 					pause_menu.open_on("swap", swap_by)
-				elif (_human_a and hud.card_age() > 1.0) or hud.card_age() > REPORT_AUTO:
+				elif (_human_a and hud.card_age() > 1.0) or (hud.card_age() > REPORT_AUTO and not patient):
 					hud.dismiss_card()
 			if phase_t > 1.4 and not hud.card_waiting():
 				k += 1
@@ -3950,16 +4046,20 @@ func join_phone():
 
 func _join_text() -> String:
 	var t := ""
-	if phones.running and crew.humans().size() < crew.MAX_PEOPLE:
-		t = "Scan to join on your phone\n(same Wi-Fi)\n%s" % phones.url()
+	var why: String = phones.problem()
+	if why != "" and crew.humans().size() < crew.MAX_PEOPLE:
+		t = why
+		if phones.running and phones.url() != "":
+			t += "\n%s · code %s" % [phones.url(), phones.room_code]
+	elif phones.running and crew.humans().size() < crew.MAX_PEOPLE:
+		t = "Scan to join on your phone\n(same Wi-Fi)\n%s · code %s" % [phones.url(), phones.room_code]
 		# (a page that won't load is usually the firewall, or the wrong
 		# network adapter: say so, and give the other addresses to try)
 		var others: Array = phones.other_urls()
 		if not others.is_empty():
 			t += "\nNot loading? Try %s" % " or ".join(others)
 		t += "\nWindows: allow Godot through the firewall"
-	elif not phones.running and crew.humans().size() < crew.MAX_PEOPLE:
-		t = "Phones can't join: the network ports are busy"
+		t += "\nGuest Wi-Fi often blocks this: try a home network or a phone hotspot"
 	return t
 
 func _join_players() -> void:
@@ -3969,7 +4069,23 @@ func _join_players() -> void:
 			if p != null:
 				hud.toast("P%d joined: %s, %s" % [i, p.char_name, UI.ROLE_NAME[p.role].to_lower()], 2.0)
 	var open_slots: bool = crew.humans().size() < crew.MAX_PEOPLE and not autotest
-	hud.set_join(_join_text() if phase != "topout" and phase != "select" and phase != "roles" else "", phones.url() if phones.running and open_slots and phase != "topout" else "")
+	hud.set_join(_join_text() if phase != "topout" and phase != "select" and phase != "roles" else "", phones.join_url() if phones.running and open_slots and phase != "topout" else "")
+
+## A person's first go at a job (this session; every floor while they've
+## FULL HELP on): what it's for in plain words and what to watch, along the
+## bottom. Not in the water tower, where the coach talks them through.
+var _intro_seen := {}
+func _job_intros() -> void:
+	if tutorial or autotest or not (phase == "inspect" or phase == "pour"):
+		return
+	for p in crew.humans():
+		var key := "P%d:%s" % [p.index, p.role]
+		if _intro_seen.has(key) and not (is_learner(p) and int(_intro_seen[key]) != k):
+			continue
+		_intro_seen[key] = k
+		var jc: Dictionary = UI.JOB_CARD.get(p.role, {})
+		hud.job_intro("P%d · %s" % [p.index, String(UI.ROLE_NAME.get(p.role, "")).to_upper()],
+			String(UI.ROLE_DO.get(p.role, "")) + ("  Watch " + String(jc["watch"]) if jc.has("watch") else ""), UI.ROLE.get(p.role, UI.GOLD))
 
 ## P1's number keys swap jobs on the fly (1 boom, 2 line, 3 pump, 4 poker, 5 screed, 6 hose hand).
 func _swap_keys() -> void:
@@ -4022,8 +4138,9 @@ func _update_inspect(delta: float) -> void:
 			if not p.bot and p.action_held():
 				holding = true
 		_brief_hold = (_brief_hold + delta) if holding and phase_t > 0.5 else maxf(0.0, _brief_hold - delta * 2.0)
-		hud.set_toolbox(_brief_hold / BRIEF_HOLD, 1.0 - phase_t / BRIEF_AUTO, maxf(0.0, BRIEF_AUTO - phase_t))
-		if _brief_hold >= BRIEF_HOLD or phase_t > BRIEF_AUTO:
+		var patient := first_day()
+		hud.set_toolbox(_brief_hold / BRIEF_HOLD, 1.0 if patient else 1.0 - phase_t / BRIEF_AUTO, -1.0 if patient else maxf(0.0, BRIEF_AUTO - phase_t))
+		if _brief_hold >= BRIEF_HOLD or (phase_t > BRIEF_AUTO and not patient):
 			_brief_ok = true
 			sfx.hit("ding")
 			hud.show_brief(false)

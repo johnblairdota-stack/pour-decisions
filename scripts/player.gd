@@ -27,7 +27,7 @@ const TV_QUIET := ["KILL THE PUMP"]
 const BTN := {"action": "A", "leave": "B", "alt": "X", "slow": "Y"}
 const BTN_COLORS := {"A": Color("3fe0c5"), "B": Color("ff5a5f"), "X": Color("9b6bff"), "Y": Color("ffc23d")}
 ## The keyboard key behind each button, for people playing on the keys
-const KEYS := {"p1_": {"A": "Space", "B": "Q", "X": "E", "Y": "F"}, "p2_": {"A": "Enter", "B": "Shift", "X": "Ctrl", "Y": "Alt"}}
+const KEYS := {"p1_": {"A": "Space", "B": "Q", "X": "E", "Y": "F"}, "p2_": {"A": "Enter", "B": "Shift", "X": "Ctrl", "Y": "/"}}
 
 var index := 1
 var prefix := "p1_"
@@ -167,8 +167,9 @@ func setup(i: int, color: Color) -> void:
 	prompt.layers = 2
 	ring = MeshInstance3D.new()
 	var tm := TorusMesh.new()
-	tm.inner_radius = 0.48
-	tm.outer_radius = 0.6
+	# (wide and bold: a person finds their own chibi by it at a glance)
+	tm.inner_radius = 0.58
+	tm.outer_radius = 0.82
 	tm.rings = 28
 	tm.ring_segments = 4
 	ring.mesh = tm
@@ -372,6 +373,10 @@ func bark(text: String, seconds := 1.8) -> void:
 		return
 	var sg: Dictionary = HandSigns.read(text)
 	var kind: String = sg["kind"]
+	# (a bot's chatter holds off while a person has something urgent on,
+	# or the screen's already got its fill of signs: alarms still go up)
+	if bot and kind != "alarm" and world.has_method("bots_quiet") and world.bots_quiet():
+		return
 	var st: Dictionary = HandSigns.KINDS[kind]
 	var b: Label3D = bubble.duplicate()
 	var word: String = sg["word"]
@@ -676,6 +681,10 @@ func show_cues(cam_right: Vector3, t: float, cam_pos := Vector3.ZERO, cam_k := 1
 	# Keep glyphs a steady size on screen however far away the camera is
 	var k_size := 1.0
 	bubble.visible = false
+	if ring.visible:
+		# (it breathes, so a person's own ring stands out from the scenery)
+		var rs := 1.0 + 0.1 * (0.5 + 0.5 * sin(t * TAU / 1.6))
+		ring.scale = Vector3(rs, 0.15, rs)
 	_update_balloons(get_process_delta_time(), cam_pos)
 	if (bot and not show_bot_cues) or hide_world_cues:
 		for c in _cue_nodes:

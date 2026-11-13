@@ -239,6 +239,12 @@ func _build_crew_page(root: Control) -> void:
 		var who := UI.label("", 24, UI.BONE, 0)
 		who.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		tr.add_child(who)
+		# (what the job is, in plain words, then the question it asks of you)
+		var does := UI.label(UI.ROLE_DO[role], 19, Color("4a3f2c"), 0)
+		does.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		does.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		does.custom_minimum_size = Vector2(206, 0)
+		col.add_child(does)
 		var ask := UI.head(UI.ROLE_ASK[role], 24, Color("1b1308"))
 		ask.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		ask.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -334,7 +340,9 @@ func _refresh_crew() -> void:
 		else:
 			UI.style(ptag).bg_color = p.tag_color
 			(ptag.get_child(0) as Label).text = "P%d" % p.index
-			who.text = p.char_name + (" · NEW" if game.learners.has(p.index) else "") + ("" if locked else "…")
+			# (with how much help they'll get on this job: Y on the pad or the
+			# phone's FULL HELP switch puts it right up)
+			who.text = p.char_name + " · " + game.help_level(p) + ("" if locked else "…")
 			who.add_theme_color_override("font_color", UI.BONE)
 			# Still choosing: the hat sways on its peg
 			hat.pivot_offset = Vector2(hat.size.x * 0.5, 0)
@@ -797,9 +805,13 @@ func _process_site(delta: float) -> void:
 		_cool = 0.22
 	# (on a squarer screen the plate's text wraps sooner, to stay clear of the buttons)
 	_lvl_line.custom_minimum_size.x = clampf(get_viewport().get_visible_rect().size.x - 830.0, 300.0, 520.0)
-	_site_t -= delta
+	# (a first-timer's site page waits for A: see main.first_day)
+	if game == null or not game.first_day():
+		_site_t -= delta
 	_site_ring.frac = clampf(_site_t / SITE_T, 0.0, 1.0)
 	_site_ring.text = str(int(ceil(maxf(_site_t, 0.0))))
+	if game != null and game.first_day():
+		_site_ring.text = "A"
 	# (left too long, the concrete's going over the edge of the slab)
 	var late: bool = floor_pick() >= 0 and (game.menu_spilling() if game else site_dawdle() > LATE_AT)
 	if late != _late:
@@ -894,10 +906,16 @@ func set_join(text: String, url := "") -> void:
 	if url != _qr_url and _qr_rect != null:
 		_qr_url = url
 		_qr_rect.texture = QR.texture(url, 4) if url != "" else null
-		_url_label.text = url.replace("http://", "or type ") if url != "" else ""
+		_url_label.text = (url.get_slice("/?", 0).replace("http://", "or type ") + "  ·  code " + game.phones.room_code) if url != "" and game != null and game.phones != null else ""
 	if _help_label != null:
 		var help := ""
-		if url != "":
+		# (something's stopping phones joining: say what, big and red)
+		var why: String = game.phones.problem() if game != null and game.phones != null else ""
+		_help_label.add_theme_color_override("font_color", Color("ff6b63") if why != "" else UI.DIM)
+		_help_label.add_theme_font_size_override("font_size", 28 if why != "" else 24)
+		if why != "":
+			help = why
+		elif url != "":
 			var others: Array = game.phones.other_urls() if game != null and game.phones != null else []
 			help = "Not loading? Use the same Wi-Fi, and allow Godot through the firewall."
 			if not others.is_empty():

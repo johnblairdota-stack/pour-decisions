@@ -539,6 +539,18 @@ const P_COL = ['3d8bff', 'ff4f6d', 'ff8a3d', '7cd992', 'c49bff', '2fd3e8'];
 let token = null;
 try { token = localStorage.getItem('pd_token'); } catch (e) {}
 if (!token) { token = Math.random().toString(36).slice(2, 10); try { localStorage.setItem('pd_token', token); } catch (e) {} }
+// The room code off the TV: in the QR's address, else the one this phone
+// used last (so a home-screen copy keeps working), else it asks
+let room = new URLSearchParams(location.search).get('k');
+if (room) { try { localStorage.setItem('pd_room', room); } catch (e) {} }
+else { try { room = localStorage.getItem('pd_room'); } catch (e) {} }
+let full = false, asked = 0;
+function askCode() {
+  if (Date.now() - asked < 3000) return;
+  asked = Date.now();
+  const got = window.prompt('Type the 4-digit room code from the TV (under the QR code)', '');
+  if (got) { room = got.split('').filter(ch => ch >= '0' && ch <= '9').join('').slice(0, 4); try { localStorage.setItem('pd_room', room); } catch (e) {} }
+}
 let learner = false;
 let ws = null, ready = false, me = {p: 0, pc: '3d8bff'}, screen = '', roster = [], card = null, now = {i: -1}, picked = '', locked = false, nudge = 0;
 const status = $('status');
@@ -548,16 +560,18 @@ let haptics = true;
 function buzz(p) { if (haptics && navigator.vibrate) { try { navigator.vibrate(p); } catch (e) {} } }
 function connect() {
   ws = new WebSocket('ws://' + location.hostname + ':' + PORT);
-  ws.onopen = () => { ready = true; ws.send('hello ' + token); status.textContent = ''; };
-  ws.onclose = () => { ready = false; status.textContent = 'reconnecting…'; setTimeout(connect, 1000); };
+  ws.onopen = () => { ready = true; ws.send('hello ' + token + ' ' + (room || '')); status.textContent = ''; };
+  ws.onclose = () => { ready = false; if (!full) status.textContent = 'reconnecting…'; setTimeout(connect, full ? 5000 : 1000); };
   ws.onmessage = (ev) => {
     const d = ev.data;
     if (d.startsWith('I ')) { onUteFrame(d.slice(2)); return; }
     if (d.startsWith('J ')) { try { onJson(JSON.parse(d.slice(2))); } catch (e) {} return; }
     const m = d.split(' ');
-    if (m[0] === 'p') onPlayer(parseInt(m[1]), m[2]);
+    if (m[0] === 'p') { full = false; onPlayer(parseInt(m[1]), m[2]); }
     else if (m[0] === 'v') buzz((m[1] || '30').split(',').map(Number));
-    else if (m[0] === 'full') { status.textContent = 'the crew is full (6 players): watch, or wait for a spot'; }
+    else if (m[0] === 'full') { full = true; status.textContent = 'the crew is full (6 players): watch, or wait for a spot'; }
+    else if (m[0] === 'code') { status.textContent = 'wrong room code: check the TV'; askCode(); }
+    else if (m[0] === 't') { token = m[1]; try { localStorage.setItem('pd_token', token); } catch (e) {} }
     else if (m[0] === 'c') onCues(m[1] || '');
   };
 }

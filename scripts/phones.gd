@@ -20,7 +20,20 @@
 ## ticket's live step, {t: gauge} the pump gauge (pump operator), {t: nudge}
 ## how long the game's been waiting on you, {t: toast} a short note.
 ## The token lets a phone that drops out reconnect to the same chibi.
+##
+## The room code: four digits kept with this computer's settings, in the QR's
+## address (?k=1234) and shown under it. A phone has to send it with its hello
+## ("hello <token> <code>"), so only someone who can see the TV gets a seat;
+## a phone that types the address in without it gets "code" back and asks.
+## The page remembers it, so a home-screen copy keeps working.
 extends Node
+
+const Settings := preload("res://scripts/settings.gd")
+## (a socket that hasn't said hello by now is dropped)
+const HELLO_TIMEOUT := 12.0
+## A phone that loaded the page this long ago and never reached the game
+## (the controller socket) means something's blocking it: say so on the TV.
+const STUCK_AFTER := 8.0
 
 const PerfClock := preload("res://scripts/perf.gd")
 
@@ -49,6 +62,8 @@ var http_port := 8080
 var ws_port := 8081
 var running := false
 var _cue_t := 0.0
+var room_code := ""
+var _page_hits := {}            # phone address -> seconds since it loaded the page, till it connects
 
 func start(owner_game) -> void:
 	game = owner_game
@@ -67,11 +82,31 @@ func start(owner_game) -> void:
 		ws_server.stop()
 	addresses = _lan_addresses()
 	address = addresses[0] if not addresses.is_empty() else ""
+	room_code = String(Settings.value("room_code"))
+	if room_code.length() != 4 or not room_code.is_valid_int():
+		var b := Crypto.new().generate_random_bytes(2)
+		room_code = str(1000 + (b[0] * 256 + b[1]) % 9000)
+		Settings.put("room_code", room_code)
 	if game.autotest:
 		print("[phones] listening: %s (running %s, also %s)" % [url(), running, str(addresses.slice(1))])
 
 func url() -> String:
 	return "http://%s:%d" % [address, http_port] if address != "" else ""
+
+## The address the QR carries: the page plus the room code.
+func join_url() -> String:
+	return url() + "/?k=" + room_code if address != "" else ""
+
+## Why phones can't join, in plain words for the TV ("" when they can).
+func problem() -> String:
+	if not running:
+		return "Phones can't join: another program on this computer is using the game's network ports. Close other games or servers, then restart Pour Decisions."
+	if address == "":
+		return "Phones can't join: this computer isn't on a network. Connect it to the Wi-Fi (or Ethernet) and restart the game."
+	for ip in _page_hits:
+		if float(_page_hits[ip]) > STUCK_AFTER:
+			return "A phone opened the page but can't reach the game. Allow Godot through the Windows firewall (private networks), then reload the page on the phone."
+	return ""
 
 ## The other addresses this computer has, for when the first doesn't load.
 func other_urls() -> Array:
@@ -126,7 +161,7 @@ func _frame_work(delta: float) -> void:
 	if not running:
 		return
 	_serve_http(delta)
-	_serve_ws()
+	_serve_ws(delta)
 	_release_taps()
 	_send_previews(delta)
 	_cue_t -= delta
@@ -140,6 +175,8 @@ func _frame_work(delta: float) -> void:
 func _serve_http(delta: float) -> void:
 	while http.is_connection_available():
 		_http_conns.append([http.take_connection(), PackedByteArray(), 0.0])
+	for ip in _page_hits:
+		_page_hits[ip] = float(_page_hits[ip]) + delta
 	for hc in _http_conns:
 		var conn: StreamPeerTCP = hc[0]
 		hc[2] += delta
@@ -161,6 +198,10 @@ func _serve_http(delta: float) -> void:
 			var ctype := "text/html; charset=utf-8"
 			if path == "/" or path.begins_with("/?") or path == "/index.html":
 				body = PAGE.html(ws_port).to_utf8_buffer()
+				# (watched till that phone's controller connects)
+				var from := conn.get_connected_host()
+				if from != "" and not _page_hits.has(from):
+					_page_hits[from] = 0.0
 			elif path == "/manifest.json":
 				# Add it to the home screen and it opens like an app: full
 				# screen, sideways, no browser bars
@@ -219,15 +260,21 @@ func _icon_png() -> PackedByteArray:
 
 # ------------------------------------------------------------------ controllers
 
-func _serve_ws() -> void:
+func _serve_ws(delta: float) -> void:
 	while ws_server.is_connection_available():
 		var ws := WebSocketPeer.new()
 		ws.accept_stream(ws_server.take_connection())
-		clients.append({"ws": ws, "token": "", "player": null, "last_cues": "", "downs": {}, "ups": {}, "held": {}})
+		clients.append({"ws": ws, "token": "", "player": null, "last_cues": "", "downs": {}, "ups": {}, "held": {}, "age": 0.0})
 	for c in clients:
 		var ws: WebSocketPeer = c["ws"]
 		ws.poll()
 		var state := ws.get_ready_state()
+		# (a half-open socket, or one that never says hello, isn't kept)
+		c["age"] = float(c.get("age", 0.0)) + delta
+		if c["player"] == null and float(c["age"]) > HELLO_TIMEOUT and state != WebSocketPeer.STATE_CLOSED:
+			ws.close()
+			c["dead"] = true
+			continue
 		if state == WebSocketPeer.STATE_OPEN:
 			while ws.get_available_packet_count() > 0:
 				_on_message(c, ws.get_packet().get_string_from_utf8())
@@ -242,16 +289,37 @@ func _on_message(c: Dictionary, msg: String) -> void:
 	var parts := msg.split(" ")
 	if parts.is_empty():
 		return
+	# (nothing but a hello counts till the phone's given the room code)
+	if parts[0] != "hello" and c["player"] == null:
+		return
 	match parts[0]:
 		"hello":
-			var token := parts[1] if parts.size() > 1 else str(randi())
+			var ws: WebSocketPeer = c["ws"]
+			if parts.size() < 3 or parts[2] != room_code:
+				ws.send_text("code")
+				ws.close()
+				return
+			_page_hits.erase(ws.get_connected_host())
+			# (a token the phone didn't make properly gets one made here)
+			var token := parts[1]
+			if token.length() < 8:
+				token = Crypto.new().generate_random_bytes(8).hex_encode()
+				ws.send_text("t " + token)
 			c["token"] = token
 			var p = tokens.get(token)
 			if p == null or not is_instance_valid(p):
 				p = game.join_phone()
 			if p == null:
-				(c["ws"] as WebSocketPeer).send_text("full")
+				ws.send_text("full")
+				ws.close()
 				return
+			# A phone the game's never seen starts on FULL HELP (it might be a
+			# guest on a regular's hat); a returning one keeps what it had
+			var seen: Array = (Settings.value("phones_seen") as Array).duplicate() if Settings.value("phones_seen") is Array else []
+			if not tokens.has(token) and not seen.has(token):
+				game.set_learner(p.index, true)
+				seen.append(token)
+				Settings.put("phones_seen", seen.slice(maxi(0, seen.size() - 60)))
 			tokens[token] = p
 			c["player"] = p
 			p.ai = true
@@ -584,7 +652,7 @@ func roster() -> Dictionary:
 	var sel = game.selector if is_instance_valid(game.selector) else null
 	for role in game.crew.ROLES:
 		var q = game.crew.crew[role]
-		out.append({"id": role, "name": UI.ROLE_NAME[role], "col": UI.ROLE[role].to_html(false), "line": UI.ROLE_SHORT[role], "ask": UI.ROLE_ASK[role],
+		out.append({"id": role, "name": UI.ROLE_NAME[role], "col": UI.ROLE[role].to_html(false), "line": UI.ROLE_DO[role], "ask": UI.ROLE_ASK[role],
 			"p": 0 if q.bot else q.index, "pc": q.tag_color.to_html(false), "who": q.char_name,
 			"lock": (not q.bot) and sel != null and bool(sel._ready_p.get(q.index, false))})
 	return {"t": "roster", "r": out}

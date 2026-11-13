@@ -103,6 +103,16 @@ const ROLE_SHORT := {
 	"screed": "Strikes the slab flat behind the pokers.",
 	"hose": "Runs the pour: you decide where it lands and when it flows. The boom follows you.",
 }
+## Each job in plain words, no trade terms: under the hat on the crew page,
+## on the phone lobby, and in a person's first-go caption.
+const ROLE_DO := {
+	"boom": "Swing the big arm that carries the concrete to where it's needed.",
+	"line": "Check each truck's concrete is right before it goes in the pump.",
+	"pump": "Stop the pump fast when the pressure jumps, then fix the pipe.",
+	"poker": "Shake the air bubbles out of the fresh concrete.",
+	"screed": "Drag a board across the concrete to make the slab flat.",
+	"hose": "Point the hose where the concrete should land, and say when.",
+}
 ## The question each job asks of whoever picks it, on the crew page and the
 ## phone lobby: not what it feels like, what it'll ask of you.
 const ROLE_ASK := {

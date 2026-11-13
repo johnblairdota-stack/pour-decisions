@@ -351,7 +351,7 @@ func _select(i: int) -> void:
 		(e["label"] as Label).add_theme_color_override("font_color", col)
 	_note.text = _note_for(_items[_index]["action"])
 	if _quit_armed:
-		_note.text = "Press A again to close the game. B to stay."
+		_note.text = ("Press A again to throw this pour away and start again. B to stay." if _items[_index]["action"] == "restart" else "Press A again to close the game. B to stay.")
 	if changed:
 		_build_right()
 
@@ -404,7 +404,7 @@ func _join_card() -> PanelContainer:
 		qr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		qr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		v.add_child(qr)
-		v.add_child(UI.head(url.replace("http://", ""), 18, Color("1d1a14")))
+		v.add_child(UI.head(url.get_slice("/?", 0).replace("http://", "") + "  ·  code " + game.phones.room_code, 18, Color("1d1a14")))
 	var full: bool = game.crew.humans().size() >= game.crew.MAX_PEOPLE
 	var msg := text if text != "" else ("Everyone's in (%d players)." % game.crew.MAX_PEOPLE if full else "")
 	msg += ("\n" if msg != "" else "") + "Pads: press A. Keyboard P2: press Enter. A new player takes the busiest job a bot's doing."
@@ -583,6 +583,12 @@ func _do(action: String) -> void:
 		"perf":
 			game.perf.toggle()
 		"restart":
+			# (one press arms it, a second A does it: anyone's A can land here)
+			if not _quit_armed:
+				_quit_armed = true
+				_select(_index)
+				game.sfx.hit("tink")
+				return
 			# (knocked off, the game's held paused for the wander: come back
 			# first, or the fresh crew page would start frozen)
 			if _roaming():
