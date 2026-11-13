@@ -429,7 +429,7 @@ When the top slab's screeded, before it goes off, everyone playing signs it (bot
 | `scripts/cue_badge.gd` | The button cue drawn in a close-up camera's corner |
 | `scripts/select.gd` | The front end: pick your crew (character and job), then the job and the kit |
 | `scripts/sfx.gd` | Synthesised sound |
-| `scripts/terrain.gd` | The real ground round Riverlight (2019 LiDAR, `data/terrain.bin` from `tools/terrain_to_game.py`): its height anywhere, and `drape`, which puts what's built on flat ground onto it. The site pad stays at 0, the river stays put, streets are level across, buildings sit on level pads. `python3 tools/terrain_check.py` says if anything leans, floats or sinks |
+| `scripts/terrain.gd` | The real ground round Riverlight and the hills out to the horizon (QldDem: the 2019 LiDAR at 2 m to 800 m, then grids at 5 m to 2.6 km and 40 m to 16 km; `data/terrain*.bin` from `tools/terrain_to_game.py`): its height anywhere, and `drape`, which puts what's built on flat ground onto it. The site pad stays at 0, the river stays put, streets are level across, buildings sit on level pads. `python3 tools/terrain_check.py` says if anything leans, floats or sinks; `tools/terrain_views.gd` takes pictures of it from round the site |
 | `shaders/` | Toon shading, outlines, windows, button glyphs, and the concrete surface (wet, going off, cold joints, honeycomb, bleed water) |
 
 ## Testing
