@@ -2773,40 +2773,6 @@ var learners := {}   # P number -> {role: 0..1}
 func is_learner(p) -> bool:
 	return p != null and not p.bot and learners.has(p.index)
 
-## Playing alone: when your own job's gone quiet and another job's urgent,
-## Y hops you onto it (you take over that bot's chibi, where it stands, and
-## the bot takes yours). A crew of one sees the whole pour, not one corner.
-const HOP_IDLE := 3.0
-var _hop_idle := 0.0
-var _hop_cool := 0.0
-var _hop_offer := ""
-func _solo_hop(p, delta: float) -> void:
-	if p.bot or tutorial or autotest or phase != "pour" or crew.humans().size() != 1 or p.covering:
-		return
-	_hop_cool = maxf(0.0, _hop_cool - delta)
-	if _hop_offer != "" and p.slow_pressed() and crew.is_bot(_hop_offer):
-		var to := _hop_offer
-		_hop_offer = ""
-		_hop_idle = 0.0
-		_hop_cool = 5.0
-		if crew.assign(p.index, to):
-			hud.toast("You're on the %s job" % UI.ROLE_NAME[to].to_lower(), 1.6)
-			sfx.hit("ding")
-		return
-	_hop_idle = (_hop_idle + delta) if not p.had_cues and p.cues.is_empty() else 0.0
-	_hop_offer = ""
-	if _hop_idle < HOP_IDLE or _hop_cool > 0.0:
-		return
-	var best := ""
-	var best_lv := 0
-	for role in urgent:
-		if role != p.role and crew.is_bot(role) and int(urgent[role]) >= 1 and int(urgent[role]) > best_lv:
-			best = role
-			best_lv = int(urgent[role])
-	if best != "":
-		_hop_offer = best
-		p.cue("Y", "hop on: " + UI.ROLE_NAME[best].to_lower())
-
 ## Bots keep their hand signs to themselves while a person's being asked for
 ## something urgent, or there are already three signs up.
 const MAX_SIGNS := 3
@@ -3831,7 +3797,6 @@ func _process(delta: float) -> void:
 			_a_by = p
 		if phase != "sign":
 			_handle_player(p, delta)
-		_solo_hop(p, delta)
 		p.end_frame()
 	perf.mark("players")
 	if autotest and phase == "columns" and k == 0 and OS.get_cmdline_user_args().has("--skip") and kit == "tower":
