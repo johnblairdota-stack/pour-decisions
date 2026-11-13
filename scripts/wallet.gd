@@ -14,6 +14,8 @@
 extends RefCounted
 
 const PATH := "user://wallet.json"
+const TMP := "user://wallet.tmp.json"
+const BAK := "user://wallet.bak.json"
 ## Dollars per point of work
 const CASH := 10
 
@@ -51,19 +53,53 @@ static func ensure() -> void:
 	_loaded = true
 	if OS.get_cmdline_user_args().has("--autotest"):
 		return   # (test runs start every crew member broke and new)
-	var f := FileAccess.open(PATH, FileAccess.READ)
-	if f == null:
+	if not FileAccess.file_exists(PATH) and not FileAccess.file_exists(BAK):
 		return
+	# The wallet, or else the copy from the save before it. A file that won't
+	# read is kept aside (never written over) so nobody's utes are lost to it.
+	for path in [PATH, BAK]:
+		var d = _read(path)
+		if d != null:
+			data = d
+			if path == BAK:
+				_set_aside(PATH)
+			return
+	_set_aside(PATH)
+	_set_aside(BAK)
+
+static func _read(path: String):
+	if not FileAccess.file_exists(path):
+		return null
+	var f := FileAccess.open(path, FileAccess.READ)
+	if f == null:
+		return null
 	var d = JSON.parse_string(f.get_as_text())
 	if d is Dictionary and d.get("chars") is Dictionary:
-		data = d
+		return d
+	return null
 
+static func _set_aside(path: String) -> void:
+	if FileAccess.file_exists(path):
+		var stamp := Time.get_datetime_string_from_system().replace(":", "-")
+		DirAccess.rename_absolute(path, path.get_basename() + "_unreadable_" + stamp + ".json")
+
+## Written to a temp file first, then swapped in, with the last good wallet
+## kept as wallet.bak.json: a crash mid-write can't wipe it.
 static func save() -> void:
 	if OS.get_cmdline_user_args().has("--autotest"):
 		return
-	var f := FileAccess.open(PATH, FileAccess.WRITE)
-	if f != null:
-		f.store_string(JSON.stringify(data))
+	var f := FileAccess.open(TMP, FileAccess.WRITE)
+	if f == null:
+		return
+	f.store_string(JSON.stringify(data))
+	f.close()
+	if _read(TMP) == null:
+		return
+	if FileAccess.file_exists(PATH):
+		if FileAccess.file_exists(BAK):
+			DirAccess.remove_absolute(BAK)
+		DirAccess.rename_absolute(PATH, BAK)
+	DirAccess.rename_absolute(TMP, PATH)
 
 ## One crew member's record (made on first use).
 static func of(char_id: String) -> Dictionary:

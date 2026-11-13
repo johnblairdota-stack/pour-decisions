@@ -894,10 +894,16 @@ func set_join(text: String, url := "") -> void:
 	if url != _qr_url and _qr_rect != null:
 		_qr_url = url
 		_qr_rect.texture = QR.texture(url, 4) if url != "" else null
-		_url_label.text = url.replace("http://", "or type ") if url != "" else ""
+		_url_label.text = (url.get_slice("/?", 0).replace("http://", "or type ") + "  ·  code " + game.phones.room_code) if url != "" and game != null and game.phones != null else ""
 	if _help_label != null:
 		var help := ""
-		if url != "":
+		# (something's stopping phones joining: say what, big and red)
+		var why: String = game.phones.problem() if game != null and game.phones != null else ""
+		_help_label.add_theme_color_override("font_color", Color("ff6b63") if why != "" else UI.DIM)
+		_help_label.add_theme_font_size_override("font_size", 28 if why != "" else 24)
+		if why != "":
+			help = why
+		elif url != "":
 			var others: Array = game.phones.other_urls() if game != null and game.phones != null else []
 			help = "Not loading? Use the same Wi-Fi, and allow Godot through the firewall."
 			if not others.is_empty():

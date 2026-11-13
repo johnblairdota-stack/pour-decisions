@@ -6,7 +6,7 @@ Chapter 1, Riverlight at Hamilton Reach: 11 levels, plus a short water tower tut
 
 ## Run it
 
-1. Install **Godot 4.3 or newer** (the standard build, not .NET) from godotengine.org.
+1. Install **Godot 4.7 or newer** (the standard build, not .NET) from godotengine.org.
 2. Open Godot, choose **Import**, and pick `project.godot` in this folder.
 3. Press **F5** (or the play button). The first open takes a few seconds while Godot imports the project.
 
@@ -46,12 +46,12 @@ Four buttons and a stick, the same on phones, pads and keyboard:
 | | Stick | A | B | X | Y |
 | --- | --- | --- | --- | --- | --- |
 | Keyboard P1 | WASD | Space | Q | E | F |
-| Keyboard P2 | Arrow keys | Enter | Right Shift | Right Ctrl | Right Alt |
+| Keyboard P2 | Arrow keys | Enter | Right Shift | Right Ctrl | / (or numpad 0) |
 | Pads 1–4 | Left stick | A | B | X | RB |
 
 If you're playing on the keyboard, every button cue over your chibi shows the key too, like **kill the pump [Space]**, so nobody has to remember which key is A.
 
-In the main game there's no step-by-step instruction text: every action is a pulsing button glyph over whoever needs to press it, with a ring that fills on hold actions. (The water tower tutorial has a coach panel that talks you through it.) **Esc** (or a pad's Start, or the Pause button on a phone) calls **smoko**: back to work (the gold default; B does it too), swap jobs, add a player (the QR), settings, start again or knock off, with your job ticket alongside and how the day's going along the bottom. Mouse: right-drag to orbit, scroll to zoom. Keys: **F11** full screen (also in the pause menu, and remembered), **Tab** skyline, **R** restart, **F1** skip to the first climb, **F2** screen shake, **F3** sound.
+In the main game there's no step-by-step instruction text: every action is a pulsing button glyph over whoever needs to press it, with a ring that fills on hold actions. (The water tower tutorial has a coach panel that talks you through it.) **Esc** (or a pad's Start, or the Pause button on a phone) calls **smoko**: back to work (the gold default; B does it too), swap jobs, add a player (the QR), settings, start again or knock off, with your job ticket alongside and how the day's going along the bottom. Mouse: right-drag to orbit, scroll to zoom. Keys: **F11** full screen (also in the pause menu, and remembered), **Tab** skyline, **Ctrl+Shift+R** restart, **Ctrl+Shift+F1** skip to the first climb (both need Ctrl+Shift so a stray key can't throw a pour away), **F2** screen shake, **F3** sound.
 
 ![The pause menu](docs/screenshots/pause.png)
 

@@ -26,7 +26,7 @@ const TV_QUIET := ["KILL THE PUMP"]
 const BTN := {"action": "A", "leave": "B", "alt": "X", "slow": "Y"}
 const BTN_COLORS := {"A": Color("3fe0c5"), "B": Color("ff5a5f"), "X": Color("9b6bff"), "Y": Color("ffc23d")}
 ## The keyboard key behind each button, for people playing on the keys
-const KEYS := {"p1_": {"A": "Space", "B": "Q", "X": "E", "Y": "F"}, "p2_": {"A": "Enter", "B": "Shift", "X": "Ctrl", "Y": "Alt"}}
+const KEYS := {"p1_": {"A": "Space", "B": "Q", "X": "E", "Y": "F"}, "p2_": {"A": "Enter", "B": "Shift", "X": "Ctrl", "Y": "/"}}
 
 var index := 1
 var prefix := "p1_"

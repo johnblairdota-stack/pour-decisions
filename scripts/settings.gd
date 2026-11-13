@@ -19,6 +19,7 @@
 ##   vol_site, vol_band, vol_alerts   the three volumes (0..1): the site, the band, alarms
 ##   medals      the best medal (0 bronze, 1 silver, 2 gold; -1 not poured) for
 ##               each of Riverlight's floors, for the site page
+##   room_code   the four digits a phone needs to join (made on first run)
 ##   tut_done    this save's played the water tower (the site page stops picking it)
 ##   tower_started  this save's started a pour on the building (the water tower card goes)
 ##   look        the picture's style (look.gd: Site Toon, Bold Cel, Soft Clay, ...)
@@ -30,7 +31,7 @@ const DOG_HELP_NAMES := ["First Day", "On Site", "Ticketed"]
 const GOLD_NAMES := ["fades as you learn", "full sparkle", "off"]
 const GRAPHICS_NAMES := ["Full", "Lite"]
 
-static var data := {"incidents": 1, "ui_scale": 1.25, "world_text": 1.25, "docket_help": false, "fullscreen": false, "gold_assist": true, "gold_mode": 0, "dog_help": 0, "real_names": true, "split": true, "band": true, "vol_site": 1.0, "vol_band": 1.0, "vol_alerts": 1.0, "ver": 2, "medals": [], "tut_done": false, "tower_started": false, "graphics": 0, "look": 4}
+static var data := {"incidents": 1, "ui_scale": 1.25, "world_text": 1.25, "docket_help": false, "fullscreen": false, "gold_assist": true, "gold_mode": 0, "dog_help": 0, "real_names": true, "split": true, "band": true, "vol_site": 1.0, "vol_band": 1.0, "vol_alerts": 1.0, "ver": 2, "medals": [], "tut_done": false, "tower_started": false, "graphics": 0, "look": 4, "room_code": ""}
 static var _loaded := false
 
 ## Camera test (not saved: it's for trying out the multiplayer cameras on
@@ -55,7 +56,8 @@ static func ensure() -> void:
 	if OS.has_feature("mobile"):
 		data["graphics"] = 1
 	var cf := ConfigFile.new()
-	if cf.load(PATH) == OK:
+	# (the copy from the save before, if this one won't read: medals live here)
+	if cf.load(PATH) == OK or cf.load(PATH + ".bak") == OK:
 		for k in data.keys():
 			data[k] = cf.get_value("game", k, data[k])
 		# Settings saved before screen text defaulted to 125% (TV-sized)
@@ -81,7 +83,14 @@ static func put(key: String, v) -> void:
 	var cf := ConfigFile.new()
 	for k in data.keys():
 		cf.set_value("game", k, data[k])
-	cf.save(PATH)
+	# (written beside it, then swapped in, keeping the last good one as .bak)
+	if cf.save(PATH + ".tmp") != OK:
+		return
+	if FileAccess.file_exists(PATH):
+		if FileAccess.file_exists(PATH + ".bak"):
+			DirAccess.remove_absolute(PATH + ".bak")
+		DirAccess.rename_absolute(PATH, PATH + ".bak")
+	DirAccess.rename_absolute(PATH + ".tmp", PATH)
 
 ## Puts the window in or out of full screen to match the setting.
 static func apply_window() -> void:

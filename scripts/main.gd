@@ -360,7 +360,7 @@ var let_burst := OS.get_cmdline_user_args().has("--letburst")
 func _setup_input() -> void:
 	var keys := {
 		"p1_": {"left": [KEY_A], "right": [KEY_D], "up": [KEY_W], "down": [KEY_S], "action": [KEY_SPACE], "alt": [KEY_E], "slow": [KEY_F], "leave": [KEY_Q]},
-		"p2_": {"left": [KEY_LEFT], "right": [KEY_RIGHT], "up": [KEY_UP], "down": [KEY_DOWN], "action": [KEY_ENTER, KEY_KP_ENTER], "alt": [KEY_CTRL], "slow": [KEY_ALT, KEY_KP_0], "leave": [KEY_SHIFT, KEY_BACKSPACE]},
+		"p2_": {"left": [KEY_LEFT], "right": [KEY_RIGHT], "up": [KEY_UP], "down": [KEY_DOWN], "action": [KEY_ENTER, KEY_KP_ENTER], "alt": [KEY_CTRL], "slow": [KEY_SLASH, KEY_KP_0], "leave": [KEY_SHIFT, KEY_BACKSPACE]},
 		"p3_": {"left": [], "right": [], "up": [], "down": [], "action": [], "alt": [], "slow": [], "leave": []},
 		"p4_": {"left": [], "right": [], "up": [], "down": [], "action": [], "alt": [], "slow": [], "leave": []},
 	}
@@ -391,12 +391,18 @@ func _setup_input() -> void:
 				jb.button_index = b
 				InputMap.action_add_event(act_name, jb)
 		device += 1
-	for pair in [["skyline", KEY_TAB], ["restart", KEY_R], ["dev_climb", KEY_F1], ["toggle_shake", KEY_F2], ["toggle_sound", KEY_F3], ["toggle_perf", KEY_F4], ["cycle_look", KEY_F6]]:
+	# Restart and skip-to-climb are dev keys: Ctrl+Shift with them, so a stray R
+	# from P1's side of the keyboard can't throw a pour away (Start again is in
+	# the pause menu).
+	for pair in [["skyline", KEY_TAB], ["restart", KEY_R, true], ["dev_climb", KEY_F1, true], ["toggle_shake", KEY_F2], ["toggle_sound", KEY_F3], ["toggle_perf", KEY_F4], ["cycle_look", KEY_F6]]:
 		if InputMap.has_action(pair[0]):
 			InputMap.erase_action(pair[0])
 		InputMap.add_action(pair[0])
 		var e := InputEventKey.new()
 		e.keycode = pair[1]
+		if pair.size() > 2:
+			e.ctrl_pressed = true
+			e.shift_pressed = true
 		InputMap.action_add_event(pair[0], e)
 
 var env: Environment
@@ -3613,7 +3619,7 @@ func _process(delta: float) -> void:
 	_swap_keys()
 	if phase == "select" or phase == "roles":
 		if is_instance_valid(selector):
-			selector.set_join(_join_text(), phones.url() if phones.running else "")
+			selector.set_join(_join_text(), phones.join_url() if phones.running else "")
 		for p in players:
 			p.begin_cues()
 			p.animate(delta)
@@ -3900,16 +3906,20 @@ func join_phone():
 
 func _join_text() -> String:
 	var t := ""
-	if phones.running and crew.humans().size() < crew.MAX_PEOPLE:
-		t = "Scan to join on your phone\n(same Wi-Fi)\n%s" % phones.url()
+	var why: String = phones.problem()
+	if why != "" and crew.humans().size() < crew.MAX_PEOPLE:
+		t = why
+		if phones.running and phones.url() != "":
+			t += "\n%s · code %s" % [phones.url(), phones.room_code]
+	elif phones.running and crew.humans().size() < crew.MAX_PEOPLE:
+		t = "Scan to join on your phone\n(same Wi-Fi)\n%s · code %s" % [phones.url(), phones.room_code]
 		# (a page that won't load is usually the firewall, or the wrong
 		# network adapter: say so, and give the other addresses to try)
 		var others: Array = phones.other_urls()
 		if not others.is_empty():
 			t += "\nNot loading? Try %s" % " or ".join(others)
 		t += "\nWindows: allow Godot through the firewall"
-	elif not phones.running and crew.humans().size() < crew.MAX_PEOPLE:
-		t = "Phones can't join: the network ports are busy"
+		t += "\nGuest Wi-Fi often blocks this: try a home network or a phone hotspot"
 	return t
 
 func _join_players() -> void:
@@ -3919,7 +3929,7 @@ func _join_players() -> void:
 			if p != null:
 				hud.toast("P%d joined: %s, %s" % [i, p.char_name, UI.ROLE_NAME[p.role].to_lower()], 2.0)
 	var open_slots: bool = crew.humans().size() < crew.MAX_PEOPLE and not autotest
-	hud.set_join(_join_text() if phase != "topout" and phase != "select" and phase != "roles" else "", phones.url() if phones.running and open_slots and phase != "topout" else "")
+	hud.set_join(_join_text() if phase != "topout" and phase != "select" and phase != "roles" else "", phones.join_url() if phones.running and open_slots and phase != "topout" else "")
 
 ## P1's number keys swap jobs on the fly (1 boom, 2 line, 3 pump, 4 poker, 5 screed, 6 hose hand).
 func _swap_keys() -> void:
