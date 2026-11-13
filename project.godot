@@ -69,6 +69,22 @@ look_ink={
 "type": "color",
 "value": Color(0, 0, 0, 0)
 }
+look_clouds={
+"type": "float",
+"value": 0.0
+}
+look_wind={
+"type": "vec2",
+"value": Vector2(0, 0)
+}
+look_base={
+"type": "float",
+"value": 0.0
+}
+look_deck={
+"type": "float",
+"value": 0.0
+}
 
 [rendering]
 

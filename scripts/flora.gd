@@ -86,6 +86,10 @@ static func mesh(sp: String) -> Mesh:
 		mat.set_shader_parameter("albedo", COLORS.get(key, Color.MAGENTA))
 		mat.set_shader_parameter("sway", sway)
 		mat.set_shader_parameter("flutter", 0.03 if key in STRAP else 0.0)
+		# (darker deep in the crown, brighter at the tips: foliage.gdshaderinc)
+		var box := m.get_aabb()
+		mat.set_shader_parameter("crown_top", maxf(box.end.y, 0.5))
+		mat.set_shader_parameter("crown_r", maxf(0.5, maxf(box.size.x, box.size.z) * 0.5))
 		m.surface_set_material(i, mat)
 	_meshes[sp] = m
 	return m

@@ -10,6 +10,7 @@ extends Node3D
 
 const CrewInfo := preload("res://scripts/roster.gd")
 const F := preload("res://scripts/factory.gd")
+const LookFx := preload("res://scripts/look_fx.gd")
 const Icons := preload("res://scripts/icons.gd")
 const CUE := preload("res://shaders/cue.gdshader")
 const PILL := preload("res://shaders/pill.gdshader")
@@ -97,6 +98,9 @@ func setup(i: int, color: Color) -> void:
 	tag_color = color
 	model = F.chibi(Color("ff7a1a"), color)
 	add_child(model)
+	# (a blob shadow at their feet, on Lite: look_fx.gd)
+	var blob := LookFx.blob(Vector2(1.0, 1.0))
+	add_child(blob)
 	hand_r = Node3D.new()
 	hand_r.position = Vector3(0, -0.46, 0)
 	model.get_node("ArmR").add_child(hand_r)

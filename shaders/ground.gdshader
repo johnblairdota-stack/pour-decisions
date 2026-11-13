@@ -29,4 +29,5 @@ void fragment() {
 	ALBEDO = ground_detail(COLOR.rgb, code, wp, px) * (1.0 - 0.3 * wet);
 	ROUGHNESS = mix(0.9, 0.3, wet);
 	SPECULAR = mix(0.25, 0.55, wet);
+	LOOK_END
 }

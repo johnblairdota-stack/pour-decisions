@@ -390,7 +390,7 @@ def main():
 	objs = [o for o in bpy.context.scene.objects]
 	print("triangles, everything:", tri_count(objs))
 	print("triangles, base body:", tri_count([o for o in objs if "hidden" not in o]))
-	export_glb(OUT)
+	export_glb(OUT, ao=True)
 	print("wrote", OUT)
 
 

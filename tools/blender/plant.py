@@ -217,7 +217,7 @@ def main():
 	for o in bpy.context.scene.objects:
 		if o.type == "MESH":
 			print("  %-12s %5d triangles" % (o.name, tri_count([o])))
-	export_glb(OUT)
+	export_glb(OUT, ao=True)
 	print("wrote", OUT)
 
 

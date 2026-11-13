@@ -20,4 +20,5 @@ void fragment() {
 	c = mix(c, tracer.rgb, yarn * 0.8);
 	ALBEDO = c;
 	ROUGHNESS = 1.0;
+	LOOK_END
 }
