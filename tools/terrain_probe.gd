@@ -20,4 +20,17 @@ func _init() -> void:
 	print("build ms ", Time.get_ticks_msec() - t0)
 	for c in root.get_children():
 		print("%-28s %-22s kids %4d verts %7d" % [c.name, c.get_class(), c.get_child_count(), _verts(c)])
+	# trees and street furniture stand on the ground
+	var off := 0
+	var n := 0
+	for c in root.get_children():
+		if c is MultiMeshInstance3D and (String(c.name).begins_with("Trees_") or String(c.name).begins_with("Street_Park")):
+			var mm := (c as MultiMeshInstance3D).multimesh
+			for i in mm.instance_count:
+				var o := mm.get_instance_transform(i).origin
+				if Terrain.covers(Vector2(o.x, o.z)):
+					n += 1
+					if absf(o.y - Terrain.y(Vector2(o.x, o.z))) > 0.1:
+						off += 1
+	print("trees and park furniture on the heightmap: %d, off the ground: %d" % [n, off])
 	quit()

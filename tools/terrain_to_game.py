@@ -74,9 +74,11 @@ ROAD_SMOOTH = 12.0   # m, the gaussian the streets' long line follows
 ROAD_EDGE = 1.5      # past the road's own width, kerb and footpath on its level
 ROAD_EASE = 6.0
 PAD_EASE = 4.0
+MAX_SLOPE = 0.3    # banks no steeper than this (rise over run)
 PARK_ZONE = 30.0     # round the 4x4 park's tracks and challenges: the ground
 PARK_SMOOTH = 15.0   # smoothed out under them, so they keep their shape
 
+FINE, FINE_R = 4.0, 320.0   # ...and this one within this square of the site
 STEP = 8.0           # the ground mesh is cut along this grid
 
 
@@ -172,6 +174,33 @@ def park_lines():
     return out
 
 
+def limit_slope(h, raise_low, locked=None):
+    """Banks no steeper than MAX_SLOPE: the low side built up (raise_low) or
+    the high side cut down to them; `locked` nodes stay as they are."""
+    d = math.sqrt(2.0)
+    plus = np.array([[0, 1, 0], [1, 0, 1], [0, 1, 0]], bool)
+    cross = np.array([[1, 0, 1], [0, 0, 0], [1, 0, 1]], bool)
+    for _ in range(60):
+        if raise_low:
+            nb = np.maximum(ndimage.grey_dilation(h, footprint=plus) - MAX_SLOPE * CELL,
+                            ndimage.grey_dilation(h, footprint=cross) - MAX_SLOPE * CELL * d)
+            nh = np.maximum(h, nb)
+        else:
+            nb = np.minimum(ndimage.grey_erosion(h, footprint=plus) + MAX_SLOPE * CELL,
+                            ndimage.grey_erosion(h, footprint=cross) + MAX_SLOPE * CELL * d)
+            nh = np.minimum(h, nb)
+        if locked is not None:
+            nh = np.where(locked, h, nh)
+        if np.abs(nh - h).max() < 0.005:
+            return nh
+        h = nh
+    return h
+
+
+def inside(p, margin):
+    return all(abs(x) < HALF - margin and abs(z) < HALF - margin for x, z in p)
+
+
 def blend(h, target, w):
     return h * (1.0 - w) + target * w
 
@@ -184,13 +213,18 @@ def build(d):
     wet = wet_mask(d)
     # the water's own nodes take the nearest dry ground (so a bridge or a bank
     # top over them sits at the bank's height), as do any holes
-    dry = have & ~wet
+    # (and so do spots the heightmap has down at the river bed that the map
+    # doesn't call water: the wharves' decks over it)
+    dry = have & ~wet & (raw > 0.0)
     idx = ndimage.distance_transform_edt(~dry, return_distances=False, return_indices=True)
     h = h[idx[0], idx[1]]
     # (narrow ditches and pits filled: the drains that matter are water in
     # the map; and LiDAR ground still has kerbs and garden walls in it)
     h = ndimage.grey_closing(h, size=(5, 5))
     h = ndimage.gaussian_filter(h, 1.0)
+    # (no cliffs: a retaining wall or a podium's edge becomes a bank no
+    # steeper than MAX_SLOPE, the low side built up to it)
+    h = limit_slope(h, raise_low=True)
     # back to 0 at the heightmap's edge
     h = blend(h, 0.0, 1.0 - smoothstep(edge / EDGE_FADE))
 
@@ -204,33 +238,6 @@ def build(d):
     zone = 1.0 - smoothstep((dist_outside(np.array(im) > 0) - PARK_ZONE) / 20.0)
     h = blend(h, ndimage.gaussian_filter(h, PARK_SMOOTH / CELL), zone)
     print("4x4 park: %d tracks and challenges" % len(lines))
-
-    # buildings, the golf course's ponds and the sports fields on level pads
-    pads = [b["pts"] for b in d["buildings"]] + [a["pts"] for a in d["areas"] if a["kind"] in ("golf_water", "pitch")]
-    for p in pads:
-        if len(p) < 3:
-            continue
-        xs = [q[0] for q in p]
-        zs = [q[1] for q in p]
-        if max(abs(min(xs)), abs(max(xs)), abs(min(zs)), abs(max(zs))) > HALF - PAD_EASE * 2:
-            continue
-        c0 = max(0, int((min(xs) + HALF) / CELL) - 6)
-        c1 = min(GRID, int((max(xs) + HALF) / CELL) + 7)
-        r0 = max(0, int((min(zs) + HALF) / CELL) - 6)
-        r1 = min(GRID, int((max(zs) + HALF) / CELL) + 7)
-        im = Image.new("L", (c1 - c0, r1 - r0), 0)
-        ImageDraw.Draw(im).polygon([((x + HALF) / CELL - c0, (z + HALF) / CELL - r0) for x, z in p], fill=1)
-        m = np.array(im) > 0
-        if not m.any():
-            continue
-        sub = h[r0:r1, c0:c1]
-        # (level with the ground just round it: under a big roof the LiDAR's
-        # ground is guesswork)
-        out = dist_outside(m)
-        ring = (out > 1.0) & (out < 8.0)
-        level = float(np.median(sub[ring] if ring.any() else sub[m]))
-        w = 1.0 - smoothstep(out / PAD_EASE)
-        h[r0:r1, c0:c1] = blend(sub, level, w)
 
     # the streets: flat across, along a long smooth line
     smooth = ndimage.gaussian_filter(h, ROAD_SMOOTH / CELL)
@@ -262,16 +269,49 @@ def build(d):
         w[sel] = wk[better]
         tgt[sel] = sm[j[better]]
     h = blend(h, tgt.reshape(h.shape), w.reshape(h.shape))
+    road_core = w.reshape(h.shape) > 0.99
 
     # the site pad and the CityCat's bank at 0
     site = np.zeros_like(h, dtype=bool)
     for x0, z0, x1, z1 in SITE:
         site |= (X >= x0) & (X <= x1) & (Z >= z0) & (Z <= z1)
-    h = blend(h, 0.0, 1.0 - smoothstep((dist_outside(site) - SITE_FLAT) / SITE_EASE))
+    site_w = 1.0 - smoothstep((dist_outside(site) - SITE_FLAT) / SITE_EASE)
+    h = blend(h, 0.0, site_w)
+    flat = site_w > 0.99
     for fe in d.get("ferry", []):
         ex, ez = fe["edge"]
         r = np.hypot(X - ex, Z - ez)
-        h = blend(h, 0.0, 1.0 - smoothstep((r - FERRY_FLAT) / FERRY_EASE))
+        fw = 1.0 - smoothstep((r - FERRY_FLAT) / FERRY_EASE)
+        h = blend(h, 0.0, fw)
+        flat |= fw > 0.99
+
+    # buildings, the golf course's ponds and the sports fields on level pads,
+    # last, so nothing tilts them; ones close together share a pad
+    pads = [b["pts"] for b in d["buildings"]] + [a["pts"] for a in d["areas"] if a["kind"] in ("golf_water", "pitch")]
+    # (two nodes past the walls all round, so every corner's on the level)
+    foot = ndimage.binary_dilation(raster([p for p in pads if len(p) >= 3 and inside(p, PAD_EASE * 3)]), iterations=2)
+    groups, n = ndimage.label(ndimage.binary_dilation(foot, iterations=int(PAD_EASE / CELL) + 1))
+    for k, sl in enumerate(ndimage.find_objects(groups)):
+        if sl is None:
+            continue
+        r0 = max(0, sl[0].start - 6)
+        r1 = min(GRID, sl[0].stop + 6)
+        c0 = max(0, sl[1].start - 6)
+        c1 = min(GRID, sl[1].stop + 6)
+        m = foot[r0:r1, c0:c1] & (groups[r0:r1, c0:c1] == k + 1)
+        if not m.any():
+            continue
+        sub = h[r0:r1, c0:c1]
+        # (level with the ground just round it: under a big roof the LiDAR's
+        # ground is guesswork)
+        out = dist_outside(m)
+        ring = (out > 1.0) & (out < 8.0)
+        level = float(np.median(sub[ring] if ring.any() else sub[m]))
+        w = 1.0 - smoothstep(out / PAD_EASE)
+        h[r0:r1, c0:c1] = blend(sub, level, w)
+    print("pads: %d groups" % n)
+    # (and where a pad or a street's cut into a bank, the bank cut back)
+    h = limit_slope(h, raise_low=False, locked=foot | road_core | flat | wet)
 
     low = (h < DRY_MIN) & ~wet
     print("dry nodes lifted to %.1f: %d (%.1f%%)" % (DRY_MIN, low.sum(), 100.0 * low.mean()))
@@ -306,16 +346,33 @@ def clip_poly(poly, axis, val, keep_less):
 
 
 def cut_tri(tri):
-    """A triangle cut into pieces along the STEP grid (convex polygons)."""
+    """A triangle cut into pieces along the grid (convex polygons): FINE m
+    lines near the site, STEP m further out."""
     xs = [p[0] for p in tri]
     zs = [p[1] for p in tri]
+    near = max(max(abs(x), abs(z)) for x, z in tri) <= FINE_R
+    far = min(max(abs(x), abs(z)) for x, z in tri) >= FINE_R
+    if near or far:
+        return _cut(tri, FINE if near else STEP)
+    # (straddling the edge of the fine square: cut at the square first)
     out = []
-    for gx in range(int(math.floor(min(xs) / STEP)), int(math.floor(max(xs) / STEP)) + 1):
-        col = clip_poly(clip_poly(tri, 0, gx * STEP, False), 0, (gx + 1) * STEP, True)
+    for piece in _cut(tri, FINE_R * 2.0, -FINE_R):
+        cx = sum(p[0] for p in piece) / len(piece)
+        cz = sum(p[1] for p in piece) / len(piece)
+        out += _cut(piece, FINE if max(abs(cx), abs(cz)) < FINE_R else STEP)
+    return out
+
+
+def _cut(poly, step, offset=0.0):
+    xs = [p[0] for p in poly]
+    zs = [p[1] for p in poly]
+    out = []
+    for gx in range(int(math.floor((min(xs) - offset) / step)), int(math.floor((max(xs) - offset) / step)) + 1):
+        col = clip_poly(clip_poly(poly, 0, offset + gx * step, False), 0, offset + (gx + 1) * step, True)
         if len(col) < 3:
             continue
-        for gz in range(int(math.floor(min(zs) / STEP)), int(math.floor(max(zs) / STEP)) + 1):
-            piece = clip_poly(clip_poly(col, 1, gz * STEP, False), 1, (gz + 1) * STEP, True)
+        for gz in range(int(math.floor((min(zs) - offset) / step)), int(math.floor((max(zs) - offset) / step)) + 1):
+            piece = clip_poly(clip_poly(col, 1, offset + gz * step, False), 1, offset + (gz + 1) * step, True)
             if len(piece) >= 3:
                 out.append(piece)
     return out
