@@ -2,6 +2,7 @@
 // see-through dither further off so it never shimmers.
 shader_type spatial;
 render_mode diffuse_toon, specular_toon, cull_disabled;
+#include "res://shaders/look.gdshaderinc"
 
 uniform vec4 wire : source_color = vec4(0.73, 0.76, 0.79, 1.0);
 uniform float pitch = 0.06;      // diamond size, m
@@ -18,6 +19,7 @@ void vertex() {
 }
 
 void fragment() {
+	lk_rim = 0.0;
 	float u = abs(wnorm.x) > abs(wnorm.z) ? wpos.z : wpos.x;
 	vec2 q = vec2(u + wpos.y, u - wpos.y) / pitch;
 	vec2 f = abs(fract(q) - 0.5);

@@ -3,6 +3,7 @@
 // concrete plinth along the bottom and, every so often, a roller door.
 shader_type spatial;
 render_mode diffuse_toon, specular_toon;
+#include "res://shaders/look.gdshaderinc"
 
 uniform vec4 plinth : source_color = vec4(0.72, 0.71, 0.68, 1.0);
 uniform vec4 door : source_color = vec4(0.55, 0.58, 0.61, 1.0);
@@ -22,6 +23,7 @@ void vertex() {
 }
 
 void fragment() {
+	lk_rim = 0.0;
 	vec3 wall = pow(COLOR.rgb, vec3(2.2));
 	// along the wall: whichever of x and z it runs along most
 	float u = abs(wnorm.x) > abs(wnorm.z) ? wpos.z : wpos.x;

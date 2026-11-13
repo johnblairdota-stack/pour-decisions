@@ -1,6 +1,7 @@
 // toon.gdshader with the see-through circle round the work cut out of it.
 shader_type spatial;
 render_mode diffuse_toon, specular_toon;
+#include "res://shaders/look.gdshaderinc"
 
 #include "res://shaders/cutaway.gdshaderinc"
 
@@ -15,7 +16,6 @@ void fragment() {
 	ALBEDO = albedo.rgb;
 	ROUGHNESS = 0.85;
 	SPECULAR = 0.2;
-	RIM = rim_amount;
-	RIM_TINT = 0.6;
+	lk_rim = rim_amount;
 	EMISSION = emission_color.rgb;
 }
