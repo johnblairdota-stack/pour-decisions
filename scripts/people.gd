@@ -10,6 +10,7 @@ const PerfClock := preload("res://scripts/perf.gd")
 
 const F := preload("res://scripts/factory.gd")
 const Water := preload("res://scripts/water.gd")
+const Terrain := preload("res://scripts/terrain.gd")
 const LIB := "res://assets/people/people.glb"
 const NEAR := 450.0          # paths this close to the site get people
 const SEE := 320.0           # nobody's drawn or animated further from the camera than this
@@ -363,15 +364,18 @@ func _step(w: Dictionary, delta: float, eye: Vector3) -> void:
 	p += off
 	var yaw := atan2(fwd.x, fwd.y)
 	w["yaw"] = lerp_angle(float(w["yaw"]), yaw, minf(1.0, delta * 5.0))
+	# (on the real ground: scripts/terrain.gd)
+	var gy := Terrain.y(p)
+	w["gy"] = gy
 	if far:
-		n.position = Vector3(p.x, 0, p.y)
+		n.position = Vector3(p.x, gy, p.y)
 		return
 	var ry: float = w["yaw"]
 	var dir3 := Vector3(sin(ry), 0, cos(ry))
 	match kind:
 		"bike":
 			var bk: Node3D = w["bike"]
-			bk.position = Vector3(p.x, 0, p.y)
+			bk.position = Vector3(p.x, gy, p.y)
 			bk.rotation.y = ry
 			n.position = bk.position + dir3 * -0.2 + Vector3(0, 0.55, 0)
 			n.rotation = Vector3(0.22, ry, 0)
@@ -385,18 +389,18 @@ func _step(w: Dictionary, delta: float, eye: Vector3) -> void:
 			return
 		"pram":
 			var pr: Node3D = w["pram"]
-			pr.position = Vector3(p.x, 0, p.y) + dir3 * 0.85
+			pr.position = Vector3(p.x, gy, p.y) + dir3 * 0.85
 			pr.rotation.y = ry
 		"dog":
 			var dg: Node3D = w["dog"]
 			var side := Vector3(dir3.z, 0, -dir3.x) * float(w["side"]) * 0.5
-			dg.position = Vector3(p.x, 0, p.y) + dir3 * 1.0 + side
+			dg.position = Vector3(p.x, gy, p.y) + dir3 * 1.0 + side
 			dg.rotation.y = ry
 			var dp := float(w["phase"]) * 1.6
 			for lg in [["LegFL", 0.0], ["LegBR", 0.0], ["LegFR", PI], ["LegBL", PI]]:
 				(dg.get_node(lg[0]) as Node3D).rotation.x = sin(dp + float(lg[1])) * 0.55
 			(dg.get_node("Tail") as Node3D).rotation.y = sin(_t * 9.0) * 0.6
-	n.position = Vector3(p.x, 0, p.y)
+	n.position = Vector3(p.x, gy, p.y)
 	n.rotation = Vector3(0.12 if kind == "jog" else 0.0, ry, 0)
 	_pose(w, v, delta)
 
@@ -418,7 +422,7 @@ func _pose(w: Dictionary, v: float, delta: float) -> void:
 		"jog":
 			al.rotation.x = -0.9 - sin(ph) * 0.6
 			ar.rotation.x = -0.9 + sin(ph) * 0.6
-			n.position.y = absf(sin(ph)) * 0.08
+			n.position.y = float(w.get("gy", 0.0)) + absf(sin(ph)) * 0.08
 		"pram":
 			al.rotation.x = -1.1
 			ar.rotation.x = -1.1

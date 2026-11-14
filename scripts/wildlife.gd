@@ -12,6 +12,7 @@ const PerfClock := preload("res://scripts/perf.gd")
 const F := preload("res://scripts/factory.gd")
 const Water := preload("res://scripts/water.gd")
 const Flora := preload("res://scripts/flora.gd")
+const Terrain := preload("res://scripts/terrain.gd")
 const LIB := "res://assets/wildlife/wildlife.glb"
 const NEAR := 380.0          # where the ground animals live
 const SEE := 260.0           # and how far off they're drawn
@@ -380,7 +381,7 @@ func _walk(w: Dictionary, delta: float, eye: Vector3) -> void:
 		return
 	var step := minf(gap.length(), float(w["speed"]) * delta)
 	at += gap.normalized() * step
-	n.position = Vector3(at.x, 0, at.y)
+	n.position = Vector3(at.x, Terrain.y(at), at.y)
 	n.rotation.y = lerp_angle(n.rotation.y, atan2(gap.x, gap.y), minf(1.0, delta * 6.0))
 	var stride := _t * float(w["speed"]) * 18.0
 	(n.get_node("LegL") as Node3D).rotation.x = sin(stride) * 0.5

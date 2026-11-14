@@ -20,6 +20,7 @@ const Cars := preload("res://scripts/cars.gd")
 const CityCat := preload("res://scripts/citycat.gd")
 const Fences := preload("res://scripts/fences.gd")
 const Wildlife := preload("res://scripts/wildlife.gd")
+const Terrain := preload("res://scripts/terrain.gd")
 
 const DATA := "res://data/riverlight_osm.json"
 const SKYLINE := "res://data/riverlight_skyline.json"   # tools/skyline_to_game.py
@@ -75,17 +76,13 @@ const CONTAINERS := [Color("b04a3a"), Color("2f5f8f"), Color("6f7a72"), Color("c
 
 static func build(root: Node3D) -> void:
 	var ground := MeshInstance3D.new()
-	var pm := PlaneMesh.new()
-	pm.size = Vector2(40000, 40000)
-	ground.mesh = pm
+	ground.mesh = _base_mesh()
 	var gm := ShaderMaterial.new()
 	gm.shader = preload("res://shaders/base_ground.gdshader")
 	gm.set_shader_parameter("albedo", F.COLORS["grass"])
 	gm.set_shader_parameter("wet", load(MASK))
 	ground.material_override = gm
-	# (sunk a little: with the camera reaching 16 km the map's own ground,
-	# 2 cm up, would fight it for the depth buffer)
-	ground.position.y = -0.4
+	ground.set_meta("no_drape", true)
 	root.add_child(ground)
 	# (the trucks' site road is part of the map's road surface, joined to the
 	# streets at each end: tools/osm_to_game.py SITE_ROAD)
@@ -121,6 +118,10 @@ static func build(root: Node3D) -> void:
 		var grass := func(p: Vector2) -> bool: return _street_ok(p) and not _on_road(p, roads, 1.0) and not _is_taken(p, taken, 1.5)
 		Wildlife.build(root, d, grass, _seeded(12))
 		_lamps(root, d)
+		# everything so far was laid out on flat ground: onto the real ground
+		# with it (scripts/terrain.gd); the far haze and the skyline find the
+		# ground themselves, the bridge and the CityCat terminal are pinned
+		Terrain.drape(root)
 		_haze_ring(root, d, rng)
 		_gateway(root, d)
 		for fe in d.get("ferry", []):
@@ -166,11 +167,16 @@ static func _ground(root: Node3D, d: Dictionary) -> void:
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var wt := SurfaceTool.new()
 	wt.begin(Mesh.PRIMITIVE_TRIANGLES)
+	# (the dry ground already cut to follow the real ground and set at its
+	# heights, by tools/terrain_to_game.py; the water from the map, flat)
+	var baked := _ground_3d()
 	for g in d.get("ground", []):
 		var kind: String = g["kind"]
 		var wet := kind in ["water", "drain"]
+		if not wet and baked.has(kind):
+			continue
 		var t: SurfaceTool = wt if wet else st
-		t.set_color(Color.WHITE if wet else (ROAD if kind == "road" else (PATH if kind == "path" else AREA.get(kind, ROAD))))
+		t.set_color(Color.WHITE if wet else _ground_color(kind))
 		t.set_normal(Vector3.UP)
 		if not wet:
 			t.set_uv(Vector2(SURFACE.get(kind, 0), 0))
@@ -178,31 +184,219 @@ static func _ground(root: Node3D, d: Dictionary) -> void:
 		for i in range(0, tris.size() - 5, 6):
 			for k in 3:
 				t.add_vertex(Vector3(tris[i + k * 2], RIVER_Y if wet else GROUND_Y, tris[i + k * 2 + 1]))
-	st.set_uv(Vector2.ZERO)
+	var land := MeshInstance3D.new()
+	land.mesh = st.commit()
+	for kind in baked:
+		_baked_surface(land.mesh as ArrayMesh, kind, baked[kind])
+	land.material_override = ground_mat()
+	land.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	land.set_meta("no_drape", true)
+	root.add_child(land)
+	# the piers and the banks, laid out flat like everything else and draped
+	# onto the ground after (the banks' feet stay down in the river)
+	var bt := SurfaceTool.new()
+	bt.begin(Mesh.PRIMITIVE_TRIANGLES)
+	bt.set_uv(Vector2.ZERO)
 	for pr in piers(d):
 		var line: PackedVector2Array
 		if pr.has("pts"):
 			line = _v2(pr["pts"])
-			_flat(st, line, 0.3, Color("9a968c"))
+			_flat(bt, line, 0.3, Color("9a968c"))
 		else:
 			line = _v2(pr["line"])
-			_ribbon(st, line, pr["w"], 0.3, Color("9a968c"), false)
+			_ribbon(bt, line, pr["w"], 0.3, Color("9a968c"), false)
 		# on piles down into the river
 		for i in line.size() - 1:
 			var n := maxi(1, ceili(line[i].distance_to(line[i + 1]) / 6.0))
 			for k in n:
-				_post(st, line[i].lerp(line[i + 1], float(k) / n), 0.3, RIVER_Y - 0.5, 0.18, Color("5a5650"))
-	_banks(st)
-	var land := MeshInstance3D.new()
-	land.mesh = st.commit()
-	land.material_override = ground_mat()
-	land.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	root.add_child(land)
+				_post(bt, line[i].lerp(line[i + 1], float(k) / n), 0.3, RIVER_Y - 0.5, 0.18, Color("5a5650"))
+	_banks(bt)
+	var banks := MeshInstance3D.new()
+	banks.name = "Banks"
+	banks.mesh = bt.commit()
+	banks.material_override = ground_mat()
+	banks.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	banks.set_meta("drape_vertices", true)
+	root.add_child(banks)
 	var water := MeshInstance3D.new()
 	water.mesh = wt.commit()
 	water.material_override = _water()
 	water.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	water.set_meta("no_drape", true)
 	root.add_child(water)
+
+static func _ground_color(kind: String) -> Color:
+	return ROAD if kind == "road" else (PATH if kind == "path" else AREA.get(kind, ROAD))
+
+## data/ground_3d.bin (tools/terrain_to_game.py): {kind: [corners, normals,
+## indices]}, each kind's triangles and the ground's lean at each corner, or
+## {} if it's not there.
+static func _ground_3d() -> Dictionary:
+	var out := {}
+	if not FileAccess.file_exists(Terrain.GROUND) or not Terrain.ready():
+		return out
+	var b := FileAccess.get_file_as_bytes(Terrain.GROUND)
+	var at := 4
+	for k in b.decode_u32(0):
+		var nl := b[at]
+		var kind := b.slice(at + 1, at + 1 + nl).get_string_from_utf8()
+		at += 1 + nl
+		var nv := b.decode_u32(at)
+		var ni := b.decode_u32(at + 4)
+		at += 8
+		var f := b.slice(at, at + nv * 12).to_float32_array()
+		at += nv * 12
+		var g := b.slice(at, at + nv * 8).to_float32_array()
+		at += nv * 8
+		var idx := b.slice(at, at + ni * 4).to_int32_array()
+		at += ni * 4
+		var v := PackedVector3Array()
+		v.resize(nv)
+		var nrm := PackedVector3Array()
+		nrm.resize(nv)
+		for i in nv:
+			v[i] = Vector3(f[i * 3], f[i * 3 + 1] + GROUND_Y, f[i * 3 + 2])
+			var nx := g[i * 2]
+			var nz := g[i * 2 + 1]
+			nrm[i] = Vector3(nx, sqrt(maxf(1.0 - nx * nx - nz * nz, 0.0)), nz)
+		out[kind] = [v, nrm, idx]
+	return out
+
+## One kind of baked ground as a surface of `mesh`, coloured and textured as
+## the flat ground was, lit by the ground's own lean (smooth across the
+## triangles: on the hills, flat-lit triangles read as facets).
+static func _baked_surface(mesh: ArrayMesh, kind: String, b: Array) -> void:
+	var v: PackedVector3Array = b[0]
+	var n := v.size()
+	var col := PackedColorArray()
+	col.resize(n)
+	col.fill(_ground_color(kind))
+	var uv := PackedVector2Array()
+	uv.resize(n)
+	uv.fill(Vector2(SURFACE.get(kind, 0), 0))
+	var arr := []
+	arr.resize(Mesh.ARRAY_MAX)
+	arr[Mesh.ARRAY_VERTEX] = v
+	arr[Mesh.ARRAY_NORMAL] = b[1]
+	arr[Mesh.ARRAY_COLOR] = col
+	arr[Mesh.ARRAY_TEX_UV] = uv
+	arr[Mesh.ARRAY_INDEX] = b[2]
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+
+## The grass under the whole world (where the map's ground leaves a gap, and
+## everything past it out to 20 km): square rings of a grid on the real
+## ground, finer in the middle, each a little under it (with the camera
+## reaching 16 km the map's own ground would fight it for the depth buffer).
+## [inner, outer, step, sink]: each edge a whole number of both rings' steps.
+const BASE_RINGS := [[0.0, 816.0, 8.0, 0.5], [816.0, 2592.0, 24.0, 1.0], [2592.0, 6048.0, 72.0, 0.5],
+	[6048.0, 16128.0, 288.0, 0.5], [16128.0, 20160.0, 4032.0, 0.5]]
+const SKIRT := 4.0     # hung down each ring's edges, over any crack between them
+
+## How far the grass is under the real ground at `p` (BASE_RINGS).
+static func base_sink(p: Vector2) -> float:
+	var r := maxf(absf(p.x), absf(p.y))
+	for ring in BASE_RINGS:
+		if r < ring[1]:
+			return ring[3]
+	return 0.5
+
+## Where something stands out past the map (a house in the haze, a tree):
+## on the grass, at the lowest of the ground round it, so on a hill no side
+## of it floats.
+static func base_y(p: Vector2, r := 5.0) -> float:
+	var y := Terrain.y(p)
+	for o in [Vector2(r, 0), Vector2(-r, 0), Vector2(0, r), Vector2(0, -r)]:
+		y = minf(y, Terrain.y(p + o))
+	return y - base_sink(p)
+
+static func _base_mesh() -> ArrayMesh:
+	var verts := PackedVector3Array()
+	var nrms := PackedVector3Array()
+	var idx := PackedInt32Array()
+	for ring in BASE_RINGS:
+		_base_ring(verts, nrms, idx, ring[0], ring[1], ring[2], ring[3])
+	var arr := []
+	arr.resize(Mesh.ARRAY_MAX)
+	arr[Mesh.ARRAY_VERTEX] = verts
+	arr[Mesh.ARRAY_NORMAL] = nrms
+	arr[Mesh.ARRAY_INDEX] = idx
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+	return mesh
+
+## One ring of the grass: the lattice from -outer to outer, `step` apart,
+## less the square hole inside `inner`; a skirt down round both its edges.
+static func _base_ring(verts: PackedVector3Array, nrms: PackedVector3Array, idx: PackedInt32Array,
+		inner: float, outer: float, step: float, sink: float) -> void:
+	var n := int(round(outer * 2.0 / step))
+	var hole := int(round((outer - inner) / step))    # lattice index where the hole starts
+	var ys := PackedFloat32Array()
+	ys.resize((n + 1) * (n + 1))
+	var at := PackedInt32Array()
+	at.resize((n + 1) * (n + 1))
+	at.fill(-1)
+	var cut := inner > 0.0
+	for j in n + 1:
+		for i in n + 1:
+			if cut and (i > hole and i < n - hole) and (j > hole and j < n - hole):
+				continue
+			ys[j * (n + 1) + i] = Terrain.y(Vector2(-outer + i * step, -outer + j * step)) - sink
+	for j in n + 1:
+		for i in n + 1:
+			if cut and (i > hole and i < n - hole) and (j > hole and j < n - hole):
+				continue
+			var k := j * (n + 1) + i
+			# (its lean from the lattice either side, one-sided at an edge)
+			var i0 := i - 1 if i > 0 and not (cut and ((i - 1) > hole and (i - 1) < n - hole) and (j > hole and j < n - hole)) else i
+			var i1 := i + 1 if i < n and not (cut and ((i + 1) > hole and (i + 1) < n - hole) and (j > hole and j < n - hole)) else i
+			var j0 := j - 1 if j > 0 and not (cut and (i > hole and i < n - hole) and ((j - 1) > hole and (j - 1) < n - hole)) else j
+			var j1 := j + 1 if j < n and not (cut and (i > hole and i < n - hole) and ((j + 1) > hole and (j + 1) < n - hole)) else j
+			var dx := (ys[j * (n + 1) + i1] - ys[j * (n + 1) + i0]) / maxf((i1 - i0) * step, 0.001)
+			var dz := (ys[j1 * (n + 1) + i] - ys[j0 * (n + 1) + i]) / maxf((j1 - j0) * step, 0.001)
+			at[k] = verts.size()
+			verts.append(Vector3(-outer + i * step, ys[k], -outer + j * step))
+			nrms.append(Vector3(-dx, 1.0, -dz).normalized())
+	for j in n:
+		for i in n:
+			var a := at[j * (n + 1) + i]
+			var b := at[j * (n + 1) + i + 1]
+			var c := at[(j + 1) * (n + 1) + i + 1]
+			var e := at[(j + 1) * (n + 1) + i]
+			if a < 0 or b < 0 or c < 0 or e < 0:
+				continue
+			if cut and i >= hole and i < n - hole and j >= hole and j < n - hole:
+				continue    # (a cell of the hole, its corners all on its edge)
+			idx.append_array([a, b, c, a, c, e])
+	# skirts: round the outside, and round the hole
+	var edges := [[0, n]]
+	if inner > 0.0:
+		edges.append([hole, n - hole])
+	for ed in edges:
+		var lo: int = ed[0]
+		var hi: int = ed[1]
+		var loop: Array = []
+		for i in range(lo, hi):
+			loop.append(Vector2i(i, lo))
+		for j in range(lo, hi):
+			loop.append(Vector2i(hi, j))
+		for i in range(hi, lo, -1):
+			loop.append(Vector2i(i, hi))
+		for j in range(hi, lo, -1):
+			loop.append(Vector2i(lo, j))
+		for q in loop.size():
+			var p0: Vector2i = loop[q]
+			var p1: Vector2i = loop[(q + 1) % loop.size()]
+			var ta := at[p0.y * (n + 1) + p0.x]
+			var tb := at[p1.y * (n + 1) + p1.x]
+			if ta < 0 or tb < 0:
+				continue
+			var base := verts.size()
+			verts.append(verts[ta] + Vector3.DOWN * SKIRT)
+			verts.append(verts[tb] + Vector3.DOWN * SKIRT)
+			nrms.append(nrms[ta])
+			nrms.append(nrms[tb])
+			# (both faces: seen from in or out)
+			idx.append_array([ta, tb, base + 1, ta, base + 1, base, ta, base + 1, tb, ta, base, base + 1])
 
 ## The map's piers and jetties, less the one OSM draws where the CityCat
 ## terminal is: citycat.gd builds that gangway and pontoon itself, lower
@@ -329,7 +523,7 @@ static func _buildings(root: Node3D, d: Dictionary, rng: RandomNumberGenerator) 
 	root.add_child(mi)
 	return Neighbours.build(root, rng)
 
-static func _extrude(st: SurfaceTool, poly: PackedVector2Array, h: float, wall: Color, roof: Color) -> void:
+static func _extrude(st: SurfaceTool, poly: PackedVector2Array, h: float, wall: Color, roof: Color, y0 := 0.0) -> void:
 	# Which way round the ring goes decides which side of each wall is out
 	var area := 0.0
 	for i in poly.size():
@@ -344,8 +538,8 @@ static func _extrude(st: SurfaceTool, poly: PackedVector2Array, h: float, wall: 
 		var e := (b - a).normalized()
 		var out := Vector3(e.y, 0, -e.x) * turn
 		st.set_normal(out)
-		for q in [Vector3(a.x, 0, a.y), Vector3(b.x, 0, b.y), Vector3(b.x, h, b.y),
-				Vector3(a.x, 0, a.y), Vector3(b.x, h, b.y), Vector3(a.x, h, a.y)]:
+		for q in [Vector3(a.x, y0, a.y), Vector3(b.x, y0, b.y), Vector3(b.x, h, b.y),
+				Vector3(a.x, y0, a.y), Vector3(b.x, h, b.y), Vector3(a.x, h, a.y)]:
 			st.add_vertex(q)
 	_flat(st, poly, h, roof)
 
@@ -965,10 +1159,11 @@ static func _haze_ring(root: Node3D, d: Dictionary, rng: RandomNumberGenerator) 
 				break
 		if wet:
 			continue
+		var y := base_y(p)
 		if i % 3 == 0:
-			trees.append(Vector3(p.x, 0, p.y))
+			trees.append(Vector3(p.x, y, p.y))
 		else:
-			houses.append(Vector3(p.x, 0, p.y))
+			houses.append(Vector3(p.x, y, p.y))
 	_house_field(root, houses, rng)
 	var plant: Array = []
 	for t in trees:
@@ -1035,7 +1230,8 @@ static func _vertex_mat() -> StandardMaterial3D:
 ## The real skyline out to the city: every building 18 m and up from the map
 ## (the CBD and Kangaroo Point 6-7 km up the river, Newstead and Teneriffe,
 ## Portside, Bulimba), the river through its bends to the city, far
-## landmarks and the hills behind. Vertex coloured, windows from the shader.
+## landmarks, all on the real ground (scripts/terrain.gd), the hills behind
+## being the ground itself. Vertex coloured, windows from the shader.
 static func _skyline(root: Node3D, rng: RandomNumberGenerator) -> void:
 	if not FileAccess.file_exists(SKYLINE):
 		push_warning("surrounds: %s missing, no skyline" % SKYLINE)
@@ -1048,7 +1244,15 @@ static func _skyline(root: Node3D, rng: RandomNumberGenerator) -> void:
 		if poly.size() < 3:
 			continue
 		var c := Color(t["c"])
-		_extrude(st, poly, float(t["h"]), c, c.darkened(0.12))
+		# (on the real ground: walls from the lowest of it under the
+		# footprint, the roof its height over the middle)
+		var lo := INF
+		var mid := Vector2.ZERO
+		for q in poly:
+			lo = minf(lo, Terrain.y(q))
+			mid += q
+		var top := Terrain.y(mid / poly.size()) + float(t["h"])
+		_extrude(st, poly, top, c, c.darkened(0.12), lo - 1.0)
 	var towers := MeshInstance3D.new()
 	towers.mesh = st.commit()
 	var m := F.window_mat(Color.WHITE, 0.0, 0.0)
@@ -1070,12 +1274,12 @@ static func _skyline(root: Node3D, rng: RandomNumberGenerator) -> void:
 	water.material_override = _water()
 	water.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	root.add_child(water)
-	# Suburbs: houses and trees thinning out to the edge of the haze, up over
-	# the hills
-	var hills: Array = d.get("hills", [])
+	# Suburbs: houses and trees thinning out to the edge of the haze, over
+	# the real hills; up on the ridges (Hamilton, Ascot, Bulimba, Mt Gravatt)
+	# Brisbane's leafy streets, thick with trees
 	var houses: Array = []
 	var trees: Array = []
-	for i in 9000:
+	for i in 11000:
 		var ang := rng.randf() * TAU
 		var r := sqrt(rng.randf_range(FAR * FAR, CITY * CITY))
 		var p := Vector2(cos(ang), sin(ang)) * r
@@ -1086,43 +1290,17 @@ static func _skyline(root: Node3D, rng: RandomNumberGenerator) -> void:
 				break
 		if not dry:
 			continue
-		var y := _hill_y(hills, p) - 0.5
-		if i % 3 == 0:
+		var y := base_y(p)
+		var leafy := clampf((Terrain.y(p) - 8.0) / 25.0, 0.0, 0.6)
+		if i % 3 == 0 or rng.randf() < leafy:
 			trees.append(Vector3(p.x, y, p.y))
 		else:
 			houses.append(Vector3(p.x, y, p.y))
-	# The Hamilton ridge close by is leafy streets: thick with trees
-	for h in hills:
-		var r := float(h["r"])
-		if r > 1200.0:
-			continue
-		var c := Vector2(h["at"][0], h["at"][1])
-		for i in int(r * r / 900.0):
-			var p := c + Vector2.from_angle(rng.randf() * TAU) * sqrt(rng.randf()) * r
-			var y := _hill_y(hills, p) - 0.5
-			if i % 4 == 0:
-				houses.append(Vector3(p.x, y, p.y))
-			else:
-				trees.append(Vector3(p.x, y, p.y))
 	_house_field(root, houses, rng)
 	var plant: Array = []
 	for t in trees:
 		plant.append([Flora.pick("suburb", rng), t])
 	Flora.plant(root, plant, rng)
-	# Hills: soft green mounds (Mt Coot-tha, Mt Gravatt, the Hamilton ridge)
-	for h in hills:
-		var mound := MeshInstance3D.new()
-		var sm := SphereMesh.new()
-		sm.radius = float(h["r"])
-		sm.height = float(h["h"]) * 2.0
-		sm.is_hemisphere = true
-		sm.radial_segments = 32
-		sm.rings = 8
-		mound.mesh = sm
-		mound.position = Vector3(h["at"][0], -0.3, h["at"][1])
-		mound.material_override = F.color_mat(Color(h.get("c", "5f7f4a")))
-		mound.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		root.add_child(mound)
 	# Masts and far landmarks: the TV towers on Mt Coot-tha, the airport's
 	# control tower, Riparian Plaza's mast, the crane still on Skytower
 	for t in d.get("masts", []):
@@ -1132,7 +1310,7 @@ static func _skyline(root: Node3D, rng: RandomNumberGenerator) -> void:
 			continue
 		var w := float(t.get("w", maxf(3.0, h * 0.04)))
 		var mat := F.color_mat(Color(t.get("c", "c8ccd0")))
-		var at := Vector3(t["at"][0], base, t["at"][1])
+		var at := Vector3(t["at"][0], base + Terrain.y(Vector2(t["at"][0], t["at"][1])), t["at"][1])
 		match t.get("kind", "mast"):
 			"gasholder":
 				# the gasholder's empty iron frame: posts round a ring, tied at the top
@@ -1154,16 +1332,6 @@ static func _skyline(root: Node3D, rng: RandomNumberGenerator) -> void:
 				root.add_child(F.box(Vector3(55.0, 2.5, 2.5), mat, at + Vector3(10.0, h, 0), false))
 			_:
 				root.add_child(F.box(Vector3(w, h, w), mat, at + Vector3(0, h * 0.5, 0), false))
-
-## How high the hills lift the ground at `p` (they're half ellipsoids).
-static func _hill_y(hills: Array, p: Vector2) -> float:
-	var y := 0.0
-	for h in hills:
-		var r := float(h["r"])
-		var k := p.distance_to(Vector2(h["at"][0], h["at"][1])) / r
-		if k < 1.0:
-			y = maxf(y, float(h["h"]) * sqrt(1.0 - k * k))
-	return y
 
 ## The Gateway Bridge (Sir Leo Hielscher Bridges), on the map's own line:
 ## twin concrete box girders, 1.6 km long, the deck 64.5 m over the river.

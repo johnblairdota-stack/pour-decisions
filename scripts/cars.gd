@@ -12,6 +12,7 @@ const PerfClock := preload("res://scripts/perf.gd")
 const F := preload("res://scripts/factory.gd")
 const Utes := preload("res://scripts/utes.gd")
 const ParkWays := preload("res://scripts/park_ways.gd")
+const Terrain := preload("res://scripts/terrain.gd")
 const LIB := "res://assets/cars/cars.glb"
 const ESTATE := "res://data/hamilton_reach.json"
 const TILE := 80.0
@@ -507,5 +508,9 @@ func _drive(dv: Dictionary, delta: float) -> void:
 	dv["p"] = p
 	dv["fwd"] = fwd
 	var n: Node3D = dv["node"]
-	n.position = Vector3(p.x, 0.02, p.y)
-	n.rotation.y = float(dv["yaw"])
+	# (on the real ground, nose up or down the street's grade: the streets
+	# are level across, scripts/terrain.gd)
+	var gy := Terrain.y(p)
+	var grade := (Terrain.y(p + fwd * 2.0) - Terrain.y(p - fwd * 2.0)) / 4.0
+	n.position = Vector3(p.x, gy + 0.02, p.y)
+	n.rotation = Vector3(-atan(grade), float(dv["yaw"]), 0.0)

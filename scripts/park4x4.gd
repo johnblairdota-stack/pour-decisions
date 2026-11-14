@@ -14,6 +14,7 @@ extends Node3D
 const F := preload("res://scripts/factory.gd")
 const Surrounds := preload("res://scripts/surrounds.gd")
 const ParkWays := preload("res://scripts/park_ways.gd")
+const Terrain := preload("res://scripts/terrain.gd")
 
 ## The tracks (map metres; x is west, z is north). Each way in starts at the
 ## road's edge and crosses the creek on the way (park_ways.gd).
@@ -181,8 +182,15 @@ static func _inside(f: Dictionary, p: Vector2) -> float:
 	var r2 := (l.x / a) * (l.x / a) + (l.y / float(f["b"])) * (l.y / float(f["b"]))
 	return 1.0 - r2
 
-## The ground under `p`: what a wheel or a boot stands on.
+## The ground under `p`: what a wheel or a boot stands on (on the real
+## ground, scripts/terrain.gd; outside the park, just that).
 func height(p: Vector2) -> float:
+	return Terrain.y(p) + rel_height(p)
+
+## ...how far the park's own shaping (the hill, the bog, the dam, the fords)
+## lifts or sinks it from the ground round it. The park's look is built on
+## flat ground from these and draped after (explore.gd).
+func rel_height(p: Vector2) -> float:
 	if not box.has_point(p):
 		return 0.0
 	var h := 0.0
@@ -259,6 +267,10 @@ static func _edge(p: Vector2, poly: PackedVector2Array) -> float:
 
 ## The water's surface at `p` (on the causeways and in the dam), or -99.
 func water(p: Vector2) -> float:
+	var w := rel_water(p)
+	return w + Terrain.y(p) if w > -90.0 else w
+
+func rel_water(p: Vector2) -> float:
 	if not box.has_point(p):
 		return -99.0
 	if _ford(p) > 0.02:
@@ -272,7 +284,7 @@ func water(p: Vector2) -> float:
 func surface(p: Vector2) -> String:
 	if not box.has_point(p):
 		return ""
-	if water(p) > -90.0 and height(p) < -0.1:
+	if rel_water(p) > -90.0 and rel_height(p) < -0.1:
 		return "water"
 	for f in _feat:
 		if f["kind"] != "hill" and _inside(f, p) > 0.0:
@@ -350,7 +362,7 @@ func _build_air() -> void:
 		air_posts.append(at)
 		var post := F.prop("AirPost")
 		post.name = "AirPost"
-		post.position = Vector3(at.x, height(at), at.y)
+		post.position = Vector3(at.x, rel_height(at), at.y)
 		# (dial to the track)
 		post.rotation.y = atan2(-side.x, -side.y)
 		add_child(post)
@@ -373,7 +385,7 @@ func _build_obstacles() -> void:
 			var l := _local(o, p)
 			if absf(l.x) > a + 0.5 or absf(l.y) > b + 0.5:
 				return []
-			var h := height(p)
+			var h := rel_height(p)
 			return [h + 0.03, DIRT.lerp(RUT, clampf(1.0 - h / float(o["size"]), 0.0, 1.0) * 0.6), 5])
 		mi.name = "Moguls" if o["kind"] == "moguls" else "LogStep"
 		if o["kind"] == "moguls":
@@ -420,7 +432,7 @@ func _build_obstacles() -> void:
 		var spot: Vector2 = at + dir * 3.5
 		var bd := Node3D.new()
 		bd.name = "Records"
-		bd.position = Vector3(spot.x, height(spot), spot.y)
+		bd.position = Vector3(spot.x, rel_height(spot), spot.y)
 		bd.rotation.y = atan2(-dir.x, -dir.y)
 		add_child(bd)
 		for sx: float in [-1.25, 1.25]:
@@ -443,7 +455,7 @@ func _build_obstacles() -> void:
 ## Which way's up off the ground at `p`.
 func normal(p: Vector2) -> Vector3:
 	if not box.has_point(p):
-		return Vector3.UP
+		return Terrain.normal(p)
 	var e := 0.6
 	var hx := height(p + Vector2(e, 0)) - height(p - Vector2(e, 0))
 	var hz := height(p + Vector2(0, e)) - height(p - Vector2(0, e))
@@ -510,7 +522,7 @@ func _build_hill() -> void:
 			var u := _inside(f, p)
 			if u <= -0.08:
 				return []
-			var h := height(p)
+			var h := rel_height(p)
 			var n := normal(p)
 			# (worn to dirt where it's steepest and along the climb)
 			var bare := clampf((1.0 - n.y) * 4.0, 0.0, 0.55)
@@ -598,7 +610,7 @@ static func _quad(st: SurfaceTool, c: Vector2, u: Vector2, v: Vector2, y: float,
 ## A white post banded red each 0.2 m, with the depth on a tag.
 func _depth_post(at: Vector2, tag: String) -> void:
 	var post := Node3D.new()
-	post.position = Vector3(at.x, height(at), at.y)
+	post.position = Vector3(at.x, rel_height(at), at.y)
 	add_child(post)
 	for k in 6:
 		post.add_child(F.box(Vector3(0.1, 0.2, 0.1), F.color_mat(Color("f2f0ea") if k % 2 == 0 else Color("d33a2c")),
@@ -680,7 +692,7 @@ func _pit(p: Vector2) -> bool:
 ## What you see at `p`: the hill's grass, the pits' tops, the causeway's bed
 ## (the dam's water hides what's under it).
 func _top(p: Vector2) -> float:
-	var h := height(p)
+	var h := rel_height(p)
 	for f in _feat:
 		if f["kind"] != "hill" and _inside(f, p) > -0.35:
 			return maxf(h, 0.06)
@@ -843,7 +855,7 @@ func _club_sign(at: Vector2, yaw: float) -> void:
 
 func _timber_sign(at: Vector2, yaw: float, text: String, steep: bool) -> void:
 	var s := Node3D.new()
-	s.position = Vector3(at.x, height(at), at.y)
+	s.position = Vector3(at.x, rel_height(at), at.y)
 	s.rotation.y = yaw
 	add_child(s)
 	var wood := F.color_mat(Color("8a6440"))
