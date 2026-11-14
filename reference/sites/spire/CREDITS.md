@@ -11,6 +11,7 @@ from the site download in `PourDecisions-sites/data/cbd` (not in git).
 | `dem_1m.f32.gz`, `dem_1m.json` | Ground heights, 1 m grid, metres AHD, 801 x 801, float32 little-endian, rows north to south | Queensland DEM image service (QldDem, default mix) | CC BY 4.0, (c) State of Queensland (Department of Resources) |
 | `aerial_YYYY_800m_0p5m.jpg` | Aerial photo, local frame, north up, 0.5 m/px, 1600 px (2015, 2016, 2017, 2018, 2022) | Queensland aerial orthophoto time series (Brisbane 10 cm SISP captures) | CC BY 4.0, (c) State of Queensland (Department of Resources) |
 | `aerial_YYYY_site160m_0p1m.jpg` | Close crop of the site, 160 m square, 0.1 m/px (upsampled from 0.2 m), 2015-2018 | same | same |
+| `lidar/*` | 2019 DSM, ground, class grid, hero voxels, building heights, tree tops (1.6 x 1.4 km) | Brisbane 2019 Project LiDAR (classified point cloud) via ELVIS | CC BY 4.0, (c) State of Queensland (Department of Resources) |
 | `council_spire.geojson` | Loading zones, bus stops, parking signs and lines, road hierarchy, bikeways, significant trees, parks, toilets | Brisbane City Council open data (data.brisbane.qld.gov.au) | CC BY 4.0, (c) Brisbane City Council |
 
 Attribution lines to show in the game credits:

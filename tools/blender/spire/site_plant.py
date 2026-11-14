@@ -8,12 +8,21 @@ import common as C
 import spire
 
 
-def boom(buf, x, y, deck, reach, slew_deg, ftf):
-    """Pedestal through the deck + turret + 4-section boom, unfolded over its pour area."""
+def boom(buf, x, y, deck, reach, target, ftf):
+    """Pedestal through the deck + turret + 4-section boom, slewed to `target` (x, y) on the deck and
+    folded so the end hose lands on it (never past the slab edge)."""
     buf.box(x, y, deck - ftf, 1.0, 1.0, ftf + 4.0)            # climbing pedestal through one level
     buf.box(x, y, deck + 4.0, 1.6, 1.6, 1.2)                  # turret
-    a = math.radians(slew_deg)
-    secs = [(0.30 * reach, 60.0), (0.27 * reach, 20.0), (0.25 * reach, -5.0), (0.18 * reach, -75.0)]   # ~18 m out
+    a = math.atan2(target[1] - y, target[0] - x)
+    want = min(math.hypot(target[0] - x, target[1] - y), 0.8 * reach)
+    lens = [0.30 * reach, 0.27 * reach, 0.25 * reach, 0.18 * reach]
+    best = None
+    for p1 in range(85, 10, -1):                               # fold: lift the first arm, the rest follow
+        pit = [p1, p1 - 45, p1 - 70, -85]
+        hor = sum(ln * math.cos(math.radians(pp)) for ln, pp in zip(lens, pit))
+        if best is None or abs(hor - want) < best[0]:
+            best = (abs(hor - want), pit)
+    secs = list(zip(lens, best[1]))
     p = (x, y, deck + 5.2)
     for ln, pitch in secs:
         pr = math.radians(pitch)
@@ -37,9 +46,15 @@ def build():
     # booms
     bb = C.MeshBuf()
     pedestals = []
+    areas, _ = spire.pour_areas(spire.ccw(L.tower_outline()))
     for bm in L.PLANT["booms"]:
         x, y = L.plan_to_local(*bm["plan_px"])
-        tip = boom(bb, x, y, deck, bm["reach_m"], bm["slew_deg"], ftf)
+        ring = areas[bm["pour"]]
+        target = (sum(p[0] for p in ring) / len(ring), sum(p[1] for p in ring) / len(ring))
+        if math.hypot(target[0] - x, target[1] - y) < 4.0:     # pedestal on the centroid: reach towards the far side
+            far = max(ring, key=lambda p: math.hypot(p[0] - x, p[1] - y))
+            target = (x + (far[0] - x) * 0.6, y + (far[1] - y) * 0.6)
+        tip = boom(bb, x, y, deck, bm["reach_m"], target, ftf)
         pedestals.append((x, y))
         out[bm["id"]] = {"model": bm["model"], "pour_area": bm["pour"], "xy": [round(x, 2), round(y, 2)],
                          "tip": [round(v, 2) for v in tip], "note": bm["note"]}
@@ -76,7 +91,7 @@ def build():
         lb.beam((rx, y if abs(x - rx) > abs(y - ry) else ry, deck + 0.4), (x, y, deck + 0.4), pr)
     objs.append(lb.object("delivery_line", col, "pipe").name)
     # hoarding round the lot, gap at the gate
-    lot = spire.lot_outline()
+    lot = spire.osm_lot()
     ring = spire.inset(lot, -0.3)
     hb = C.MeshBuf()
     n = len(ring)

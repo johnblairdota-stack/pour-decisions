@@ -65,9 +65,31 @@ third) and B, split by a construction joint of two short lines from the core fac
 
 ## Known gaps (next steps)
 
-- Floor heights are solved from the OSM height (typical 2.88 m floor to floor - low). Need a real section.
+- Floor count: LiDAR roof 136 m AHD with 40 storeys gives 2.75 m floor to floor (low). Check the real count and section.
 - The plate scale is fitted to the 2018 roof (25.5 px/m), not the drawing's scale bar (21.8 px/m).
 - Pour joint position, column grid, boom and pump spots are assumptions. Jump-form system for Spire is unknown.
-- 223 of 325 buildings have no height in OSM (12 m guess). Heights from LiDAR next.
 - Footpath width is a default (3.5 m), not measured. Kerb lines can come from council parking lines.
 - Hoist position is unknown (John doesn't know): placeholder only.
+
+## Step 4 results (2019 LiDAR)
+
+Data: 16 x 1 km tiles of the Brisbane 2019 LiDAR (ELVIS order, raw files in PourDecisions-sites, not in
+git). `tools/lidar/grid_spire.js` grids each tile (Node + laz-perf); `prep_lidar.py` makes the small
+products in `reference/sites/spire/lidar/` over `layout.LIDAR_BOX` (1.6 x 1.4 km incl. HSW and Kangaroo Pt).
+
+- Ground is now the 2019 LiDAR everywhere (`layout.ground_z`), 2 m mesh, 1 m over HSW and its cliffs.
+- Buildings: rendered as the LiDAR roofscape (1 m, solid to the ground). LOD1 prisms with LiDAR heights
+  per OSM footprint are kept hidden for the game's far LOD (`building_heights.csv`, 451 footprints).
+- Spire refit from the LiDAR: roof deck 136.0 m AHD, plant top 147.7 m; tower centred at (0.0, 4.6),
+  turned 43.0 deg; podium edge traced from the LiDAR (`spire_podium.json`), podium roof ~36 m AHD = L5,
+  so the podium is L1-L5 and the tower starts at the L6 transfer slab.
+- Story Bridge: 1 m voxels straight from the bridge points (truss, piers, approaches at true height).
+- St John's Cathedral: 0.5 m solid from its points (nave, towers, spires, buttresses).
+- Howard Smith Wharves: own module `hsw.py` (1 m LiDAR solid of the strip under the cliffs, named OSM
+  features listed in the metadata). Mid-build 2017-18 state: not built yet.
+- Trees: 9,760 tree tops from the LiDAR. River bed pushed under the water where the LiDAR saw water.
+- Booms fold over their own pour area (never past the slab edge).
+- First pass of materials + a low ENE morning sun (Eevee): `*_morning.png`.
+- Renders: `hero_bridge_hsw_clay.png` (photo to compare: my_photos/hsw/...aerial-2017-06-june),
+  `hero_hsw_lift_tower_clay.png` (photo: my_photos/hsw/hb-m-hsw-shoot2-2), `hero_cathedral_clay.png`,
+  `hero_bridge_hsw_morning.png`, `cam_ann_queen_corner_morning.png`. Photos are John's, not in git.

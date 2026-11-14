@@ -26,13 +26,17 @@ ORIGIN_MGA56 = (503046.57, 6962279.05)        # easting, northing of the origin
 ORIGIN_LATLON = (-27.4630417, 153.0308272)    # same point, GDA94/WGS84 (Nominatim for the OSM way)
 DATA_HALF = 400.0     # reference data covers x, y in [-400, 400] (an 800 m square)
 MODEL_HALF = 400.0    # the blockout covers the same square
+# 2019 LiDAR products cover a wider box (local metres x0, y0, x1, y1) so the Story Bridge, Howard Smith
+# Wharves and the Kangaroo Point cliffs are in: see prep_lidar.py and reference/sites/spire/lidar/.
+LIDAR_BOX = (-600, -900, 1000, 500)
 
 # ---------------------------------------------------------------- Spire itself
 SPIRE = {
     "osm_way": 186586603,
     "name": "Spire Residences",
     "address": "550 Queen Street, Brisbane City",
-    "height_m": 131.1,          # OSM height tag (roof); real data, not checked against drawings
+    "height_m": 131.1,          # OSM height tag = plant top (147.7 AHD, LiDAR) minus lowest ground (16.3, Clark Lane)
+    "top_ahd_lidar": 147.7,     # 2019 LiDAR: top of the roof plant/lift overrun
     "levels_pt_slabs": 43,      # suspended post-tensioned slabs (John's build notes)
     "pours_per_level": 2,
     "transfer_slab_level": 6,
@@ -56,10 +60,10 @@ TOWER_PLAN = {
     "px_per_m": 25.5,             # scale bar reads 21.8 px/m, but the 2018 roof is ~16% smaller: fitted
     # Plan +x (the straight top edge) runs along Ann St, 40.5 deg from east. Checked on the roof plan
     # vs aerial_2018: pool on the E side, plant on the NW side, pointed corner to the S.
-    "rotation_deg": 40.5,
+    "rotation_deg": 43.0,          # step 4: major axis of the 2019 LiDAR roof cells (was 40.5 from the aerial)
     # Where the plate's centroid sits in the local frame: roof centroid read from aerial_2018_site160m
     # (lean of the roof ignored, OSM outlines of the neighbours sit on their roofs too). Tuned by overlay.
-    "centre_xy": (-2.5, 2.5),
+    "centre_xy": (0.0, 4.6),       # step 4: centroid of the 2019 LiDAR roof cells (true 3D, no lean)
 }
 # Levels. Facts (John's notes): 43 suspended PT slabs, 2 pours each, L6 = 1250 mm transfer slab.
 # Not from drawings (rough, from the podium elevations and the OSM height): podium top ~11.5 m over
@@ -68,12 +72,13 @@ TOWER_PLAN = {
 LEVELS = {
     "ground_floor_m": 4.5,
     "podium_ftf_m": 3.2,
-    "podium_levels": 3,            # L1-L3 fill the whole lot (OSM footprint); tower plate from L4 up
+    "podium_levels": 5,            # step 4: LiDAR podium roof 36-40 m AHD = L5; tower plate from L6 (the transfer) up
     "transfer_level": 6,
     "slab_m": 0.20,                # typical PT slab
     "transfer_m": 1.25,
-    "top_level": 43,
-    "roof_over_top_m": 3.0,        # roof slab above L43
+    "top_level": 39,               # step 4: 40 storeys (developer: "40-level tower"); roof slab = L40 "RF"
+    "roof_slab_ahd": 136.0,        # step 4: 2019 LiDAR roof deck (cells 135-137.5 m AHD); plant tops 147.7 m
+
     "parapet_m": 1.2,
 }
 
@@ -254,9 +259,23 @@ CAMERAS = [
 STAGE_CAMERAS = [
     {"id": "stage_flyby_sw", "pos": (-120.0, -150.0, 160.0), "look_at": (-3.0, 2.0, 25.0), "lens_mm": 50.0,
      "portrait": False, "note": "high to the SW looking NE up Ann St (like the fly-by photos)"},
-    {"id": "stage_deck_nw", "pos": (-55.0, 75.0, 55.0), "look_at": (-5.0, 2.0, 20.0), "lens_mm": 35.0,
+    {"id": "stage_deck_nw", "pos": (-70.0, 85.0, 115.0), "look_at": (0.0, 4.0, 22.0), "lens_mm": 35.0,
      "portrait": False, "note": "over Ann St from the NW: gate, pump, gantry, booms on the deck"},
 ]
+# Landmark views (step 4). Matching photos (John's, not in git) named where one exists.
+HERO_CAMERAS = [
+    {"id": "hero_bridge_hsw", "pos": (520.0, -170.0, 80.0), "look_at": (600.0, 70.0, 12.0), "lens_mm": 24.0,
+     "portrait": False, "photo": "my_photos/hsw/hb-m-howardsmithwharves-aerial-2017-06-june-lowres-jpg.jpg",
+     "note": "over the river SW of HSW, looking NE at the wharf strip (y 50-100), the cliffs and the bridge's north end"},
+    {"id": "hero_hsw_lift_tower", "pos": (600.0, 62.0, 1.7), "look_at": (600.0, 112.0, 14.0), "lens_mm": 24.0,
+     "portrait": True, "shift_y": 0.15, "photo": "my_photos/hsw/hb-m-hsw-shoot2-2-lowres-jpg.jpg",
+     "note": "HSW lawn looking up at the cliff (corten lift tower in the photo; spot estimated)"},
+    {"id": "hero_cathedral", "pos": (-15.0, -35.0, 30.0), "look_at": (-80.0, -100.0, 12.0), "lens_mm": 35.0,
+     "portrait": False, "photo": "my_photos/spire/Spire-Residences street view Ann st 1.jpg (spires in the distance)",
+     "note": "raised view from the NE (over Ann St by Spire) down onto St John's Cathedral"},
+]
+MORNING = {"sun_azimuth_deg": 70.0, "sun_elevation_deg": 18.0, "sun_strength": 3.5,
+           "sky": (0.62, 0.72, 0.85), "note": "Brisbane early morning: low sun from the ENE over the river"}
 TOP_VIEW = {"half": 400.0, "aerial_year": 2016}   # top-down clay overlay: whole 800 m square, 2016 aerial
 SITE_VIEW = {"half": 80.0, "aerial_year": 2016}   # close top-down of the site (matches aerial_*_site160m)
 
@@ -375,7 +394,22 @@ def dem():
 
 
 def ground_z(x, y):
-    """Bilinear DEM height (m AHD) at local x, y."""
+    """Ground (m AHD) at local x, y: 2019 LiDAR ground (bilinear) inside LIDAR_BOX, else the old DEM."""
+    x0, y0, x1, y1 = LIDAR_BOX
+    if os.path.exists(os.path.join(REF, "lidar", "lidar.json")) and x0 + 1 <= x < x1 - 1 and y0 + 1 < y <= y1 - 1:
+        g = lidar("ground")
+        c = x - x0 - 0.5
+        r = y1 - y - 0.5
+        c0, r0 = int(c), int(r)
+        fc, fr = c - c0, r - r0
+        top = g[r0, c0] * (1 - fc) + g[r0, c0 + 1] * fc
+        bot = g[r0 + 1, c0] * (1 - fc) + g[r0 + 1, c0 + 1] * fc
+        return float(top * (1 - fr) + bot * fr)
+    return ground_z_dem2014(x, y)
+
+
+def ground_z_dem2014(x, y):
+    """Bilinear DEM height (m AHD) at local x, y (QldDem default mix, 2014 LiDAR on land)."""
     a, x0, y0, s = dem()
     c = (x - x0) / s
     r = (y0 - y) / s
@@ -499,7 +533,7 @@ def spire_levels():
     """List of levels, bottom up: name, number, kind, top-of-slab AHD, slab thickness, pours."""
     Lv = LEVELS
     base = spire_base_ahd()
-    roof = base + SPIRE["height_m"] - Lv["parapet_m"]
+    roof = Lv["roof_slab_ahd"]
     out = [{"name": "GF", "n": 0, "kind": "ground", "top_ahd": base, "slab_m": 0.3, "pours": 1}]
     z = base + Lv["ground_floor_m"]
     for n in range(1, Lv["transfer_level"] + 1):
@@ -508,8 +542,8 @@ def spire_levels():
                     "slab_m": Lv["transfer_m"] if kind == "transfer" else Lv["slab_m"], "pours": 2})
         z += Lv["podium_ftf_m"]
     z_t = out[-1]["top_ahd"]
-    n_typ = Lv["top_level"] - Lv["transfer_level"]          # L7 .. L43
-    ftf = (roof - Lv["roof_over_top_m"] - z_t) / n_typ
+    n_typ = Lv["top_level"] - Lv["transfer_level"] + 1      # L7 .. top level, then the roof slab
+    ftf = (roof - z_t) / n_typ
     for n in range(Lv["transfer_level"] + 1, Lv["top_level"] + 1):
         z_t += ftf
         out.append({"name": "L%02d" % n, "n": n, "kind": "tower", "top_ahd": round(z_t, 3),
@@ -519,3 +553,65 @@ def spire_levels():
     for lv in out:
         lv["typical_ftf_solved_m"] = round(ftf, 3)
     return out
+
+# ================================================================ 2019 LiDAR loaders (step 4)
+def lidar_header():
+    if "lidar_hdr" not in _cache:
+        _cache["lidar_hdr"] = json.load(open(os.path.join(REF, "lidar", "lidar.json"), encoding="utf-8"))
+    return _cache["lidar_hdr"]
+
+
+def lidar(name):
+    """'dsm' | 'ground' (float32 m AHD) | 'class' (uint8) over LIDAR_BOX, rows north->south, 1 m."""
+    import numpy as np
+    key = "lidar_" + name
+    if key not in _cache:
+        h = lidar_header()
+        fn, dt = {"dsm": ("dsm_1m.f32.gz", "<f4"), "ground": ("ground_1m.f32.gz", "<f4"),
+                  "class": ("class_1m.u8.gz", "u1")}[name]
+        raw = gzip.open(os.path.join(REF, "lidar", fn), "rb").read()
+        _cache[key] = np.frombuffer(raw, dt).reshape(h["rows"], h["cols"])
+    return _cache[key]
+
+
+def lidar_cell(x, y):
+    """(row, col) of the LiDAR cell holding local x, y (clamped)."""
+    x0, y0, x1, y1 = LIDAR_BOX
+    return (min(max(int(y1 - y), 0), y1 - y0 - 1), min(max(int(x - x0), 0), x1 - x0 - 1))
+
+
+def lidar_voxels(name):
+    """(int32 N x 3 voxel indices, box [E0, N0, Z0, E1, N1, Z1, size]) for a hero box."""
+    import numpy as np
+    h = lidar_header()["voxels"][name]
+    raw = gzip.open(os.path.join(REF, "lidar", "vox_%s.i32.gz" % name), "rb").read()
+    return np.frombuffer(raw, "<i4").reshape(-1, 3), h["box_mga"]
+
+
+def lidar_building_heights():
+    """{osm way id: height above ground (m)} from building_heights.csv."""
+    import csv
+    if "bh" not in _cache:
+        with open(os.path.join(REF, "lidar", "building_heights.csv"), encoding="utf-8") as f:
+            _cache["bh"] = {int(r["osm_way"]): float(r["height_m"]) for r in csv.DictReader(f)}
+    return _cache["bh"]
+
+
+def spire_podium_outline():
+    return [tuple(p) for p in json.load(open(os.path.join(REF, "lidar", "spire_podium.json")))["outline_local"]]
+
+
+def tree_points():
+    import csv
+    with open(os.path.join(REF, "lidar", "tree_points.csv"), encoding="utf-8") as f:
+        return [(float(r["x_local"]), float(r["y_local"]), float(r["height_m"]), float(r["ground_ahd"]))
+                for r in csv.DictReader(f)]
+
+
+def ground_z2019(x, y):
+    """2019 LiDAR ground (m AHD) at local x, y; falls back to the old DEM outside LIDAR_BOX."""
+    x0, y0, x1, y1 = LIDAR_BOX
+    if not (x0 <= x < x1 and y0 < y <= y1):
+        return ground_z(x, y)
+    r, c = lidar_cell(x, y)
+    return float(lidar("ground")[r, c])

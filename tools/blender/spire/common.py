@@ -32,6 +32,7 @@ COLOURS = {
     "pipe": (0.15, 0.15, 0.15, 1),
     "hoarding": (0.15, 0.35, 0.65, 1),
     "truck": (0.92, 0.92, 0.92, 1),
+    "tree": (0.35, 0.55, 0.30, 1),
     "bridge": (0.35, 0.45, 0.55, 1),
     "crane": (0.95, 0.70, 0.10, 1),
     "hoist": (0.20, 0.55, 0.85, 1),
@@ -63,6 +64,28 @@ def mesh_object(name, verts, faces, col, mat_key):
     me.from_pydata([tuple(v) for v in verts], [], [tuple(f) for f in faces])
     me.validate()
     me.update()
+    ob = bpy.data.objects.new(name, me)
+    ob.data.materials.append(material(mat_key))
+    col.objects.link(ob)
+    return ob
+
+
+def mesh_fast(name, verts, faces, col, mat_key):
+    """Big meshes from numpy: verts (N, 3) float, faces (M, k) int, all faces the same size k."""
+    import numpy as np
+    verts = np.asarray(verts, "f4")
+    faces = np.asarray(faces, "i4")
+    k = faces.shape[1]
+    me = bpy.data.meshes.new(name)
+    me.vertices.add(len(verts))
+    me.vertices.foreach_set("co", verts.ravel())
+    me.loops.add(faces.size)
+    me.loops.foreach_set("vertex_index", faces.ravel())
+    me.polygons.add(len(faces))
+    me.polygons.foreach_set("loop_start", np.arange(0, faces.size, k, dtype="i4"))
+    me.polygons.foreach_set("loop_total", np.full(len(faces), k, "i4"))
+    me.update(calc_edges=True)
+    me.validate()
     ob = bpy.data.objects.new(name, me)
     ob.data.materials.append(material(mat_key))
     col.objects.link(ob)

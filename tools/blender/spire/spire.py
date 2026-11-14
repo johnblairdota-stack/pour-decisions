@@ -67,9 +67,18 @@ def pour_areas(ring_local):
     return {"A": tolocal(a), "B": tolocal(b)}, joints
 
 
-def lot_outline():
+def osm_lot():
+    """The OSM lot / site boundary (hoarding line)."""
     o = L.osm()
     return ccw(C.clean_ring(o["line"](o["ways"][L.SPIRE["osm_way"]])))
+
+
+def lot_outline():
+    """Podium slab edge: traced from the 2019 LiDAR (step 4); the OSM lot if that is missing."""
+    try:
+        return ccw(C.clean_ring(L.spire_podium_outline()))
+    except OSError:
+        return osm_lot()
 
 
 def podium_bottom(lot):

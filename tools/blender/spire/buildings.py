@@ -1,8 +1,21 @@
-"""Building footprints from OSM, extruded to their tagged heights. Spire gets its own object."""
+"""Neighbouring buildings.
+
+- buildings (rendered): the 2019 LiDAR roofscape, every 1 m cell the LiDAR classed as building, solid
+  down to the ground. Spire, St John's Cathedral (landmarks.py) and Howard Smith Wharves (hsw.py) are
+  cut out and built by their own modules.
+- buildings_lod1 (hidden, for the game's far LOD): OSM footprints extruded to the LiDAR height
+  (p90 roof - median ground); OSM height/levels only where the LiDAR has nothing."""
 from collections import Counter
+
+import numpy as np
 
 import layout as L
 import common as C
+import heightfield as HF
+import prep_lidar as PL
+
+CATHEDRAL_WAY = 26384715
+HSW_ZONE = (380, -130, 800, 140)      # local x0, y0, x1, y1 handled by hsw.py: the strip under the cliffs, north bank
 
 
 def footprints():
@@ -20,43 +33,59 @@ def footprints():
                     yield r["id"], t, C.clean_ring(o["line"](o["ways"][m["ref"]]))
 
 
-def build():
-    col = C.collection("buildings")
-    parts, whole = [], []
+def grow(ring, k):
+    cx = sum(p[0] for p in ring) / len(ring)
+    cy = sum(p[1] for p in ring) / len(ring)
+    return [(cx + (x - cx) * k, cy + (y - cy) * k) for x, y in ring]
+
+
+def cut(mask, ring, box):
+    m, r0, c0 = PL.ring_mask(ring, box)
+    if m is not None:
+        mask[r0:r0 + m.shape[0], c0:c0 + m.shape[1]] &= ~m
+
+
+def lod1(lidar_h):
+    col = C.collection("buildings_lod1")
+    col.hide_render = True
+    col.hide_viewport = True
+    buf = C.MeshBuf()
+    src = Counter()
     for oid, t, ring in footprints():
-        if len(ring) < 3:
+        if len(ring) < 3 or oid == L.SPIRE["osm_way"]:
             continue
         cx = sum(p[0] for p in ring) / len(ring)
         cy = sum(p[1] for p in ring) / len(ring)
         if not C.in_model(cx, cy):
             continue
-        (parts if "building:part" in t and "building" not in t else whole).append((oid, t, ring, cx, cy))
-    tagged, guessed, spire = C.MeshBuf(), C.MeshBuf(), C.MeshBuf()
-    src_count = Counter()
-    skipped = 0
-    for is_part, (oid, t, ring, cx, cy) in [(False, w) for w in whole] + [(True, p) for p in parts]:
-        if not is_part and any(C.point_in_ring(px, py, ring) for _, _, _, px, py in parts):
-            skipped += 1          # drawn by its parts instead
-            continue
-        if oid == L.SPIRE["osm_way"]:
-            continue              # Spire is built by spire.py
-        h, src = L.building_height(t)
-        minh = L.tag_float(t, "min_height") or 0.0
+        if oid in lidar_h and lidar_h[oid] > 1.0:
+            h, s = lidar_h[oid], "lidar 2019"
+        else:
+            h, s = L.building_height(t)
         z0 = min(L.ground_z(x, y) for x, y in ring)
-        buf = spire if oid == L.SPIRE["osm_way"] else (guessed if src.startswith("default") else tagged)
-        buf.prism(ring, z0 - (0.5 if minh == 0 else -minh), z0 + h)
-        src_count[src.split(" x ")[0]] += 1
-    objs = []
-    for buf, name, key in ((tagged, "buildings_tagged", "building"), (guessed, "buildings_height_guess", "building_guess")):
-        ob = buf.object(name, col, key)
-        if ob:
-            objs.append(ob.name)
-    sp_ring = next(r for i, t, r in footprints() if i == L.SPIRE["osm_way"])
-    return {"module": "buildings", "objects": objs, "footprints": len(whole) + len(parts) - skipped,
-            "parents_replaced_by_parts": skipped, "height_source": dict(src_count),
-            "spire": {"ground_ahd": round(min(L.ground_z(x, y) for x, y in sp_ring), 2),
-                      "height_m": L.SPIRE["height_m"], "footprint_pts": len(sp_ring),
-                      "footprint_area_m2": round(abs(C.signed_area(sp_ring)), 1)},
-            "dsm": "none for the CBD: the QLD service (Elevation/QldDem, DEM_TimeSeries) has ground only; the 2019 LiDAR tiles for the CBD (PourDecisions-sites/data/cbd/elvis/tiles_to_order.txt) must be ordered from ELVIS",
-            "note": "Heights: OSM height tag, else OSM levels x %.1f m, else %.0f m guess (blue-grey). "
-                    "Replace the guesses once the LiDAR tiles are in." % (L.LEVEL_HEIGHT, L.DEFAULT_HEIGHT)}
+        buf.prism(ring, z0 - 0.5, z0 + h)
+        src[s.split(" x ")[0]] += 1
+    ob = buf.object("buildings_lod1_lidar_heights", col, "building")
+    return ob.name, dict(src)
+
+
+def build():
+    col = C.collection("buildings")
+    box = L.LIDAR_BOX
+    x0, y0, x1, y1 = box
+    cls = L.lidar("class")
+    mask = (cls == 3).copy()
+    cut(mask, grow(L.spire_podium_outline(), 1.1), box)
+    o = L.osm()
+    if CATHEDRAL_WAY in o["ways"]:
+        cut(mask, grow(o["line"](o["ways"][CATHEDRAL_WAY]), 1.15), box)
+    hx0, hy0, hx1, hy1 = HSW_ZONE
+    mask[int(y1 - hy1):int(y1 - hy0), int(hx0 - x0):int(hx1 - x0)] = False
+    ob, roofs, walls = HF.heightfield("buildings_lidar_roofscape", col, L.lidar("dsm"), L.lidar("ground"),
+                                      mask, x0, y1, 1.0, "building")
+    lod_name, src = lod1(L.lidar_building_heights())
+    return {"module": "buildings", "objects": [ob.name, lod_name], "roof_cells": roofs, "wall_quads": walls,
+            "lod1_height_source": src,
+            "note": "Rendered buildings are the 2019 LiDAR roofscape (1 m). LOD1 prisms (hidden) use LiDAR "
+                    "heights per OSM footprint; OSM tags only where no LiDAR roof was found. The LiDAR is "
+                    "2019: buildings finished after mid-2019 are missing, earlier demolitions are gone."}

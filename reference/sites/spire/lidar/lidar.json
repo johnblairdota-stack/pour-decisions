@@ -1,0 +1,54 @@
+{
+ "box_local": [
+  -600,
+  -900,
+  1000,
+  500
+ ],
+ "step_m": 1.0,
+ "rows": 1400,
+ "cols": 1600,
+ "order": "rows north to south, cols west to east; cell centres at (x0+c+0.5, y1-r-0.5)",
+ "voxels": {
+  "bridge_hsw": {
+   "count": 615145,
+   "box_mga": [
+    503150,
+    6961300,
+    -10,
+    503950,
+    6962600,
+    110,
+    1
+   ]
+  },
+  "cathedral": {
+   "count": 73869,
+   "box_mga": [
+    502890,
+    6962110,
+    0,
+    503040,
+    6962250,
+    80,
+    0.5
+   ]
+  },
+  "spire": {
+   "count": 49209,
+   "box_mga": [
+    503000,
+    6962240,
+    0,
+    503090,
+    6962320,
+    160,
+    0.5
+   ]
+  }
+ },
+ "voxel_order": "int32 triplets (ix, iy, iz) from the box's (E0, N0, Z0) corner in MGA56",
+ "trees": 9760,
+ "source": "Brisbane 2019 Project LiDAR (classified point cloud, 16 x 1 km tiles E 501000-505000 N 6960000-6964000, flown 2019-06/08), ordered from ELVIS; gaps from the QldDem default mix.",
+ "credit": "(c) State of Queensland (Department of Resources), CC BY 4.0"
+}

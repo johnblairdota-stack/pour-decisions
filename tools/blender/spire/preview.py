@@ -50,6 +50,53 @@ def setup(mode):
     return sc
 
 
+def setup_morning():
+    """First pass of materials + morning light (Eevee): every clay colour becomes a Principled BSDF,
+    water is glossy, a low ENE sun and a sky-coloured world."""
+    import math
+    sc = bpy.context.scene
+    eng = [e.identifier for e in bpy.types.RenderSettings.bl_rna.properties["engine"].enum_items]
+    sc.render.engine = "BLENDER_EEVEE_NEXT" if "BLENDER_EEVEE_NEXT" in eng else "BLENDER_EEVEE"
+    sc.view_settings.view_transform = "Standard"
+    sc.render.image_settings.file_format = "PNG"
+    sc.render.image_settings.color_mode = "RGB"
+    sc.render.film_transparent = False
+    for m in bpy.data.materials:
+        if not m.name.startswith("clay_"):
+            continue
+        m.use_nodes = True
+        bsdf = m.node_tree.nodes.get("Principled BSDF")
+        if bsdf is None:
+            continue
+        bsdf.inputs["Base Color"].default_value = m.diffuse_color
+        rough = {"clay_water": 0.08, "clay_screen": 0.5, "clay_spire": 0.35}.get(m.name, 0.85)
+        bsdf.inputs["Roughness"].default_value = rough
+        if m.name == "clay_water":
+            bsdf.inputs["Base Color"].default_value = (0.18, 0.22, 0.20, 1)
+    mo = L.MORNING
+    sun = bpy.data.objects.get("SUN_morning")
+    if sun is None:
+        sun = bpy.data.objects.new("SUN_morning", bpy.data.lights.new("SUN_morning", "SUN"))
+        sc.collection.objects.link(sun)
+    sun.data.energy = mo["sun_strength"]
+    sun.data.angle = math.radians(1.0)
+    az, el = math.radians(mo["sun_azimuth_deg"]), math.radians(mo["sun_elevation_deg"])
+    d = Vector((math.sin(az) * math.cos(el), math.cos(az) * math.cos(el), math.sin(el)))   # towards the sun
+    sun.rotation_euler = (-d).to_track_quat("-Z", "Y").to_euler()
+    if sc.world is None:
+        sc.world = bpy.data.worlds.new("World")
+    sc.world.use_nodes = True
+    bg = sc.world.node_tree.nodes.get("Background")
+    bg.inputs["Color"].default_value = (*mo["sky"], 1)
+    bg.inputs["Strength"].default_value = 0.35
+    try:
+        sc.eevee.taa_render_samples = 16
+        sc.eevee.use_shadows = True
+    except AttributeError:
+        pass
+    return sc
+
+
 def camera(name):
     cam = bpy.data.objects.get(name)
     if cam is None:
@@ -164,7 +211,8 @@ def cam_view(c, mode):
 def main():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     mode = "mono" if "mono" in argv else ("look" if "look" in argv else "clay")
-    what = [a for a in argv if a in ("top", "site", "fit", "slabs", "cams")] or ["top", "site", "fit", "slabs", "cams"]
+    every = ["top", "site", "fit", "slabs", "cams", "hero", "morning"]
+    what = [a for a in argv if a in every] or every
     os.makedirs(L.DOCS, exist_ok=True)
     times = {}
     # ---------------------------------------------------------------- finished tower
@@ -190,6 +238,15 @@ def main():
         for c in L.CAMERAS:
             if not c.get("show_logistics"):
                 times[c["id"]] = cam_view(c, mode)
+    if "hero" in what:    # landmarks from the LiDAR: Story Bridge + HSW, the cathedral
+        setup(mode)
+        for c in L.HERO_CAMERAS:
+            times[c["id"]] = cam_view(c, mode)
+    if "morning" in what:  # first pass of materials and morning light
+        setup_morning()
+        for c in (L.HERO_CAMERAS[0], L.CAMERAS[0]):
+            times[c["id"] + "_morning"] = cam_view(c, "morning")
+        setup(mode)
     # ---------------------------------------------------------------- 2016 site at the L6 transfer slab
     build_all.build_all("2016_l6")
     if "top" in what:
