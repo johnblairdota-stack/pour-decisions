@@ -74,7 +74,7 @@ class Foliage:
         if P:
             self._cards(np.array(P), np.array(N), np.array(S))
 
-    def object(self, name, col, rgb, rgb2, translucency=0.35):
+    def object(self, name, col, rgb, rgb2, translucency=0.15):
         if not self.v:
             return None
         V = np.concatenate(self.v)

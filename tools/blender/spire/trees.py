@@ -33,14 +33,14 @@ ICO = ico((1, 1, 1))
 
 def trunk(buf, x, y, g, r, h, branches=0, spread=1.0):
     """Octagonal tapered trunk plus a few branches up into the crown."""
-    n = 8
-    bot = [(x + r * math.cos(2 * math.pi * k / n), y + r * math.sin(2 * math.pi * k / n), g) for k in range(n)]
-    top = [(x + 0.6 * r * math.cos(2 * math.pi * k / n), y + 0.6 * r * math.sin(2 * math.pi * k / n), g + h) for k in range(n)]
-    buf.add(bot + top, [[k, (k + 1) % n, n + (k + 1) % n, n + k] for k in range(n)])
     seed = int(abs(x * 13.1 + y * 7.7)) % 360
+    lx, ly = 0.04 * h * math.cos(math.radians(seed)), 0.04 * h * math.sin(math.radians(seed))     # slight lean
+    tube(buf, (x, y, g - 0.2), (x + lx * 0.5, y + ly * 0.5, g + h * 0.5), r * 1.15, r * 0.8, 12)
+    tube(buf, (x + lx * 0.5, y + ly * 0.5, g + h * 0.5), (x + lx, y + ly, g + h), r * 0.8, r * 0.55, 12)
     for b in range(branches):
         a = math.radians(seed + b * 360 / max(branches, 1))
-        tube(buf, (x, y, g + h * 0.9), (x + math.cos(a) * spread, y + math.sin(a) * spread, g + h + spread * 0.6), r * 0.45, r * 0.18)
+        s2 = spread * 0.55
+        tube(buf, (x, y, g + h * 0.85), (x + math.cos(a) * s2, y + math.sin(a) * s2, g + h + spread * 0.9), r * 0.5, r * 0.15, 10)
 
 
 def tube(buf, p, q, r0, r1, n=8):
@@ -92,7 +92,7 @@ def species(x, y, h):
     return "generic"
 
 
-HERO_CENTRES = [(0.0, 0.0, 220.0), (-80.0, -100.0, 140.0)]   # leaf-card trees round Spire and the cathedral
+HERO_CENTRES = [(0.0, 0.0, 340.0), (-80.0, -100.0, 160.0)]   # leaf-card trees round Spire and the cathedral
 SPECIES_LEAF = {   # leaf colour pairs (dark, light) and trunk colour
     "fig": ((0.035, 0.09, 0.03), (0.09, 0.19, 0.06), (0.30, 0.27, 0.22)),
     "poinciana": ((0.07, 0.15, 0.04), (0.16, 0.28, 0.07), (0.28, 0.24, 0.20)),
@@ -125,8 +125,15 @@ def build():
     blooms = {"poinciana": FO.Foliage(seed=91), "jacaranda": FO.Foliage(seed=92)}
     flowers = []
     count, nhero = {}, 0
+    cams = []
+    try:
+        cams = [tuple(c["pos"][:2]) for c in _json.load(open(_os.path.join(L.HERE, "photo_cams.json")))["cams"]
+                if not c.get("skip") and c.get("eye_above_ground_m", 99) < 3.0]
+    except (OSError, KeyError):
+        pass
+    clear = lambda x, y: all(math.hypot(x - cx, y - cy) > 9.0 for cx, cy in cams)   # photos: taken from open spots
     for x, y, h, g in L.tree_points():
-        if h < 3.0 or h > 40.0:
+        if h < 3.0 or h > 40.0 or not clear(x, y):
             continue
         s = species(x, y, h)
         count[s] = count.get(s, 0) + 1
@@ -147,23 +154,21 @@ def build():
             r = 0.42 * h
             rz = 0.25 * h
             fig_trunk(trunks, x, y, g, h * 0.45, 0.5)
-            trunk(trunks, x, y, g + h * 0.4, 0.4, 0.1, 6, r * 0.6)
+            trunk(trunks, x, y, g + h * 0.4, 0.4, 0.1, 5, r * 0.45)
             cz = g + h - rz
             if near:
-                leaves["fig"].cloud((x, y, cz), (r, r, rz), int(5 * (150 + 6 * r * r)), 0.42, shell=0.35, top_bias=0.3)
+                leaves["fig"].cloud((x, y, cz), (r, r, rz), int(11 * (150 + 6 * r * r)), 0.6, shell=0.2, top_bias=0.3)
             else:
                 crown(crowns, x, y, cz, r, 0.5, 6)
         elif s in ("jacaranda", "poinciana"):
-            r, rz = 0.4 * h, 0.12 * h
-            trunk(trunks, x, y, g, 0.25, h * 0.6, 4, r * 0.55)
+            r, rz = 0.48 * h, 0.09 * h
+            trunk(trunks, x, y, g, 0.28, h * 0.55, 5, r * 0.6)
             cz = g + h - rz
             if near:
-                leaves[s].cloud((x, y, cz), (r, r, rz), int(6 * (120 + 5 * r * r)), 0.3, shell=0.55, top_bias=0.5)
-                blooms[s].cloud((x, y, cz + rz * 0.4), (r * 0.9, r * 0.9, rz * 0.6), int(5 * (25 + r * r)), 0.28, shell=0.8, top_bias=0.8)
+                leaves[s].cloud((x, y, cz), (r, r, rz), int(9 * (120 + 5 * r * r)), 0.22, shell=0.3, top_bias=0.6)
+                blooms[s].cloud((x, y, cz + rz * 0.5), (r * 0.85, r * 0.85, rz * 0.5), int(2 * (25 + r * r)), 0.18, shell=0.9, top_bias=0.9)
             else:
-                crown(crowns, x, y, cz, r, 0.3, 5)
-                if s == "poinciana":
-                    flowers.append((x, y, g + h - 0.05 * r, r * 0.9))
+                crown(crowns, x, y, cz, r, 0.25, 6)
         elif s == "eucalypt":
             r = 0.25 * h
             trunk(pale, x, y, g, 0.3, h * 0.7, 3, r * 0.7)
@@ -171,14 +176,14 @@ def build():
                 for k in range(4):                                          # open, clumpy crown
                     a = k * 1.7
                     leaves["eucalypt"].cloud((x + math.cos(a) * r * 0.6, y + math.sin(a) * r * 0.6, g + h - r * (0.6 + 0.3 * k % 2)),
-                                             (r * 0.5, r * 0.5, r * 0.4), 220, 0.32, shell=0.35)
+                                             (r * 0.5, r * 0.5, r * 0.4), 380, 0.36, shell=0.25)
             else:
                 crown(crowns, x + 0.3 * r, y, g + h - r, r, 0.9, 3)
         else:
-            r = max(1.0, 0.26 * h)
-            trunk(trunks, x, y, g, 0.18, max(0.5, h - 1.6 * r), 3, r * 0.5)
+            r = max(1.2, 0.32 * h)
+            trunk(trunks, x, y, g, 0.2, max(0.8, h - 1.7 * r), 3, r * 0.45)
             if near:
-                leaves["generic"].cloud((x, y, g + h - r), (r, r, r * 0.85), int(5 * (70 + 8 * r * r)), 0.32, shell=0.4, top_bias=0.2)
+                leaves["generic"].cloud((x, y, g + h - r), (r, r, r * 0.85), int(11 * (70 + 8 * r * r)), 0.5, shell=0.2, top_bias=0.2)
             else:
                 crown(crowns, x, y, g + h - r, r, 0.85, 4)
     # canopy fill: every 4 m block of LiDAR vegetation with no placed crown nearby gets one
@@ -201,7 +206,7 @@ def build():
                 continue
             h = float(np.percentile(hgt[r0:r0 + 4, c0:c0 + 4][blk], 80))
             g = float(gnd[r0 + 2, c0 + 2])
-            if np.min(np.hypot(placed[:, 0] - x, placed[:, 1] - y)) < max(3.0, 0.3 * h):
+            if np.min(np.hypot(placed[:, 0] - x, placed[:, 1] - y)) < max(3.0, 0.3 * h) or not clear(x, y):
                 continue
             near = hero(x, y)
             if h < 3.0:                                                      # shrubs and hedges
@@ -214,7 +219,7 @@ def build():
                 r = min(3.2, 0.3 * h + 1.0)
                 trunk(trunks, x, y, g, 0.18, max(0.5, h - 1.6 * r), 2, r * 0.5)
                 if near:
-                    leaves["generic"].cloud((x, y, g + h - r), (r, r, r * 0.8), int(5 * (40 + 8 * r * r)), 0.32, shell=0.4, top_bias=0.2)
+                    leaves["generic"].cloud((x, y, g + h - r), (r, r, r * 0.8), int(11 * (40 + 8 * r * r)), 0.5, shell=0.2, top_bias=0.2)
                 else:
                     crown(crowns, x, y, g + h - r, r, 0.85, 3)
                 nfill += 1
@@ -237,14 +242,16 @@ def build():
         ob = blooms[s].object("blooms_" + s, col, rgb, tuple(min(1, c * 1.4) for c in rgb))
         if ob:
             objs.append(ob.name)
-    for buf, name, key, rgb in ((trunks, "tree_trunks", "bark", (0.30, 0.26, 0.21)), (pale, "tree_trunks_eucalypt", "bark", (0.78, 0.76, 0.70)),
-                                (crowns, "tree_crowns_far", "tree", None), (palms, "palm_fronds_far", "palm", None)):
+    for buf, name, key, rgb in ((trunks, "tree_trunks", "bark", (0.11, 0.095, 0.08)), (pale, "tree_trunks_eucalypt", "bark", (0.55, 0.53, 0.48)),
+                                (crowns, "tree_crowns_far", "tree", (0.035, 0.075, 0.03)), (palms, "palm_fronds_far", "palm", (0.06, 0.12, 0.04))):
         ob = buf.object(name, col, key)
         if ob:
             if rgb:
                 ob.data.materials[0] = C.material_rgb(name, rgb)
+                if key in ("tree", "palm"):
+                    ob.data.materials[0]["shader"] = "canopy"
             for p in ob.data.polygons:
-                p.use_smooth = key != "bark"
+                p.use_smooth = True
             objs.append(ob.name)
     return {"module": "trees", "objects": objs, "species_count": count, "leaf_card_trees": nhero,
             "note": "Leaf-card trees within 330 m of Spire and 160 m of the cathedral; simple crowns further out."}

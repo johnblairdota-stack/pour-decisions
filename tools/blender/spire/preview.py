@@ -301,6 +301,26 @@ def setup_morning():
             except AttributeError:
                 m.blend_method = "HASHED"
             m.use_backface_culling = False
+        if m.get("shader") == "canopy":                  # step 7j: far crowns, dark varied leaf mass with bumpy clumps
+            nt = m.node_tree
+            geo = nt.nodes.new("ShaderNodeNewGeometry")
+            nz = nt.nodes.new("ShaderNodeTexNoise")
+            nz.inputs["Scale"].default_value = 0.6
+            nt.links.new(geo.outputs["Position"], nz.inputs["Vector"])
+            ramp = nt.nodes.new("ShaderNodeValToRGB")
+            c0 = m.diffuse_color
+            ramp.color_ramp.elements[0].color = (c0[0] * 0.7, c0[1] * 0.7, c0[2] * 0.7, 1)
+            ramp.color_ramp.elements[1].color = (c0[0] * 1.8, c0[1] * 1.7, c0[2] * 1.5, 1)
+            nt.links.new(nz.outputs["Fac"], ramp.inputs["Fac"])
+            nt.links.new(ramp.outputs["Color"], bsdf.inputs["Base Color"])
+            vo = nt.nodes.new("ShaderNodeTexVoronoi")
+            vo.inputs["Scale"].default_value = 2.5
+            nt.links.new(geo.outputs["Position"], vo.inputs["Vector"])
+            bump = nt.nodes.new("ShaderNodeBump")
+            bump.inputs["Strength"].default_value = 0.8
+            nt.links.new(vo.outputs["Distance"], bump.inputs["Height"])
+            nt.links.new(bump.outputs["Normal"], bsdf.inputs["Normal"])
+            bsdf.inputs["Roughness"].default_value = 0.9
         if m.name == "clay_grass":                       # lawn: colour patches and mown stripes
             nt = m.node_tree
             geo = nt.nodes.new("ShaderNodeNewGeometry")

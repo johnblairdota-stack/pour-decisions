@@ -273,33 +273,33 @@
    ],
    "mode": "shift",
    "pos": [
-    91.6,
-    179.6,
+    108.9,
+    163.9,
     22.9
    ],
    "eye_above_ground_m": 1.6,
-   "heading_deg": 206.5,
+   "heading_deg": 212.5,
    "pitch_deg": 0.0,
    "roll_deg": 0.0,
-   "focal_35mm": 28.5,
+   "focal_35mm": 27.9,
    "blender": {
-    "lens_mm": 28.48,
+    "lens_mm": 27.92,
     "sensor_mm": 36.0,
-    "shift_y": 0.3206
+    "shift_y": 0.3223
    },
    "marks": 4,
-   "fit_rms_px": 13.8,
-   "fit_max_px": 19.5,
+   "fit_rms_px": 31.7,
+   "fit_max_px": 50.2,
    "per_mark_px": {
-    "spire_top": 8.4,
-    "willahra_top": 19.5,
-    "orient_top": 14.0,
-    "cath_spire_n": 10.9
+    "spire_top": 9.5,
+    "willahra_top": 18.0,
+    "orient_top": 33.0,
+    "cath_spire_n": 50.2
    },
-   "holdout_rms_px": 47.3,
-   "holdout_px_at_1600": 46.8,
-   "confidence": "medium",
-   "note": "Canon 5D3 at 24 mm (EXIF), shift lens"
+   "holdout_rms_px": 49.4,
+   "holdout_px_at_1600": 48.8,
+   "confidence": "low",
+   "note": "photo taken from the traffic island in Ann St at Boundary St (road arrows in front, kerb curve at right); position held there"
   },
   {
    "id": "ann_st_far",

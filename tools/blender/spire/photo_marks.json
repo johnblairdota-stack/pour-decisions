@@ -155,10 +155,11 @@
    "stage": "as_built",
    "mode": "shift",
    "guess": {
-    "x": 92,
-    "y": 160,
+    "x": 110,
+    "y": 163,
     "heading": 210,
-    "f35": 24
+    "f35": 24,
+    "xy_weight": 1.0
    },
    "marks": [
     [
@@ -182,7 +183,7 @@
      1118
     ]
    ],
-   "note": "Canon 5D3 at 24 mm (EXIF), shift lens"
+   "note": "photo taken from the traffic island in Ann St at Boundary St (road arrows in front, kerb curve at right); position held there"
   },
   {
    "id": "ann_st_far",
