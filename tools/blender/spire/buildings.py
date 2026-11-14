@@ -145,11 +145,16 @@ def dress(rec, bf, ring, ground, z0, top, first, last, lines, glass_rail):
             bf.roof.box(mx + nx * 1.5, my + ny * 1.5, ground + 3.4, ln, 2.8, 0.2, ang)
     if first and rec.get("skirt_roof") and top - ground > 7:                 # tier roof between L1 and L2 (Orient)
         a = offset(ring, 0.0)
-        b = offset(ring, 1.5)
+        b = offset(ring, 1.2)
         n = len(ring)
-        verts = [(x, y, ground + 5.3) for x, y in a] + [(x, y, ground + 4.6) for x, y in b]
-        bf.accent.add(verts, [[i, (i + 1) % n, n + (i + 1) % n, n + i] for i in range(n)])
-        bf.accent.prism(b, ground + 4.4, ground + 4.6)                       # fascia
+        streets = []
+        for i in range(n):                                                   # street faces only (long edges)
+            if math.dist(ring[i], ring[(i + 1) % n]) > 8.0:
+                streets.append(i)
+        for i in streets:
+            j = (i + 1) % n
+            bf.accent.add([(*a[i], ground + 5.3), (*a[j], ground + 5.3), (*b[j], ground + 4.6), (*b[i], ground + 4.6)], [[0, 1, 2, 3]])
+            bf.accent.add([(*b[i], ground + 4.4), (*b[j], ground + 4.4), (*b[j], ground + 4.6), (*b[i], ground + 4.6)], [[0, 1, 2, 3]])
     if first and rec.get("verandah") and top - ground < 14:
         ver = offset(ring, 2.4)
         for zz in (ground + 3.6, ground + 7.0):
@@ -183,6 +188,7 @@ def toppers(rec, bf, ring, top):
         bf.roof.prism(offset(ring, 0.1), top + 5.6, top + 6.0)
 
 
+OFF_ROAD_CHECK = {186586595}                      # Orient Hotel: roof and skirt must stay off Ann St / Queen St
 ROUNDED = {26253098, 26386543, 26386571}          # Willahra, Admiralty Towers II and I (step 7j)
 
 
@@ -213,13 +219,29 @@ def hipped(buf, ring, z, pitch_deg):
     buf.add(verts, [[0, 1, 5, 4], [2, 3, 4, 5], [3, 0, 4], [1, 2, 5]])
 
 
+def hip_follow(buf, ring, z, pitch_deg, max_in=4.0):
+    """Hipped roof that follows the footprint: eave on the wall line (no overhang past the walls), each
+    face rising to an inset ring, flat ridge cap. Inset limited so the inner ring never inverts."""
+    ring = S.ccw(ring)
+    area = abs(C.signed_area(ring))
+    per = sum(math.dist(ring[i], ring[(i + 1) % len(ring)]) for i in range(len(ring)))
+    d = min(max_in, 0.55 * 2 * area / max(per, 1e-6))                  # 0.55 x the inscribed radius
+    inner = offset(ring, -d)
+    rise = math.tan(math.radians(pitch_deg)) * d
+    n = len(ring)
+    verts = [(x, y, z) for x, y in ring] + [(x, y, z + rise) for x, y in inner]
+    faces = [[i, (i + 1) % n, n + (i + 1) % n, n + i] for i in range(n)] + [list(range(n, 2 * n))]
+    buf.add(verts, faces)
+    return z + rise
+
+
 def roof_override(osm, bf, ring, top, ground):
     r = _ROOFS.get(str(osm))
     if not r:
         return False
     shape = r["shape"]
     if shape == "hipped":
-        hipped(bf.accent, ring, top, r["pitch_deg"])
+        hip_follow(bf.accent, ring, top, r["pitch_deg"])                  # step 7k: footprint, not min rectangle
         return True
     if shape == "crown_ring":
         bf.band.prism(offset(ring, 0.3), top + 0.9, top + 1.2)
@@ -271,6 +293,7 @@ def build(zone=None, collection="buildings", skip_zone=HSW_ZONE, exclude=(), onl
     bufs, recipes = {}, {}
     spire_buf, glass_rail = C.MeshBuf(), C.MeshBuf()
     n, named = 0, set()
+    road_offenders = []
     for b in records():
         if b["osm"] in SKIP or b["osm"] in exclude:
             continue
@@ -313,6 +336,11 @@ def build(zone=None, collection="buildings", skip_zone=HSW_ZONE, exclude=(), onl
             ov = _ROOFS.get(str(b["osm"]), {}).get("shape")
             if last and ov:
                 roof_override(b["osm"], bf, ring, top, b["base_ahd"])
+                if b["osm"] in OFF_ROAD_CHECK:                          # step 7k: roof + skirt may not reach the road
+                    import streetscape as SS
+                    rd = SS.carriageways()
+                    bad = [p for p in list(ring) + offset(ring, 1.2) if SS.on_road(p[0], p[1], rd, 0.0)]
+                    road_offenders.extend((b["osm"], round(p[0], 1), round(p[1], 1)) for p in bad)
                 if ov == "hipped":
                     b = dict(b, gable=None)
             if ov != "hipped" and not (k == 0 and b["gable"]) and top - b["base_ahd"] > 8:
@@ -350,7 +378,9 @@ def build(zone=None, collection="buildings", skip_zone=HSW_ZONE, exclude=(), onl
         ob = buf.object(name + suffix, col, key)
         if ob:
             objs.append(ob.name)
-    return {"module": "buildings" if zone is None else collection, "objects": objs, "buildings": n,
+    if road_offenders:
+        print("ROAD OFFENDERS (roof over the carriageway):", road_offenders)
+    return {"module": "buildings" if zone is None else collection, "objects": objs, "buildings": n, "road_offenders": road_offenders,
             "named_recipes": sorted(named), "generic_recipes": sorted(k for k in bufs if k.startswith("gen_")),
             "source": "OSM footprints + 2019 LiDAR tiers (prep_clean.py); recipes in looks.py",
             "note": "Procedural facades from the photo notes; nothing copied from photos."}

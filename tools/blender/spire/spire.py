@@ -344,6 +344,9 @@ def build():
         obp.data.materials[0] = C.material_rgb("spire_podium_brick", SPIRE_LOOK["podium_brick"], shader="brick")
         objs.append(obp.name)
         objs += queen_st_podium(col, lot, ground_min, top_podium)
+        fb = C.MeshBuf()                                                     # step 7k: tower plate filled to the ground
+        fb.prism(inset(plate, 0.6), ground_min - 0.5, top_podium + 0.02)      # (no sky under the tower in any camera)
+        objs.append(fb.object("SPIRE_base_fill", col, "spire_glass").name)
         objs += facade(col, levels, outline_for, plate)
         top = levels[-1]["top_ahd"]
         pp = C.MeshBuf()

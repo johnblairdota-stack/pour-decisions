@@ -372,6 +372,9 @@ def build():
             else:
                 shrubs.cloud((sx_, sy_, z + 0.6), (0.9, 0.9, 0.55), 40, 0.45, shell=0.5, top_bias=0.4)
         for px, py in isl["palms"]:
+            if on_road(px, py, roads, pad=0.6):                           # step 7k: no palm on the road
+                offenders.append("palm at (%.0f, %.0f) on a carriageway: dropped" % (px, py))
+                continue
             poles.box(px, py, z, 0.35, 0.35, 8.0)
             for k in range(7):
                 a = 2 * math.pi * k / 7
@@ -400,6 +403,9 @@ def build():
     for pl in c["greenery"]["planters"]:
         x, y = pl["xy"]
         sx, sy, sz = pl["size"]
+        if on_road(x, y, roads, pad=0.4):
+            offenders.append("planter at (%.0f, %.0f) on a carriageway: dropped" % (x, y))
+            continue
         g = L.ground_z(x, y) + L.KERB_HEIGHT
         boards.box(x, y, g, sx, sy, sz)
         for k in range(3):

@@ -153,7 +153,7 @@
     9,
     31
    ],
-   "base_ahd": 29.6,
+   "base_ahd": 28.0,
    "size": [
     9.0,
     3.2
@@ -317,11 +317,11 @@
   "186586595": {
    "name": "Orient Hotel",
    "shape": "hipped",
-   "pitch_deg": 22,
+   "pitch_deg": 18,
    "colour": [
-    0.42,
-    0.52,
-    0.52
+    0.3,
+    0.32,
+    0.32
    ],
    "note": "corrugated iron hipped roof; two tall storeys (eave ~9.6 m); LiDAR top 31 m is the roof billboard",
    "eave_above_ground": 9.6

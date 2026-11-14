@@ -117,6 +117,51 @@ def fig_trunk(buf, x, y, g, h, rb):
         buf.add(lo + hi, [[k, (k + 1) % n, n + (k + 1) % n, n + k] for k in range(n)])
 
 
+class RoadGuard:
+    """Step 7k: no trunk on a carriageway. Every car road as segments (vectorised); junctions are covered
+    because the road buffers overlap there. A tree on the road moves to the nearest clear spot within 3 m
+    (footpath or median), else it is dropped."""
+    def __init__(self, pad=0.6):
+        import numpy as np
+        import streetscape as SS
+        A, Bs, H = [], [], []
+        for pts, hw in SS.carriageways():
+            for (ax, ay), (bx, by) in zip(pts[:-1], pts[1:]):
+                A.append((ax, ay))
+                Bs.append((bx, by))
+                H.append(hw + pad)
+        self.np = np
+        self.A, self.B, self.H = np.array(A), np.array(Bs), np.array(H)
+        self.D = self.B - self.A
+        self.L2 = np.maximum((self.D ** 2).sum(1), 1e-9)
+        self.moved = self.dropped = self.checked = 0
+        self.placed = []
+
+    def on_road(self, x, y):
+        np = self.np
+        k = np.clip(((x - self.A[:, 0]) * self.D[:, 0] + (y - self.A[:, 1]) * self.D[:, 1]) / self.L2, 0, 1)
+        dx = self.A[:, 0] + self.D[:, 0] * k - x
+        dy = self.A[:, 1] + self.D[:, 1] * k - y
+        return bool(((dx * dx + dy * dy) < self.H * self.H).any())
+
+    def fix(self, x, y):
+        """(x, y) if clear, a moved spot within 3 m, or None (drop)."""
+        self.checked += 1
+        if not self.on_road(x, y):
+            self.placed.append((x, y))
+            return x, y
+        for r in (1.0, 1.5, 2.0, 2.5, 3.0):
+            for k in range(12):
+                a = k * math.pi / 6
+                px, py = x + r * math.cos(a), y + r * math.sin(a)
+                if not self.on_road(px, py):
+                    self.moved += 1
+                    self.placed.append((px, py))
+                    return px, py
+        self.dropped += 1
+        return None
+
+
 def build():
     import foliage as FO
     near_cam = lambda c: math.hypot(c[0], c[1]) < 140 or math.hypot(c[0] + 80, c[1] + 100) < 90 or         math.hypot(c[0] - 150, c[1] - 220) < 80                          # Spire, cathedral, Ann St photo spots
@@ -139,9 +184,14 @@ def build():
         if p and p[2] - L.ground_z(p[0], p[1]) < 4.0:
             cams.append(tuple(p[:2]))
     clear = lambda x, y: all(math.hypot(x - cx, y - cy) > 9.0 for cx, cy in cams)   # photos: taken from open spots
+    guard = RoadGuard()
     for x, y, h, g in L.tree_points():
         if h < 3.0 or h > 40.0 or not clear(x, y):
             continue
+        fx = guard.fix(x, y)
+        if fx is None:
+            continue
+        x, y = fx
         s = species(x, y, h)
         count[s] = count.get(s, 0) + 1
         near = hero(x, y)
@@ -215,6 +265,10 @@ def build():
             g = float(gnd[r0 + 2, c0 + 2])
             if np.min(np.hypot(placed[:, 0] - x, placed[:, 1] - y)) < max(3.0, 0.3 * h) or not clear(x, y):
                 continue
+            fx = guard.fix(x, y)
+            if fx is None:
+                continue
+            x, y = fx
             near = hero(x, y)
             if h < 3.0:                                                      # shrubs and hedges
                 if near:
@@ -230,6 +284,11 @@ def build():
                 else:
                     crown(crowns, x, y, g + h - r, r, 0.85, 3)
                 nfill += 1
+    count["road_check"] = {"checked": guard.checked, "moved": guard.moved, "dropped": guard.dropped}
+    print("trees road check: checked %d, moved %d, dropped %d" % (guard.checked, guard.moved, guard.dropped))
+    bad = [p for p in guard.placed if guard.on_road(*p)]
+    if bad:
+        raise RuntimeError("tree trunks on a carriageway: %s" % bad[:10])
     count["canopy_fill_trees"] = nfill
     count["canopy_fill_shrubs"] = nshrub
     objs = []

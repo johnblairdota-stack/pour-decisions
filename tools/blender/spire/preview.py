@@ -424,7 +424,7 @@ def setup_morning():
             nt.links.new(bump.outputs["Normal"], bsdf.inputs["Normal"])
         if m.name == "clay_spire_glass":                 # step 7j: glass reflects the sky (photos), not flat paint
             bsdf.inputs["Base Color"].default_value = (0.022, 0.026, 0.032, 1)
-            bsdf.inputs["Metallic"].default_value = 0.6
+            bsdf.inputs["Metallic"].default_value = 0.3                     # 7k: 0.6 read pale with haze
         if m.name == "clay_balustrade":
             bsdf.inputs["Alpha"].default_value = 0.35
             try:
