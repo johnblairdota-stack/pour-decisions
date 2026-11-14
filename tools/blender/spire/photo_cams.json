@@ -1,0 +1,698 @@
+{
+ "note": "Camera poses solved from hand-marked landmarks (photo_fit.py). Photos are John's and are not in git; only file names are listed.",
+ "landmarks": {
+  "spire_top": [
+   0.42,
+   4.98,
+   139.21
+  ],
+  "spire_plant": [
+   0.0,
+   4.6,
+   147.7
+  ],
+  "spire_tower_base": [
+   0.0,
+   4.6,
+   42.31
+  ],
+  "mantra_top": [
+   4.93,
+   85.52,
+   109.73
+  ],
+  "willahra_top": [
+   13.77,
+   -28.83,
+   96.46
+  ],
+  "marriott_top": [
+   92.6,
+   -50.8,
+   123.55
+  ],
+  "admiralty2_top": [
+   118.1,
+   -102.25,
+   128.82
+  ],
+  "admiralty1_top": [
+   171.16,
+   -29.0,
+   91.44
+  ],
+  "soleil_top": [
+   168.57,
+   73.12,
+   249.83
+  ],
+  "aurora_top": [
+   -43.73,
+   -249.4,
+   214.88
+  ],
+  "macrossan_top": [
+   153.01,
+   45.18,
+   136.47
+  ],
+  "orient_top": [
+   19.51,
+   39.8,
+   31.0
+  ],
+  "webber_top": [
+   -35.65,
+   -17.47,
+   37.08
+  ],
+  "cath_spire_n": [
+   -93.3,
+   -74.3,
+   75.9
+  ],
+  "cath_spire_s": [
+   -104.2,
+   -83.9,
+   75.9
+  ],
+  "ann_queen_corner": [
+   31.0,
+   38.0,
+   17.86
+  ]
+ },
+ "cams": [
+  {
+   "id": "aerial_ne_dusk",
+   "file": "Spire-Residences-4.jpg",
+   "date": "2020-02-20",
+   "stage": "as_built",
+   "size": [
+    2000,
+    1500
+   ],
+   "mode": "tilt",
+   "pos": [
+    163.0,
+    334.2,
+    352.4
+   ],
+   "eye_above_ground_m": 330.2,
+   "heading_deg": 206.4,
+   "pitch_deg": -29.28,
+   "roll_deg": 0.0,
+   "focal_35mm": 27.3,
+   "blender": {
+    "lens_mm": 28.38,
+    "sensor_mm": 36.0,
+    "shift_y": -0.0
+   },
+   "marks": 6,
+   "fit_rms_px": 6.8,
+   "fit_max_px": 10.3,
+   "per_mark_px": {
+    "spire_top": 2.7,
+    "mantra_top": 6.7,
+    "marriott_top": 6.5,
+    "admiralty2_top": 8.6,
+    "willahra_top": 10.3,
+    "soleil_top": 1.7
+   },
+   "confidence": "high",
+   "note": ""
+  },
+  {
+   "id": "cathedral_forecourt",
+   "file": "Spire-Residences-5.jpg",
+   "date": "2020-02-20",
+   "stage": "as_built",
+   "size": [
+    2000,
+    1500
+   ],
+   "mode": "shift",
+   "pos": [
+    -149.2,
+    -59.0,
+    27.7
+   ],
+   "eye_above_ground_m": 1.6,
+   "heading_deg": 86.1,
+   "pitch_deg": 0.0,
+   "roll_deg": 0.0,
+   "focal_35mm": 26.4,
+   "blender": {
+    "lens_mm": 27.5,
+    "sensor_mm": 36.0,
+    "shift_y": 0.3453
+   },
+   "marks": 5,
+   "fit_rms_px": 12.2,
+   "fit_max_px": 21.9,
+   "per_mark_px": {
+    "spire_top": 21.9,
+    "willahra_top": 14.7,
+    "marriott_top": 3.5,
+    "admiralty2_top": 4.9,
+    "cath_spire_n": 4.1
+   },
+   "confidence": "high",
+   "note": ""
+  },
+  {
+   "id": "fly_by_east",
+   "file": "Spire-Residences fly by view.jpg",
+   "date": "",
+   "stage": "as_built",
+   "size": [
+    1837,
+    867
+   ],
+   "mode": "tilt",
+   "pos": [
+    77.0,
+    190.0,
+    74.5
+   ],
+   "eye_above_ground_m": 54.9,
+   "heading_deg": 200.7,
+   "pitch_deg": 0.86,
+   "roll_deg": 0.0,
+   "focal_35mm": 25.3,
+   "blender": {
+    "lens_mm": 23.26,
+    "sensor_mm": 36.0,
+    "shift_y": -0.0
+   },
+   "marks": 5,
+   "fit_rms_px": 15.1,
+   "fit_max_px": 28.0,
+   "per_mark_px": {
+    "spire_top": 10.0,
+    "mantra_top": 1.2,
+    "marriott_top": 15.1,
+    "willahra_top": 28.0,
+    "orient_top": 5.0
+   },
+   "confidence": "medium",
+   "note": ""
+  },
+  {
+   "id": "ann_queen_corner",
+   "file": "Spire-Residences opposite corner intersection of Ann and Queen st.jpg",
+   "date": "2017-10-24",
+   "stage": "as_built",
+   "size": [
+    1080,
+    1620
+   ],
+   "mode": "shift",
+   "pos": [
+    91.6,
+    179.6,
+    22.9
+   ],
+   "eye_above_ground_m": 1.6,
+   "heading_deg": 206.5,
+   "pitch_deg": 0.0,
+   "roll_deg": 0.0,
+   "focal_35mm": 28.5,
+   "blender": {
+    "lens_mm": 28.48,
+    "sensor_mm": 36.0,
+    "shift_y": 0.3206
+   },
+   "marks": 4,
+   "fit_rms_px": 13.8,
+   "fit_max_px": 19.5,
+   "per_mark_px": {
+    "spire_top": 8.4,
+    "willahra_top": 19.5,
+    "orient_top": 14.0,
+    "cath_spire_n": 10.9
+   },
+   "confidence": "medium",
+   "note": "Canon 5D3 at 24 mm (EXIF), shift lens"
+  },
+  {
+   "id": "ann_st_far",
+   "file": "Spire-Residences futher away on ann st.jpg",
+   "date": "",
+   "stage": "as_built",
+   "size": [
+    800,
+    973
+   ],
+   "mode": "shift",
+   "pos": [
+    184.6,
+    260.7,
+    26.4
+   ],
+   "eye_above_ground_m": 1.7,
+   "heading_deg": 216.2,
+   "pitch_deg": 0.0,
+   "roll_deg": 0.0,
+   "focal_35mm": 59.5,
+   "blender": {
+    "lens_mm": 64.12,
+    "sensor_mm": 36.0,
+    "shift_y": 0.3795
+   },
+   "marks": 5,
+   "fit_rms_px": 12.4,
+   "fit_max_px": 21.2,
+   "per_mark_px": {
+    "spire_plant": 12.3,
+    "spire_top": 21.2,
+    "willahra_top": 10.2,
+    "mantra_top": 5.3,
+    "orient_top": 6.1
+   },
+   "confidence": "medium",
+   "note": ""
+  },
+  {
+   "id": "queen_st_willahra",
+   "file": "Spire-Residences street view.jpg",
+   "date": "2019-11-25",
+   "stage": "as_built",
+   "size": [
+    382,
+    510
+   ],
+   "mode": "tilt",
+   "pos": [
+    56.0,
+    -9.3,
+    16.9
+   ],
+   "eye_above_ground_m": 1.6,
+   "heading_deg": 268.0,
+   "pitch_deg": 38.5,
+   "roll_deg": 0.0,
+   "focal_35mm": 20.8,
+   "blender": {
+    "lens_mm": 21.67,
+    "sensor_mm": 36.0,
+    "shift_y": -0.0
+   },
+   "marks": 3,
+   "fit_rms_px": 7.5,
+   "fit_max_px": 12.0,
+   "per_mark_px": {
+    "willahra_top": 3.3,
+    "spire_top": 12.0,
+    "spire_tower_base": 3.6
+   },
+   "confidence": "low",
+   "note": ""
+  },
+  {
+   "id": "orient_front",
+   "file": "Spire-Residences street view 2.jpg",
+   "date": "2026-08-22",
+   "stage": "as_built",
+   "size": [
+    384,
+    510
+   ],
+   "mode": "tilt",
+   "pos": [
+    51.7,
+    59.0,
+    20.3
+   ],
+   "eye_above_ground_m": 1.6,
+   "heading_deg": 226.2,
+   "pitch_deg": 39.98,
+   "roll_deg": 0.0,
+   "focal_35mm": 27.0,
+   "blender": {
+    "lens_mm": 28.07,
+    "sensor_mm": 36.0,
+    "shift_y": -0.0
+   },
+   "marks": 3,
+   "fit_rms_px": 0.1,
+   "fit_max_px": 0.2,
+   "per_mark_px": {
+    "spire_top": 0.2,
+    "willahra_top": 0.1,
+    "orient_top": 0.0
+   },
+   "confidence": "low",
+   "note": ""
+  },
+  {
+   "id": "west_with_spires",
+   "file": "Spire-Residences street view 3.jpg",
+   "date": "2025-09-08",
+   "stage": "as_built",
+   "size": [
+    384,
+    510
+   ],
+   "mode": "tilt",
+   "pos": [
+    -394.1,
+    -217.7,
+    15.6
+   ],
+   "eye_above_ground_m": 2.5,
+   "heading_deg": 61.7,
+   "pitch_deg": 10.57,
+   "roll_deg": 0.0,
+   "focal_35mm": 131.2,
+   "blender": {
+    "lens_mm": 136.61,
+    "sensor_mm": 36.0,
+    "shift_y": -0.0
+   },
+   "marks": 3,
+   "fit_rms_px": 5.8,
+   "fit_max_px": 8.1,
+   "per_mark_px": {
+    "spire_top": 5.1,
+    "cath_spire_n": 3.1,
+    "cath_spire_s": 8.1
+   },
+   "confidence": "low",
+   "note": ""
+  },
+  {
+   "id": "queen_st_podium",
+   "file": "Spire-Residences street view 4.jpg",
+   "date": "2020-11-26",
+   "stage": "as_built",
+   "size": [
+    382,
+    510
+   ],
+   "mode": "tilt",
+   "pos": [
+    80.8,
+    -5.7,
+    16.2
+   ],
+   "eye_above_ground_m": 3.2,
+   "heading_deg": 272.7,
+   "pitch_deg": 14.67,
+   "roll_deg": 0.0,
+   "focal_35mm": 13.9,
+   "blender": {
+    "lens_mm": 14.45,
+    "sensor_mm": 36.0,
+    "shift_y": -0.0
+   },
+   "marks": 3,
+   "fit_rms_px": 7.3,
+   "fit_max_px": 9.3,
+   "per_mark_px": {
+    "spire_top": 9.3,
+    "spire_tower_base": 8.3,
+    "orient_top": 1.2
+   },
+   "confidence": "low",
+   "note": ""
+  },
+  {
+   "id": "crane_from_south",
+   "file": "Spire-Residences construction site fly by almost complete with crane placement 2.jpg",
+   "date": "2017",
+   "stage": "2017_top",
+   "size": [
+    800,
+    1200
+   ],
+   "mode": "tilt",
+   "pos": [
+    -130.9,
+    -143.9,
+    291.3
+   ],
+   "eye_above_ground_m": 269.8,
+   "heading_deg": 41.4,
+   "pitch_deg": -41.29,
+   "roll_deg": 0.0,
+   "focal_35mm": 59.7,
+   "blender": {
+    "lens_mm": 59.65,
+    "sensor_mm": 36.0,
+    "shift_y": -0.0
+   },
+   "marks": 3,
+   "fit_rms_px": 0.3,
+   "fit_max_px": 0.4,
+   "per_mark_px": {
+    "mantra_top": 0.1,
+    "spire_top": 0.4,
+    "willahra_top": 0.4
+   },
+   "confidence": "low",
+   "note": ""
+  },
+  {
+   "id": "crane_from_nw",
+   "file": "Spire-Residences construction site fly by almost complete with crane placement 3.jpg",
+   "date": "2017",
+   "stage": "2017_top",
+   "size": [
+    800,
+    533
+   ],
+   "mode": "tilt",
+   "pos": [
+    -306.1,
+    -2.0,
+    300.3
+   ],
+   "eye_above_ground_m": 272.2,
+   "heading_deg": 89.8,
+   "pitch_deg": -34.52,
+   "roll_deg": 0.0,
+   "focal_35mm": 41.8,
+   "blender": {
+    "lens_mm": 41.82,
+    "sensor_mm": 36.0,
+    "shift_y": -0.0
+   },
+   "marks": 5,
+   "fit_rms_px": 7.0,
+   "fit_max_px": 11.8,
+   "per_mark_px": {
+    "mantra_top": 3.6,
+    "spire_top": 6.4,
+    "marriott_top": 5.0,
+    "admiralty2_top": 5.2,
+    "willahra_top": 11.8
+   },
+   "confidence": "medium",
+   "note": ""
+  },
+  {
+   "id": "roof_pool_1",
+   "file": "Spire-Residences-7.jpg",
+   "date": "2020-02-20",
+   "stage": "as_built",
+   "skip": "on Spire's roof deck: camera is on the model itself"
+  },
+  {
+   "id": "roof_pool_2",
+   "file": "Spire-Residences-8.jpg",
+   "date": "2020-02-20",
+   "stage": "as_built",
+   "skip": "on Spire's roof deck"
+  },
+  {
+   "id": "facade_closeup",
+   "file": "Spire-Residences-9.jpg",
+   "date": "2020-02-20",
+   "stage": "as_built",
+   "skip": "close-up of the crown only, no second landmark"
+  },
+  {
+   "id": "top_deck_1",
+   "file": "Spire-Residences top deck1.jpg",
+   "date": "2018-04-09",
+   "stage": "as_built",
+   "skip": "roof deck view"
+  },
+  {
+   "id": "top_deck_2",
+   "file": "Spire-Residences top deck2.jpg",
+   "date": "2026-11-04",
+   "stage": "as_built",
+   "skip": "roof deck view"
+  },
+  {
+   "id": "top_deck_back",
+   "file": "Spire-Residences top deck looking back 1.jpg",
+   "date": "2020-11-29",
+   "stage": "as_built",
+   "skip": "roof deck view"
+  },
+  {
+   "id": "lobby_1",
+   "file": "Spire-Residences street view Lobby.jpg",
+   "date": "",
+   "stage": "as_built",
+   "skip": "lobby, too close"
+  },
+  {
+   "id": "lobby_2",
+   "file": "Spire-Residences street view Lobby 2.jpg",
+   "date": "2017-12-08",
+   "stage": "as_built",
+   "skip": "lobby, too close"
+  },
+  {
+   "id": "lobby_orient",
+   "file": "Spire-Residences street view Lobby hotel orient next door.jpg",
+   "date": "",
+   "stage": "as_built",
+   "skip": "lobby frontage, too close"
+  },
+  {
+   "id": "clark_ln_1",
+   "file": "Spire-Residences clark ln side alley 1.jpg",
+   "date": "",
+   "stage": "as_built",
+   "skip": "lane, too close"
+  },
+  {
+   "id": "clark_ln_2",
+   "file": "Spire-Residences clark ln side alley 2.jpg",
+   "date": "",
+   "stage": "as_built",
+   "skip": "lane, too close"
+  },
+  {
+   "id": "clark_ln_3",
+   "file": "Spire-Residences clark ln side alley 3.jpg",
+   "date": "",
+   "stage": "as_built",
+   "skip": "lane, too close"
+  },
+  {
+   "id": "plan",
+   "file": "Spire-Residences floor plan.jpg",
+   "date": "",
+   "stage": "",
+   "skip": "drawing"
+  },
+  {
+   "id": "plan_roof",
+   "file": "Spire-Residences floor plan roof.jpg",
+   "date": "",
+   "stage": "",
+   "skip": "drawing"
+  },
+  {
+   "id": "elev_nw",
+   "file": "Spire-Residences north west podium elevation Ann st.jpg",
+   "date": "",
+   "stage": "",
+   "skip": "drawing"
+  },
+  {
+   "id": "elev_se",
+   "file": "Spire-Residences south east podium elevation Queen st.jpg",
+   "date": "",
+   "stage": "",
+   "skip": "drawing"
+  },
+  {
+   "id": "maps",
+   "file": "Spire-Residences maps satalite.jpg",
+   "date": "",
+   "stage": "",
+   "skip": "map screenshot (used the state aerials instead)"
+  },
+  {
+   "id": "fly_over_render",
+   "file": "Spire-Residences fly over view 2.JPEG",
+   "date": "",
+   "stage": "",
+   "skip": "marketing render, not a photo"
+  },
+  {
+   "id": "fly_by_top",
+   "file": "Spire-Residences fly by view 2.jpg",
+   "date": "",
+   "stage": "as_built",
+   "skip": "near top-down: used for the roof (pool, plant box) only"
+  },
+  {
+   "id": "video",
+   "file": "Spire-Residences top deck video.mp4",
+   "date": "",
+   "stage": "",
+   "skip": "video"
+  },
+  {
+   "id": "fly_over_1",
+   "file": "Spire-Residences fly over view.jpg",
+   "date": "",
+   "stage": "",
+   "skip": "not marked yet"
+  },
+  {
+   "id": "crane_1",
+   "file": "Spire-Residences construction site fly by almost complete with crane placement.jpg",
+   "date": "",
+   "stage": "",
+   "skip": "not marked yet (crane 2 and 3 cover the same)"
+  },
+  {
+   "id": "crane_4",
+   "file": "Spire-Residences construction site fly by almost complete with crane placement 4.jpg",
+   "date": "",
+   "stage": "",
+   "skip": "not marked yet"
+  },
+  {
+   "id": "site_2015",
+   "file": "Spire-Residences construction site 2015.jpg",
+   "date": "2015",
+   "stage": "2015",
+   "skip": "two-photo collage of the 2015 dig; used for the gate and sheds"
+  },
+  {
+   "id": "ann_st_1",
+   "file": "Spire-Residences street view Ann st 1.jpg",
+   "date": "2017-12-14",
+   "stage": "as_built",
+   "skip": "podium close-up: used for the brick wall"
+  },
+  {
+   "id": "ann_st_2",
+   "file": "Spire-Residences street view Ann st 2.jpg",
+   "date": "2017-12-14",
+   "stage": "as_built",
+   "skip": "podium close-up"
+  },
+  {
+   "id": "from_ann_st",
+   "file": "Spire-Residences street view from Ann st.jpg",
+   "date": "",
+   "stage": "",
+   "skip": "not marked yet"
+  },
+  {
+   "id": "queens_st_1",
+   "file": "spire-residences street view Queens st 1.JPEG",
+   "date": "",
+   "stage": "",
+   "skip": "not marked yet"
+  },
+  {
+   "id": "ann_queen_down",
+   "file": "Spire-Residences looking down at Ann st and Queen st intersection.jpg",
+   "date": "2026-06-08",
+   "stage": "as_built",
+   "skip": "view down from the tower"
+  }
+ ]
+}

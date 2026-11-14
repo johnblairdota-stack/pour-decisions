@@ -211,7 +211,7 @@ def build():
             buf = C.MeshBuf()
             if poured:
                 buf.prism(part, z0, z1)
-                mat = (key if tag != "B" else key + "_b") if st is not None else "spire_frame"   # finished: white slab edges
+                mat = (key if tag != "B" else key + "_b") if st is not None else "spire_soffit"   # step 7b: balcony soffits warm grey (photos)
             else:
                 buf.prism(part, z0 + lv["slab_m"] * 0.45, z0 + lv["slab_m"] * 0.55)   # reo mat
                 mat = "reo"
@@ -253,21 +253,23 @@ def build():
         objs.append(pp.object("SPIRE_parapet", col, "band").name)
         # step 6 facade (John's photos): white frame posts round every balcony level, staggered half a bay
         # on alternate levels over the staggered slab edges (the "net"), glass balustrades, Ann St lobby
-        fr, gl = C.MeshBuf(), C.MeshBuf()
+        fr, gl, eb = C.MeshBuf(), C.MeshBuf(), C.MeshBuf()
         for lo, hi in zip(levels[:-1], levels[1:]):
             if lo["kind"] in ("ground", "podium"):
                 continue
             ring = outline_for(lo)
             z0, z1 = lo["top_ahd"], hi["top_ahd"] - hi["slab_m"]
             for x, y, ang in walk(inset(ring, 0.15), BAY_M, BAY_M / 2 if lo["n"] % 2 else 0.0):
-                wv = 0.18 + 0.27 * ((int(x * 7.3) * 31 + int(y * 5.1) * 17 + lo["n"] * 13) % 10) / 10.0   # woven: frames vary
+                wv = 0.12 + 0.16 * ((int(x * 7.3) * 31 + int(y * 5.1) * 17 + lo["n"] * 13) % 10) / 10.0   # woven: frames vary
                 fr.box(x, y, z0, wv, 0.32, z1 - z0, ang)
+            eb.prism(ring, z0 - 0.02, z0 + 0.16)                     # white slab-edge band (photos)
             bal = inset(ring, 0.08)
             n = len(bal)
             for i in range(n):
                 (ax_, ay_), (bx_, by_) = bal[i], bal[(i + 1) % n]
                 gl.add([(ax_, ay_, z0), (bx_, by_, z0), (bx_, by_, z0 + 1.05), (ax_, ay_, z0 + 1.05)], [[0, 1, 2, 3]])
         objs.append(fr.object("SPIRE_facade_frames", col, "band").name)
+        objs.append(eb.object("SPIRE_slab_edge_bands", col, "band").name)
         objs.append(gl.object("SPIRE_glass_balustrades", col, "spire_balustrade").name)
         lb = C.MeshBuf()
         (ax_, ay_), (bx_, by_) = L.PODIUM["ann_st_corners"]

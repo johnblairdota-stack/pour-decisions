@@ -196,7 +196,7 @@ def setup_morning():
         if bsdf is None:
             continue
         bsdf.inputs["Base Color"].default_value = m.diffuse_color
-        rough = {"clay_water": 0.06, "clay_spire_glass": 0.08, "clay_balustrade": 0.05, "clay_steel": 0.45}.get(m.name, 0.85)
+        rough = {"clay_water": 0.06, "clay_spire_glass": 0.5, "clay_spire_balustrade": 0.5, "clay_balustrade": 0.05, "clay_steel": 0.45}.get(m.name, 0.85)
         bsdf.inputs["Roughness"].default_value = rough
         if m.name == "clay_water":                       # Brisbane River: brown-green, sky reflection, small ripples
             bsdf.inputs["Base Color"].default_value = (0.13, 0.13, 0.085, 1)
@@ -412,7 +412,7 @@ def main():
     what = [a for a in argv if a in every] or every
     os.makedirs(L.DOCS, exist_ok=True)
     times = {}
-    passes = [a for a in argv if a in ("finished", "stage", "hsw")] or ["finished", "stage", "hsw"]
+    passes = [a for a in argv if a in ("finished", "stage", "hsw", "photos")] or ["finished", "stage", "hsw"]
     # ---------------------------------------------------------------- finished tower
     if "finished" in passes:
         finished(what, mode, times)
@@ -420,6 +420,9 @@ def main():
         stage_pass(what, mode, times)
     if "hsw" in passes:
         hsw_pass(what, mode, times)
+    if "photos" in passes:
+        only = [a[5:] for a in argv if a.startswith("only=")]
+        photos_pass(what, mode, times, only[0].split(",") if only else None)
     print("render seconds:", {k: round(v, 1) for k, v in times.items()})
 
 
@@ -457,6 +460,50 @@ def finished(what, mode, times):
                   pick["hero_spire_facade"], pick["hero_cathedral_west_front"], pick["cam_ann_st_precinct"]):
             times[c["id"] + "_morning"] = cam_view(c, "morning")
         setup(mode)
+
+
+def photo_cam(c, out_dir, look):
+    """Render one solved photo camera (photo_cams.json) at the photo's aspect, long side 1600 px."""
+    import json as _j
+    cam = camera("cam_photo")
+    cam.data.type = "PERSP"
+    cam.data.sensor_fit = "AUTO"
+    cam.data.sensor_width = c["blender"]["sensor_mm"]
+    cam.data.lens = c["blender"]["lens_mm"]
+    cam.data.shift_x = 0.0
+    cam.data.shift_y = c["blender"]["shift_y"]
+    cam.data.clip_start, cam.data.clip_end = 0.5, 6000
+    x, y, z = c["pos"]
+    cam.location = (x, y, z)
+    h, p = math.radians(c["heading_deg"]), math.radians(c["pitch_deg"])
+    d = Vector((math.sin(h) * math.cos(p), math.cos(h) * math.cos(p), math.sin(p)))
+    cam.rotation_euler = d.to_track_quat("-Z", "Y").to_euler()
+    W, H = c["size"]
+    k = 1600 / max(W, H)
+    hide(["logistics"], c["stage"] == "as_built")
+    hide(["trees"], z - L.ground_z(x, y) < 3.0 and any(
+        math.hypot(tx - x, ty - y) < 25.0 for tx, ty, _, _ in L.tree_points()))   # street cams: trees in front block the view (photos taken from clear spots)
+    path = os.path.join(out_dir, "%s_render.png" % c["id"])
+    sec = render(path, int(round(W * k)), int(round(H * k)))
+    hide(["logistics", "trees"], False)
+    return sec
+
+
+def photos_pass(what, mode, times, only=None):
+    """Every solved photo camera, in its own build stage (as_built / 2017_top ...)."""
+    import json as _j
+    cams = [c for c in _j.load(open(os.path.join(L.HERE, "photo_cams.json")))["cams"] if not c.get("skip")]
+    if only:
+        cams = [c for c in cams if c["id"] in only]
+    out_dir = os.path.join(L.DOCS, "photo_cams")
+    os.makedirs(out_dir, exist_ok=True)
+    stage_of = {"as_built": None}
+    for st in sorted({c["stage"] for c in cams}, key=lambda s: s != "as_built"):
+        build_all.build_all(stage_of.get(st, st), write_meta=False)
+        setup_morning()
+        for c in cams:
+            if c["stage"] == st:
+                times["photo_" + c["id"]] = photo_cam(c, out_dir, True)
 
 
 def hsw_pass(what, mode, times):

@@ -44,7 +44,7 @@ LOOKS = {
                "accent": hx("b8402e")},
     568836537: {"name": "Mantra on Queen", "src": SHEET, "shader": "render", "wall": hx("d8ccb4"), "glass": hx("3f5f62"),
                 "roof": hx("cfc3ab"), "pattern": "balcony", "band": hx("f0ede4"), "balcony": "glass",
-                "accent": hx("2f8a86"), "spike": True},
+                "accent": hx("1e8ad8"), "spike": True},   # step 7b: bright blue stripe + swoosh (photos)
     189779738: {"name": "Mantra on Queen podium", "src": SHEET, "shader": "render", "wall": hx("d8ccb4"),
                 "glass": hx("3f6f90"), "roof": hx("cfc3ab"), "pattern": "strip", "ground": hx("a8553f")},
     26253094: {"name": "Brisbane Marriott", "src": SHEET, "shader": "render", "wall": hx("e2dccb"), "glass": hx("6fa59a"),

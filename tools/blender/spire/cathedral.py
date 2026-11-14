@@ -229,7 +229,7 @@ def build():
     ts = 7.5
     for tu, tv, top in west_towers:
         sq_top = ridge_m + 2.0
-        oct_top = max(sq_top + 6.0, top - 0.55 * (top - sq_top) - 4.0)
+        oct_top = sq_top + 6.0                      # step 7b (photos): short belfry, tall slim spire
         K.block("stone", tu - ts / 2, tu + ts / 2, tv - ts / 2, tv + ts / 2, -0.5, sq_top)
         for du in (-1, 1):                                              # angle buttresses stepping in
             for dv in (-1, 1):
@@ -242,10 +242,13 @@ def build():
             for d in (-0.7, 0.7):
                 K.lancet(True, tv + s * ts * 0.48, tu + d, 0.9, sq_top + 1.2, oct_top - 2.5, s)
                 K.lancet(False, tu + s * ts * 0.48, tv + d, 0.9, sq_top + 1.2, oct_top - 2.5, s)
-        for k in range(8):                                              # pinnacle ring round the spire base
-            a = math.pi / 8 + k * math.pi / 4
-            K.pinnacle(tu + ts * 0.5 * math.cos(a), tv + ts * 0.5 * math.sin(a), oct_top, 3.0, 0.35)
-        K.spire(tu, tv, ts * 0.42, oct_top, top)
+        for du in (-1, 1):                                              # step 7b: round corner turrets with cone caps
+            for dv in (-1, 1):
+                K.octagon("stone", tu + du * ts * 0.48, tv + dv * ts * 0.48, 0.9, sq_top - 4.0, oct_top + 1.0)
+                x_, y_, _ = K.P(tu + du * ts * 0.48, tv + dv * ts * 0.48, 0)
+                ring_ = [(x_ + 1.0 * math.cos(k * math.pi / 4), y_ + 1.0 * math.sin(k * math.pi / 4), g + oct_top + 1.0) for k in range(8)]
+                K.b["dress"].add(ring_ + [(x_, y_, g + oct_top + 6.0)], [[k, (k + 1) % 8, 8] for k in range(8)])
+        K.spire(tu, tv, ts * 0.36, oct_top, top)
         tower_meta.append({"uv": [round(tu, 1), round(tv, 1)], "spire_top_m": round(top, 1), "octagon_from_m": round(sq_top, 1)})
     # ------------------------------------------------------------ west front between the towers
     uw = west * (hl - 0.05)
@@ -260,7 +263,7 @@ def build():
     for k in range(11):                                                 # blind arcade band
         dv = -fw * 0.42 + k * fw * 0.84 / 10
         K.lancet(False, uw, dv, 0.7, 7.9, 9.0, west, frame=False, key="dress")
-    for z in (7.3, 10.2):                                               # string courses
+    for z in (7.3, 10.2, eave - 0.4, eave + 3.5, eave + 6.0):           # string courses (+ gable stripes, photos)
         K.b["dress"].prism(S.ccw([K.xy(uw, -fw / 2), K.xy(uw + west * 0.4, -fw / 2), K.xy(uw + west * 0.4, fw / 2),
                                   K.xy(uw, fw / 2)]), g + z, g + z + 0.3)
     gw = min(7.0, fw * 0.6)

@@ -18,15 +18,28 @@ def build():
     cx, cy = cr["mast_xy"]
     gz = L.ground_z(cx, cy)
     mast_top = L.core_top_ahd() + st["crane_over_core_m"]
-    b = C.MeshBuf()
+    b, jib = C.MeshBuf(), C.MeshBuf()
     b.box(cx, cy, gz, cr["mast_size_m"], cr["mast_size_m"], mast_top - gz)
     h = math.radians(cr["jib_heading_deg"])
     jl, cl = cr["jib_length_m"], cr["counter_jib_m"]
-    b.box(cx + math.cos(h) * jl / 2, cy + math.sin(h) * jl / 2, mast_top, jl, 1.4, 1.6, h)
-    b.box(cx - math.cos(h) * cl / 2, cy - math.sin(h) * cl / 2, mast_top, cl, 2.2, 1.2, h)
-    b.box(cx - math.cos(h) * (cl - 2), cy - math.sin(h) * (cl - 2), mast_top - 2.5, 3.0, 2.4, 2.5, h)
-    b.box(cx, cy, mast_top + 1.6, 1.2, 1.2, 9.0)
-    objs.append(b.object("crane", col, "crane").name)
+    b.box(cx, cy, mast_top, 3.0, 3.0, 3.5, h)                                        # slewing unit + cab
+    b.box(cx - math.cos(h) * cl / 2, cy - math.sin(h) * cl / 2, mast_top + 1.0, cl, 2.4, 1.2, h)   # counter jib
+    b.box(cx - math.cos(h) * (cl - 2), cy - math.sin(h) * (cl - 2), mast_top - 1.5, 3.0, 2.6, 2.5, h)
+    if cr.get("type") == "luffing":
+        lf = math.radians(cr.get("luff_deg", 65.0))
+        p0 = (cx, cy, mast_top + 3.0)
+        p1 = (cx + math.cos(h) * math.cos(lf) * jl, cy + math.sin(h) * math.cos(lf) * jl, mast_top + 3.0 + math.sin(lf) * jl)
+        jib.beam(p0, p1, 1.3)
+        b.box(cx, cy, mast_top + 3.0, 1.0, 1.0, 7.0)                                 # A-frame
+    else:
+        b.box(cx + math.cos(h) * jl / 2, cy + math.sin(h) * jl / 2, mast_top, jl, 1.4, 1.6, h)
+    ob = b.object("crane", col, "crane")
+    ob.data.materials[0] = C.material_rgb("crane_blue", (0.12, 0.40, 0.78))
+    objs.append(ob.name)
+    if jib.v:
+        oj = jib.object("crane_luffing_jib", col, "crane")
+        oj.data.materials[0] = C.material_rgb("crane_red_white", (0.85, 0.25, 0.20))
+        objs.append(oj.name)
     # hoist: placeholder (John doesn't know where it was)
     hx, hy = L.HOIST["mast_xy"]
     hz = L.ground_z(hx, hy)

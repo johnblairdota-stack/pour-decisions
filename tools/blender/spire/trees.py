@@ -63,11 +63,11 @@ def build():
                 palms.beam((x, y, g + h - 1.2), (x + 3.2 * math.cos(a), y + 3.2 * math.sin(a), g + h - 2.6), 0.5, 0.12)
             continue
         if s == "fig":
-            r = 0.55 * h
+            r = 0.42 * h
             trunks.box(x, y, g, 1.4, 1.4, h * 0.45)
             blob(crowns, x, y, g + h - 0.45 * r, r, 0.45 * r)
         elif s in ("jacaranda", "poinciana"):
-            r = 0.5 * h
+            r = 0.38 * h
             trunks.box(x, y, g, 0.5, 0.5, h * 0.6)
             blob(crowns, x, y, g + h - 0.3 * r, r, 0.3 * r)
         elif s == "eucalypt":
@@ -76,7 +76,7 @@ def build():
             blob(crowns, x + 0.3 * r, y, g + h - r, r, r)
             blob(crowns, x - 0.4 * r, y + 0.3 * r, g + h - 2.2 * r, 0.8 * r, 0.8 * r)
         else:
-            r = max(1.2, 0.32 * h)
+            r = max(1.0, 0.24 * h)                                  # step 7b: photos show smaller, higher crowns
             trunks.box(x, y, g, 0.35, 0.35, max(0.5, h - 1.6 * r))
             blob(crowns, x, y, g + h - r, r, r)
     objs = []

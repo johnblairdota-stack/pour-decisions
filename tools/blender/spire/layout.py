@@ -155,6 +155,9 @@ HSW = {
     "lift_towers": [{"xy": (600.0, 92.0), "face_deg": -90.0, "top_ahd": 39.0, "cliff_top_xy": (600.0, 121.0),
                      "photo": "hb-m-hsw-shoot2-2", "note": "position estimated (cliff base, under the cliff top path)"}],
 }
+STAGES["2017_top"] = dict(STAGES["2016_l6"], name="2017: tower near the top, crane still up",
+                          evidence="John's fly-by photos 'crane placement' 2 and 3 (almost complete)",
+                          deck_level=36, deck_pours_done=["A"], props_levels_below=2)
 STAGES["hsw_2017"] = {
     "site": "hsw", "name": "HSW mid-build, late 2017",
     "evidence": "John's HSW photos (2017 aerials, construction 6/9/19, 2018-07) + RESEARCH.md",
@@ -201,7 +204,9 @@ RIVER_LEVEL_AHD = 0.3   # rough mean water level for the blockout water plane
 # runs along the SW face from Ann St at (-36, 11) to (-15, -14) and on to Queen St.
 CRANE = {
     "kind": "external tower crane, tied to the building",
-    "mast_xy": (-25.7, 8.1),      # mast centre: NW (Ann St) face, 5 m in from the west corner, 1.5 m out
+    "mast_xy": (-16.0, 11.5),     # step 7b: middle of the NW (Ann St) face, slightly to the W (photos crane 2 + 3)
+    "type": "luffing",            # step 7b: luffing jib (raised red/white lattice jib in both fly-by photos)
+    "luff_deg": 65.0,
     "mast_size_m": 2.0,
     "tie_face": "NW (Ann St)",
     "jib_length_m": 45.0,         # rough: the 2017 aerial shows about 31 m of jib lying over the roof
