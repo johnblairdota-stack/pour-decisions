@@ -51,6 +51,22 @@ def save_jpg(a, path, q):
     bpy.data.images.remove(im)
 
 
+def save_plain(a, path, q=82):
+    """Photo writer without a view transform: colours stay exactly as in the source photo."""
+    h, w = a.shape[:2]
+    im = bpy.data.images.new("o", w, h)
+    rgba = np.ones((h, w, 4), "f4")
+    rgba[:, :, :3] = a
+    im.pixels.foreach_set(rgba.ravel())
+    im.filepath_raw = path
+    im.file_format = "JPEG"
+    try:
+        im.save(quality=q)
+    except TypeError:
+        im.save()
+    bpy.data.images.remove(im)
+
+
 def resize(a, long_side=None, width=None):
     H, W = a.shape[:2]
     k = (long_side / max(W, H)) if long_side else (width / W)
@@ -92,7 +108,7 @@ def main():
         m = marks[c["id"]]
         li = lic[m["commons"]]
         a = load(os.path.join(commons, m["src_dir"], m["file"]))
-        save_jpg(resize(a, long_side=1600), os.path.join(REAL, "%s_photo.jpg" % c["id"]), 82)
+        save_plain(resize(a, long_side=1600), os.path.join(REAL, "%s_photo.jpg" % c["id"]), 82)
         credits.append({"id": c["id"], "title": m["commons"], "author": li["author"], "licence": li["licence"],
                         "licence_url": li["licence_url"], "commons_page": li["page"], "date": m.get("date") or li.get("date"),
                         "fit_rms_px": c["fit_rms_px"], "caption": m["caption"]})

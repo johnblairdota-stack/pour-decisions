@@ -39,6 +39,39 @@ def flat_quad(buf, pts, z_lift=0.06):
     buf.add([(x, y, z(x, y)) for x, y in pts], [[0, 1, 2, 3]])
 
 
+def carriageways():
+    """(centre polyline, half width) of every car road, for the 'nothing on the road' check."""
+    o = L.osm()
+    out = []
+    for w in o["ways"].values():
+        t = w.get("tags", {})
+        if t.get("highway") in CAR and t.get("bridge", "no") == "no" and t.get("tunnel", "no") == "no":
+            pts = o["line"](w)
+            if len(pts) >= 2:
+                out.append((pts, road_width(t) / 2))
+    return out
+
+
+def on_road(x, y, roads, pad=0.3):
+    for pts, hw in roads:
+        for (ax, ay), (bx, by) in zip(pts[:-1], pts[1:]):
+            dx, dy = bx - ax, by - ay
+            l2 = dx * dx + dy * dy or 1.0
+            k = max(0.0, min(1.0, ((x - ax) * dx + (y - ay) * dy) / l2))
+            if math.hypot(ax + dx * k - x, ay + dy * k - y) < hw + pad:
+                return True
+    return False
+
+
+def point_in(x, y, ring):
+    inside = False
+    for i in range(len(ring)):
+        (x1, y1), (x2, y2) = ring[i], ring[(i + 1) % len(ring)]
+        if (y1 > y) != (y2 > y) and x < (x2 - x1) * (y - y1) / (y2 - y1) + x1:
+            inside = not inside
+    return inside
+
+
 def lantern(lant, board, lit_r, lit_g, x, y, z, ang, green):
     """Brisbane 3-aspect lantern: black housing on a yellow target board, one aspect lit."""
     board.box(x, y, z - 0.15, 0.75, 0.04, 1.35, ang)
@@ -70,9 +103,11 @@ def build():
     col = C.collection("streetscape")
     o = L.osm()
     lant, board, lit_r, lit_g, blade, yellow = (C.MeshBuf() for _ in range(6))
+    roads = carriageways()
+    offenders = []
     global unlit
     unlit = C.MeshBuf()
-    bins, bollards, cars = C.MeshBuf(), C.MeshBuf(), C.MeshBuf()
+    bins, bollards, cars, wheels = C.MeshBuf(), C.MeshBuf(), C.MeshBuf(), C.MeshBuf()
     import foliage as FO
     shrubs, tufts = FO.Foliage(seed=11), FO.Foliage(seed=12)
     nblade = 0
@@ -253,10 +288,15 @@ def build():
             if math.hypot(ax, ay) > 300:
                 continue
             a2 = math.atan2(by - ay, bx - ax)
-            cx = ax - math.sin(a2) * (wd / 2 - 1.8)
-            cy = ay + math.cos(a2) * (wd / 2 - 1.8)
-            ob_t = C.text_obj(col, "busonly", "BUS ONLY", (cx, cy, L.ground_z(cx, cy) + 0.046 + 0.025 * 1.8 + 0.06), (0, 0, a2 - math.pi / 2), 0.55, (0.9, 0.9, 0.86))
-            ob_t.scale = (1.0, 3.0, 1.0)                                    # stretched along the lane
+            cx = ax - math.sin(a2) * (wd / 2 - 2.0)
+            cy = ay + math.cos(a2) * (wd / 2 - 2.0)
+            ux, uy = math.cos(a2), math.sin(a2)
+            z_back, z_fwd = L.ground_z(cx - ux * 3, cy - uy * 3), L.ground_z(cx + ux * 3, cy + uy * 3)
+            pitch = math.atan2(z_fwd - z_back, 6.0)                         # follow the road's grade
+            roll = math.atan(0.025)                                         # follow the crown (rises to the inner edge)
+            z_red = L.ground_z(cx, cy) + 0.046 + 0.025 * 2.0 + 0.05         # red surface at the text centre
+            ob_t = C.text_obj(col, "busonly", "BUS ONLY", (cx, cy, z_red + 0.025), (pitch, roll, a2 - math.pi / 2), 0.42, (0.9, 0.9, 0.86))
+            ob_t.scale = (1.0, 2.6, 1.0)                                    # ~2.5 m across, ~2.7 m along: inside the 3.3 m lane
     for ar in c["lane_markings"]["turn_arrows"]:
         x, y = ar["xy"]
         h = math.radians(90 - ar["heading"])
@@ -271,13 +311,19 @@ def build():
     # ---------------------------------------------------------------- greenery: islands, planters
     for isl in c["greenery"]["islands"]:
         ring = [tuple(p) for p in isl["poly"]]
+        cx_ = sum(p[0] for p in ring) / len(ring)
+        cy_ = sum(p[1] for p in ring) / len(ring)
+        if on_road(cx_, cy_, roads, pad=-0.5):
+            offenders.append("island at (%.0f, %.0f) sits on a carriageway: dropped" % (cx_, cy_))
+            continue
         z = min(L.ground_z(*p) for p in ring)
         hedge.prism(ring, z, z + 0.15)                                    # kerbed island, mulch top
-        cx_ = sum(p[0] for p in ring) / 4
-        cy_ = sum(p[1] for p in ring) / 4
         for i in range(16):                                               # shrubs + lomandra tufts (leaf cards)
             a, rr = i * 2.4, 0.15 + 0.6 * ((i * 37) % 10) / 10
-            sx_, sy_ = cx_ + math.cos(a) * rr * 7, cy_ + math.sin(a) * rr * 9
+            sx_, sy_ = cx_ + math.cos(a) * rr * 4, cy_ + math.sin(a) * rr * 5
+            if not point_in(sx_, sy_, ring) or on_road(sx_, sy_, roads, pad=0.6):
+                offenders.append("shrub at (%.1f, %.1f) outside island / on road: skipped" % (sx_, sy_))
+                continue
             if i % 3 == 0:
                 tufts.tufts((sx_, sy_, z + 0.15), 0.6, 30, 0.7)
             else:
@@ -292,7 +338,13 @@ def build():
         g = L.ground_z(x, y) + L.KERB_HEIGHT
         ang = math.radians(it.get("heading", 0))
         if it["kind"] == "bin":
-            bins.box(x, y, g, 0.6, 0.6, 1.0, ang)
+            if on_road(x, y, roads, pad=0.4):
+                offenders.append("bin at (%.0f, %.0f) on a carriageway: skipped" % (x, y))
+                continue
+            bins.box(x, y, g + 0.08, 0.58, 0.72, 0.95, ang)                 # body
+            bins.box(x, y + 0.02, g + 1.03, 0.62, 0.78, 0.06, ang)          # lid
+            for s in (-1, 1):                                               # wheels
+                wheels.box(x + math.cos(ang) * s * 0.25, y + math.sin(ang) * s * 0.25, g, 0.06, 0.2, 0.2, ang)
         elif it["kind"] == "bollards":
             for k in range(it.get("n", 4)):
                 bollards.box(x + math.cos(ang) * 1.4 * k, y + math.sin(ang) * 1.4 * k, g, 0.18, 0.18, 0.95)
@@ -321,7 +373,7 @@ def build():
             "red": (0.55, 0.16, 0.12), "white": (0.93, 0.93, 0.90), "hedge": (0.42, 0.36, 0.28), "plant": (0.22, 0.42, 0.18)}
     for name, buf, rgb, emit in (("lanterns", lant, (0.03, 0.03, 0.035), 0), ("target_boards", board, (0.85, 0.65, 0.05), 0),
                                  ("lit_red", lit_r, (1.0, 0.045, 0.028), 4.0), ("lit_green", lit_g, (0.045, 1.0, 0.14), 4.0),
-                                 ("lenses_unlit", unlit, (0.06, 0.05, 0.03), 0), ("bins", bins, (0.12, 0.30, 0.16), 0),
+                                 ("lenses_unlit", unlit, (0.06, 0.05, 0.03), 0), ("bins", bins, (0.035, 0.12, 0.05), 0), ("bin_wheels", wheels, (0.02, 0.02, 0.02), 0),
                                  ("bollards", bollards, (0.55, 0.56, 0.57), 0), ("parked_cars", cars, (0.55, 0.57, 0.60), 0),
                                  ("name_blades", blade, (0.04, 0.16, 0.50), 0), ("no_stopping_yellow", yellow, (0.92, 0.75, 0.10), 0)):
         ob = buf.object("street_" + name, col, "roof")
@@ -338,5 +390,9 @@ def build():
         if ob:
             ob.data.materials[0] = C.material_rgb("street_" + name, mats[name])
             objs.append(ob.name)
-    return {"module": "streetscape", "objects": objs, "counts": counts,
+    if offenders:
+        print("streetscape: %d items kept off the road:" % len(offenders))
+        for o_ in offenders:
+            print("  -", o_)
+    return {"module": "streetscape", "objects": objs, "counts": counts, "kept_off_road": offenders,
             "note": "From street_catalogue.json (photos) + OSM nodes; billboard art is placeholder colour, not real ads."}
