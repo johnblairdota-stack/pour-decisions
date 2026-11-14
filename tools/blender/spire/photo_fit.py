@@ -33,6 +33,8 @@ def bridge_points():
     return {"bridge_peak_n": P(tn, nc, 80.0), "bridge_peak_s": P(ts, nc, 80.0),
             "bridge_pier_n_deck": P(tn, nc, 34.5), "bridge_pier_s_deck": P(ts, nc, 34.5),
             "bridge_anchor_s_deck": P(B["truss_t"][1], nc, 33.0),
+            "bridge_anchor_n_w": P(B["truss_t"][0], nc - hw, B["top_chord_profile"][0][1]),
+            "bridge_anchor_n_e": P(B["truss_t"][0], nc + hw, B["top_chord_profile"][0][1]),
             "bridge_portal_n_w": P(tn, nc - hw, 80.0), "bridge_portal_n_e": P(tn, nc + hw, 80.0)}
 
 

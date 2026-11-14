@@ -49,10 +49,10 @@ COLOURS = {
     "rock": (0.52, 0.47, 0.42, 1),           # Kangaroo Point tuff: grey-brown
     "timber": (0.60, 0.48, 0.35, 1),
     "corten": (0.62, 0.32, 0.18, 1),
-    "spire_glass": (0.07, 0.075, 0.085, 1),    # dark glass (#2a2d31 in sRGB; linear here) / recessed balconies (photo sheet)
+    "spire_glass": (0.018, 0.020, 0.023, 1),    # dark glass (#2a2d31 in sRGB; linear here) / recessed balconies (photo sheet)
     "spire_frame": (0.91, 0.90, 0.88, 1),
-    "spire_soffit": (0.20, 0.19, 0.17, 1),     # recessed balcony soffits / walls, read dark-warm at distance      # #e8e6e0 white frame lattice and slab edges
-    "spire_balustrade": (0.20, 0.22, 0.25, 1),
+    "spire_soffit": (0.016, 0.017, 0.019, 1),  # step 7g: charcoal recesses (#1f2226), photo pair     # recessed balcony soffits / walls, read dark-warm at distance      # #e8e6e0 white frame lattice and slab edges
+    "spire_balustrade": (0.022, 0.025, 0.028, 1),
     "balustrade": (0.70, 0.80, 0.85, 1),
     "line": (0.89, 0.89, 0.86, 1),          # #f2f2ee          # road markings
     "line_yellow": (0.95, 0.80, 0.20, 1),

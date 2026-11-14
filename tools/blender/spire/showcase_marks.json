@@ -147,33 +147,67 @@
    "stage": "as_built",
    "mode": "tilt",
    "guess": {
-    "x": 488,
-    "y": 160,
-    "z": 36.5,
+    "x": 489,
+    "y": 250,
+    "z": 33.5,
     "heading": 180,
-    "pitch": 6,
+    "pitch": 5,
     "f35": 50,
-    "z_weight": 2.0
+    "z_weight": 3.0
    },
    "caption": "Story Bridge north portal from the Fortitude Valley approach",
    "marks": [
     [
-     "bridge_portal_n_e",
+     "bridge_anchor_n_e",
      690,
-     65
+     60
     ],
     [
-     "bridge_portal_n_w",
+     "bridge_anchor_n_w",
      1255,
-     65
-    ],
-    [
-     "bridge_pier_n_deck",
-     960,
-     1150
+     60
     ]
    ],
-   "skip": "pose fits the wrong truss portal; trees from the LiDAR stand on the deck - fix next pass"
+   "note": "camera held on the northern approach road (eye 1.6 m over the deck)",
+   "skip": "model's north anchor portal is too low (42 m AHD vs the tall portal in the photo); refit the bridge profile first"
+  },
+  {
+   "id": "cathedral_west_front_2010",
+   "file": "St_John_s_Anglican_Cathedral_373_Ann_St_Brisbane_P1000672.jpg",
+   "src_dir": "showcase_extra",
+   "commons": "St John's Anglican Cathedral 373 Ann St Brisbane P1000672.jpg",
+   "size": [
+    1920,
+    1440
+   ],
+   "date": "2010-06-15",
+   "stage": "pre_spire",
+   "mode": "tilt",
+   "guess": {
+    "x": -135,
+    "y": -45,
+    "heading": 135,
+    "pitch": 15,
+    "f35": 24
+   },
+   "caption": "St John's Cathedral west front from the Ann St lawn (2010, before Spire)",
+   "marks": [
+    [
+     "cath_spire_n",
+     548,
+     120
+    ],
+    [
+     "cath_spire_s",
+     857,
+     15
+    ],
+    [
+     "marriott_top",
+     85,
+     578
+    ]
+   ]
   }
  ]
 }

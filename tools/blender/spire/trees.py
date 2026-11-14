@@ -40,7 +40,21 @@ def trunk(buf, x, y, g, r, h, branches=0, spread=1.0):
     seed = int(abs(x * 13.1 + y * 7.7)) % 360
     for b in range(branches):
         a = math.radians(seed + b * 360 / max(branches, 1))
-        buf.beam((x, y, g + h * 0.9), (x + math.cos(a) * spread, y + math.sin(a) * spread, g + h + spread * 0.6), r * 0.7)
+        tube(buf, (x, y, g + h * 0.9), (x + math.cos(a) * spread, y + math.sin(a) * spread, g + h + spread * 0.6), r * 0.45, r * 0.18)
+
+
+def tube(buf, p, q, r0, r1, n=8):
+    """Round tapered limb from p (radius r0) to q (radius r1)."""
+    d = [q[i] - p[i] for i in range(3)]
+    ln = math.sqrt(sum(c * c for c in d)) or 1e-6
+    d = [c / ln for c in d]
+    up = (0, 0, 1) if abs(d[2]) < 0.9 else (1, 0, 0)
+    s = [d[1] * up[2] - d[2] * up[1], d[2] * up[0] - d[0] * up[2], d[0] * up[1] - d[1] * up[0]]
+    sl = math.sqrt(sum(c * c for c in s))
+    s = [c / sl for c in s]
+    u = [s[1] * d[2] - s[2] * d[1], s[2] * d[0] - s[0] * d[2], s[0] * d[1] - s[1] * d[0]]
+    ring = lambda c, r: [tuple(c[i] + r * (math.cos(2 * math.pi * k / n) * s[i] + math.sin(2 * math.pi * k / n) * u[i]) for i in range(3)) for k in range(n)]
+    buf.add(ring(p, r0) + ring(q, r1), [[k, (k + 1) % n, n + (k + 1) % n, n + k] for k in range(n)])
 
 
 def crown(buf, x, y, zc, r, flat, lobes=5):
@@ -78,7 +92,7 @@ def species(x, y, h):
     return "generic"
 
 
-HERO_CENTRES = [(0.0, 0.0, 330.0), (-80.0, -100.0, 160.0)]   # leaf-card trees round Spire and the cathedral
+HERO_CENTRES = [(0.0, 0.0, 220.0), (-80.0, -100.0, 140.0)]   # leaf-card trees round Spire and the cathedral
 SPECIES_LEAF = {   # leaf colour pairs (dark, light) and trunk colour
     "fig": ((0.035, 0.09, 0.03), (0.09, 0.19, 0.06), (0.30, 0.27, 0.22)),
     "poinciana": ((0.07, 0.15, 0.04), (0.16, 0.28, 0.07), (0.28, 0.24, 0.20)),
@@ -136,7 +150,7 @@ def build():
             trunk(trunks, x, y, g + h * 0.4, 0.4, 0.1, 6, r * 0.6)
             cz = g + h - rz
             if near:
-                leaves["fig"].cloud((x, y, cz), (r, r, rz), int(150 + 6 * r * r), 1.5, shell=0.65, top_bias=0.3)
+                leaves["fig"].cloud((x, y, cz), (r, r, rz), int(5 * (150 + 6 * r * r)), 0.42, shell=0.35, top_bias=0.3)
             else:
                 crown(crowns, x, y, cz, r, 0.5, 6)
         elif s in ("jacaranda", "poinciana"):
@@ -144,8 +158,8 @@ def build():
             trunk(trunks, x, y, g, 0.25, h * 0.6, 4, r * 0.55)
             cz = g + h - rz
             if near:
-                leaves[s].cloud((x, y, cz), (r, r, rz), int(120 + 5 * r * r), 1.1, shell=0.75, top_bias=0.5)
-                blooms[s].cloud((x, y, cz + rz * 0.4), (r * 0.9, r * 0.9, rz * 0.6), int(25 + r * r), 0.8, shell=0.8, top_bias=0.8)
+                leaves[s].cloud((x, y, cz), (r, r, rz), int(6 * (120 + 5 * r * r)), 0.3, shell=0.55, top_bias=0.5)
+                blooms[s].cloud((x, y, cz + rz * 0.4), (r * 0.9, r * 0.9, rz * 0.6), int(5 * (25 + r * r)), 0.28, shell=0.8, top_bias=0.8)
             else:
                 crown(crowns, x, y, cz, r, 0.3, 5)
                 if s == "poinciana":
@@ -157,14 +171,14 @@ def build():
                 for k in range(4):                                          # open, clumpy crown
                     a = k * 1.7
                     leaves["eucalypt"].cloud((x + math.cos(a) * r * 0.6, y + math.sin(a) * r * 0.6, g + h - r * (0.6 + 0.3 * k % 2)),
-                                             (r * 0.5, r * 0.5, r * 0.4), 40, 0.9, shell=0.5)
+                                             (r * 0.5, r * 0.5, r * 0.4), 220, 0.32, shell=0.35)
             else:
                 crown(crowns, x + 0.3 * r, y, g + h - r, r, 0.9, 3)
         else:
             r = max(1.0, 0.26 * h)
             trunk(trunks, x, y, g, 0.18, max(0.5, h - 1.6 * r), 3, r * 0.5)
             if near:
-                leaves["generic"].cloud((x, y, g + h - r), (r, r, r * 0.85), int(70 + 8 * r * r), 0.9, shell=0.6, top_bias=0.2)
+                leaves["generic"].cloud((x, y, g + h - r), (r, r, r * 0.85), int(5 * (70 + 8 * r * r)), 0.32, shell=0.4, top_bias=0.2)
             else:
                 crown(crowns, x, y, g + h - r, r, 0.85, 4)
     objs = []

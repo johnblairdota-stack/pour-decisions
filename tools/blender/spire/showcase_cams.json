@@ -111,6 +111,16 @@
    -347.17,
    33.0
   ],
+  "bridge_anchor_n_w": [
+   480.78,
+   212.9,
+   42.0
+  ],
+  "bridge_anchor_n_e": [
+   501.78,
+   212.73,
+   42.0
+  ],
   "bridge_portal_n_w": [
    479.62,
    72.91,
@@ -212,7 +222,45 @@
    "file": "Approaching_Story_Bridge_from_Fortitude_Valley__Brisbane.jpg",
    "date": "2020-05-12",
    "stage": "as_built",
-   "skip": "pose fits the wrong truss portal; trees from the LiDAR stand on the deck - fix next pass"
+   "skip": "model's north anchor portal is too low (42 m AHD vs the tall portal in the photo); refit the bridge profile first"
+  },
+  {
+   "id": "cathedral_west_front_2010",
+   "file": "St_John_s_Anglican_Cathedral_373_Ann_St_Brisbane_P1000672.jpg",
+   "src_dir": "showcase_extra",
+   "credit": {},
+   "date": "2010-06-15",
+   "stage": "pre_spire",
+   "size": [
+    1920,
+    1440
+   ],
+   "mode": "tilt",
+   "pos": [
+    -156.2,
+    -63.5,
+    27.4
+   ],
+   "eye_above_ground_m": 1.6,
+   "heading_deg": 115.5,
+   "pitch_deg": 19.31,
+   "roll_deg": 0.0,
+   "focal_35mm": 31.8,
+   "blender": {
+    "lens_mm": 33.02,
+    "sensor_mm": 36.0,
+    "shift_y": -0.0
+   },
+   "marks": 3,
+   "fit_rms_px": 3.8,
+   "fit_max_px": 5.0,
+   "per_mark_px": {
+    "cath_spire_n": 5.0,
+    "cath_spire_s": 4.3,
+    "marriott_top": 0.9
+   },
+   "confidence": "low",
+   "note": ""
   }
  ]
 }

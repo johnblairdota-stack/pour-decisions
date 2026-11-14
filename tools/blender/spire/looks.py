@@ -42,8 +42,8 @@ LOOKS = {
     26253098: {"name": "Willahra Tower", "src": SHEET, "shader": "glass", "wall": hx("f2f1ec"), "glass": hx("6f8496"),
                "roof": hx("e6e5e0"), "pattern": "balcony", "band": hx("f4f3ee"), "balcony": "white_solid",
                "accent": hx("b8402e")},
-    568836537: {"name": "Mantra on Queen", "src": SHEET, "shader": "render", "wall": hx("d8ccb4"), "glass": hx("3f5f62"),
-                "roof": hx("cfc3ab"), "pattern": "balcony", "band": hx("f0ede4"), "balcony": "glass",
+    568836537: {"name": "Mantra on Queen", "src": SHEET, "shader": "render", "wall": hx("efece4"), "glass": hx("22262a"),
+                "roof": hx("e4e1d8"), "pattern": "punched",
                 "accent": hx("1e8ad8"), "spike": True},   # step 7b: bright blue stripe + swoosh (photos)
     189779738: {"name": "Mantra on Queen podium", "src": SHEET, "shader": "render", "wall": hx("d8ccb4"),
                 "glass": hx("3f6f90"), "roof": hx("cfc3ab"), "pattern": "strip", "ground": hx("a8553f")},

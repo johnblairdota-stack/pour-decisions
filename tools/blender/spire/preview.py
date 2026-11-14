@@ -196,7 +196,7 @@ def setup_morning():
         if bsdf is None:
             continue
         bsdf.inputs["Base Color"].default_value = m.diffuse_color
-        rough = {"clay_water": 0.06, "clay_spire_glass": 0.5, "clay_spire_balustrade": 0.5, "clay_balustrade": 0.05, "clay_steel": 0.45}.get(m.name, 0.85)
+        rough = {"clay_water": 0.06, "clay_spire_glass": 0.75, "clay_spire_balustrade": 0.8, "clay_spire_soffit": 0.9, "clay_balustrade": 0.05, "clay_steel": 0.45}.get(m.name, 0.85)
         bsdf.inputs["Roughness"].default_value = rough
         if m.name == "clay_water":                       # Brisbane River: brown-green, sky reflection, small ripples
             bsdf.inputs["Base Color"].default_value = (0.13, 0.13, 0.085, 1)
