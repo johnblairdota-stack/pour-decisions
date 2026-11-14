@@ -7,7 +7,7 @@ import common as C
 
 def build():
     col = C.collection("logistics")
-    top = L.ground_z(0, 0) + L.SPIRE["height_m"]
+    top = L.spire_levels()[-1]["top_ahd"]
     objs = []
     # crane
     cr = L.CRANE

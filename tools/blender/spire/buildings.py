@@ -38,6 +38,8 @@ def build():
         if not is_part and any(C.point_in_ring(px, py, ring) for _, _, _, px, py in parts):
             skipped += 1          # drawn by its parts instead
             continue
+        if oid == L.SPIRE["osm_way"]:
+            continue              # Spire is built by spire.py
         h, src = L.building_height(t)
         minh = L.tag_float(t, "min_height") or 0.0
         z0 = min(L.ground_z(x, y) for x, y in ring)
@@ -45,8 +47,7 @@ def build():
         buf.prism(ring, z0 - (0.5 if minh == 0 else -minh), z0 + h)
         src_count[src.split(" x ")[0]] += 1
     objs = []
-    for buf, name, key in ((tagged, "buildings_tagged", "building"), (guessed, "buildings_height_guess", "building_guess"),
-                           (spire, "SPIRE", "spire")):
+    for buf, name, key in ((tagged, "buildings_tagged", "building"), (guessed, "buildings_height_guess", "building_guess")):
         ob = buf.object(name, col, key)
         if ob:
             objs.append(ob.name)

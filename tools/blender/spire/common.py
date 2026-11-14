@@ -15,6 +15,11 @@ COLOURS = {
     "building": (0.80, 0.80, 0.78, 1),
     "building_guess": (0.70, 0.72, 0.78, 1),   # height not tagged in OSM
     "spire": (0.93, 0.74, 0.52, 1),
+    "slab": (0.90, 0.88, 0.84, 1),         # pour A
+    "slab_b": (0.80, 0.84, 0.90, 1),       # pour B (slightly blue so the joint reads)
+    "transfer": (0.95, 0.55, 0.35, 1),
+    "transfer_b": (0.90, 0.50, 0.45, 1),
+    "core": (0.55, 0.52, 0.50, 1),
     "bridge": (0.35, 0.45, 0.55, 1),
     "crane": (0.95, 0.70, 0.10, 1),
     "hoist": (0.20, 0.55, 0.85, 1),

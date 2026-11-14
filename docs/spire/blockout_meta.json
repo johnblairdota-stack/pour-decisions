@@ -26,7 +26,7 @@
    "water_level_ahd": 0.3,
    "dem_cells_under_water_level": 56748,
    "source": "reference/sites/spire/dem_1m.f32.gz",
-   "seconds": 0.42
+   "seconds": 0.46
   },
   {
    "module": "streets",
@@ -44,19 +44,18 @@
    "footpath_width_m": 3.5,
    "kerb_m": 0.15,
    "note": "Footpath widths are a CBD default, not measured. Bridges/tunnels/upper layers left out (Story Bridge is in landmarks.py).",
-   "seconds": 0.77
+   "seconds": 0.87
   },
   {
    "module": "buildings",
    "objects": [
     "buildings_tagged",
-    "buildings_height_guess",
-    "SPIRE"
+    "buildings_height_guess"
    ],
    "footprints": 325,
    "parents_replaced_by_parts": 17,
    "height_source": {
-    "osm height": 53,
+    "osm height": 52,
     "default (no tag)": 223,
     "osm levels": 49
    },
@@ -68,6 +67,42 @@
    },
    "note": "Untagged buildings are 12 m (blue-grey); levels-only ones use 3.2 m a level.",
    "seconds": 0.06
+  },
+  {
+   "module": "spire",
+   "objects": [
+    "SPIRE_storeys",
+    "SPIRE_parapet",
+    "SPIRE_core"
+   ],
+   "slab_objects": 88,
+   "levels": 45,
+   "base_ahd": 21.97,
+   "roof_ahd": 151.87,
+   "typical_ftf_m": 2.876,
+   "transfer": {
+    "name": "L06",
+    "n": 6,
+    "kind": "transfer",
+    "top_ahd": 42.47,
+    "slab_m": 1.25,
+    "pours": 2,
+    "typical_ftf_solved_m": 2.876
+   },
+   "plate_area_m2": 975.7,
+   "lot_area_m2": 1491.8,
+   "pour_split": [
+    [
+     -17.78,
+     20.39
+    ],
+    [
+     12.78,
+     -15.39
+    ]
+   ],
+   "note": "Plate from the typical floor plan, placed by aerial overlay. Floor heights are solved from the OSM height (typical 2.88 m floor to floor is low: check against drawings).",
+   "seconds": 0.02
   },
   {
    "module": "landmarks",
@@ -96,13 +131,13 @@
     "truck_gate",
     "site_sheds"
    ],
-   "roof_ahd": 152.0,
+   "roof_ahd": 151.9,
    "crane": {
     "mast_xy": [
      -25.7,
      8.1
     ],
-    "top_ahd": 170.0,
+    "top_ahd": 169.9,
     "confidence": "medium"
    },
    "hoist": {

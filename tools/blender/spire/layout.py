@@ -42,6 +42,42 @@ SPIRE = {
     "completed": "2017-06",
 }
 
+# ---------------------------------------------------------------- Spire massing (step 2)
+# Tower plate traced from the architect's "Typical Floor Plan" (my_photos/spire/Spire-Residences floor
+# plan.jpg, NOT in git): pixel points, image 1414 x 1000, y down. Scale bar 0-10 m = 115 -> 333 px.
+# Slab edge (outer line, balconies included), clockwise from the top-left.
+TOWER_PLAN = {
+    "px": [(300, 128), (400, 112), (500, 118), (600, 124), (700, 124), (800, 118), (900, 110), (960, 108),
+           (1020, 140), (1060, 200), (1100, 260), (1150, 330), (1190, 400), (1225, 450), (1240, 500),
+           (1230, 560), (1200, 620), (1160, 680), (1110, 740), (1050, 790), (980, 830), (900, 860),
+           (800, 880), (720, 892), (650, 878), (580, 850), (500, 810), (420, 770), (350, 730), (290, 690),
+           (245, 640), (215, 580), (205, 500), (215, 420), (235, 330), (255, 250), (275, 180)],
+    "core_px": (555, 365, 860, 560),        # lift + stair core box (x0, y0, x1, y1)
+    "px_per_m": 25.5,             # scale bar reads 21.8 px/m, but the 2018 roof is ~16% smaller: fitted
+    # Plan +x (the straight top edge) runs along Ann St, 40.5 deg from east. Checked on the roof plan
+    # vs aerial_2018: pool on the E side, plant on the NW side, pointed corner to the S.
+    "rotation_deg": 40.5,
+    # Where the plate's centroid sits in the local frame: roof centroid read from aerial_2018_site160m
+    # (lean of the roof ignored, OSM outlines of the neighbours sit on their roofs too). Tuned by overlay.
+    "centre_xy": (-2.5, 2.5),
+}
+# Levels. Facts (John's notes): 43 suspended PT slabs, 2 pours each, L6 = 1250 mm transfer slab.
+# Not from drawings (rough, from the podium elevations and the OSM height): podium top ~11.5 m over
+# Ann St; ground floor 4.5 m; L1-L6 3.2 m; typical floor-to-floor solved so the roof slab lands at
+# the OSM height. Flagged in the metadata as solved, not measured.
+LEVELS = {
+    "ground_floor_m": 4.5,
+    "podium_ftf_m": 3.2,
+    "podium_levels": 3,            # L1-L3 fill the whole lot (OSM footprint); tower plate from L4 up
+    "transfer_level": 6,
+    "slab_m": 0.20,                # typical PT slab
+    "transfer_m": 1.25,
+    "top_level": 43,
+    "roof_over_top_m": 3.0,        # roof slab above L43
+    "parapet_m": 1.2,
+    "pour_split": "plan x = 0",    # 2 pours a level: split across the short axis through the core
+}
+
 # Default road widths (kerb to kerb, metres) by OSM highway class when the way has no width/lanes tag.
 ROAD_WIDTH = {"primary": 14.0, "secondary": 12.0, "tertiary": 10.0, "secondary_link": 7.0,
               "tertiary_link": 7.0, "unclassified": 7.0, "residential": 7.0, "service": 4.5,
@@ -86,6 +122,7 @@ HOIST = {
     "car_size_m": (3.2, 1.5),
     "face": "NW (Ann St)",
     "confidence": "low",
+    "john": "John does not know where the hoist was (14 Nov 2026). Keep as a placeholder.",
     "evidence": [
         "aerial_2017_site160m_0p1m.jpg: small box sticking out past the roof edge on the NW face, north end "
         "(crop px ~690,615) - reads as a hoist mast top",
@@ -286,3 +323,74 @@ AERIAL_SITE = {"half": 80.0, "px": 1600, "m_per_px": 0.1}     # aerial_YYYY_site
 def local_to_aerial_px(x, y, spec=AERIAL_800):
     """Local metres -> (col, row) pixel in a local-frame aerial crop (row 0 = north edge)."""
     return (x + spec["half"]) / spec["m_per_px"], (spec["half"] - y) / spec["m_per_px"]
+
+
+# ================================================================ Spire massing helpers
+def plan_to_local(px, py):
+    """Floor-plan pixel -> local metres (rotated and placed per TOWER_PLAN)."""
+    P = TOWER_PLAN
+    cx, cy = _plan_centroid_px()
+    u = (px - cx) / P["px_per_m"]
+    v = -(py - cy) / P["px_per_m"]          # image y is down
+    a = math.radians(P["rotation_deg"])
+    x0, y0 = P["centre_xy"]
+    return (x0 + u * math.cos(a) - v * math.sin(a), y0 + u * math.sin(a) + v * math.cos(a))
+
+
+def _plan_centroid_px():
+    pts = TOWER_PLAN["px"]
+    a = cx = cy = 0.0
+    for i in range(len(pts)):
+        (x1, y1), (x2, y2) = pts[i], pts[(i + 1) % len(pts)]
+        c = x1 * y2 - x2 * y1
+        a += c
+        cx += (x1 + x2) * c
+        cy += (y1 + y2) * c
+    a *= 0.5
+    return cx / (6 * a), cy / (6 * a)
+
+
+def tower_outline():
+    return [plan_to_local(*p) for p in TOWER_PLAN["px"]]
+
+
+def core_outline():
+    x0, y0, x1, y1 = TOWER_PLAN["core_px"]
+    return [plan_to_local(x, y) for x, y in ((x0, y1), (x1, y1), (x1, y0), (x0, y0))]
+
+
+def pour_split_line():
+    """Two local points on the pour joint (plan x through the plate centroid, along plan y)."""
+    cx, cy = _plan_centroid_px()
+    return plan_to_local(cx, cy - 600), plan_to_local(cx, cy + 600)
+
+
+def spire_base_ahd():
+    """Ground floor level: ground at the middle of the Ann St frontage (main entry side)."""
+    return round(ground_z(*TRUCK_GATE["centre_xy"]), 2)
+
+
+def spire_levels():
+    """List of levels, bottom up: name, number, kind, top-of-slab AHD, slab thickness, pours."""
+    Lv = LEVELS
+    base = spire_base_ahd()
+    roof = base + SPIRE["height_m"] - Lv["parapet_m"]
+    out = [{"name": "GF", "n": 0, "kind": "ground", "top_ahd": base, "slab_m": 0.3, "pours": 1}]
+    z = base + Lv["ground_floor_m"]
+    for n in range(1, Lv["transfer_level"] + 1):
+        kind = "podium" if n <= Lv["podium_levels"] else ("transfer" if n == Lv["transfer_level"] else "tower")
+        out.append({"name": "L%02d" % n, "n": n, "kind": kind, "top_ahd": round(z, 3),
+                    "slab_m": Lv["transfer_m"] if kind == "transfer" else Lv["slab_m"], "pours": 2})
+        z += Lv["podium_ftf_m"]
+    z_t = out[-1]["top_ahd"]
+    n_typ = Lv["top_level"] - Lv["transfer_level"]          # L7 .. L43
+    ftf = (roof - Lv["roof_over_top_m"] - z_t) / n_typ
+    for n in range(Lv["transfer_level"] + 1, Lv["top_level"] + 1):
+        z_t += ftf
+        out.append({"name": "L%02d" % n, "n": n, "kind": "tower", "top_ahd": round(z_t, 3),
+                    "slab_m": Lv["slab_m"], "pours": 2})
+    out.append({"name": "RF", "n": Lv["top_level"] + 1, "kind": "roof", "top_ahd": round(roof, 3),
+                "slab_m": Lv["slab_m"], "pours": 1})
+    for lv in out:
+        lv["typical_ftf_solved_m"] = round(ftf, 3)
+    return out

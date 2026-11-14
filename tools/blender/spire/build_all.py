@@ -13,9 +13,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import bpy  # noqa: E402
 
 import layout as L  # noqa: E402
-import ground, streets, buildings, landmarks, logistics  # noqa: E402,E401
+import ground, streets, buildings, spire, landmarks, logistics  # noqa: E402,E401
 
-MODULES = [ground, streets, buildings, landmarks, logistics]
+MODULES = [ground, streets, buildings, spire, landmarks, logistics]
 
 
 def clear():

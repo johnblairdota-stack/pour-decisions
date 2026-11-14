@@ -19,6 +19,9 @@ Blender 4.5 (the PC's install). Run from the repo root:
 - `streets.py`: OSM carriageways, footpaths with 150 mm kerbs, footways.
 - `buildings.py`: OSM footprints extruded to tagged height (Spire = its own object, warm clay;
   untagged = 12 m, blue-grey).
+- `spire.py`: Spire itself (step 2): podium on the whole lot (GF-L3), tower plate traced from the typical
+  floor plan and fitted to the 2018 roof, lift core, and every slab as its own object split into its two
+  pours (`SLAB_L07_A`, `SLAB_L07_B`; custom props level, pour, top_ahd, slab_m). L6 = 1.25 m transfer slab.
 - `landmarks.py`: Story Bridge line (rough deck + truss silhouette for the skyline).
 - `logistics.py`: crane, hoist, truck gate and site shed markers.
 - `build_all.py`: clears the scene, runs every `build()`, writes `docs/spire/blockout_meta.json`.
@@ -36,10 +39,18 @@ Each module's `build()` returns a metadata dict (objects, counts, sources, notes
   three of John's street photos (spots estimated, no GPS in the photos). Crane hidden: photos are post-2017.
 - `cam_flyby_crane_clay.png`: from the SW fly-by photo during the build, crane shown.
 
+## Step 2 results (docs/spire/)
+
+- `site_clay_over_2018.png`: finished tower plate over the 2018 aerial (roof with the pool) - placement check.
+- `spire_slabs_pours.png`: storeys hidden, 88 slab pours + core; pour joint seen end-on, L6 transfer in orange.
+- The street views now show the rounded tower on its podium.
+
 ## Known gaps (next steps)
 
-- Spire is one prism of the whole OSM footprint (podium + tower). Real tower is a rounded column on a
-  sloped brick podium: needs its own massing from the floor plans.
+- Floor heights are solved from the OSM height (typical 2.88 m floor to floor - low). Need a real section.
+- The plate scale is fitted to the 2018 roof (25.5 px/m), not the drawing's scale bar (21.8 px/m).
+- Pour joint position is a guess (straight across the short axis through the core).
+- Podium is a plain prism of the lot; the sloped brick face and the podium setbacks are not modelled.
 - 223 of 325 buildings have no height in OSM (12 m guess). Heights from LiDAR next.
 - Footpath width is a default (3.5 m), not measured. Kerb lines can come from council parking lines.
 - Hoist position is a low-confidence read; ask John.

@@ -154,7 +154,7 @@ def cam_view(c, mode):
 def main():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     mode = "mono" if "mono" in argv else ("look" if "look" in argv else "clay")
-    what = [a for a in argv if a in ("top", "site", "cams")] or ["top", "site", "cams"]
+    what = [a for a in argv if a in ("top", "site", "fit", "slabs", "cams")] or ["top", "site", "fit", "slabs", "cams"]
     os.makedirs(L.DOCS, exist_ok=True)
     build_all.build_all()
     setup(mode)
@@ -168,6 +168,20 @@ def main():
         times["site"] = top_overlay("site", L.SITE_VIEW["half"],
                                     L.aerial_path(L.SITE_VIEW["aerial_year"], "site160m_0p1m"),
                                     L.SITE_VIEW["aerial_year"], alpha=0.6)
+    if "fit" in what:     # finished tower over the 2018 aerial: checks the plate position
+        setup("look")
+        hide(["logistics"])
+        times["fit"] = top_overlay("site", L.SITE_VIEW["half"], L.aerial_path(2018, "site160m_0p1m"), 2018, alpha=0.5)
+        hide(["logistics"], False)
+    if "slabs" in what:   # storeys hidden: every slab, pour A cream / pour B blue, L6 transfer orange
+        setup("look")
+        st = bpy.data.objects.get("SPIRE_storeys")
+        st.hide_render = True
+        hide(["logistics", "buildings"])
+        times["slabs"] = cam_view({"id": "spire_slabs", "pos": (-125.0, 150.0, 110.0), "look_at": (-3.0, 2.0, 70.0),
+                                   "lens_mm": 50.0, "portrait": True}, "pours")
+        st.hide_render = False
+        hide(["logistics", "buildings"], False)
     if "cams" in what:
         setup(mode)
         for c in L.CAMERAS:
