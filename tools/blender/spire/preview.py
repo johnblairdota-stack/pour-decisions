@@ -225,7 +225,18 @@ def setup_morning():
             nt.links.new(geo.outputs["Position"], tex.inputs["Vector"])
             bump = nt.nodes.new("ShaderNodeBump")
             bump.inputs["Strength"].default_value = 0.25
-            nt.links.new(tex.outputs["Fac"], bump.inputs["Height"])
+            rip = nt.nodes.new("ShaderNodeTexWave")                     # step 7j: wind ripples on top of the swell
+            rip.wave_type = "BANDS"
+            rip.inputs["Scale"].default_value = 0.9
+            rip.inputs["Distortion"].default_value = 9.0
+            rip.inputs["Detail"].default_value = 3.0
+            nt.links.new(geo.outputs["Position"], rip.inputs["Vector"])
+            addh = nt.nodes.new("ShaderNodeMath")
+            addh.operation = "MULTIPLY_ADD"
+            nt.links.new(rip.outputs["Fac"], addh.inputs[0])
+            addh.inputs[1].default_value = 0.35
+            nt.links.new(tex.outputs["Fac"], addh.inputs[2])
+            nt.links.new(addh.outputs[0], bump.inputs["Height"])
             nt.links.new(bump.outputs["Normal"], bsdf.inputs["Normal"])
         if m.name == "clay_road":                        # step 7d: bitumen with aggregate speckle and patches
             nt = m.node_tree
@@ -237,8 +248,8 @@ def setup_morning():
             pa.inputs["Scale"].default_value = 0.08
             nt.links.new(geo.outputs["Position"], pa.inputs["Vector"])
             ramp = nt.nodes.new("ShaderNodeValToRGB")
-            ramp.color_ramp.elements[0].color = (0.030, 0.031, 0.034, 1)
-            ramp.color_ramp.elements[1].color = (0.075, 0.075, 0.078, 1)
+            ramp.color_ramp.elements[0].color = (0.026, 0.027, 0.030, 1)      # step 7j: stronger wear and patches
+            ramp.color_ramp.elements[1].color = (0.095, 0.094, 0.095, 1)
             mixf = nt.nodes.new("ShaderNodeMath")
             mixf.operation = "MULTIPLY_ADD"
             nt.links.new(sp.outputs["Fac"], mixf.inputs[0])
@@ -314,6 +325,34 @@ def setup_morning():
             except AttributeError:
                 m.blend_method = "HASHED"
             m.use_backface_culling = False
+        if m.name in ("clay_footpath", "clay_footway"):     # step 7j: concrete pavers 0.6 x 0.3, joints, colour per paver
+            nt = m.node_tree
+            geo = nt.nodes.new("ShaderNodeNewGeometry")
+            br = nt.nodes.new("ShaderNodeTexBrick")
+            nt.links.new(geo.outputs["Position"], br.inputs["Vector"])
+            br.inputs["Scale"].default_value = 1.0
+            br.inputs["Brick Width"].default_value = 0.6
+            br.inputs["Row Height"].default_value = 0.3
+            br.inputs["Mortar Size"].default_value = 0.008
+            c0 = m.diffuse_color
+            br.inputs["Color1"].default_value = c0
+            br.inputs["Color2"].default_value = (c0[0] * 0.86, c0[1] * 0.86, c0[2] * 0.84, 1)
+            br.inputs["Mortar"].default_value = (c0[0] * 0.55, c0[1] * 0.55, c0[2] * 0.55, 1)
+            nz = nt.nodes.new("ShaderNodeTexNoise")
+            nz.inputs["Scale"].default_value = 0.15
+            nt.links.new(geo.outputs["Position"], nz.inputs["Vector"])
+            mx = nt.nodes.new("ShaderNodeMix")
+            mx.data_type = "RGBA"
+            mx.blend_type = "MULTIPLY"
+            nt.links.new(nz.outputs["Fac"], mx.inputs["Factor"])
+            nt.links.new(br.outputs["Color"], mx.inputs[6])
+            mx.inputs[7].default_value = (0.8, 0.79, 0.76, 1)           # large-scale staining
+            nt.links.new(mx.outputs[2], bsdf.inputs["Base Color"])
+            bump = nt.nodes.new("ShaderNodeBump")
+            bump.inputs["Strength"].default_value = 0.25
+            nt.links.new(br.outputs["Fac"], bump.inputs["Height"])
+            nt.links.new(bump.outputs["Normal"], bsdf.inputs["Normal"])
+            bsdf.inputs["Roughness"].default_value = 0.9
         if m.get("shader") == "canopy":                  # step 7j: far crowns, dark varied leaf mass with bumpy clumps
             nt = m.node_tree
             geo = nt.nodes.new("ShaderNodeNewGeometry")

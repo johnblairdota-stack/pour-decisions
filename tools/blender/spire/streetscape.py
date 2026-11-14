@@ -204,7 +204,7 @@ def build():
                         poles.box(px, py, g + 5.0, 0.1, 0.1, 0.6)
                         for s2 in (1, -1):
                             C.text_obj(col, "streetname", nm.upper().replace("STREET", "ST").replace("TERRACE", "TCE"),
-                                       (px - math.sin(bang) * 0.03 * s2, py + math.cos(bang) * 0.03 * s2, g + 5.41),
+                                       (px + math.sin(bang) * 0.03 * s2, py - math.cos(bang) * 0.03 * s2, g + 5.41),
                                        (math.radians(90), 0, bang + (0 if s2 > 0 else math.pi)), 0.26, (0.95, 0.95, 0.95))
                         nblade += 1
                 if side == 1 and wd > 9:                                   # mast arm over the road
@@ -235,14 +235,50 @@ def build():
     counts["street_name_blades"] = nblade
     counts["crossings"] = ncross
     # ---------------------------------------------------------------- signs
-    for s in c["signs"]:
+    sign_list = list(c["signs"])
+    # step 7j: kerbside parking / no-stopping signs every ~40 m along the main roads near Spire (photos)
+    roads_ = carriageways()
+    o_ = L.osm()
+    for w in o_["ways"].values():
+        t = w.get("tags", {})
+        if t.get("highway") not in ("primary", "secondary", "trunk") or t.get("name") not in ("Ann Street", "Queen Street", "Wickham Terrace", "Boundary Street"):
+            continue
+        P = o_["line"](w)
+        hw = road_width(t) / 2
+        acc = 0.0
+        for (ax, ay), (bx, by) in zip(P[:-1], P[1:]):
+            seg = math.hypot(bx - ax, by - ay)
+            if seg < 1e-3:
+                continue
+            ux, uy = (bx - ax) / seg, (by - ay) / seg
+            d = 20.0 - acc
+            while d < seg:
+                px, py = ax + ux * d, ay + uy * d
+                if math.hypot(px, py) < 260:
+                    for side in (1, -1):
+                        sx, sy = px - uy * side * (hw + 0.6), py + ux * side * (hw + 0.6)
+                        if not on_road(sx, sy, roads_, 0.2) and all(math.hypot(sx - q["xy"][0], sy - q["xy"][1]) > 12 for q in sign_list):
+                            kind = "no_stopping" if (int(px * 3 + py * 7) % 3) else "loading_zone"
+                            sign_list.append({"kind": kind, "xy": [sx, sy], "face_to": [sx + ux * side, sy + uy * side], "auto": True})
+                d += 40.0
+            acc = (acc + seg) % 40.0
+    face_col = {"speed_40": "red", "no_stopping": "red", "loading_zone": "red", "bus_zone": "red"}
+    for s in sign_list:
         x, y = s["xy"]
         g = L.ground_z(x, y) + L.KERB_HEIGHT
         poles.box(x, y, g, 0.08, 0.08, 3.0)
-        w_, h_ = s.get("size", [0.6, 0.8] if s["kind"] != "street_name" else [1.2, 0.25])
+        w_, h_ = s.get("size", [0.45, 0.6] if s["kind"] != "street_name" else [1.2, 0.25])
         ang = heading_to((x, y), s["face_to"]) + math.pi / 2 if "face_to" in s else 0.0
-        (sign_faces if s["kind"] in ("directional_green", "street_name") else signs).box(x, y, g + 3.0 - h_, w_, 0.05, h_, ang)
-    counts["signs"] = len(c["signs"])
+        zt = g + 3.0 - h_
+        if s["kind"] in ("directional_green", "street_name"):
+            sign_faces.box(x, y, zt, w_, 0.05, h_, ang)
+        else:
+            signs.box(x, y, zt, w_, 0.05, h_, ang)                              # white plate
+            if face_col.get(s["kind"]) == "red":                                  # red ring / band (regulatory signs)
+                ox, oy = math.cos(ang + math.pi / 2) * 0.03, math.sin(ang + math.pi / 2) * 0.03
+                for sgn in (1, -1):
+                    red.box(x + ox * sgn, y + oy * sgn, zt + h_ * 0.62, w_ * 0.8, 0.02, h_ * 0.22, ang)
+    counts["signs"] = len(sign_list)
     # ---------------------------------------------------------------- billboards (placeholder art)
     for bb in c["billboards"]:
         x, y = bb["xy"]
