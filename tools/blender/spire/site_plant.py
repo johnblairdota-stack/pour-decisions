@@ -35,7 +35,7 @@ def boom(buf, x, y, deck, reach, target, ftf):
 
 
 def build():
-    st = L.stage()
+    st = L.spire_stage()
     if st is None:
         return {"module": "site_plant", "objects": [], "note": "finished building: no site plant"}
     col = C.collection("site")

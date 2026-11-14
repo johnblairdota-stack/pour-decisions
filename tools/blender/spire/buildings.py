@@ -16,7 +16,7 @@ import common as C
 import shapes as S
 
 HSW_ZONE = (380, -130, 800, 140)      # local x0, y0, x1, y1: the strip under the cliffs (hsw.py adds the rest)
-SKIP = {26384715}                     # St John's Cathedral: cathedral.py
+SKIP = {26384715, 679146312}         # St John's Cathedral (cathedral.py), Mr Percival's (hsw.py)
 FAMILY_KEY = {"heritage": "fam_heritage", "brick": "fam_brick", "concrete": "fam_concrete", "glass": "fam_glass"}
 
 
@@ -64,29 +64,31 @@ def spire(buf, sp):
             [[k, (k + 1) % n, n] for k in range(n)] + [list(range(n - 1, -1, -1))])
 
 
-def build(zone=None, collection="buildings", skip_zone=HSW_ZONE):
+def build(zone=None, collection="buildings", skip_zone=HSW_ZONE, exclude=(), only=None, lift=0.0, suffix=""):
     col = C.collection(collection)
     walls = {k: C.MeshBuf() for k in FAMILY_KEY.values()}
     roofs, bands, extras = C.MeshBuf(), C.MeshBuf(), C.MeshBuf()
     n = 0
     for b in records():
-        if b["osm"] in SKIP:
+        if b["osm"] in SKIP or b["osm"] in exclude:
+            continue
+        if only is not None and b["osm"] not in only:
             continue
         ring0 = b["tiers"][0]["ring"]
         cx = sum(p[0] for p in ring0) / len(ring0)
         cy = sum(p[1] for p in ring0) / len(ring0)
         inz = lambda z: z and z[0] <= cx <= z[2] and z[1] <= cy <= z[3]
-        if zone is not None and not inz(zone):
+        if only is None and zone is not None and not inz(zone):
             continue
         if zone is None and (inz(skip_zone) or not C.in_model(cx, cy, 300)):
             continue
         fam = FAMILY_KEY[b["family"]]
-        base = b["base_ahd"] - 0.5
+        base = b["base_ahd"] - 0.5 + lift
         lower = base
         for k, t in enumerate(b["tiers"]):
             ring = S.ccw([tuple(p) for p in t["ring"]])
             z0 = base if k == 0 else max(lower - 0.2, base)
-            top = t["top_ahd"]
+            top = t["top_ahd"] + lift
             if top - z0 < 1.0:
                 continue
             walls[fam].prism(ring, z0, top)
@@ -103,18 +105,19 @@ def build(zone=None, collection="buildings", skip_zone=HSW_ZONE):
                     z += L.LEVEL_HEIGHT
             lower = top
         if b["gable"]:
-            gable(roofs, b["gable"], base)
+            gb = b["gable"]
+            gable(roofs, dict(gb, eave_ahd=gb["eave_ahd"] + lift, ridge_ahd=gb["ridge_ahd"] + lift), base)
         for sp in b["spires"]:
             spire(extras, sp)
         n += 1
     objs = []
     for key, buf in walls.items():
-        ob = buf.object("bldg_" + key, col, key)
+        ob = buf.object("bldg_" + key + suffix, col, key)
         if ob:
             objs.append(ob.name)
     for buf, name, key in ((roofs, "bldg_roofs_parapets_gables", "roof"), (bands, "bldg_floor_lines", "band"),
                            (extras, "bldg_spires_masts", "roof")):
-        ob = buf.object(name, col, key)
+        ob = buf.object(name + suffix, col, key)
         if ob:
             objs.append(ob.name)
     return {"module": "buildings" if zone is None else collection, "objects": objs, "buildings": n,

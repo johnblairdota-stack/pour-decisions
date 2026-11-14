@@ -48,6 +48,13 @@ COLOURS = {
     "rock": (0.55, 0.47, 0.40, 1),
     "timber": (0.60, 0.48, 0.35, 1),
     "corten": (0.62, 0.32, 0.18, 1),
+    "spire_glass": (0.14, 0.17, 0.20, 1),
+    "balustrade": (0.70, 0.80, 0.85, 1),
+    "line": (0.95, 0.95, 0.92, 1),          # road markings
+    "line_yellow": (0.95, 0.80, 0.20, 1),
+    "pole": (0.55, 0.57, 0.58, 1),
+    "shotcrete": (0.66, 0.64, 0.60, 1),
+    "anchor": (0.25, 0.25, 0.27, 1),
     "bridge": (0.35, 0.45, 0.55, 1),
     "crane": (0.95, 0.70, 0.10, 1),
     "hoist": (0.20, 0.55, 0.85, 1),
@@ -74,9 +81,14 @@ def material(key):
     return m
 
 
-def mesh_object(name, verts, faces, col, mat_key):
+def mesh_object(name, verts, faces, col, mat_key, uvs=None):
     me = bpy.data.meshes.new(name)
     me.from_pydata([tuple(v) for v in verts], [], [tuple(f) for f in faces])
+    if uvs is not None:
+        # facade UVs: u = metres round the footprint, v = metres AHD (windows line up with floors)
+        lay = me.uv_layers.new(name="facade")
+        flat = [c for face in uvs for uv in face for c in uv]
+        lay.data.foreach_set("uv", flat)
     me.validate()
     me.update()
     ob = bpy.data.objects.new(name, me)
@@ -111,12 +123,13 @@ class MeshBuf:
     """Collect many small pieces, then make one object (fast for hundreds of buildings)."""
 
     def __init__(self):
-        self.v, self.f = [], []
+        self.v, self.f, self.uv = [], [], []
 
-    def add(self, verts, faces):
+    def add(self, verts, faces, uvs=None):
         o = len(self.v)
         self.v += verts
         self.f += [[i + o for i in face] for face in faces]
+        self.uv += uvs if uvs is not None else [[(verts[i][0] * 0.1, verts[i][1] * 0.1) for i in face] for face in faces]
 
     def prism(self, ring, z0, z1):
         """Closed extrusion of a 2D ring (list of (x, y), no repeat of the first point)."""
@@ -128,7 +141,12 @@ class MeshBuf:
         verts = [(x, y, z0) for x, y in ring] + [(x, y, z1) for x, y in ring]
         faces = [list(range(n - 1, -1, -1)), list(range(n, 2 * n))]
         faces += [[i, (i + 1) % n, n + (i + 1) % n, n + i] for i in range(n)]
-        self.add(verts, faces)
+        per = [0.0]
+        for i in range(n):
+            per.append(per[-1] + math.dist(ring[i], ring[(i + 1) % n]))
+        uvs = [[(verts[i][0] * 0.1, verts[i][1] * 0.1) for i in faces[0]], [(verts[i][0] * 0.1, verts[i][1] * 0.1) for i in faces[1]]]
+        uvs += [[(per[i], z0), (per[i + 1], z0), (per[i + 1], z1), (per[i], z1)] for i in range(n)]
+        self.add(verts, faces, uvs)
 
     def loft(self, ring0, z0, ring1, z1):
         """Closed solid between two rings with the same vertex count (e.g. a leaning wall)."""
@@ -171,7 +189,7 @@ class MeshBuf:
     def object(self, name, col, mat_key):
         if not self.v:
             return None
-        return mesh_object(name, self.v, self.f, col, mat_key)
+        return mesh_object(name, self.v, self.f, col, mat_key, self.uv)
 
 
 def signed_area(ring):

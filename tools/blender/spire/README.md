@@ -114,3 +114,23 @@ Rule from here on: the LiDAR is for measuring only. No mesh made straight from p
 - Trees: clean models (fig, jacaranda/poinciana, eucalypt, palm, generic) on the LiDAR tree tops.
 - Spire: 43 PT slabs (L1-L42 + the roof slab at 136 m AHD, John's count); staggered slab edges.
 - New: `cam_queen_st_*` (Queen St street level), `*_morning.png` for the bridge, cathedral and two street views.
+
+## Step 6 results
+
+- Floors: 40 storeys above ground (GF + L1-L38 + roof storey), podium L1-L5 as measured, tower 2.9 m
+  floor to floor from the L6 transfer; RF (L39) at 138.0 m AHD, inside the LiDAR roof band. The rest of
+  John's 43 PT slabs are labelled PLANT, LMR (roof plant) and B1, B2 (basements) - heights assumed.
+- Facades: window grids per family from facade UVs (u = metres round, v = metres AHD): curtain wall
+  (1.5 m mullions) on glass, punched windows on concrete, brick and stone; floor lines as geometry.
+- Spire: white frame posts round every balcony level staggered half a bay on alternate levels (the "net"),
+  staggered slab edges, glass balustrades, dark glass line, Ann St lobby glazing under the brick podium.
+- HSW: corten lift tower with landings and a link to the cliff top, Mr Percival's (30 x 20 m deck on piles,
+  pavilion roof), boardwalk on headstocks and piles. Stage `hsw_2017` (preview pass `hsw`): basement dig
+  with shotcrete walls, rock anchors on the cliff, one tower crane, shed E (Felons Barrel Hall) lifted on
+  temporary steel, boardwalk headstocks without deck, blue hoarding.
+- Light: physical (Nishita) sky, sun ~10 deg up at bearing 80 deg (06:45 AEST, mid-April), AgX.
+- Roads: 2.5 % crown, dashed centre / lane lines and edge lines, driveways without footpaths, council bus
+  stops (pole + sign, shelters on Ann/Queen St).
+- Hotel and Mr Percival's heights fixed: roofs now use building points only (the bridge sits above them).
+- Renders: `*_morning.png` (bridge + HSW, cathedral, Ann/Queen corner, Queen St, Spire facade close-up),
+  `hsw2017_overview_*`, `hsw2017_dig_*`. Matching photos (John's, not in git) are named in layout.py.

@@ -30,17 +30,23 @@
    "spire_ground_ahd": 20.71,
    "water_level_ahd": 0.3,
    "source": "2019 LiDAR ground, river pushed under the water, two 5 m box blurs",
-   "seconds": 0.83
+   "seconds": 0.82
   },
   {
    "module": "streets",
    "objects": [
     "roads",
     "footpaths_kerbs",
-    "footways"
+    "footways",
+    "line_marking",
+    "bus_stop_poles",
+    "bus_shelters"
    ],
    "car_ways": 565,
    "walk_ways": 1107,
+   "driveways": 73,
+   "bus_stops": 45,
+   "crossfall": 0.025,
    "width_source": {
     "lanes x 3.3": 310,
     "class default": 255
@@ -48,7 +54,7 @@
    "footpath_width_m": 3.5,
    "kerb_m": 0.15,
    "note": "Footpath widths are a CBD default, not measured. Bridges/tunnels/upper layers left out (Story Bridge is in landmarks.py).",
-   "seconds": 8.79
+   "seconds": 13.06
   },
   {
    "module": "buildings",
@@ -64,7 +70,7 @@
    "buildings": 739,
    "source": "OSM footprints (simplified 0.3 m, squared) + 2019 LiDAR roof tiers (prep_clean.py)",
    "note": "Facade families are picked from height/tags; floor lines every 3.2 m. No LiDAR mesh is shown.",
-   "seconds": 0.6
+   "seconds": 0.96
   },
   {
    "module": "spire",
@@ -170,10 +176,10 @@
     }
    ],
    "slab_objects": 13,
-   "levels_total": 44,
+   "levels_total": 40,
    "base_ahd": 21.81,
-   "roof_ahd": 136.0,
-   "typical_ftf_m": 2.532,
+   "roof_ahd": 138.01,
+   "typical_ftf_m": 2.9,
    "plate_area_m2": 975.7,
    "lot_area_m2": 1670.0,
    "joint": {
@@ -181,8 +187,8 @@
     "assumption": true,
     "lines_local": []
    },
-   "note": "Typical floor to floor 2.53 m is solved from the OSM height (low; check a section). Joint position and column grid are assumptions.",
-   "seconds": 0.04
+   "note": "Typical floor to floor 2.90 m is solved from the OSM height (low; check a section). Joint position and column grid are assumptions.",
+   "seconds": 0.05
   },
   {
    "module": "core",
@@ -191,7 +197,7 @@
     "CORE_jump_form"
    ],
    "walls_to": "L09",
-   "top_ahd": 49.91,
+   "top_ahd": 51.01,
    "box_m": [
     11.96,
     7.65
@@ -202,8 +208,8 @@
    "lead_levels": 3,
    "rig": {
     "decks": 3,
-    "bottom_ahd": 44.84,
-    "top_ahd": 51.91
+    "bottom_ahd": 45.21,
+    "top_ahd": 53.01
    },
    "note": "Core box from the typical floor plan; jump-form lead from common Australian practice (core 2-4 levels ahead). Spire-specific system not found in public sources.",
    "seconds": 0.0
@@ -220,7 +226,7 @@
    "main_span_m": 280.0,
    "measured": "2019 LiDAR: 20 m bins along the axis; main piers where points reach the water, top chord = max height, deck = 10th percentile height",
    "note": "Member sizes and panel layout are simplified; heights, piers, alignment and the deck profile are measured from the 2019 LiDAR points.",
-   "seconds": 0.07
+   "seconds": 0.09
   },
   {
    "module": "cathedral",
@@ -270,18 +276,23 @@
   },
   {
    "module": "hsw",
+   "stage": "as built (2019)",
    "objects": [
     "bldg_fam_heritage.001",
     "bldg_fam_brick.001",
     "bldg_fam_concrete.001",
-    "bldg_fam_glass.001",
     "bldg_roofs_parapets_gables.001",
     "bldg_floor_lines.001",
     "bldg_spires_masts.001",
     "hsw_boardwalk_deck",
-    "hsw_boardwalk_cantilevers"
+    "hsw_boardwalk_headstocks_piles",
+    "mr_percivals_deck",
+    "mr_percivals_piles_posts",
+    "mr_percivals_roof",
+    "hsw_lift_tower_0_corten",
+    "hsw_lift_tower_0_glass"
    ],
-   "buildings": 25,
+   "buildings": 24,
    "boardwalk_ways": 10,
    "zone_local": [
     380,
@@ -289,9 +300,9 @@
     800,
     140
    ],
-   "mid_build_2017_18": "not built yet",
-   "note": "Lift towers, Mr Percival's and the mid-build state need John's photos (next step).",
-   "seconds": 0.19
+   "midbuild": {},
+   "note": "Lift tower position, Mr Percival's size and which shed is 'E' are estimates from the photos; the dig depth and crane spot are assumptions.",
+   "seconds": 0.22
   },
   {
    "module": "trees",
@@ -309,7 +320,7 @@
     "eucalypt": 291
    },
    "note": "Positions and heights from the 2019 LiDAR; species are stand-ins (see the docstring).",
-   "seconds": 1.75
+   "seconds": 2.67
   },
   {
    "module": "logistics",
@@ -326,7 +337,7 @@
      -25.7,
      8.1
     ],
-    "top_ahd": 63.9,
+    "top_ahd": 65.0,
     "confidence": "medium"
    },
    "hoist": {

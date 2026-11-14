@@ -14,6 +14,17 @@ def build():
     col = C.collection("ground")
     g = L.lidar("ground_smooth")
     x0, y0, x1, y1 = L.LIDAR_BOX
+    st = L.hsw_stage()
+    if st:                                   # HSW 2017: the basement dig at the hotel footprint
+        import prep_lidar as PL
+        import shapes as S
+        o = L.osm()
+        ring = S.clean(o["line"](o["ways"][L.HSW["hotel_way"]]), 0.3)
+        m, r0, c0 = PL.ring_mask(ring, L.LIDAR_BOX)
+        g = g.copy()
+        sub = g[r0:r0 + m.shape[0], c0:c0 + m.shape[1]]
+        floor = float(sub[m].min()) - st["dig_depth_m"]
+        sub[m] = floor
     H, W = g.shape
     rows, cols = np.arange(0, H, STEP), np.arange(0, W, STEP)
     sub = g[np.ix_(rows, cols)]

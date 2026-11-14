@@ -7,7 +7,7 @@ import common as C
 
 
 def build():
-    st = L.stage()
+    st = L.spire_stage()
     if st is None:
         return {"module": "logistics", "objects": [], "note": "finished building: no site logistics"}
     col = C.collection("logistics")

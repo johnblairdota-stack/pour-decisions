@@ -76,9 +76,18 @@ LEVELS = {
     "transfer_level": 6,
     "slab_m": 0.20,                # typical PT slab
     "transfer_m": 1.25,
-    "top_level": 42,               # step 5: John's 43 PT slabs = L1..L42 + the roof slab (L43 "RF") at the LiDAR roof
-    "roof_slab_ahd": 136.0,        # step 4: 2019 LiDAR roof deck (cells 135-137.5 m AHD); plant tops 147.7 m
-
+    # step 6: 40 storeys above ground (GF + L1..L38 + the roof storey), tower floor to floor 2.9 m from the
+    # L6 transfer up. The roof slab RF (= L39) lands at 138.0 m AHD, inside the LiDAR roof band (deck
+    # 135-137.5, parapets 140-142). John's 43 PT slabs = L1..L39 (39) + the 4 extra slabs below, labelled.
+    "top_level": 38,
+    "tower_ftf_m": 2.9,
+    "roof_slab_ahd": 136.0,        # LiDAR roof deck, for reference (RF is solved from tower_ftf_m)
+    "extra_pt_slabs": [            # the rest of John's 43: roof/plant/basement slabs (heights assumed)
+        {"name": "PLANT", "kind": "plant", "above_rf_m": 3.5, "note": "roof plant deck"},
+        {"name": "LMR", "kind": "plant", "above_rf_m": 7.0, "note": "lift motor room / overrun roof (plant top 147.7 LiDAR)"},
+        {"name": "B1", "kind": "basement", "above_rf_m": None, "below_gf_m": 3.2, "note": "basement level 1 (assumed)"},
+        {"name": "B2", "kind": "basement", "above_rf_m": None, "below_gf_m": 6.4, "note": "basement level 2 (assumed)"},
+    ],
     "parapet_m": 1.2,
 }
 
@@ -110,10 +119,11 @@ JOINT = {
 # Podium (step 3): the Ann St face is a sloped brick wall (NW podium elevation + John's Ann St photos):
 # set back at the footpath, leaning out to the boundary at the top.
 PODIUM = {
-    "top_level": "L03",
+    "top_level": "L05",                                   # step 6: podium L1-L5 (LiDAR)
     "ann_st_corners": ((-28.53, 3.74), (-3.48, 25.09)),   # OSM lot vertices on Ann St
     "ann_st_setback_at_ground_m": 3.0,                    # read off the NW elevation (glass line under the brick)
     "source": "NW podium elevation drawing + photo 'street view Ann st 1' (John, not in git)",
+    "lobby_t": [(0.05, 0.68), (0.74, 0.97)],          # glazing under the brick, west corner -> north (NW elevation)
 }
 
 # ---------------------------------------------------------------- construction stages
@@ -136,6 +146,22 @@ STAGES = {
         "gantry": {"from_t": -0.15, "to_t": 1.0, "out_m": 2.2, "width_m": 3.4, "clear_m": 3.2,
                    "shed_m": (3.0, 6.0), "evidence": "aerial_2016_site160m_0p1m.jpg, white strip along Ann St"},
     },
+}
+# Howard Smith Wharves features (step 6). Positions estimated from John's photos + OSM; flagged.
+HSW = {
+    "hotel_way": 679146305,                       # Crystalbrook Vincent (OSM)
+    "mr_percivals": {"centre_xy": (482.0, 40.0), "size_m": (30.0, 20.0), "angle_deg": 0.0, "deck_ahd": 3.6,
+                     "roof_m": 4.2, "source": "OSM point + RESEARCH.md (20 x 30 m deck between the bridge pylons)"},
+    "lift_towers": [{"xy": (600.0, 92.0), "face_deg": -90.0, "top_ahd": 39.0, "cliff_top_xy": (600.0, 121.0),
+                     "photo": "hb-m-hsw-shoot2-2", "note": "position estimated (cliff base, under the cliff top path)"}],
+}
+STAGES["hsw_2017"] = {
+    "site": "hsw", "name": "HSW mid-build, late 2017",
+    "evidence": "John's HSW photos (2017 aerials, construction 6/9/19, 2018-07) + RESEARCH.md",
+    "dig_depth_m": 6.0,                           # ASSUMPTION: one basement level + footings
+    "crane_xy": (432.0, 96.0), "crane_height_m": 45.0, "crane_jib_deg": 200.0,   # west of the hotel, clear of the bridge
+    "shed_e_way": 679146315,                      # Felons Barrel Hall: over-water shed east of the bridge pier (photo 19)
+    "shed_lift_m": 1.5,
 }
 # Plant on the 2016 deck and at the gate (step 3). Shapes are blockout, sizes from maker data sheets
 # (rounded): Schwing KVM 26 static placing boom, ~26 m reach, 4-section; Putzmeister BSA 2109 HD
@@ -295,8 +321,14 @@ HERO_CAMERAS = [
      "portrait": False, "photo": "my_photos/spire/Spire-Residences street view Ann st 1.jpg (spires in the distance)",
      "note": "raised view from the NE (over Ann St by Spire) down onto St John's Cathedral"},
 ]
-MORNING = {"sun_azimuth_deg": 70.0, "sun_elevation_deg": 18.0, "sun_strength": 3.5,
-           "sky": (0.62, 0.72, 0.85), "note": "Brisbane early morning: low sun from the ENE over the river"}
+HERO_CAMERAS.append({"id": "hero_spire_facade", "pos": (-48.0, 52.0, 18.0), "look_at": (-4.0, 8.0, 40.0),
+                     "lens_mm": 35.0, "portrait": True,
+                     "photo": "my_photos/spire/Spire-Residences street view Ann st 1.jpg + fly-by photos",
+                     "note": "across Ann St, raised: staggered slab edges, frames, balustrades, brick podium, lobby"})
+# Brisbane ~06:45 AEST, clear autumn morning (mid April): sun ~10 deg up, bearing ~80 deg (just N of E).
+MORNING = {"sun_azimuth_deg": 80.0, "sun_elevation_deg": 10.0, "sun_strength": 4.5, "sun_colour": (1.0, 0.88, 0.74),
+           "sky_strength": 0.25, "haze_dust": 2.0, "haze_density": 0.0, "exposure": -0.3,
+           "note": "06:45 AEST mid-April, Brisbane (27.5 S): approximate sun position; physical sky + light haze"}
 TOP_VIEW = {"half": 400.0, "aerial_year": 2016}   # top-down clay overlay: whole 800 m square, 2016 aerial
 SITE_VIEW = {"half": 80.0, "aerial_year": 2016}   # close top-down of the site (matches aerial_*_site160m)
 
@@ -508,7 +540,7 @@ def level(n_or_name):
 
 
 def core_top_ahd():
-    st = stage()
+    st = spire_stage()
     lv = spire_levels()
     if st is None:
         return lv[-1]["top_ahd"] + CORE["overrun_m"]
@@ -554,7 +586,6 @@ def spire_levels():
     """List of levels, bottom up: name, number, kind, top-of-slab AHD, slab thickness, pours."""
     Lv = LEVELS
     base = spire_base_ahd()
-    roof = Lv["roof_slab_ahd"]
     out = [{"name": "GF", "n": 0, "kind": "ground", "top_ahd": base, "slab_m": 0.3, "pours": 1}]
     z = base + Lv["ground_floor_m"]
     for n in range(1, Lv["transfer_level"] + 1):
@@ -563,8 +594,8 @@ def spire_levels():
                     "slab_m": Lv["transfer_m"] if kind == "transfer" else Lv["slab_m"], "pours": 2})
         z += Lv["podium_ftf_m"]
     z_t = out[-1]["top_ahd"]
-    n_typ = Lv["top_level"] - Lv["transfer_level"] + 1      # L7 .. top level, then the roof slab
-    ftf = (roof - z_t) / n_typ
+    ftf = Lv["tower_ftf_m"]                                  # step 6: fixed 2.9 m (no longer solved)
+    roof = z_t + (Lv["top_level"] - Lv["transfer_level"] + 1) * ftf
     for n in range(Lv["transfer_level"] + 1, Lv["top_level"] + 1):
         z_t += ftf
         out.append({"name": "L%02d" % n, "n": n, "kind": "tower", "top_ahd": round(z_t, 3),
@@ -574,6 +605,28 @@ def spire_levels():
     for lv in out:
         lv["typical_ftf_solved_m"] = round(ftf, 3)
     return out
+
+
+def spire_extra_slabs():
+    """The rest of John's 43 PT slabs: plant decks over the roof and basement slabs (assumed heights)."""
+    lv = spire_levels()
+    rf, gf = lv[-1]["top_ahd"], lv[0]["top_ahd"]
+    out = []
+    for e in LEVELS["extra_pt_slabs"]:
+        z = rf + e["above_rf_m"] if e["above_rf_m"] is not None else gf - e["below_gf_m"]
+        out.append(dict(e, top_ahd=round(z, 3), slab_m=LEVELS["slab_m"]))
+    return out
+
+
+def spire_stage():
+    """The active stage if it is a Spire construction stage (has a deck level), else None (finished)."""
+    st = ACTIVE_STAGE
+    return st if st and "deck_level" in st else None
+
+
+def hsw_stage():
+    st = ACTIVE_STAGE
+    return st if st and st.get("site") == "hsw" else None
 
 # ================================================================ 2019 LiDAR loaders (step 4)
 def lidar_header():

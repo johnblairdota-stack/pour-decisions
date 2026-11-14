@@ -113,7 +113,7 @@ def main():
         g_med = float(np.median(gnd[sub][m]))
         base_ahd = float(np.min(gnd[sub][m]))
         hcell = dsm[sub] - g_med
-        roofcls = (cls[sub] == 3) | (cls[sub] == 4)
+        roofcls = cls[sub] == 3          # step 6: building points only (class 4 = the Story Bridge over HSW)
         use = m & roofcls & (hcell > 2.0)
         name = t.get("name", "")
         if use.sum() < max(4, 0.15 * m.sum()):

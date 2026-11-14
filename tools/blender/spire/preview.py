@@ -50,49 +50,136 @@ def setup(mode):
     return sc
 
 
+# Window patterns per facade family (step 6): bay = window spacing along the wall, win = window width,
+# sill/head = heights within the floor (fractions of LEVEL_HEIGHT), glass = curtain wall (no wall between).
+FACADES = {
+    "clay_fam_glass":    {"bay": 1.5, "win": 1.38, "sill": 0.30, "head": 0.97, "glass": (0.16, 0.22, 0.28), "rough": 0.12},
+    "clay_fam_concrete": {"bay": 3.0, "win": 1.9, "sill": 0.28, "head": 0.80, "glass": (0.12, 0.15, 0.18), "rough": 0.2},
+    "clay_fam_brick":    {"bay": 3.4, "win": 1.3, "sill": 0.30, "head": 0.78, "glass": (0.10, 0.12, 0.14), "rough": 0.2},
+    "clay_fam_heritage": {"bay": 3.0, "win": 1.0, "sill": 0.22, "head": 0.85, "glass": (0.10, 0.11, 0.12), "rough": 0.25},
+}
+
+
+def window_material(m, spec):
+    """Wall colour with a window grid from the facade UVs (u = metres round, v = metres AHD)."""
+    nt = m.node_tree
+    nodes, links = nt.nodes, nt.links
+    bsdf = nodes.get("Principled BSDF")
+    uv = nodes.new("ShaderNodeUVMap")
+    uv.uv_map = "facade"
+    sep = nodes.new("ShaderNodeSeparateXYZ")
+    links.new(uv.outputs["UV"], sep.inputs[0])
+    def math_node(op, a, b=None):
+        n = nodes.new("ShaderNodeMath")
+        n.operation = op
+        for k, v in enumerate((a, b)):
+            if v is None:
+                continue
+            if isinstance(v, (int, float)):
+                n.inputs[k].default_value = v
+            else:
+                links.new(v, n.inputs[k])
+        return n.outputs[0]
+    fu = math_node("FRACT", math_node("DIVIDE", sep.outputs["X"], spec["bay"]))
+    fv = math_node("FRACT", math_node("DIVIDE", sep.outputs["Y"], L.LEVEL_HEIGHT))
+    half = spec["win"] / spec["bay"] / 2
+    inu = math_node("LESS_THAN", math_node("ABSOLUTE", math_node("SUBTRACT", fu, 0.5)), half)
+    inv = math_node("MULTIPLY", math_node("GREATER_THAN", fv, spec["sill"]), math_node("LESS_THAN", fv, spec["head"]))
+    mask = math_node("MULTIPLY", inu, inv)
+    mix = nodes.new("ShaderNodeMix")
+    mix.data_type = "RGBA"
+    links.new(mask, mix.inputs["Factor"])
+    mix.inputs[6].default_value = m.diffuse_color
+    mix.inputs[7].default_value = (*spec["glass"], 1)
+    links.new(mix.outputs[2], bsdf.inputs["Base Color"])
+    r = nodes.new("ShaderNodeMapRange")
+    links.new(mask, r.inputs["Value"])
+    r.inputs["To Min"].default_value = 0.85
+    r.inputs["To Max"].default_value = spec["rough"]
+    links.new(r.outputs["Result"], bsdf.inputs["Roughness"])
+
+
 def setup_morning():
-    """First pass of materials + morning light (Eevee): every clay colour becomes a Principled BSDF,
-    water is glossy, a low ENE sun and a sky-coloured world."""
+    """Materials + Brisbane morning light (Eevee): physical (Nishita) sky with the sun at ~06:45 AEST on a
+    clear autumn day, a sun lamp on the same bearing, light haze, AgX. Window grids on the facades."""
     import math
     sc = bpy.context.scene
     eng = [e.identifier for e in bpy.types.RenderSettings.bl_rna.properties["engine"].enum_items]
     sc.render.engine = "BLENDER_EEVEE_NEXT" if "BLENDER_EEVEE_NEXT" in eng else "BLENDER_EEVEE"
-    sc.view_settings.view_transform = "Standard"
+    vts = [v.identifier for v in sc.view_settings.bl_rna.properties["view_transform"].enum_items]
+    sc.view_settings.view_transform = "AgX" if "AgX" in vts else "Filmic"
+    sc.view_settings.exposure = L.MORNING["exposure"]
     sc.render.image_settings.file_format = "PNG"
     sc.render.image_settings.color_mode = "RGB"
     sc.render.film_transparent = False
     for m in bpy.data.materials:
-        if not m.name.startswith("clay_"):
+        if not m.name.startswith("clay_") or m.get("look_done"):
             continue
         m.use_nodes = True
         bsdf = m.node_tree.nodes.get("Principled BSDF")
         if bsdf is None:
             continue
         bsdf.inputs["Base Color"].default_value = m.diffuse_color
-        rough = {"clay_water": 0.08, "clay_screen": 0.5, "clay_spire": 0.35}.get(m.name, 0.85)
+        rough = {"clay_water": 0.06, "clay_spire_glass": 0.08, "clay_balustrade": 0.05, "clay_steel": 0.45}.get(m.name, 0.85)
         bsdf.inputs["Roughness"].default_value = rough
         if m.name == "clay_water":
-            bsdf.inputs["Base Color"].default_value = (0.18, 0.22, 0.20, 1)
+            bsdf.inputs["Base Color"].default_value = (0.10, 0.13, 0.11, 1)
+        if m.name == "clay_balustrade":
+            bsdf.inputs["Alpha"].default_value = 0.35
+            try:
+                m.surface_render_method = "BLENDED"
+            except AttributeError:
+                m.blend_method = "BLEND"
+        if m.name in FACADES:
+            window_material(m, FACADES[m.name])
+        m["look_done"] = True
     mo = L.MORNING
     sun = bpy.data.objects.get("SUN_morning")
     if sun is None:
         sun = bpy.data.objects.new("SUN_morning", bpy.data.lights.new("SUN_morning", "SUN"))
         sc.collection.objects.link(sun)
     sun.data.energy = mo["sun_strength"]
-    sun.data.angle = math.radians(1.0)
+    sun.data.color = mo["sun_colour"]
+    sun.data.angle = math.radians(0.6)
     az, el = math.radians(mo["sun_azimuth_deg"]), math.radians(mo["sun_elevation_deg"])
     d = Vector((math.sin(az) * math.cos(el), math.cos(az) * math.cos(el), math.sin(el)))   # towards the sun
     sun.rotation_euler = (-d).to_track_quat("-Z", "Y").to_euler()
     if sc.world is None:
         sc.world = bpy.data.worlds.new("World")
-    sc.world.use_nodes = True
-    bg = sc.world.node_tree.nodes.get("Background")
-    bg.inputs["Color"].default_value = (*mo["sky"], 1)
-    bg.inputs["Strength"].default_value = 0.35
+    w = sc.world
+    w.use_nodes = True
+    nt = w.node_tree
+    bg = nt.nodes.get("Background")
+    sky = nt.nodes.get("SKY_morning")
+    if sky is None:
+        sky = nt.nodes.new("ShaderNodeTexSky")
+        sky.name = "SKY_morning"
+        nt.links.new(sky.outputs["Color"], bg.inputs["Color"])
     try:
-        sc.eevee.taa_render_samples = 16
+        sky.sky_type = "NISHITA"
+        sky.sun_disc = False
+        sky.sun_elevation = el
+        sky.sun_rotation = math.radians(90.0 - mo["sun_azimuth_deg"])   # Blender: 0 = +X (east), CCW
+        sky.air_density = 1.0
+        sky.dust_density = mo["haze_dust"]
+        sky.ozone_density = 1.0
+    except (AttributeError, TypeError):
+        pass
+    bg.inputs["Strength"].default_value = mo["sky_strength"]
+    out = nt.nodes.get("World Output")
+    vol = nt.nodes.get("HAZE_morning")
+    if vol is None and mo["haze_density"] > 0:
+        vol = nt.nodes.new("ShaderNodeVolumePrincipled")
+        vol.name = "HAZE_morning"
+        vol.inputs["Density"].default_value = mo["haze_density"]
+        vol.inputs["Color"].default_value = (0.85, 0.88, 0.95, 1)
+        nt.links.new(vol.outputs[0], out.inputs["Volume"])
+    try:
+        sc.eevee.taa_render_samples = 32
         sc.eevee.use_shadows = True
-    except AttributeError:
+        sc.eevee.volumetric_end = 2500.0
+        sc.eevee.volumetric_tile_size = "8"
+    except (AttributeError, TypeError):
         pass
     return sc
 
@@ -215,12 +302,14 @@ def main():
     what = [a for a in argv if a in every] or every
     os.makedirs(L.DOCS, exist_ok=True)
     times = {}
-    passes = [a for a in argv if a in ("finished", "stage")] or ["finished", "stage"]
+    passes = [a for a in argv if a in ("finished", "stage", "hsw")] or ["finished", "stage", "hsw"]
     # ---------------------------------------------------------------- finished tower
     if "finished" in passes:
         finished(what, mode, times)
     if "stage" in passes:
         stage_pass(what, mode, times)
+    if "hsw" in passes:
+        hsw_pass(what, mode, times)
     print("render seconds:", {k: round(v, 1) for k, v in times.items()})
 
 
@@ -254,9 +343,25 @@ def finished(what, mode, times):
     if "morning" in what:  # first pass of materials and morning light
         setup_morning()
         pick = {c["id"]: c for c in L.CAMERAS + L.HERO_CAMERAS}
-        for c in (pick["hero_bridge_hsw"], pick["hero_cathedral"], pick["cam_ann_queen_corner"], pick["cam_queen_st"]):
+        for c in (pick["hero_bridge_hsw"], pick["hero_cathedral"], pick["cam_ann_queen_corner"], pick["cam_queen_st"],
+                  pick["hero_spire_facade"]):
             times[c["id"] + "_morning"] = cam_view(c, "morning")
         setup(mode)
+
+
+def hsw_pass(what, mode, times):
+    """Howard Smith Wharves mid-build (late 2017): clay + morning views."""
+    build_all.build_all("hsw_2017")
+    cams = [{"id": "hsw2017_overview", "pos": (520.0, -170.0, 80.0), "look_at": (600.0, 70.0, 12.0), "lens_mm": 24.0,
+             "portrait": False, "show_logistics": True},
+            {"id": "hsw2017_dig", "pos": (470.0, -10.0, 45.0), "look_at": (465.0, 100.0, 5.0), "lens_mm": 28.0,
+             "portrait": False, "show_logistics": True}]
+    setup(mode)
+    for c in cams:
+        times[c["id"]] = cam_view(c, mode)
+    setup_morning()
+    for c in cams:
+        times[c["id"] + "_morning"] = cam_view(c, "morning")
 
 
 def stage_pass(what, mode, times):

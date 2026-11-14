@@ -73,6 +73,30 @@ def osm_lot():
     return ccw(C.clean_ring(o["line"](o["ways"][L.SPIRE["osm_way"]])))
 
 
+BAY_M = 3.0
+
+
+def walk(ring, step, start=0.0):
+    """Points every `step` metres round a closed ring: (x, y, edge angle)."""
+    out = []
+    n = len(ring)
+    carry = step - start          # distance since the last point (first point lands at `start`)
+    for i in range(n):
+        (ax, ay), (bx, by) = ring[i], ring[(i + 1) % n]
+        ln = math.dist((ax, ay), (bx, by))
+        if ln < 1e-6:
+            continue
+        ang = math.atan2(by - ay, bx - ax)
+        t = step - carry
+        last = None
+        while t <= ln:
+            out.append((ax + (bx - ax) * t / ln, ay + (by - ay) * t / ln, ang))
+            last = t
+            t += step
+        carry = ln - last if last is not None else carry + ln
+    return out
+
+
 def lot_outline():
     """Podium slab edge: traced from the 2019 LiDAR (step 4); the OSM lot if that is missing."""
     try:
@@ -117,7 +141,7 @@ def grid_points(ring, step, keep_out=1.0):
 
 
 def build():
-    st = L.stage()
+    st = L.spire_stage()
     col = C.collection("spire")
     levels = L.spire_levels()
     lot = lot_outline()
@@ -186,12 +210,57 @@ def build():
         for lo, hi in zip(levels[:-1], levels[1:]):
             if lo["kind"] in ("ground", "podium"):
                 continue
-            sb.prism(inset(plate, 0.6), lo["top_ahd"], hi["top_ahd"] - hi["slab_m"])
-        objs.append(sb.object("SPIRE_storeys", col, "spire").name)
+            sb.prism(inset(plate, 1.4), lo["top_ahd"], hi["top_ahd"] - hi["slab_m"])      # glass line behind balconies
+        objs.append(sb.object("SPIRE_storeys", col, "spire_glass").name)
         top = levels[-1]["top_ahd"]
         pp = C.MeshBuf()
         pp.prism(inset(plate, 0.3), top, top + L.LEVELS["parapet_m"])
-        objs.append(pp.object("SPIRE_parapet", col, "spire").name)
+        objs.append(pp.object("SPIRE_parapet", col, "band").name)
+        # step 6 facade (John's photos): white frame posts round every balcony level, staggered half a bay
+        # on alternate levels over the staggered slab edges (the "net"), glass balustrades, Ann St lobby
+        fr, gl = C.MeshBuf(), C.MeshBuf()
+        for lo, hi in zip(levels[:-1], levels[1:]):
+            if lo["kind"] in ("ground", "podium"):
+                continue
+            ring = outline_for(lo)
+            z0, z1 = lo["top_ahd"], hi["top_ahd"] - hi["slab_m"]
+            for x, y, ang in walk(inset(ring, 0.15), BAY_M, BAY_M / 2 if lo["n"] % 2 else 0.0):
+                fr.box(x, y, z0, 0.22, 0.32, z1 - z0, ang)
+            bal = inset(ring, 0.08)
+            n = len(bal)
+            for i in range(n):
+                (ax_, ay_), (bx_, by_) = bal[i], bal[(i + 1) % n]
+                gl.add([(ax_, ay_, z0), (bx_, by_, z0), (bx_, by_, z0 + 1.05), (ax_, ay_, z0 + 1.05)], [[0, 1, 2, 3]])
+        objs.append(fr.object("SPIRE_facade_frames", col, "band").name)
+        objs.append(gl.object("SPIRE_glass_balustrades", col, "balustrade").name)
+        lb = C.MeshBuf()
+        (ax_, ay_), (bx_, by_) = L.PODIUM["ann_st_corners"]
+        (ux_, uy_), (nx_, ny_) = L.ann_st_frame()
+        s = L.PODIUM["ann_st_setback_at_ground_m"]
+        for t0, t1 in L.PODIUM["lobby_t"]:
+            p0 = (ax_ + (bx_ - ax_) * t0 - nx_ * (s + 0.2), ay_ + (by_ - ay_) * t0 - ny_ * (s + 0.2))
+            p1 = (ax_ + (bx_ - ax_) * t1 - nx_ * (s + 0.2), ay_ + (by_ - ay_) * t1 - ny_ * (s + 0.2))
+            mx, my = (p0[0] + p1[0]) / 2, (p0[1] + p1[1]) / 2
+            lb.box(mx, my, L.ground_z(mx, my) - 0.2, math.dist(p0, p1), 0.3, 4.2, math.atan2(uy_, ux_))
+        objs.append(lb.object("SPIRE_ann_st_lobby_glass", col, "spire_glass").name)
+        # the other PT slabs in John's count: plant decks and basements (labelled; heights assumed)
+        for e in L.spire_extra_slabs():
+            if e["kind"] == "basement":
+                ring = lot
+            elif e["name"] == "LMR":
+                ring = ccw(inset(L.core_outline(), -1.5))
+            else:
+                ring = ccw(inset(plate, 5.0))
+            eb = C.MeshBuf()
+            eb.prism(ring, e["top_ahd"] - e["slab_m"], e["top_ahd"])
+            ob = eb.object("SLAB_%s" % e["name"], col, "slab")
+            ob["kind"] = e["kind"]
+            ob["note"] = e["note"]
+            if e["kind"] == "plant":
+                pb2 = C.MeshBuf()
+                pb2.prism(ring, e["top_ahd"] - (3.3 if e["name"] == "PLANT" else 3.3), e["top_ahd"] - e["slab_m"])
+                objs.append(pb2.object("SPIRE_%s_room" % e["name"], col, "roof").name)
+            slabs.append({"name": ob.name, "level": e["name"], "pour_area": "1", "poured": True, "kind": e["kind"]})
     else:
         # ------------------------------------------------------------ site: columns, props, screens
         by_n = {lv["n"]: lv for lv in levels}

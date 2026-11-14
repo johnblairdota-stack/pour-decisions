@@ -24,7 +24,7 @@ def frame(buf, u0, u1, v0, v1, w, z0, z1):
 
 
 def build():
-    st = L.stage()
+    st = L.spire_stage()
     col = C.collection("core")
     levels = L.spire_levels()
     by_n = {lv["n"]: lv for lv in levels}

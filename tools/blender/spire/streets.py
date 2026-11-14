@@ -1,4 +1,8 @@
-"""Streets from OSM: carriageways, footpaths with kerbs, and footways. Grey blockout."""
+"""Streets from OSM: carriageways with a 2.5 % crown (camber), line marking (dashed centre / lane lines,
+edge lines), footpaths with 150 mm kerbs, driveways (OSM service=driveway, no footpath), footways, and
+bus stops (council brisbane-bus-stops: pole + sign, shelters at the busy ones)."""
+import json
+import os
 import math
 from collections import Counter
 
@@ -32,6 +36,49 @@ def ribbon(buf, left, right, lift):
     buf.add(verts, faces)
 
 
+CROSSFALL = 0.025
+
+
+def crowned(buf, pts, wd, lift):
+    """Carriageway with a crown: centre line raised CROSSFALL x half width over the kerb lines."""
+    n = len(pts)
+    if n < 2:
+        return
+    left, right = C.offset_line(pts, wd / 2), C.offset_line(pts, -wd / 2)
+    crown = CROSSFALL * wd / 2
+    verts = ([(x, y, L.ground_z(x, y) + lift) for x, y in left] + [(x, y, L.ground_z(x, y) + lift + crown) for x, y in pts] +
+             [(x, y, L.ground_z(x, y) + lift) for x, y in right])
+    faces = [[i, n + i, n + i + 1, i + 1] for i in range(n - 1)] + [[n + i, 2 * n + i, 2 * n + i + 1, n + i + 1] for i in range(n - 1)]
+    buf.add(verts, faces)
+
+
+def dashes(buf, pts, off, z_lift, dash=3.0, gap=6.0, w=0.12, solid=False):
+    """Road marking strip `off` metres left of the centre line; dashed unless solid."""
+    line = C.offset_line(pts, off)
+    acc, on = 0.0, True
+    seg = [line[0]]
+    for i in range(1, len(line)):
+        a, b = line[i - 1], line[i]
+        ln = math.dist(a, b)
+        acc += ln
+        seg.append(b)
+        if solid:
+            continue
+        if acc >= (dash if on else gap):
+            if on and len(seg) > 1:
+                _strip(buf, seg, w, z_lift)
+            on, acc, seg = not on, 0.0, [b]
+    if (on or solid) and len(seg) > 1:
+        _strip(buf, seg, w, z_lift)
+
+
+def _strip(buf, seg, w, z_lift):
+    n = len(seg)
+    l, r = C.offset_line(seg, w / 2), C.offset_line(seg, -w / 2)
+    verts = [(x, y, L.ground_z(x, y) + z_lift) for x, y in l] + [(x, y, L.ground_z(x, y) + z_lift) for x, y in r]
+    buf.add(verts, [[i, n + i, n + i + 1, i + 1] for i in range(n - 1)])
+
+
 def kerb_band(buf, inner, outer):
     """Footpath band: top at kerb height, with a kerb face down to the road along `inner`."""
     n = len(inner)
@@ -51,7 +98,8 @@ def kerb_band(buf, inner, outer):
 def build():
     o = L.osm()
     col = C.collection("streets")
-    roads, paths, walks = C.MeshBuf(), C.MeshBuf(), C.MeshBuf()
+    roads, paths, walks, lines = C.MeshBuf(), C.MeshBuf(), C.MeshBuf(), C.MeshBuf()
+    n_drive = 0
     # how many car roads meet at each node: footpaths stop short of junctions
     deg = Counter()
     car_ways = []
@@ -73,9 +121,21 @@ def build():
         width_src[src] += 1
         lift = ROAD_Z.get(t["highway"], 0.028)
         pts = C.densify(pts)
-        ribbon(roads, C.offset_line(pts, wd / 2), C.offset_line(pts, -wd / 2), lift)
+        crowned(roads, pts, wd, lift)
         n_car += 1
+        lanes = int(L.tag_float(t, "lanes") or (2 if t["highway"] in ("primary", "secondary", "tertiary") else 1))
+        mz = lift + 0.012
+        if lanes >= 2 and t["highway"] != "service":
+            oneway = t.get("oneway") == "yes"
+            if oneway:
+                for k in range(1, lanes):
+                    dashes(lines, pts, -wd / 2 + k * wd / lanes, mz + CROSSFALL * abs(-wd / 2 + k * wd / lanes - 0) * 0)
+            else:
+                dashes(lines, pts, 0.0, mz + CROSSFALL * wd / 2, solid=lanes >= 4)
+            for side in (1, -1):
+                dashes(lines, pts, side * (wd / 2 - 0.4), mz, solid=True, w=0.1)
         if t["highway"] == "service" or t.get("sidewalk") == "no":
+            n_drive += t.get("service") == "driveway"
             continue
         cut0 = wd if deg[w["nodes"][0]] > 1 else 0.0
         cut1 = wd if deg[w["nodes"][-1]] > 1 else 0.0
@@ -100,8 +160,38 @@ def build():
             ribbon(walks, C.offset_line(pts, wd / 2), C.offset_line(pts, -wd / 2), 0.05)
             n_walk += 1
     objs = [ob.name for ob in (roads.object("roads", col, "road"), paths.object("footpaths_kerbs", col, "footpath"),
-                               walks.object("footways", col, "footway")) if ob]
-    return {"module": "streets", "objects": objs, "car_ways": n_car, "walk_ways": n_walk,
+                               walks.object("footways", col, "footway"), lines.object("line_marking", col, "line")) if ob]
+    stops = bus_stops(col)
+    objs += stops["objects"]
+    return {"module": "streets", "objects": objs, "car_ways": n_car, "walk_ways": n_walk, "driveways": n_drive,
+            "bus_stops": stops["count"], "crossfall": CROSSFALL,
             "width_source": dict(width_src), "footpath_width_m": L.FOOTPATH_WIDTH, "kerb_m": L.KERB_HEIGHT,
             "note": "Footpath widths are a CBD default, not measured. Bridges/tunnels/upper layers left out "
                     "(Story Bridge is in landmarks.py)."}
+
+
+def bus_stops(col):
+    """Council bus stops: a pole with a sign at every stop, a shelter where the stop has one (or is a
+    named busy stop on Ann/Queen St)."""
+    gj = json.load(open(L.ref("council_spire.geojson"), encoding="utf-8"))
+    poles, shelters = C.MeshBuf(), C.MeshBuf()
+    n = 0
+    for f in gj["features"]:
+        if f["properties"].get("layer") != "brisbane-bus-stops" or f["geometry"]["type"] != "Point":
+            continue
+        lon, lat = f["geometry"]["coordinates"][:2]
+        x, y = L.to_local(lat, lon)
+        if not C.in_lidar(x, y):
+            continue
+        z = L.ground_z(x, y) + L.KERB_HEIGHT
+        poles.box(x, y, z, 0.1, 0.1, 3.0)
+        poles.box(x, y, z + 2.3, 0.05, 0.5, 0.7)
+        desc = str(f["properties"].get("description", "")) + str(f["properties"].get("shelter", ""))
+        if "shelter" in desc.lower() or "Ann" in desc or "Queen" in desc:
+            shelters.box(x + 1.0, y, z + 2.4, 3.8, 1.8, 0.15)          # roof
+            shelters.box(x + 1.0, y + 0.8, z, 3.6, 0.08, 2.4)          # back panel
+            for dx in (-0.8, 2.8):
+                shelters.box(x + dx, y + 0.8, z, 0.1, 0.1, 2.4)
+        n += 1
+    objs = [ob.name for ob in (poles.object("bus_stop_poles", col, "pole"), shelters.object("bus_shelters", col, "pole")) if ob]
+    return {"objects": objs, "count": n}
