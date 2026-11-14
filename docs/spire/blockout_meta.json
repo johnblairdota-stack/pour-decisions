@@ -39,6 +39,7 @@
     "footpaths_kerbs",
     "footways",
     "line_marking",
+    "kerb_gutter",
     "bus_stop_poles",
     "bus_shelters"
    ],
@@ -54,7 +55,7 @@
    "footpath_width_m": 3.5,
    "kerb_m": 0.15,
    "note": "Footpath widths are a CBD default, not measured. Bridges/tunnels/upper layers left out (Story Bridge is in landmarks.py).",
-   "seconds": 16.57
+   "seconds": 15.09
   },
   {
    "module": "buildings",
@@ -203,7 +204,7 @@
    ],
    "source": "OSM footprints + 2019 LiDAR tiers (prep_clean.py); recipes in looks.py",
    "note": "Procedural facades from the photo notes; nothing copied from photos.",
-   "seconds": 1.88
+   "seconds": 1.81
   },
   {
    "module": "spire",
@@ -846,7 +847,7 @@
     ]
    },
    "note": "Typical floor to floor 2.90 m is solved from the OSM height (low; check a section). Joint position and column grid are assumptions.",
-   "seconds": 0.12
+   "seconds": 0.16
   },
   {
    "module": "core",
@@ -879,7 +880,7 @@
    "main_span_m": 280.0,
    "measured": "2019 LiDAR: 20 m bins along the axis; main piers where points reach the water, top chord = max height, deck = 10th percentile height",
    "note": "Member sizes and panel layout are simplified; heights, piers, alignment and the deck profile are measured from the 2019 LiDAR points.",
-   "seconds": 0.08
+   "seconds": 0.13
   },
   {
    "module": "cathedral",
@@ -923,7 +924,7 @@
    "crossing_tower_top_m": 32.2,
    "source": "docs/spire/materials_from_photos.md",
    "note": "Heights from the LiDAR; plan proportions, bay rhythm and detail sizes from the photo notes.",
-   "seconds": 0.07
+   "seconds": 0.06
   },
   {
    "module": "hsw",
@@ -974,7 +975,7 @@
     "eucalypt": 289
    },
    "note": "Positions and heights from the 2019 LiDAR; species are stand-ins (see the docstring).",
-   "seconds": 3.09
+   "seconds": 12.94
   },
   {
    "module": "logistics",
@@ -995,6 +996,10 @@
     "street_target_boards",
     "street_lit_red",
     "street_lit_green",
+    "street_lenses_unlit",
+    "street_bins",
+    "street_bollards",
+    "street_parked_cars",
     "street_name_blades",
     "street_no_stopping_yellow",
     "street_poles",
@@ -1022,7 +1027,7 @@
     "bus_lane_ways": 10
    },
    "note": "From street_catalogue.json (photos) + OSM nodes; billboard art is placeholder colour, not real ads.",
-   "seconds": 0.47
+   "seconds": 0.54
   }
  ]
 }

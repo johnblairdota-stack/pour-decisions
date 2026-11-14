@@ -37,6 +37,7 @@ def ribbon(buf, left, right, lift):
 
 
 CROSSFALL = 0.025
+GUTTER = None
 
 
 def crowned(buf, pts, wd, lift):
@@ -93,12 +94,18 @@ def kerb_band(buf, inner, outer):
     faces = [[i, i + 1, n + i + 1, n + i] for i in range(n - 1)]               # top
     faces += [[2 * n + i, 2 * n + i + 1, i + 1, i] for i in range(n - 1)]       # kerb face
     buf.add(verts, faces)
+    if GUTTER is not None:                                                      # 0.4 m channel at the road edge
+        gut = C.offset_line(inner, -0.4)
+        verts = [(x, y, z + 0.035) for (x, y), z in zip(inner, zi)] + [(x, y, z + 0.035) for (x, y), z in zip(gut, zi)]
+        GUTTER.add(verts, [[i, n + i, n + i + 1, i + 1] for i in range(n - 1)])
 
 
 def build():
     o = L.osm()
     col = C.collection("streets")
     roads, paths, walks, lines = C.MeshBuf(), C.MeshBuf(), C.MeshBuf(), C.MeshBuf()
+    global GUTTER
+    GUTTER = C.MeshBuf()
     n_drive = 0
     # how many car roads meet at each node: footpaths stop short of junctions
     deg = Counter()
@@ -166,6 +173,10 @@ def build():
             n_walk += 1
     objs = [ob.name for ob in (roads.object("roads", col, "road"), paths.object("footpaths_kerbs", col, "footpath"),
                                walks.object("footways", col, "footway"), lines.object("line_marking", col, "line")) if ob]
+    og = GUTTER.object("kerb_gutter", col, "road")
+    if og:
+        og.data.materials[0] = C.material_rgb("kerb_gutter", (0.10, 0.09, 0.08))
+        objs.append(og.name)
     stops = bus_stops(col)
     objs += stops["objects"]
     return {"module": "streets", "objects": objs, "car_ways": n_car, "walk_ways": n_walk, "driveways": n_drive,

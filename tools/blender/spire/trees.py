@@ -31,6 +31,29 @@ def ico(r):
 ICO = ico((1, 1, 1))
 
 
+def trunk(buf, x, y, g, r, h, branches=0, spread=1.0):
+    """Octagonal tapered trunk plus a few branches up into the crown."""
+    n = 8
+    bot = [(x + r * math.cos(2 * math.pi * k / n), y + r * math.sin(2 * math.pi * k / n), g) for k in range(n)]
+    top = [(x + 0.6 * r * math.cos(2 * math.pi * k / n), y + 0.6 * r * math.sin(2 * math.pi * k / n), g + h) for k in range(n)]
+    buf.add(bot + top, [[k, (k + 1) % n, n + (k + 1) % n, n + k] for k in range(n)])
+    seed = int(abs(x * 13.1 + y * 7.7)) % 360
+    for b in range(branches):
+        a = math.radians(seed + b * 360 / max(branches, 1))
+        buf.beam((x, y, g + h * 0.9), (x + math.cos(a) * spread, y + math.sin(a) * spread, g + h + spread * 0.6), r * 0.7)
+
+
+def crown(buf, x, y, zc, r, flat, lobes=5):
+    """Clustered crown: a few overlapping lobes, varied by position."""
+    seed = int(abs(x * 31.7 + y * 17.3))
+    blob(buf, x, y, zc, r * 0.75, r * 0.75 * flat)
+    for k in range(lobes):
+        a = math.radians((seed * 37 + k * 360 / lobes) % 360)
+        s = 0.45 + 0.2 * ((seed + k * 7) % 5) / 4
+        d = r * (0.5 + 0.1 * (k % 2))
+        blob(buf, x + math.cos(a) * d, y + math.sin(a) * d, zc + r * flat * (0.1 * (k % 3) - 0.1), r * s, r * s * flat)
+
+
 def blob(buf, x, y, z, rx, rz):
     vs, fs = ICO
     buf.add([(x + a * rx, y + b * rx, z + c * rz) for a, b, c in vs], [list(f) for f in fs])
@@ -73,23 +96,23 @@ def build():
             continue
         if s == "fig":
             r = 0.42 * h
-            trunks.box(x, y, g, 0.7, 0.7, h * 0.45)
-            blob(crowns, x, y, g + h - 0.45 * r, r, 0.45 * r)
+            trunk(trunks, x, y, g, 0.45, h * 0.45, 4, r * 0.6)
+            crown(crowns, x, y, g + h - 0.45 * r, r, 0.5, 6)
         elif s in ("jacaranda", "poinciana"):
             r = 0.38 * h
-            trunks.box(x, y, g, 0.5, 0.5, h * 0.6)
-            blob(crowns, x, y, g + h - 0.3 * r, r, 0.3 * r)
+            trunk(trunks, x, y, g, 0.25, h * 0.6, 3, r * 0.5)
+            crown(crowns, x, y, g + h - 0.3 * r, r, 0.3, 5)
             if s == "poinciana":
                 flowers.append((x, y, g + h - 0.05 * r, r * 0.9))
         elif s == "eucalypt":
             r = 0.25 * h
-            trunks.box(x, y, g, 0.6, 0.6, h * 0.7)
-            blob(crowns, x + 0.3 * r, y, g + h - r, r, r)
-            blob(crowns, x - 0.4 * r, y + 0.3 * r, g + h - 2.2 * r, 0.8 * r, 0.8 * r)
+            trunk(trunks, x, y, g, 0.3, h * 0.7, 3, r * 0.7)
+            crown(crowns, x + 0.3 * r, y, g + h - r, r, 0.9, 3)
+            crown(crowns, x - 0.4 * r, y + 0.3 * r, g + h - 2.2 * r, 0.8 * r, 0.9, 3)
         else:
-            r = max(1.0, 0.24 * h)                                  # step 7b: photos show smaller, higher crowns
-            trunks.box(x, y, g, 0.35, 0.35, max(0.5, h - 1.6 * r))
-            blob(crowns, x, y, g + h - r, r, r)
+            r = max(1.0, 0.24 * h)
+            trunk(trunks, x, y, g, 0.18, max(0.5, h - 1.6 * r), 2, r * 0.5)
+            crown(crowns, x, y, g + h - r, r, 0.85, 4)
     fl = C.MeshBuf()
     for x, y, z, r in flowers:
         blob(fl, x, y, z, r, 0.12 * r)

@@ -13,51 +13,461 @@
   "crane_from_south": "Spire top floors in screens, crane, Mantra crown with the blue swoosh.",
   "crane_from_nw": "red tile/terracotta roofs of the cathedral precinct, Orient hipped roof."
  },
- "street_lights": {"type": "BCC arterial: 9 m galvanised pole, 1.8 m outreach arm, LED head", "spacing_m": 32,
-                   "streets": ["Ann Street", "Queen Street", "Boundary Street", "Clark Lane", "Wickham Terrace", "Adelaide Street"],
-                   "radius_m": 260},
- "heritage_lamps": [{"xy": [-120, -62], "type": "twin-globe cast post 4.5 m"}, {"xy": [-108, -50], "type": "twin-globe cast post 4.5 m"}],
- "banners": [{"street": "Ann Street", "colour": "blue", "from": [-60, -40], "to": [200, 270]},
-             {"street": "Ann Street", "colour": "pink", "from": [-260, -200], "to": [-60, -40]}],
+ "street_lights": {
+  "type": "BCC arterial: 9 m galvanised pole, 1.8 m outreach arm, LED head",
+  "spacing_m": 32,
+  "streets": [
+   "Ann Street",
+   "Queen Street",
+   "Boundary Street",
+   "Clark Lane",
+   "Wickham Terrace",
+   "Adelaide Street"
+  ],
+  "radius_m": 260
+ },
+ "heritage_lamps": [
+  {
+   "xy": [
+    -120,
+    -62
+   ],
+   "type": "twin-globe cast post 4.5 m"
+  },
+  {
+   "xy": [
+    -108,
+    -50
+   ],
+   "type": "twin-globe cast post 4.5 m"
+  }
+ ],
+ "banners": [
+  {
+   "street": "Ann Street",
+   "colour": "blue",
+   "from": [
+    -60,
+    -40
+   ],
+   "to": [
+    200,
+    270
+   ]
+  },
+  {
+   "street": "Ann Street",
+   "colour": "pink",
+   "from": [
+    -260,
+    -200
+   ],
+   "to": [
+    -60,
+    -40
+   ]
+  }
+ ],
  "signs": [
-  {"kind": "speed_40", "xy": [48, 62], "face_to": [52, 59]},
-  {"kind": "directional_green", "xy": [44, 4], "face_to": [56, -9], "size": [1.8, 1.1]},
-  {"kind": "street_name", "xy": [36, 52]}, {"kind": "street_name", "xy": [53, 73]},
-  {"kind": "park_9", "xy": [-150, -140], "face_to": [-394, -218], "size": [1.4, 1.0]},
-  {"kind": "no_stopping", "xy": [-30, 16]}, {"kind": "no_stopping", "xy": [40, 20]},
-  {"kind": "bus_zone", "xy": [-24, 13]}
+  {
+   "kind": "speed_40",
+   "xy": [
+    48,
+    62
+   ],
+   "face_to": [
+    52,
+    59
+   ]
+  },
+  {
+   "kind": "directional_green",
+   "xy": [
+    44,
+    4
+   ],
+   "face_to": [
+    56,
+    -9
+   ],
+   "size": [
+    1.8,
+    1.1
+   ]
+  },
+  {
+   "kind": "street_name",
+   "xy": [
+    36,
+    52
+   ]
+  },
+  {
+   "kind": "street_name",
+   "xy": [
+    53,
+    73
+   ]
+  },
+  {
+   "kind": "park_9",
+   "xy": [
+    -150,
+    -140
+   ],
+   "face_to": [
+    -394,
+    -218
+   ],
+   "size": [
+    1.4,
+    1.0
+   ]
+  },
+  {
+   "kind": "no_stopping",
+   "xy": [
+    -30,
+    16
+   ]
+  },
+  {
+   "kind": "no_stopping",
+   "xy": [
+    40,
+    20
+   ]
+  },
+  {
+   "kind": "bus_zone",
+   "xy": [
+    -24,
+    13
+   ]
+  }
  ],
  "billboards": [
-  {"id": "orient_roof", "xy": [17, 44], "base_ahd": 31.5, "size": [9.0, 3.2], "face_to": [92, 180], "art": "sky_beach",
-   "photos": ["ann_queen_corner", "orient_front", "ann_st_far", "fly_by_east"]},
-  {"id": "mantra_corner", "xy": [32, 93], "base_above_ground": 6.0, "size": [11.0, 3.6], "face_to": [92, 180], "art": "warm_dark",
-   "photos": ["ann_queen_corner"]}
+  {
+   "id": "orient_roof",
+   "xy": [
+    17,
+    44
+   ],
+   "base_ahd": 31.5,
+   "size": [
+    9.0,
+    3.2
+   ],
+   "face_to": [
+    92,
+    180
+   ],
+   "art": "sky_beach",
+   "photos": [
+    "ann_queen_corner",
+    "orient_front",
+    "ann_st_far",
+    "fly_by_east"
+   ]
+  },
+  {
+   "id": "mantra_corner",
+   "xy": [
+    32,
+    93
+   ],
+   "base_above_ground": 6.0,
+   "size": [
+    11.0,
+    3.6
+   ],
+   "face_to": [
+    92,
+    180
+   ],
+   "art": "warm_dark",
+   "photos": [
+    "ann_queen_corner"
+   ]
+  }
  ],
- "lane_markings": {"turn_arrows": [{"xy": [70, 155], "heading": 206}, {"xy": [80, 150], "heading": 206}],
-                   "bus_lane": {"street": "Ann Street", "side": "left_of_travel", "colour": "red", "width_m": 3.3},
-                   "stop_lines": "at every OSM traffic_signals node on a car road",
-                   "crossings": "zebra stripes at OSM crossing=traffic_signals / marked nodes"},
+ "lane_markings": {
+  "turn_arrows": [
+   {
+    "xy": [
+     70,
+     155
+    ],
+    "heading": 206
+   },
+   {
+    "xy": [
+     80,
+     150
+    ],
+    "heading": 206
+   }
+  ],
+  "bus_lane": {
+   "street": "Ann Street",
+   "side": "left_of_travel",
+   "colour": "red",
+   "width_m": 3.3
+  },
+  "stop_lines": "at every OSM traffic_signals node on a car road",
+  "crossings": "zebra stripes at OSM crossing=traffic_signals / marked nodes"
+ },
  "greenery": {
-  "islands": [{"poly": [[40, 80], [52, 80], [62, 104], [44, 110]], "hedge_m": 0.9, "palms": [[48, 96]]}],
-  "planters": [{"xy": [-4, 26], "size": [6, 1.2, 0.8]}, {"xy": [-14, 18], "size": [6, 1.2, 0.8]}],
-  "tree_species": [{"centre": [-80, -40], "radius": 90, "species": "fig", "note": "Ann St by the cathedral, cathedral lawn"},
-                   {"centre": [120, 160], "radius": 70, "species": "fig", "note": "Ann St NE of Queen St (ann_st_far)"},
-                   {"centre": [-200, -170], "radius": 60, "species": "poinciana", "note": "yellow/red flowering (west_with_spires)"},
-                   {"centre": [90, 140], "radius": 15, "species": "palm", "note": "Lawler corner palm"}]
+  "islands": [
+   {
+    "poly": [
+     [
+      40,
+      80
+     ],
+     [
+      52,
+      80
+     ],
+     [
+      62,
+      104
+     ],
+     [
+      44,
+      110
+     ]
+    ],
+    "hedge_m": 0.9,
+    "palms": [
+     [
+      48,
+      96
+     ]
+    ]
+   }
+  ],
+  "planters": [
+   {
+    "xy": [
+     -4,
+     26
+    ],
+    "size": [
+     6,
+     1.2,
+     0.8
+    ]
+   },
+   {
+    "xy": [
+     -14,
+     18
+    ],
+    "size": [
+     6,
+     1.2,
+     0.8
+    ]
+   }
+  ],
+  "tree_species": [
+   {
+    "centre": [
+     -80,
+     -40
+    ],
+    "radius": 90,
+    "species": "fig",
+    "note": "Ann St by the cathedral, cathedral lawn"
+   },
+   {
+    "centre": [
+     120,
+     160
+    ],
+    "radius": 70,
+    "species": "fig",
+    "note": "Ann St NE of Queen St (ann_st_far)"
+   },
+   {
+    "centre": [
+     -200,
+     -170
+    ],
+    "radius": 60,
+    "species": "poinciana",
+    "note": "yellow/red flowering (west_with_spires)"
+   },
+   {
+    "centre": [
+     90,
+     140
+    ],
+    "radius": 15,
+    "species": "palm",
+    "note": "Lawler corner palm"
+   }
+  ]
  },
  "roofs": {
-  "186586595": {"name": "Orient Hotel", "shape": "hipped", "pitch_deg": 22, "colour": [0.42, 0.52, 0.52], "note": "corrugated iron, verandahs, roof billboard"},
-  "186247884": {"name": "Webber House", "shape": "hipped", "pitch_deg": 50, "colour": [0.35, 0.37, 0.40], "note": "steep slate"},
-  "106225768": {"name": "Church House", "shape": "hipped", "pitch_deg": 35, "colour": [0.55, 0.28, 0.22], "note": "red tile"},
-  "189779542": {"name": "The Manhattan", "shape": "flat", "plant": true, "note": "flat roof, AC units"},
-  "26253098": {"name": "Willahra Tower", "shape": "crown_ring", "note": "white rounded crown frame + railing"},
-  "568836537": {"name": "Mantra on Queen", "shape": "swoosh", "colour": [0.12, 0.54, 0.85], "note": "blue swoosh fins on the crown"},
-  "189779738": {"name": "Mantra podium", "shape": "flat", "plant": true, "note": "flat podium roof with plant"}
+  "186586595": {
+   "name": "Orient Hotel",
+   "shape": "hipped",
+   "pitch_deg": 22,
+   "colour": [
+    0.42,
+    0.52,
+    0.52
+   ],
+   "note": "corrugated iron, verandahs, roof billboard"
+  },
+  "186247884": {
+   "name": "Webber House",
+   "shape": "hipped",
+   "pitch_deg": 50,
+   "colour": [
+    0.35,
+    0.37,
+    0.4
+   ],
+   "note": "steep slate"
+  },
+  "106225768": {
+   "name": "Church House",
+   "shape": "hipped",
+   "pitch_deg": 35,
+   "colour": [
+    0.55,
+    0.28,
+    0.22
+   ],
+   "note": "red tile"
+  },
+  "189779542": {
+   "name": "The Manhattan",
+   "shape": "flat",
+   "plant": true,
+   "note": "flat roof, AC units"
+  },
+  "26253098": {
+   "name": "Willahra Tower",
+   "shape": "crown_ring",
+   "note": "white rounded crown frame + railing"
+  },
+  "568836537": {
+   "name": "Mantra on Queen",
+   "shape": "swoosh",
+   "colour": [
+    0.12,
+    0.54,
+    0.85
+   ],
+   "note": "blue swoosh fins on the crown"
+  },
+  "189779738": {
+   "name": "Mantra podium",
+   "shape": "flat",
+   "plant": true,
+   "note": "flat podium roof with plant"
+  }
  },
- "spire_crown": {"railing": "rounded white top rail on a glass balustrade following the plate",
-                 "pool": "infinity pool along the W/SW curved edge, ~3.5 m wide, dark blue mosaic",
-                 "deck": "grey stone pavers + timber lounges",
-                 "plant_box": "dark charcoal box with vertical louvres over the core/lift overrun",
-                 "cabana": "curved pavilion with black vertical louvres, glass below, on the N side",
-                 "sources": ["Spire-Residences-7/8 (roof pool)", "fly by view 2 (top-down)", "fly over view 2 (render)"]}
+ "spire_crown": {
+  "railing": "rounded white top rail on a glass balustrade following the plate",
+  "pool": "infinity pool along the W/SW curved edge, ~3.5 m wide, dark blue mosaic",
+  "deck": "grey stone pavers + timber lounges",
+  "plant_box": "dark charcoal box with vertical louvres over the core/lift overrun",
+  "cabana": "curved pavilion with black vertical louvres, glass below, on the N side",
+  "sources": [
+   "Spire-Residences-7/8 (roof pool)",
+   "fly by view 2 (top-down)",
+   "fly over view 2 (render)"
+  ]
+ },
+ "furniture": [
+  {
+   "kind": "bin",
+   "xy": [
+    -22,
+    15
+   ]
+  },
+  {
+   "kind": "bin",
+   "xy": [
+    28,
+    66
+   ]
+  },
+  {
+   "kind": "bin",
+   "xy": [
+    58,
+    60
+   ]
+  },
+  {
+   "kind": "bin",
+   "xy": [
+    44,
+    0
+   ]
+  },
+  {
+   "kind": "bin",
+   "xy": [
+    -110,
+    -60
+   ]
+  },
+  {
+   "kind": "bollards",
+   "xy": [
+    -8,
+    27
+   ],
+   "heading": 40,
+   "n": 6,
+   "note": "Spire Ann St lobby forecourt"
+  },
+  {
+   "kind": "bollards",
+   "xy": [
+    40,
+    30
+   ],
+   "heading": 95,
+   "n": 4
+  },
+  {
+   "kind": "cars",
+   "xy": [
+    36,
+    8
+   ],
+   "heading": 95,
+   "n": 3,
+   "note": "Queen St kerb, street view 4"
+  },
+  {
+   "kind": "cars",
+   "xy": [
+    -20,
+    -10
+   ],
+   "heading": 310,
+   "n": 2,
+   "note": "Clark Lane"
+  },
+  {
+   "kind": "cars",
+   "xy": [
+    60,
+    -60
+   ],
+   "heading": 100,
+   "n": 3,
+   "note": "Queen St, street view"
+  }
+ ]
 }

@@ -43,8 +43,23 @@ def lantern(lant, board, lit_r, lit_g, x, y, z, ang, green):
     board.box(x, y, z - 0.15, 0.75, 0.04, 1.35, ang)
     nx, ny = math.cos(ang - math.pi / 2), math.sin(ang - math.pi / 2)
     lant.box(x + nx * 0.06, y + ny * 0.06, z, 0.36, 0.25, 1.05, ang)
-    zz = z + (0.15 if green else 0.82)
-    (lit_g if green else lit_r).box(x + nx * 0.2, y + ny * 0.2, zz, 0.22, 0.03, 0.22, ang)
+    for k, zz in enumerate((z + 0.87, z + 0.52, z + 0.17)):             # red, amber, green top to bottom
+        lit = (k == 0 and not green) or (k == 2 and green)
+        cx, cy = x + nx * 0.2, y + ny * 0.2
+        disc(lit_r if (lit and k == 0) else lit_g if lit else unlit, cx, cy, zz, nx, ny, 0.11)
+        visor = [(cx + math.cos(ang) * 0.13 * math.cos(a), cy + math.sin(ang) * 0.13 * math.cos(a), zz + 0.13 * math.sin(a))
+                 for a in [math.pi * i / 6 for i in range(7)]]
+        n = len(visor)
+        lant.add([(vx, vy, vz) for vx, vy, vz in visor] + [(vx + nx * 0.16, vy + ny * 0.16, vz) for vx, vy, vz in visor],
+                 [[i, i + 1, n + i + 1, n + i] for i in range(n - 1)])
+
+
+def disc(buf, cx, cy, cz, nx, ny, r, k=12):
+    """Round lens facing (nx, ny)."""
+    ux, uy = -ny, nx
+    pts = [(cx + ux * r * math.cos(2 * math.pi * i / k), cy + uy * r * math.cos(2 * math.pi * i / k), cz + r * math.sin(2 * math.pi * i / k))
+           for i in range(k)]
+    buf.add(pts, [list(range(k))[::-1]])
 
 
 def build():
@@ -54,6 +69,9 @@ def build():
     col = C.collection("streetscape")
     o = L.osm()
     lant, board, lit_r, lit_g, blade, yellow = (C.MeshBuf() for _ in range(6))
+    global unlit
+    unlit = C.MeshBuf()
+    bins, bollards, cars = C.MeshBuf(), C.MeshBuf(), C.MeshBuf()
     nblade = 0
     poles, heads, banners_b, banners_p, signs, sign_faces, boards, art1, art2, red, white, hedge, plant = (C.MeshBuf() for _ in range(13))
     counts = {}
@@ -139,7 +157,7 @@ def build():
                     lantern(lant, board, lit_r, lit_g, px + fx * 0.25, py + fy * 0.25, g + 2.6, face + math.pi / 2,
                             green=(k + (fb > 0)) % 2 == 0)
                     lant.box(px - fx * 0.2, py - fy * 0.2, g + 2.2, 0.25, 0.2, 0.45, face)        # ped lantern
-                    (lit_r if (k + (fb > 0)) % 2 else lit_g).box(px - fx * 0.31, py - fy * 0.31, g + 2.3, 0.16, 0.02, 0.16, face)
+                    disc(lit_r if (k + (fb > 0)) % 2 else lit_g, px - fx * 0.31, py - fy * 0.31, g + 2.42, -fx, -fy, 0.08)
                     poles.box(px - fx * 0.12, py - fy * 0.12, g + 1.0, 0.12, 0.08, 0.18, face)       # push button
                     if names and fb > 0:                                   # BCC blue blade, white name
                         nm = names[(k) % len(names)]
@@ -212,8 +230,12 @@ def build():
         wd = road_width(t)
         a, b = C.offset_line(pts, wd / 2 - 0.15), C.offset_line(pts, wd / 2 - 0.15 - bl["width_m"])
         m = len(pts)
-        za = 0.046 + 0.025 * 0.15 + 0.006
-        zb = 0.046 + 0.025 * (0.15 + bl["width_m"]) + 0.006
+        za = 0.046 + 0.025 * 0.15 + 0.05
+        zb = 0.046 + 0.025 * (0.15 + bl["width_m"]) + 0.05
+        li = C.offset_line(pts, wd / 2 - 0.15 - bl["width_m"] - 0.06)
+        li2 = C.offset_line(pts, wd / 2 - 0.15 - bl["width_m"] + 0.06)
+        white.add([(x, y, L.ground_z(x, y) + zb + 0.004) for x, y in li] + [(x, y, L.ground_z(x, y) + zb + 0.004) for x, y in li2],
+                  [[i, m + i, m + i + 1, i + 1] for i in range(m - 1)])               # bus lane line
         red.add([(x, y, L.ground_z(x, y) + za) for x, y in a] + [(x, y, L.ground_z(x, y) + zb) for x, y in b],
                 [[i, m + i, m + i + 1, i + 1] for i in range(m - 1)])
         nb += 1
@@ -230,7 +252,8 @@ def build():
             a2 = math.atan2(by - ay, bx - ax)
             cx = ax - math.sin(a2) * (wd / 2 - 1.8)
             cy = ay + math.cos(a2) * (wd / 2 - 1.8)
-            C.text_obj(col, "busonly", "BUS ONLY", (cx, cy, L.ground_z(cx, cy) + 0.046 + 0.025 * 1.8 + 0.012), (0, 0, a2 - math.pi / 2), 1.3, (0.9, 0.9, 0.86))
+            ob_t = C.text_obj(col, "busonly", "BUS ONLY", (cx, cy, L.ground_z(cx, cy) + 0.046 + 0.025 * 1.8 + 0.06), (0, 0, a2 - math.pi / 2), 0.55, (0.9, 0.9, 0.86))
+            ob_t.scale = (1.0, 3.0, 1.0)                                    # stretched along the lane
     for ar in c["lane_markings"]["turn_arrows"]:
         x, y = ar["xy"]
         h = math.radians(90 - ar["heading"])
@@ -246,15 +269,32 @@ def build():
     for isl in c["greenery"]["islands"]:
         ring = [tuple(p) for p in isl["poly"]]
         z = min(L.ground_z(*p) for p in ring)
-        hedge.prism(ring, z, z + 0.2)
-        inner = [(sum(p[0] for p in ring) / 4 + (p[0] - sum(q[0] for q in ring) / 4) * 0.85,
-                  sum(p[1] for p in ring) / 4 + (p[1] - sum(q[1] for q in ring) / 4) * 0.85) for p in ring]
-        plant.prism(inner, z + 0.2, z + 0.2 + isl["hedge_m"])
+        hedge.prism(ring, z, z + 0.15)                                    # kerbed island, mulch top
+        cx_ = sum(p[0] for p in ring) / 4
+        cy_ = sum(p[1] for p in ring) / 4
+        for i in range(14):                                               # low hedge + shrubs
+            a, rr = i * 2.4, 0.15 + 0.6 * ((i * 37) % 10) / 10
+            plant.box(cx_ + math.cos(a) * rr * 7, cy_ + math.sin(a) * rr * 9, z + 0.15, 1.2, 1.2, 0.45 + 0.25 * (i % 3), a)
         for px, py in isl["palms"]:
             poles.box(px, py, z, 0.35, 0.35, 8.0)
             for k in range(7):
                 a = 2 * math.pi * k / 7
                 plant.beam((px, py, z + 7.8), (px + 3.0 * math.cos(a), py + 3.0 * math.sin(a), z + 6.6), 0.45, 0.12)
+    for it in c.get("furniture", []):
+        x, y = it["xy"]
+        g = L.ground_z(x, y) + L.KERB_HEIGHT
+        ang = math.radians(it.get("heading", 0))
+        if it["kind"] == "bin":
+            bins.box(x, y, g, 0.6, 0.6, 1.0, ang)
+        elif it["kind"] == "bollards":
+            for k in range(it.get("n", 4)):
+                bollards.box(x + math.cos(ang) * 1.4 * k, y + math.sin(ang) * 1.4 * k, g, 0.18, 0.18, 0.95)
+        elif it["kind"] == "cars":
+            for k in range(it.get("n", 3)):
+                cx2, cy2 = x + math.cos(ang) * 6.0 * k, y + math.sin(ang) * 6.0 * k
+                gz = L.ground_z(cx2, cy2) + 0.05
+                cars.box(cx2, cy2, gz + 0.3, 4.5, 1.8, 0.75, ang)
+                cars.box(cx2 - math.cos(ang) * 0.3, cy2 - math.sin(ang) * 0.3, gz + 1.05, 2.4, 1.6, 0.55, ang)
     for pl in c["greenery"]["planters"]:
         x, y = pl["xy"]
         sx, sy, sz = pl["size"]
@@ -267,7 +307,9 @@ def build():
             "boards": (0.15, 0.15, 0.16), "art1": (0.25, 0.65, 0.80), "art2": (0.80, 0.42, 0.12),
             "red": (0.55, 0.16, 0.12), "white": (0.93, 0.93, 0.90), "hedge": (0.42, 0.36, 0.28), "plant": (0.22, 0.42, 0.18)}
     for name, buf, rgb, emit in (("lanterns", lant, (0.03, 0.03, 0.035), 0), ("target_boards", board, (0.85, 0.65, 0.05), 0),
-                                 ("lit_red", lit_r, (1.0, 0.08, 0.05), 6.0), ("lit_green", lit_g, (0.1, 1.0, 0.45), 6.0),
+                                 ("lit_red", lit_r, (1.0, 0.045, 0.028), 4.0), ("lit_green", lit_g, (0.045, 1.0, 0.14), 4.0),
+                                 ("lenses_unlit", unlit, (0.06, 0.05, 0.03), 0), ("bins", bins, (0.12, 0.30, 0.16), 0),
+                                 ("bollards", bollards, (0.55, 0.56, 0.57), 0), ("parked_cars", cars, (0.55, 0.57, 0.60), 0),
                                  ("name_blades", blade, (0.04, 0.16, 0.50), 0), ("no_stopping_yellow", yellow, (0.92, 0.75, 0.10), 0)):
         ob = buf.object("street_" + name, col, "roof")
         if ob:
