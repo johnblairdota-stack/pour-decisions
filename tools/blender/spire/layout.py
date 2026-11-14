@@ -338,6 +338,9 @@ HERO_CAMERAS.append({"id": "cam_ann_st_precinct", "pos": (-82.0, -27.0, 1.7), "l
                      "lens_mm": 24.0, "portrait": False,
                      "photo": "materials_from_photos.md: Church House, Webber House, The Manhattan, Metropolis",
                      "note": "Ann St near the cathedral looking NE towards Spire: precinct on the right, Manhattan/Metropolis left"})
+HERO_CAMERAS.append({"id": "hero_spire_roof", "pos": (-40.0, -70.0, 260.0), "look_at": (0.0, 4.0, 138.0),
+                     "lens_mm": 40.0, "portrait": False, "photo": "fly by view 2 (top-down) + roof pool photos",
+                     "note": "high over the SW, looking down at Spire's roof: pool, cabana, plant box, railing"})
 HERO_CAMERAS.append({"id": "hero_spire_facade", "pos": (-62.0, 38.0, 24.0), "look_at": (-4.0, 6.0, 45.0),
                      "lens_mm": 35.0, "portrait": True,
                      "photo": "my_photos/spire/Spire-Residences street view Ann st 1.jpg + fly-by photos",

@@ -457,7 +457,7 @@ def finished(what, mode, times):
         setup_morning()
         pick = {c["id"]: c for c in L.CAMERAS + L.HERO_CAMERAS}
         for c in (pick["hero_bridge_hsw"], pick["hero_cathedral"], pick["cam_ann_queen_corner"], pick["cam_queen_st"],
-                  pick["hero_spire_facade"], pick["hero_cathedral_west_front"], pick["cam_ann_st_precinct"]):
+                  pick["hero_spire_facade"], pick["hero_cathedral_west_front"], pick["cam_ann_st_precinct"], pick["hero_spire_roof"]):
             times[c["id"] + "_morning"] = cam_view(c, "morning")
         setup(mode)
 
@@ -472,8 +472,9 @@ def photo_cam(c, out_dir, look):
     cam.data.lens = c["blender"]["lens_mm"]
     cam.data.shift_x = 0.0
     cam.data.shift_y = c["blender"]["shift_y"]
-    cam.data.clip_start, cam.data.clip_end = 0.5, 6000
     x, y, z = c["pos"]
+    street = z - L.ground_z(x, y) < 3.0
+    cam.data.clip_start, cam.data.clip_end = (6.0 if street else 0.5), 6000   # street cams: nothing on the lens
     cam.location = (x, y, z)
     h, p = math.radians(c["heading_deg"]), math.radians(c["pitch_deg"])
     d = Vector((math.sin(h) * math.cos(p), math.cos(h) * math.cos(p), math.sin(p)))

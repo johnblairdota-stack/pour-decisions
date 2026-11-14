@@ -176,6 +176,50 @@ def toppers(rec, bf, ring, top):
         bf.roof.prism(offset(ring, 0.1), top + 5.6, top + 6.0)
 
 
+_ROOFS = json.load(open(os.path.join(L.HERE, "street_catalogue.json"), encoding="utf-8"))["roofs"]
+
+
+def hipped(buf, ring, z, pitch_deg):
+    """Hipped roof over the footprint's min rectangle."""
+    cx, cy, ln, wd, ang = S.min_rect(ring)
+    c, s = math.cos(ang), math.sin(ang)
+    hl, hw = ln / 2 + 0.4, wd / 2 + 0.4
+    rise = math.tan(math.radians(pitch_deg)) * hw
+    rl = max(0.0, hl - hw)
+    P = lambda u, v, zz: (cx + u * c - v * s, cy + u * s + v * c, zz)
+    verts = [P(-hl, -hw, z), P(hl, -hw, z), P(hl, hw, z), P(-hl, hw, z), P(-rl, 0, z + rise), P(rl, 0, z + rise)]
+    buf.add(verts, [[0, 1, 5, 4], [2, 3, 4, 5], [3, 0, 4], [1, 2, 5]])
+
+
+def roof_override(osm, bf, ring, top, ground):
+    r = _ROOFS.get(str(osm))
+    if not r:
+        return False
+    shape = r["shape"]
+    if shape == "hipped":
+        hipped(bf.accent, ring, top, r["pitch_deg"])
+        return True
+    if shape == "crown_ring":
+        bf.band.prism(offset(ring, 0.3), top + 0.9, top + 1.2)
+        for p in ring[::2]:
+            bf.band.box(p[0], p[1], top, 0.3, 0.3, 4.0)
+        bf.band.prism(offset(ring, 0.3), top + 3.8, top + 4.2)
+    if shape == "swoosh":
+        cx = sum(p[0] for p in ring) / len(ring)
+        cy = sum(p[1] for p in ring) / len(ring)
+        for p in sorted(ring, key=lambda p: -math.dist(p, (cx, cy)))[:2]:
+            for k in range(6):                                           # blue fin sweeping out and up
+                f = k / 5
+                bf.accent.box(p[0] + (p[0] - cx) * 0.45 * f * f, p[1] + (p[1] - cy) * 0.45 * f * f, top - 24 + 24 * f,
+                              1.4, 1.4, 4.4)
+    if r.get("plant") or shape in ("crown_ring", "swoosh", "flat"):
+        cx = sum(p[0] for p in ring) / len(ring)
+        cy = sum(p[1] for p in ring) / len(ring)
+        bf.roof.box(cx, cy, top + 0.9, 5.0, 4.0, 2.4)                    # plant room / AC units
+        bf.roof.box(cx + 4.0, cy + 2.0, top + 0.9, 1.6, 1.6, 1.2)
+    return shape != "hipped"
+
+
 def build(zone=None, collection="buildings", skip_zone=HSW_ZONE, exclude=(), only=None, lift=0.0, suffix=""):
     col = C.collection(collection)
     o = L.osm()
@@ -217,7 +261,13 @@ def build(zone=None, collection="buildings", skip_zone=HSW_ZONE, exclude=(), onl
             if top - z0 < 1.0:
                 continue
             bf.walls.prism(ring, z0, top)
-            if not (k == 0 and b["gable"]) and top - b["base_ahd"] > 8:
+            last = k == len(tiers) - 1
+            ov = _ROOFS.get(str(b["osm"]), {}).get("shape")
+            if last and ov:
+                roof_override(b["osm"], bf, ring, top, b["base_ahd"])
+                if ov == "hipped":
+                    b = dict(b, gable=None)
+            if ov != "hipped" and not (k == 0 and b["gable"]) and top - b["base_ahd"] > 8:
                 bf.roof.prism(offset(ring, -0.25), top, top + 0.9)    # parapet cap
             dress(rec, bf, ring, b["base_ahd"] + lift, z0, top, k == 0, k == len(tiers) - 1, lines, glass_rail)
             if k == len(tiers) - 1 and not cut:
@@ -238,7 +288,7 @@ def build(zone=None, collection="buildings", skip_zone=HSW_ZONE, exclude=(), onl
                                     shader=rec.get("shader", "render"), palette=rec.get("stone_palette")),
             "roof": C.material_rgb(key + "_roof", rec["roof"]),
             "band": C.material_rgb(key + "_band", rec.get("band") or rec.get("verandah") or (0.95, 0.95, 0.93)),
-            "accent": C.material_rgb(key + "_accent", rec.get("accent") or rec.get("dome") or rec["roof"]),
+            "accent": C.material_rgb(key + "_accent", tuple(_ROOFS.get(key[5:], {}).get("colour") or ()) or rec.get("accent") or rec.get("dome") or rec["roof"]),
             "ground": C.material_rgb(key + "_ground", rec.get("ground") or rec["wall"]),
         }
         for part in ("walls", "roof", "band", "accent", "ground"):

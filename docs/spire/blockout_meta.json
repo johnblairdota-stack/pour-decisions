@@ -30,7 +30,7 @@
    "spire_ground_ahd": 20.71,
    "water_level_ahd": 0.3,
    "source": "2019 LiDAR ground, river pushed under the water, two 5 m box blurs",
-   "seconds": 0.91
+   "seconds": 0.96
   },
   {
    "module": "streets",
@@ -54,7 +54,7 @@
    "footpath_width_m": 3.5,
    "kerb_m": 0.15,
    "note": "Footpath widths are a CBD default, not measured. Bridges/tunnels/upper layers left out (Story Bridge is in landmarks.py).",
-   "seconds": 12.83
+   "seconds": 13.51
   },
   {
    "module": "buildings",
@@ -111,12 +111,14 @@
     "bldg_gen_house_roof",
     "bldg_look_106225768_walls",
     "bldg_look_106225768_roof",
+    "bldg_look_106225768_accent",
     "bldg_look_106225768_ground",
     "bldg_look_106225770_walls",
     "bldg_look_106225770_roof",
     "bldg_look_106225770_band",
     "bldg_look_186247884_walls",
     "bldg_look_186247884_roof",
+    "bldg_look_186247884_accent",
     "bldg_look_186248014_walls",
     "bldg_look_186248014_roof",
     "bldg_look_186424546_walls",
@@ -124,8 +126,8 @@
     "bldg_look_186424546_band",
     "bldg_look_186424546_accent",
     "bldg_look_186586595_walls",
-    "bldg_look_186586595_roof",
     "bldg_look_186586595_band",
+    "bldg_look_186586595_accent",
     "bldg_look_189779542_walls",
     "bldg_look_189779542_roof",
     "bldg_look_189779542_ground",
@@ -201,7 +203,7 @@
    ],
    "source": "OSM footprints + 2019 LiDAR tiers (prep_clean.py); recipes in looks.py",
    "note": "Procedural facades from the photo notes; nothing copied from photos.",
-   "seconds": 1.75
+   "seconds": 1.86
   },
   {
    "module": "spire",
@@ -213,7 +215,15 @@
     "SPIRE_queen_st_shopfront",
     "SPIRE_storeys",
     "SPIRE_parapet",
+    "SPIRE_roof_deck",
+    "SPIRE_roof_rail",
+    "SPIRE_roof_glass",
+    "SPIRE_roof_pool",
+    "SPIRE_roof_lounges",
+    "SPIRE_roof_cabana",
+    "SPIRE_roof_planters",
     "SPIRE_facade_frames",
+    "SPIRE_slab_edge_bands",
     "SPIRE_glass_balustrades",
     "SPIRE_ann_st_lobby_glass",
     "SPIRE_PLANT_room",
@@ -836,7 +846,7 @@
     ]
    },
    "note": "Typical floor to floor 2.90 m is solved from the OSM height (low; check a section). Joint position and column grid are assumptions.",
-   "seconds": 0.11
+   "seconds": 0.14
   },
   {
    "module": "core",
@@ -869,7 +879,7 @@
    "main_span_m": 280.0,
    "measured": "2019 LiDAR: 20 m bins along the axis; main piers where points reach the water, top chord = max height, deck = 10th percentile height",
    "note": "Member sizes and panel layout are simplified; heights, piers, alignment and the deck profile are measured from the 2019 LiDAR points.",
-   "seconds": 0.07
+   "seconds": 0.09
   },
   {
    "module": "cathedral",
@@ -945,25 +955,26 @@
    ],
    "midbuild": {},
    "note": "Lift tower position, Mr Percival's size and which shed is 'E' are estimates from the photos; the dig depth and crane spot are assumptions.",
-   "seconds": 0.29
+   "seconds": 0.27
   },
   {
    "module": "trees",
    "objects": [
+    "tree_flowering_tops",
     "tree_trunks",
     "tree_crowns",
     "palm_fronds"
    ],
    "species_count": {
-    "generic": 6871,
-    "jacaranda": 913,
-    "palm": 539,
-    "poinciana": 779,
-    "fig": 332,
-    "eucalypt": 291
+    "generic": 6791,
+    "jacaranda": 896,
+    "palm": 529,
+    "poinciana": 788,
+    "fig": 432,
+    "eucalypt": 289
    },
    "note": "Positions and heights from the 2019 LiDAR; species are stand-ins (see the docstring).",
-   "seconds": 2.55
+   "seconds": 2.92
   },
   {
    "module": "logistics",
@@ -976,6 +987,35 @@
    "objects": [],
    "note": "finished building: no site plant",
    "seconds": 0.0
+  },
+  {
+   "module": "streetscape",
+   "objects": [
+    "street_poles",
+    "street_heads",
+    "street_banners_b",
+    "street_banners_p",
+    "street_signs",
+    "street_sign_faces",
+    "street_boards",
+    "street_art1",
+    "street_art2",
+    "street_red",
+    "street_white",
+    "street_hedge",
+    "street_plant"
+   ],
+   "counts": {
+    "street_lights": 101,
+    "heritage_lamps": 2,
+    "signals": 42,
+    "crossings": 82,
+    "signs": 8,
+    "billboards": 2,
+    "bus_lane_ways": 10
+   },
+   "note": "From street_catalogue.json (photos) + OSM nodes; billboard art is placeholder colour, not real ads.",
+   "seconds": 0.36
   }
  ]
 }

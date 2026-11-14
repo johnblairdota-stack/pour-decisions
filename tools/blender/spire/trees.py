@@ -36,7 +36,15 @@ def blob(buf, x, y, z, rx, rz):
     buf.add([(x + a * rx, y + b * rx, z + c * rz) for a, b, c in vs], [list(f) for f in fs])
 
 
+import json as _json
+import os as _os
+_ZONES = _json.load(open(_os.path.join(L.HERE, "street_catalogue.json"), encoding="utf-8"))["greenery"]["tree_species"]
+
+
 def species(x, y, h):
+    for z in _ZONES:                                     # step 7c: species seen in the photos
+        if math.hypot(x - z["centre"][0], y - z["centre"][1]) < z["radius"] and (h > 6 or z["species"] == "palm"):
+            return z["species"]
     k = (int(x * 7.0) * 73856093 ^ int(y * 7.0) * 19349663) % 100
     if h >= 18:
         return "fig" if k < 55 else "eucalypt"
@@ -50,6 +58,7 @@ def species(x, y, h):
 def build():
     col = C.collection("trees")
     trunks, crowns, palms = C.MeshBuf(), C.MeshBuf(), C.MeshBuf()
+    flowers = []
     count = {}
     for x, y, h, g in L.tree_points():
         if h < 3.0 or h > 40.0:
@@ -70,6 +79,8 @@ def build():
             r = 0.38 * h
             trunks.box(x, y, g, 0.5, 0.5, h * 0.6)
             blob(crowns, x, y, g + h - 0.3 * r, r, 0.3 * r)
+            if s == "poinciana":
+                flowers.append((x, y, g + h - 0.05 * r, r * 0.9))
         elif s == "eucalypt":
             r = 0.25 * h
             trunks.box(x, y, g, 0.6, 0.6, h * 0.7)
@@ -79,7 +90,14 @@ def build():
             r = max(1.0, 0.24 * h)                                  # step 7b: photos show smaller, higher crowns
             trunks.box(x, y, g, 0.35, 0.35, max(0.5, h - 1.6 * r))
             blob(crowns, x, y, g + h - r, r, r)
+    fl = C.MeshBuf()
+    for x, y, z, r in flowers:
+        blob(fl, x, y, z, r, 0.12 * r)
     objs = []
+    if fl.v:
+        ob = fl.object("tree_flowering_tops", col, "tree")
+        ob.data.materials[0] = C.material_rgb("tree_flowers", (0.85, 0.55, 0.10))
+        objs.append(ob.name)
     for buf, name, key in ((trunks, "tree_trunks", "bark"), (crowns, "tree_crowns", "tree"), (palms, "palm_fronds", "palm")):
         ob = buf.object(name, col, key)
         if ob:

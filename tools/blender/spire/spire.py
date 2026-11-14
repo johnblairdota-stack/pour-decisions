@@ -98,6 +98,54 @@ def walk(ring, step, start=0.0):
     return out
 
 
+def crown(col, plate, top):
+    """Spire's roof (step 7c, John's roof-pool photos + fly-by top-down): stone deck, glass balustrade with a
+    white rounded top rail round the plate, an infinity pool along the W/SW curved edge, timber lounges and
+    planters, and a curved cabana with black vertical louvres on the N side. As built only."""
+    deck, rail, glass, pool, wood, louv, green = (C.MeshBuf() for _ in range(7))
+    deck.prism(inset(plate, 0.3), top, top + 0.15)
+    loop = inset(plate, 0.15)
+    n = len(loop)
+    for i in range(n):
+        (ax, ay), (bx, by) = loop[i], loop[(i + 1) % n]
+        glass.add([(ax, ay, top + 0.15), (bx, by, top + 0.15), (bx, by, top + 1.2), (ax, ay, top + 1.2)], [[0, 1, 2, 3]])
+        rail.beam((ax, ay, top + 1.25), (bx, by, top + 1.25), 0.12)
+    # pool: band 3.5 m wide inside the edge where the plan u < -6 (west end, curved)
+    uvp = [L.local_to_uv(*q) for q in plate]
+    outer = [q for q, (u, v) in zip(inset(plate, 0.6), uvp) if u < -6]
+    inner = [q for q, (u, v) in zip(inset(plate, 4.1), uvp) if u < -6]
+    if len(outer) >= 2:
+        pool.prism(outer + inner[::-1], top + 0.15, top + 0.3)        # curved band = one closed ring
+    # cabana: ring of louvres round a point on the north side (plan u +6, v +6)
+    cx, cy = L.uv_to_local(6.0, 6.0)
+    for k in range(28):
+        a = math.pi * 0.15 + k * math.pi * 1.2 / 27
+        x, y = cx + 6.0 * math.cos(a), cy + 6.0 * math.sin(a)
+        louv.box(x, y, top + 2.6, 0.08, 0.5, 2.6, a)
+        louv.box(x, y, top + 0.15, 0.05, 0.05, 2.5)
+    ring6 = [(cx + 6.4 * math.cos(2 * math.pi * k / 24), cy + 6.4 * math.sin(2 * math.pi * k / 24)) for k in range(24)]
+    louv.prism(ring6, top + 5.2, top + 5.5)
+    glass.prism([(cx + 5.6 * math.cos(2 * math.pi * k / 16), cy + 5.6 * math.sin(2 * math.pi * k / 16)) for k in range(16)],
+                top + 0.15, top + 2.6)
+    # lounges and planters along the inner edge of the pool deck
+    for u in (-14.0, -10.0, -6.0):
+        x, y = L.uv_to_local(u, -2.0)
+        wood.box(x, y, top + 0.15, 2.2, 0.8, 0.45, math.radians(L.TOWER_PLAN["rotation_deg"]))
+    for u, v in ((-12.0, 3.0), (-4.0, 5.0), (12.0, -5.0)):
+        x, y = L.uv_to_local(u, v)
+        louv.box(x, y, top + 0.15, 1.2, 1.2, 0.8)
+        green.box(x, y, top + 0.95, 1.1, 1.1, 1.4)
+    objs = []
+    for buf, name, rgb in ((deck, "deck", (0.55, 0.54, 0.51)), (rail, "rail", (0.93, 0.93, 0.91)), (glass, "glass", (0.25, 0.30, 0.33)),
+                           (pool, "pool", (0.05, 0.25, 0.55)), (wood, "lounges", (0.70, 0.50, 0.30)),
+                           (louv, "cabana", (0.06, 0.06, 0.07)), (green, "planters", (0.25, 0.45, 0.20))):
+        ob = buf.object("SPIRE_roof_" + name, col, "roof")
+        if ob:
+            ob.data.materials[0] = C.material_rgb("spire_roof_" + name, rgb)
+            objs.append(ob.name)
+    return objs
+
+
 def queen_st_podium(col, lot, ground_min, top):
     """Queen St face of the podium (photos): glass shopfront at street level, vertical timber battens and a
     planted wall above. The Queen St edges are the lot edges facing east."""
@@ -249,8 +297,9 @@ def build():
         objs.append(sb.object("SPIRE_storeys", col, "spire_glass").name)
         top = levels[-1]["top_ahd"]
         pp = C.MeshBuf()
-        pp.prism(inset(plate, 0.3), top, top + L.LEVELS["parapet_m"])
+        pp.prism(inset(plate, 0.05), top - 0.6, top + 0.12)      # step 7c: slab edge only; the railing is in crown()
         objs.append(pp.object("SPIRE_parapet", col, "band").name)
+        objs += crown(col, plate, top)
         # step 6 facade (John's photos): white frame posts round every balcony level, staggered half a bay
         # on alternate levels over the staggered slab edges (the "net"), glass balustrades, Ann St lobby
         fr, gl, eb = C.MeshBuf(), C.MeshBuf(), C.MeshBuf()
@@ -288,16 +337,20 @@ def build():
             elif e["name"] == "LMR":
                 ring = ccw(inset(L.core_outline(), -1.5))
             else:
-                ring = ccw(inset(plate, 5.0))
+                ring = ccw(inset(L.core_outline(), -4.0))            # step 7c: plant box over the core (photos)
             eb = C.MeshBuf()
             eb.prism(ring, e["top_ahd"] - e["slab_m"], e["top_ahd"])
             ob = eb.object("SLAB_%s" % e["name"], col, "slab")
+            if e["kind"] == "plant":
+                ob.data.materials[0] = C.material_rgb("spire_plant_box", (0.06, 0.065, 0.07))
             ob["kind"] = e["kind"]
             ob["note"] = e["note"]
             if e["kind"] == "plant":
                 pb2 = C.MeshBuf()
                 pb2.prism(ring, e["top_ahd"] - (3.3 if e["name"] == "PLANT" else 3.3), e["top_ahd"] - e["slab_m"])
-                objs.append(pb2.object("SPIRE_%s_room" % e["name"], col, "roof").name)
+                obr = pb2.object("SPIRE_%s_room" % e["name"], col, "roof")
+                obr.data.materials[0] = C.material_rgb("spire_plant_box", (0.06, 0.065, 0.07))   # charcoal (photos)
+                objs.append(obr.name)
             slabs.append({"name": ob.name, "level": e["name"], "pour_area": "1", "poured": True, "kind": e["kind"]})
     else:
         # ------------------------------------------------------------ site: columns, props, screens
