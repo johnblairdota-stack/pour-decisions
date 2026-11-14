@@ -604,8 +604,7 @@ def photo_cam(c, out_dir, look):
     W, H = c["size"]
     k = 1600 / max(W, H)
     hide(["logistics"], c["stage"] == "as_built")
-    hide(["trees"], z - L.ground_z(x, y) < 3.0 and any(
-        math.hypot(tx - x, ty - y) < 25.0 for tx, ty, _, _ in L.tree_points()))   # street cams: trees in front block the view (photos taken from clear spots)
+    # trees stay in: the 6 m near clip on street cams removes any crown right on the lens
     path = os.path.join(out_dir, "%s_render.png" % c["id"])
     sec = render(path, int(round(W * k)), int(round(H * k)))
     hide(["logistics", "trees"], False)
