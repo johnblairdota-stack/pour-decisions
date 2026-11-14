@@ -20,6 +20,18 @@ COLOURS = {
     "transfer": (0.95, 0.55, 0.35, 1),
     "transfer_b": (0.90, 0.50, 0.45, 1),
     "core": (0.55, 0.52, 0.50, 1),
+    "brick": (0.78, 0.62, 0.45, 1),
+    "formwork": (0.82, 0.55, 0.30, 1),     # ply deck
+    "reo": (0.30, 0.22, 0.18, 1),          # reinforcement mat waiting for concrete
+    "prop": (0.85, 0.85, 0.20, 1),
+    "column": (0.70, 0.70, 0.68, 1),
+    "screen": (0.20, 0.45, 0.80, 1),       # edge screens
+    "jumpform": (0.25, 0.60, 0.35, 1),
+    "boom": (0.95, 0.45, 0.10, 1),
+    "pump": (0.95, 0.85, 0.15, 1),
+    "pipe": (0.15, 0.15, 0.15, 1),
+    "hoarding": (0.15, 0.35, 0.65, 1),
+    "truck": (0.92, 0.92, 0.92, 1),
     "bridge": (0.35, 0.45, 0.55, 1),
     "crane": (0.95, 0.70, 0.10, 1),
     "hoist": (0.20, 0.55, 0.85, 1),
@@ -78,6 +90,37 @@ class MeshBuf:
         verts = [(x, y, z0) for x, y in ring] + [(x, y, z1) for x, y in ring]
         faces = [list(range(n - 1, -1, -1)), list(range(n, 2 * n))]
         faces += [[i, (i + 1) % n, n + (i + 1) % n, n + i] for i in range(n)]
+        self.add(verts, faces)
+
+    def loft(self, ring0, z0, ring1, z1):
+        """Closed solid between two rings with the same vertex count (e.g. a leaning wall)."""
+        n = len(ring0)
+        if signed_area(ring0) < 0:
+            ring0, ring1 = ring0[::-1], ring1[::-1]
+        verts = [(x, y, z0) for x, y in ring0] + [(x, y, z1) for x, y in ring1]
+        faces = [list(range(n - 1, -1, -1)), list(range(n, 2 * n))]
+        faces += [[i, (i + 1) % n, n + (i + 1) % n, n + i] for i in range(n)]
+        self.add(verts, faces)
+
+    def beam(self, p, q, w, h=None):
+        """Square-section bar from point p to point q (3D), width w."""
+        h = h or w
+        d = [q[i] - p[i] for i in range(3)]
+        ln = math.sqrt(sum(c * c for c in d))
+        if ln < 1e-3:
+            return
+        d = [c / ln for c in d]
+        up = (0, 0, 1) if abs(d[2]) < 0.95 else (1, 0, 0)
+        s = [d[1] * up[2] - d[2] * up[1], d[2] * up[0] - d[0] * up[2], d[0] * up[1] - d[1] * up[0]]
+        sl = math.sqrt(sum(c * c for c in s))
+        s = [c / sl for c in s]
+        t = [s[1] * d[2] - s[2] * d[1], s[2] * d[0] - s[0] * d[2], s[0] * d[1] - s[1] * d[0]]
+        corners = [(-w / 2, -h / 2), (w / 2, -h / 2), (w / 2, h / 2), (-w / 2, h / 2)]
+        verts = []
+        for base in (p, q):
+            for a, b in corners:
+                verts.append(tuple(base[i] + s[i] * a + t[i] * b for i in range(3)))
+        faces = [[3, 2, 1, 0], [4, 5, 6, 7]] + [[i, (i + 1) % 4, 4 + (i + 1) % 4, 4 + i] for i in range(4)]
         self.add(verts, faces)
 
     def box(self, cx, cy, z0, sx, sy, sz, heading=0.0):

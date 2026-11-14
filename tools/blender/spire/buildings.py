@@ -57,5 +57,6 @@ def build():
             "spire": {"ground_ahd": round(min(L.ground_z(x, y) for x, y in sp_ring), 2),
                       "height_m": L.SPIRE["height_m"], "footprint_pts": len(sp_ring),
                       "footprint_area_m2": round(abs(C.signed_area(sp_ring)), 1)},
-            "note": "Untagged buildings are %.0f m (blue-grey); levels-only ones use %.1f m a level."
-                    % (L.DEFAULT_HEIGHT, L.LEVEL_HEIGHT)}
+            "dsm": "none for the CBD: the QLD service (Elevation/QldDem, DEM_TimeSeries) has ground only; the 2019 LiDAR tiles for the CBD (PourDecisions-sites/data/cbd/elvis/tiles_to_order.txt) must be ordered from ELVIS",
+            "note": "Heights: OSM height tag, else OSM levels x %.1f m, else %.0f m guess (blue-grey). "
+                    "Replace the guesses once the LiDAR tiles are in." % (L.LEVEL_HEIGHT, L.DEFAULT_HEIGHT)}

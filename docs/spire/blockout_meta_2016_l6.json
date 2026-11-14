@@ -1,0 +1,349 @@
+{
+ "stage": "2016_l6",
+ "frame": {
+  "origin_mga56": [
+   503046.57,
+   6962279.05
+  ],
+  "origin_latlon": [
+   -27.4630417,
+   153.0308272
+  ],
+  "axes": "x east, y north, z metres AHD",
+  "model_half_m": 400.0
+ },
+ "modules": [
+  {
+   "module": "ground",
+   "objects": [
+    "ground_dem",
+    "river_water"
+   ],
+   "mesh_step_m": 2.0,
+   "verts": 160801,
+   "z_min_ahd": -2.9,
+   "z_max_ahd": 44.89,
+   "spire_ground_ahd": 20.88,
+   "water_level_ahd": 0.3,
+   "dem_cells_under_water_level": 56748,
+   "source": "reference/sites/spire/dem_1m.f32.gz",
+   "seconds": 0.41
+  },
+  {
+   "module": "streets",
+   "objects": [
+    "roads",
+    "footpaths_kerbs",
+    "footways"
+   ],
+   "car_ways": 283,
+   "walk_ways": 467,
+   "width_source": {
+    "class default": 112,
+    "lanes x 3.3": 171
+   },
+   "footpath_width_m": 3.5,
+   "kerb_m": 0.15,
+   "note": "Footpath widths are a CBD default, not measured. Bridges/tunnels/upper layers left out (Story Bridge is in landmarks.py).",
+   "seconds": 0.67
+  },
+  {
+   "module": "buildings",
+   "objects": [
+    "buildings_tagged",
+    "buildings_height_guess"
+   ],
+   "footprints": 325,
+   "parents_replaced_by_parts": 17,
+   "height_source": {
+    "osm height": 52,
+    "default (no tag)": 223,
+    "osm levels": 49
+   },
+   "spire": {
+    "ground_ahd": 16.34,
+    "height_m": 131.1,
+    "footprint_pts": 8,
+    "footprint_area_m2": 1491.8
+   },
+   "dsm": "none for the CBD: the QLD service (Elevation/QldDem, DEM_TimeSeries) has ground only; the 2019 LiDAR tiles for the CBD (PourDecisions-sites/data/cbd/elvis/tiles_to_order.txt) must be ordered from ELVIS",
+   "note": "Heights: OSM height tag, else OSM levels x 3.2 m, else 12 m guess (blue-grey). Replace the guesses once the LiDAR tiles are in.",
+   "seconds": 0.06
+  },
+  {
+   "module": "spire",
+   "stage": "Mid-2016: L6 transfer slab on the deck",
+   "objects": [
+    "FORMWORK_L06_A",
+    "FORMWORK_L06_B",
+    "COLUMNS_assumed_grid",
+    "PROPS_and_backprops",
+    "EDGE_SCREENS"
+   ],
+   "slabs": [
+    {
+     "name": "SLAB_GF_1",
+     "level": "GF",
+     "pour_area": "1",
+     "poured": true,
+     "area_m2": 1491.8
+    },
+    {
+     "name": "SLAB_L01_A",
+     "level": "L01",
+     "pour_area": "A",
+     "poured": true,
+     "area_m2": 466.8
+    },
+    {
+     "name": "SLAB_L01_B",
+     "level": "L01",
+     "pour_area": "B",
+     "poured": true,
+     "area_m2": 933.6
+    },
+    {
+     "name": "SLAB_L02_A",
+     "level": "L02",
+     "pour_area": "A",
+     "poured": true,
+     "area_m2": 466.8
+    },
+    {
+     "name": "SLAB_L02_B",
+     "level": "L02",
+     "pour_area": "B",
+     "poured": true,
+     "area_m2": 933.6
+    },
+    {
+     "name": "SLAB_L03_A",
+     "level": "L03",
+     "pour_area": "A",
+     "poured": true,
+     "area_m2": 466.8
+    },
+    {
+     "name": "SLAB_L03_B",
+     "level": "L03",
+     "pour_area": "B",
+     "poured": true,
+     "area_m2": 933.6
+    },
+    {
+     "name": "SLAB_L04_A",
+     "level": "L04",
+     "pour_area": "A",
+     "poured": true,
+     "area_m2": 346.0
+    },
+    {
+     "name": "SLAB_L04_B",
+     "level": "L04",
+     "pour_area": "B",
+     "poured": true,
+     "area_m2": 538.3
+    },
+    {
+     "name": "SLAB_L05_A",
+     "level": "L05",
+     "pour_area": "A",
+     "poured": true,
+     "area_m2": 346.0
+    },
+    {
+     "name": "SLAB_L05_B",
+     "level": "L05",
+     "pour_area": "B",
+     "poured": true,
+     "area_m2": 538.3
+    },
+    {
+     "name": "SLAB_L06_A",
+     "level": "L06",
+     "pour_area": "A",
+     "poured": true,
+     "area_m2": 346.0
+    },
+    {
+     "name": "SLAB_L06_B",
+     "level": "L06",
+     "pour_area": "B",
+     "poured": false,
+     "area_m2": 538.3
+    }
+   ],
+   "slab_objects": 13,
+   "levels_total": 45,
+   "base_ahd": 21.97,
+   "roof_ahd": 151.87,
+   "typical_ftf_m": 2.876,
+   "plate_area_m2": 975.7,
+   "lot_area_m2": 1491.8,
+   "joint": {
+    "plan_px_x": 600,
+    "assumption": true,
+    "lines_local": [
+     [
+      [
+       -14.74,
+       10.31
+      ],
+      [
+       -8.6,
+       3.13
+      ]
+     ],
+     [
+      [
+       -3.64,
+       -2.69
+      ],
+      [
+       3.95,
+       -11.58
+      ]
+     ]
+    ]
+   },
+   "note": "Typical floor to floor 2.88 m is solved from the OSM height (low; check a section). Joint position and column grid are assumptions.",
+   "seconds": 0.05
+  },
+  {
+   "module": "core",
+   "objects": [
+    "CORE_walls",
+    "CORE_jump_form"
+   ],
+   "walls_to": "L09",
+   "top_ahd": 51.1,
+   "box_m": [
+    11.96,
+    7.65
+   ],
+   "wall_m": 0.3,
+   "lifts": 3,
+   "jump_form": "unknown: no public source names the system for Spire. Modelled as a generic self-climbing core jump form (screen-enclosed rig, 3 working decks).",
+   "lead_levels": 3,
+   "rig": {
+    "decks": 3,
+    "bottom_ahd": 45.35,
+    "top_ahd": 53.1
+   },
+   "note": "Core box from the typical floor plan; jump-form lead from common Australian practice (core 2-4 levels ahead). Spire-specific system not found in public sources.",
+   "seconds": 0.0
+  },
+  {
+   "module": "landmarks",
+   "objects": [
+    "story_bridge_deck",
+    "story_bridge_truss_line"
+   ],
+   "story_bridge_outline_ways": 5,
+   "axis_from": [
+    493.6,
+    145.4
+   ],
+   "axis_to": [
+    499.3,
+    -844.6
+   ],
+   "span_m": 990.0,
+   "note": "Deck and truss heights are rough placeholders for the skyline; the bridge sits mostly outside the 800 m square (SE of Spire).",
+   "seconds": 0.01
+  },
+  {
+   "module": "logistics",
+   "objects": [
+    "crane",
+    "hoist_PLACEHOLDER",
+    "truck_gate",
+    "ann_st_gantry",
+    "site_sheds_on_gantry"
+   ],
+   "deck_ahd": 42.47,
+   "crane": {
+    "mast_xy": [
+     -25.7,
+     8.1
+    ],
+    "top_ahd": 65.1,
+    "confidence": "medium"
+   },
+   "hoist": {
+    "mast_xy": [
+     -9.5,
+     18.5
+    ],
+    "known": false
+   },
+   "truck_gate": {
+    "centre_xy": [
+     -16.0,
+     14.4
+    ],
+    "street": "Ann Street",
+    "confidence": "medium"
+   },
+   "sheds": "on the Ann St footpath gantry (2016 aerial); the 2015 ground sheds are under the podium by now",
+   "note": "Markers only. Evidence in layout.py.",
+   "seconds": 0.0
+  },
+  {
+   "module": "site_plant",
+   "objects": [
+    "placing_booms_KVM26",
+    "line_pump_BSA2109HD",
+    "agitator_truck",
+    "delivery_line",
+    "hoarding"
+   ],
+   "deck": "L06",
+   "deck_ahd": 42.47,
+   "plant": {
+    "boom_A": {
+     "model": "Schwing KVM 26",
+     "pour_area": "A",
+     "xy": [
+      -12.32,
+      -7.01
+     ],
+     "tip": [
+      -24.01,
+      -20.94,
+      51.74
+     ],
+     "note": "ASSUMPTION: one boom per pour area, on a pedestal through the deck"
+    },
+    "boom_B": {
+     "model": "Schwing KVM 26",
+     "pour_area": "B",
+     "xy": [
+      7.57,
+      8.95
+     ],
+     "tip": [
+      21.5,
+      20.63,
+      51.74
+     ],
+     "note": "ASSUMPTION: see boom_A"
+    },
+    "line_pump": {
+     "model": "Putzmeister BSA 2109 HD",
+     "xy": [
+      -13.41,
+      11.36
+     ],
+     "note": "inside the Ann St gate, rear (hopper) to the kerb for the agitators"
+    }
+   },
+   "riser_xy": [
+    -10.16,
+    7.55
+   ],
+   "note": "Boom and pump positions are assumptions placed for a sensible layout; no photo shows them.",
+   "seconds": 0.0
+  }
+ ]
+}

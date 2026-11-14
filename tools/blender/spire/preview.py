@@ -146,7 +146,17 @@ def cam_view(c, mode):
     w, h = (1067, 1600) if c.get("portrait") else (1600, 1067)
     p = os.path.join(L.DOCS, "%s_%s.png" % (c["id"], mode))
     hide(["logistics"], not c.get("show_logistics", False))   # photo taken after completion: no crane
+    cut = []
+    if c.get("hide_above_ahd") is not None:                   # plan view of one level
+        for ob in bpy.data.objects:
+            if ob.type == "MESH" and ob.hide_render is False:
+                zs = [(ob.matrix_world @ v.co).z for v in ob.data.vertices[:64]]
+                if (zs and min(zs) > c["hide_above_ahd"]) or ob.name.startswith("CORE"):
+                    ob.hide_render = True          # core hidden too: the slab's hole round it shows
+                    cut.append(ob)
     sec = render(p, w, h)
+    for ob in cut:
+        ob.hide_render = False
     hide(["logistics"], False)
     return sec
 
@@ -156,9 +166,32 @@ def main():
     mode = "mono" if "mono" in argv else ("look" if "look" in argv else "clay")
     what = [a for a in argv if a in ("top", "site", "fit", "slabs", "cams")] or ["top", "site", "fit", "slabs", "cams"]
     os.makedirs(L.DOCS, exist_ok=True)
-    build_all.build_all()
-    setup(mode)
     times = {}
+    # ---------------------------------------------------------------- finished tower
+    build_all.build_all(None)
+    if "fit" in what:     # finished tower over the 2018 aerial: checks the plate position
+        setup("look")
+        times["fit"] = top_overlay("site", L.SITE_VIEW["half"], L.aerial_path(2018, "site160m_0p1m"), 2018, alpha=0.5)
+    if "slabs" in what:   # storeys + podium hidden: every slab pour A cream / B blue, L6 transfer orange, core
+        setup("look")
+        hidden = [bpy.data.objects.get(n) for n in ("SPIRE_storeys", "SPIRE_podium_brick", "SPIRE_parapet")]
+        for ob in hidden:
+            ob.hide_render = True
+        hide(["buildings"])
+        times["slabs"] = cam_view({"id": "spire_slabs", "pos": (-125.0, 150.0, 110.0), "look_at": (-3.0, 2.0, 70.0),
+                                   "lens_mm": 50.0, "portrait": True}, "pours")
+        times["slabs_top"] = cam_view({"id": "spire_slab_L07", "pos": (-3.0, 2.0, 90.0), "look_at": (-3.0, 2.01, 0.0),
+                                       "lens_mm": 35.0, "portrait": False, "hide_above_ahd": 47.0}, "pours")
+        for ob in hidden:
+            ob.hide_render = False
+        hide(["buildings"], False)
+    if "cams" in what:
+        setup(mode)
+        for c in L.CAMERAS:
+            if not c.get("show_logistics"):
+                times[c["id"]] = cam_view(c, mode)
+    # ---------------------------------------------------------------- 2016 site at the L6 transfer slab
+    build_all.build_all("2016_l6")
     if "top" in what:
         setup("look")   # overlay always uses the palette so Spire and the markers stand out
         times["top"] = top_overlay("top", L.TOP_VIEW["half"], L.aerial_path(L.TOP_VIEW["aerial_year"]),
@@ -168,24 +201,10 @@ def main():
         times["site"] = top_overlay("site", L.SITE_VIEW["half"],
                                     L.aerial_path(L.SITE_VIEW["aerial_year"], "site160m_0p1m"),
                                     L.SITE_VIEW["aerial_year"], alpha=0.6)
-    if "fit" in what:     # finished tower over the 2018 aerial: checks the plate position
-        setup("look")
-        hide(["logistics"])
-        times["fit"] = top_overlay("site", L.SITE_VIEW["half"], L.aerial_path(2018, "site160m_0p1m"), 2018, alpha=0.5)
-        hide(["logistics"], False)
-    if "slabs" in what:   # storeys hidden: every slab, pour A cream / pour B blue, L6 transfer orange
-        setup("look")
-        st = bpy.data.objects.get("SPIRE_storeys")
-        st.hide_render = True
-        hide(["logistics", "buildings"])
-        times["slabs"] = cam_view({"id": "spire_slabs", "pos": (-125.0, 150.0, 110.0), "look_at": (-3.0, 2.0, 70.0),
-                                   "lens_mm": 50.0, "portrait": True}, "pours")
-        st.hide_render = False
-        hide(["logistics", "buildings"], False)
     if "cams" in what:
-        setup(mode)
-        for c in L.CAMERAS:
-            times[c["id"]] = cam_view(c, mode)
+        setup("look")
+        for c in L.STAGE_CAMERAS:
+            times[c["id"]] = cam_view(dict(c, show_logistics=True), "2016")
     print("render seconds:", {k: round(v, 1) for k, v in times.items()})
 
 

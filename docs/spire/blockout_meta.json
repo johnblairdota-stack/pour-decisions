@@ -1,4 +1,5 @@
 {
+ "stage": "finished",
  "frame": {
   "origin_mga56": [
    503046.57,
@@ -26,7 +27,7 @@
    "water_level_ahd": 0.3,
    "dem_cells_under_water_level": 56748,
    "source": "reference/sites/spire/dem_1m.f32.gz",
-   "seconds": 0.46
+   "seconds": 0.41
   },
   {
    "module": "streets",
@@ -44,7 +45,7 @@
    "footpath_width_m": 3.5,
    "kerb_m": 0.15,
    "note": "Footpath widths are a CBD default, not measured. Bridges/tunnels/upper layers left out (Story Bridge is in landmarks.py).",
-   "seconds": 0.87
+   "seconds": 0.83
   },
   {
    "module": "buildings",
@@ -65,44 +66,697 @@
     "footprint_pts": 8,
     "footprint_area_m2": 1491.8
    },
-   "note": "Untagged buildings are 12 m (blue-grey); levels-only ones use 3.2 m a level.",
-   "seconds": 0.06
+   "dsm": "none for the CBD: the QLD service (Elevation/QldDem, DEM_TimeSeries) has ground only; the 2019 LiDAR tiles for the CBD (PourDecisions-sites/data/cbd/elvis/tiles_to_order.txt) must be ordered from ELVIS",
+   "note": "Heights: OSM height tag, else OSM levels x 3.2 m, else 12 m guess (blue-grey). Replace the guesses once the LiDAR tiles are in.",
+   "seconds": 0.05
   },
   {
    "module": "spire",
+   "stage": "finished",
    "objects": [
+    "SPIRE_podium_brick",
     "SPIRE_storeys",
-    "SPIRE_parapet",
-    "SPIRE_core"
+    "SPIRE_parapet"
    ],
-   "slab_objects": 88,
-   "levels": 45,
+   "slabs": [
+    {
+     "name": "SLAB_GF_1",
+     "level": "GF",
+     "pour_area": "1",
+     "poured": true,
+     "area_m2": 1491.8
+    },
+    {
+     "name": "SLAB_L01_A",
+     "level": "L01",
+     "pour_area": "A",
+     "poured": true,
+     "area_m2": 466.8
+    },
+    {
+     "name": "SLAB_L01_B",
+     "level": "L01",
+     "pour_area": "B",
+     "poured": true,
+     "area_m2": 933.6
+    },
+    {
+     "name": "SLAB_L02_A",
+     "level": "L02",
+     "pour_area": "A",
+     "poured": true,
+     "area_m2": 466.8
+    },
+    {
+     "name": "SLAB_L02_B",
+     "level": "L02",
+     "pour_area": "B",
+     "poured": true,
+     "area_m2": 933.6
+    },
+    {
+     "name": "SLAB_L03_A",
+     "level": "L03",
+     "pour_area": "A",
+     "poured": true,
+     "area_m2": 466.8
+    },
+    {
+     "name": "SLAB_L03_B",
+     "level": "L03",
+     "pour_area": "B",
+     "poured": true,
+     "area_m2": 933.6
+    },
+    {
+     "name": "SLAB_L04_A",
+     "level": "L04",
+     "pour_area": "A",
+     "poured": true,
+     "area_m2": 346.0
+    },
+    {
+     "name": "SLAB_L04_B",
+     "level": "L04",
+     "pour_area": "B",
+     "poured": true,
+     "area_m2": 538.3
+    },
+    {
+     "name": "SLAB_L05_A",
+     "level": "L05",
+     "pour_area": "A",
+     "poured": true,
+     "area_m2": 346.0
+    },
+    {
+     "name": "SLAB_L05_B",
+     "level": "L05",
+     "pour_area": "B",
+     "poured": true,
+     "area_m2": 538.3
+    },
+    {
+     "name": "SLAB_L06_A",
+     "level": "L06",
+     "pour_area": "A",
+     "poured": true,
+     "area_m2": 346.0
+    },
+    {
+     "name": "SLAB_L06_B",
+     "level": "L06",
+     "pour_area": "B",
+     "poured": true,
+     "area_m2": 538.3
+    },
+    {
+     "name": "SLAB_L07_A",
+     "level": "L07",
+     "pour_area": "A",
+     "poured": true,
+     "area_m2": 346.0
+    },
+    {
+     "name": "SLAB_L07_B",
+     "level": "L07",
+     "pour_area": "B",
+     "poured": true,
+     "area_m2": 538.3
+    },
+    {
+     "name": "SLAB_L08_A",
+     "level": "L08",
+     "pour_area": "A",
+     "poured": true,
+     "area_m2": 346.0
+    },
+    {
+     "name": "SLAB_L08_B",
+     "level": "L08",
+     "pour_area": "B",
+     "poured": true,
+     "area_m2": 538.3
+    },
+    {
+     "name": "SLAB_L09_A",
+     "level": "L09",
+     "pour_area": "A",
+     "poured": true,
+     "area_m2": 346.0
+    },
+    {
+     "name": "SLAB_L09_B",
+     "level": "L09",
+     "pour_area": "B",
+     "poured": true,
+     "area_m2": 538.3
+    },
+    {
+     "name": "SLAB_L10_A",
+     "level": "L10",
+     "pour_area": "A",
+     "poured": true,
+     "area_m2": 346.0
+    },
+    {
+     "name": "SLAB_L10_B",
+     "level": "L10",
+     "pour_area": "B",
+     "poured": true,
+     "area_m2": 538.3
+    },
+    {
+     "name": "SLAB_L11_A",
+     "level": "L11",
+     "pour_area": "A",
+     "poured": true,
+     "area_m2": 346.0
+    },
+    {
+     "name": "SLAB_L11_B",
+     "level": "L11",
+     "pour_area": "B",
+     "poured": true,
+     "area_m2": 538.3
+    },
+    {
+     "name": "SLAB_L12_A",
+     "level": "L12",
+     "pour_area": "A",
+     "poured": true,
+     "area_m2": 346.0
+    },
+    {
+     "name": "SLAB_L12_B",
+     "level": "L12",
+     "pour_area": "B",
+     "poured": true,
+     "area_m2": 538.3
+    },
+    {
+     "name": "SLAB_L13_A",
+     "level": "L13",
+     "pour_area": "A",
+     "poured": true,
+     "area_m2": 346.0
+    },
+    {
+     "name": "SLAB_L13_B",
+     "level": "L13",
+     "pour_area": "B",
+     "poured": true,
+     "area_m2": 538.3
+    },
+    {
+     "name": "SLAB_L14_A",
+     "level": "L14",
+     "pour_area": "A",
+     "poured": true,
+     "area_m2": 346.0
+    },
+    {
+     "name": "SLAB_L14_B",
+     "level": "L14",
+     "pour_area": "B",
+     "poured": true,
+     "area_m2": 538.3
+    },
+    {
+     "name": "SLAB_L15_A",
+     "level": "L15",
+     "pour_area": "A",
+     "poured": true,
+     "area_m2": 346.0
+    },
+    {
+     "name": "SLAB_L15_B",
+     "level": "L15",
+     "pour_area": "B",
+     "poured": true,
+     "area_m2": 538.3
+    },
+    {
+     "name": "SLAB_L16_A",
+     "level": "L16",
+     "pour_area": "A",
+     "poured": true,
+     "area_m2": 346.0
+    },
+    {
+     "name": "SLAB_L16_B",
+     "level": "L16",
+     "pour_area": "B",
+     "poured": true,
+     "area_m2": 538.3
+    },
+    {
+     "name": "SLAB_L17_A",
+     "level": "L17",
+     "pour_area": "A",
+     "poured": true,
+     "area_m2": 346.0
+    },
+    {
+     "name": "SLAB_L17_B",
+     "level": "L17",
+     "pour_area": "B",
+     "poured": true,
+     "area_m2": 538.3
+    },
+    {
+     "name": "SLAB_L18_A",
+     "level": "L18",
+     "pour_area": "A",
+     "poured": true,
+     "area_m2": 346.0
+    },
+    {
+     "name": "SLAB_L18_B",
+     "level": "L18",
+     "pour_area": "B",
+     "poured": true,
+     "area_m2": 538.3
+    },
+    {
+     "name": "SLAB_L19_A",
+     "level": "L19",
+     "pour_area": "A",
+     "poured": true,
+     "area_m2": 346.0
+    },
+    {
+     "name": "SLAB_L19_B",
+     "level": "L19",
+     "pour_area": "B",
+     "poured": true,
+     "area_m2": 538.3
+    },
+    {
+     "name": "SLAB_L20_A",
+     "level": "L20",
+     "pour_area": "A",
+     "poured": true,
+     "area_m2": 346.0
+    },
+    {
+     "name": "SLAB_L20_B",
+     "level": "L20",
+     "pour_area": "B",
+     "poured": true,
+     "area_m2": 538.3
+    },
+    {
+     "name": "SLAB_L21_A",
+     "level": "L21",
+     "pour_area": "A",
+     "poured": true,
+     "area_m2": 346.0
+    },
+    {
+     "name": "SLAB_L21_B",
+     "level": "L21",
+     "pour_area": "B",
+     "poured": true,
+     "area_m2": 538.3
+    },
+    {
+     "name": "SLAB_L22_A",
+     "level": "L22",
+     "pour_area": "A",
+     "poured": true,
+     "area_m2": 346.0
+    },
+    {
+     "name": "SLAB_L22_B",
+     "level": "L22",
+     "pour_area": "B",
+     "poured": true,
+     "area_m2": 538.3
+    },
+    {
+     "name": "SLAB_L23_A",
+     "level": "L23",
+     "pour_area": "A",
+     "poured": true,
+     "area_m2": 346.0
+    },
+    {
+     "name": "SLAB_L23_B",
+     "level": "L23",
+     "pour_area": "B",
+     "poured": true,
+     "area_m2": 538.3
+    },
+    {
+     "name": "SLAB_L24_A",
+     "level": "L24",
+     "pour_area": "A",
+     "poured": true,
+     "area_m2": 346.0
+    },
+    {
+     "name": "SLAB_L24_B",
+     "level": "L24",
+     "pour_area": "B",
+     "poured": true,
+     "area_m2": 538.3
+    },
+    {
+     "name": "SLAB_L25_A",
+     "level": "L25",
+     "pour_area": "A",
+     "poured": true,
+     "area_m2": 346.0
+    },
+    {
+     "name": "SLAB_L25_B",
+     "level": "L25",
+     "pour_area": "B",
+     "poured": true,
+     "area_m2": 538.3
+    },
+    {
+     "name": "SLAB_L26_A",
+     "level": "L26",
+     "pour_area": "A",
+     "poured": true,
+     "area_m2": 346.0
+    },
+    {
+     "name": "SLAB_L26_B",
+     "level": "L26",
+     "pour_area": "B",
+     "poured": true,
+     "area_m2": 538.3
+    },
+    {
+     "name": "SLAB_L27_A",
+     "level": "L27",
+     "pour_area": "A",
+     "poured": true,
+     "area_m2": 346.0
+    },
+    {
+     "name": "SLAB_L27_B",
+     "level": "L27",
+     "pour_area": "B",
+     "poured": true,
+     "area_m2": 538.3
+    },
+    {
+     "name": "SLAB_L28_A",
+     "level": "L28",
+     "pour_area": "A",
+     "poured": true,
+     "area_m2": 346.0
+    },
+    {
+     "name": "SLAB_L28_B",
+     "level": "L28",
+     "pour_area": "B",
+     "poured": true,
+     "area_m2": 538.3
+    },
+    {
+     "name": "SLAB_L29_A",
+     "level": "L29",
+     "pour_area": "A",
+     "poured": true,
+     "area_m2": 346.0
+    },
+    {
+     "name": "SLAB_L29_B",
+     "level": "L29",
+     "pour_area": "B",
+     "poured": true,
+     "area_m2": 538.3
+    },
+    {
+     "name": "SLAB_L30_A",
+     "level": "L30",
+     "pour_area": "A",
+     "poured": true,
+     "area_m2": 346.0
+    },
+    {
+     "name": "SLAB_L30_B",
+     "level": "L30",
+     "pour_area": "B",
+     "poured": true,
+     "area_m2": 538.3
+    },
+    {
+     "name": "SLAB_L31_A",
+     "level": "L31",
+     "pour_area": "A",
+     "poured": true,
+     "area_m2": 346.0
+    },
+    {
+     "name": "SLAB_L31_B",
+     "level": "L31",
+     "pour_area": "B",
+     "poured": true,
+     "area_m2": 538.3
+    },
+    {
+     "name": "SLAB_L32_A",
+     "level": "L32",
+     "pour_area": "A",
+     "poured": true,
+     "area_m2": 346.0
+    },
+    {
+     "name": "SLAB_L32_B",
+     "level": "L32",
+     "pour_area": "B",
+     "poured": true,
+     "area_m2": 538.3
+    },
+    {
+     "name": "SLAB_L33_A",
+     "level": "L33",
+     "pour_area": "A",
+     "poured": true,
+     "area_m2": 346.0
+    },
+    {
+     "name": "SLAB_L33_B",
+     "level": "L33",
+     "pour_area": "B",
+     "poured": true,
+     "area_m2": 538.3
+    },
+    {
+     "name": "SLAB_L34_A",
+     "level": "L34",
+     "pour_area": "A",
+     "poured": true,
+     "area_m2": 346.0
+    },
+    {
+     "name": "SLAB_L34_B",
+     "level": "L34",
+     "pour_area": "B",
+     "poured": true,
+     "area_m2": 538.3
+    },
+    {
+     "name": "SLAB_L35_A",
+     "level": "L35",
+     "pour_area": "A",
+     "poured": true,
+     "area_m2": 346.0
+    },
+    {
+     "name": "SLAB_L35_B",
+     "level": "L35",
+     "pour_area": "B",
+     "poured": true,
+     "area_m2": 538.3
+    },
+    {
+     "name": "SLAB_L36_A",
+     "level": "L36",
+     "pour_area": "A",
+     "poured": true,
+     "area_m2": 346.0
+    },
+    {
+     "name": "SLAB_L36_B",
+     "level": "L36",
+     "pour_area": "B",
+     "poured": true,
+     "area_m2": 538.3
+    },
+    {
+     "name": "SLAB_L37_A",
+     "level": "L37",
+     "pour_area": "A",
+     "poured": true,
+     "area_m2": 346.0
+    },
+    {
+     "name": "SLAB_L37_B",
+     "level": "L37",
+     "pour_area": "B",
+     "poured": true,
+     "area_m2": 538.3
+    },
+    {
+     "name": "SLAB_L38_A",
+     "level": "L38",
+     "pour_area": "A",
+     "poured": true,
+     "area_m2": 346.0
+    },
+    {
+     "name": "SLAB_L38_B",
+     "level": "L38",
+     "pour_area": "B",
+     "poured": true,
+     "area_m2": 538.3
+    },
+    {
+     "name": "SLAB_L39_A",
+     "level": "L39",
+     "pour_area": "A",
+     "poured": true,
+     "area_m2": 346.0
+    },
+    {
+     "name": "SLAB_L39_B",
+     "level": "L39",
+     "pour_area": "B",
+     "poured": true,
+     "area_m2": 538.3
+    },
+    {
+     "name": "SLAB_L40_A",
+     "level": "L40",
+     "pour_area": "A",
+     "poured": true,
+     "area_m2": 346.0
+    },
+    {
+     "name": "SLAB_L40_B",
+     "level": "L40",
+     "pour_area": "B",
+     "poured": true,
+     "area_m2": 538.3
+    },
+    {
+     "name": "SLAB_L41_A",
+     "level": "L41",
+     "pour_area": "A",
+     "poured": true,
+     "area_m2": 346.0
+    },
+    {
+     "name": "SLAB_L41_B",
+     "level": "L41",
+     "pour_area": "B",
+     "poured": true,
+     "area_m2": 538.3
+    },
+    {
+     "name": "SLAB_L42_A",
+     "level": "L42",
+     "pour_area": "A",
+     "poured": true,
+     "area_m2": 346.0
+    },
+    {
+     "name": "SLAB_L42_B",
+     "level": "L42",
+     "pour_area": "B",
+     "poured": true,
+     "area_m2": 538.3
+    },
+    {
+     "name": "SLAB_L43_A",
+     "level": "L43",
+     "pour_area": "A",
+     "poured": true,
+     "area_m2": 346.0
+    },
+    {
+     "name": "SLAB_L43_B",
+     "level": "L43",
+     "pour_area": "B",
+     "poured": true,
+     "area_m2": 538.3
+    },
+    {
+     "name": "SLAB_RF_A",
+     "level": "RF",
+     "pour_area": "A",
+     "poured": true,
+     "area_m2": 346.0
+    },
+    {
+     "name": "SLAB_RF_B",
+     "level": "RF",
+     "pour_area": "B",
+     "poured": true,
+     "area_m2": 538.3
+    }
+   ],
+   "slab_objects": 89,
+   "levels_total": 45,
    "base_ahd": 21.97,
    "roof_ahd": 151.87,
    "typical_ftf_m": 2.876,
-   "transfer": {
-    "name": "L06",
-    "n": 6,
-    "kind": "transfer",
-    "top_ahd": 42.47,
-    "slab_m": 1.25,
-    "pours": 2,
-    "typical_ftf_solved_m": 2.876
-   },
    "plate_area_m2": 975.7,
    "lot_area_m2": 1491.8,
-   "pour_split": [
-    [
-     -17.78,
-     20.39
-    ],
-    [
-     12.78,
-     -15.39
+   "joint": {
+    "plan_px_x": 600,
+    "assumption": true,
+    "lines_local": [
+     [
+      [
+       -14.74,
+       10.31
+      ],
+      [
+       -8.6,
+       3.13
+      ]
+     ],
+     [
+      [
+       -3.64,
+       -2.69
+      ],
+      [
+       3.95,
+       -11.58
+      ]
+     ]
     ]
+   },
+   "note": "Typical floor to floor 2.88 m is solved from the OSM height (low; check a section). Joint position and column grid are assumptions.",
+   "seconds": 0.03
+  },
+  {
+   "module": "core",
+   "objects": [
+    "CORE_walls"
    ],
-   "note": "Plate from the typical floor plan, placed by aerial overlay. Floor heights are solved from the OSM height (typical 2.88 m floor to floor is low: check against drawings).",
-   "seconds": 0.02
+   "walls_to": "RF",
+   "top_ahd": 155.37,
+   "box_m": [
+    11.96,
+    7.65
+   ],
+   "wall_m": 0.3,
+   "lifts": 3,
+   "jump_form": "unknown: no public source names the system for Spire. Modelled as a generic self-climbing core jump form (screen-enclosed rig, 3 working decks).",
+   "lead_levels": null,
+   "rig": null,
+   "note": "Core box from the typical floor plan; jump-form lead from common Australian practice (core 2-4 levels ahead). Spire-specific system not found in public sources.",
+   "seconds": 0.0
   },
   {
    "module": "landmarks",
@@ -125,37 +779,14 @@
   },
   {
    "module": "logistics",
-   "objects": [
-    "crane",
-    "hoist",
-    "truck_gate",
-    "site_sheds"
-   ],
-   "roof_ahd": 151.9,
-   "crane": {
-    "mast_xy": [
-     -25.7,
-     8.1
-    ],
-    "top_ahd": 169.9,
-    "confidence": "medium"
-   },
-   "hoist": {
-    "mast_xy": [
-     -9.5,
-     18.5
-    ],
-    "confidence": "low"
-   },
-   "truck_gate": {
-    "centre_xy": [
-     -16.0,
-     14.4
-    ],
-    "street": "Ann Street",
-    "confidence": "medium"
-   },
-   "note": "Markers only (not models). See layout.py CRANE/HOIST/TRUCK_GATE for the evidence.",
+   "objects": [],
+   "note": "finished building: no site logistics",
+   "seconds": 0.0
+  },
+  {
+   "module": "site_plant",
+   "objects": [],
+   "note": "finished building: no site plant",
    "seconds": 0.0
   }
  ]

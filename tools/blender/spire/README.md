@@ -37,7 +37,6 @@ Each module's `build()` returns a metadata dict (objects, counts, sources, notes
   truck gate (red, Ann St), hoist (blue dot, NW face).
 - `cam_ann_queen_corner_clay.png`, `cam_ann_far_clay.png`, `cam_ann_footpath_clay.png`: from the spots of
   three of John's street photos (spots estimated, no GPS in the photos). Crane hidden: photos are post-2017.
-- `cam_flyby_crane_clay.png`: from the SW fly-by photo during the build, crane shown.
 
 ## Step 2 results (docs/spire/)
 
@@ -45,12 +44,30 @@ Each module's `build()` returns a metadata dict (objects, counts, sources, notes
 - `spire_slabs_pours.png`: storeys hidden, 88 slab pours + core; pour joint seen end-on, L6 transfer in orange.
 - The street views now show the rounded tower on its podium.
 
+## Step 3 results (docs/spire/)
+
+Core and pours reworked (John, 14 Nov): the core is its own element (`core.py`), cast ahead of the
+slabs in a climbing jump form, square and plumb. Each slab wraps round it in two pour areas, A (west
+third) and B, split by a construction joint of two short lines from the core faces to the slab edge
+(`layout.JOINT`, an assumption). Slab objects carry `pour_area`, `poured`, `area_m2`, `joint_lines`.
+
+- `spire_slab_L07_pours.png`: plan of L07: pour A grey, pour B blue, the core hole, the two joint lines.
+- `spire_slabs_pours.png`: all slabs, joint end-on, L6 transfer orange.
+- `cam_ann_footpath_clay.png`: the sloped brick podium face on Ann St (`layout.PODIUM`).
+- Stage `2016_l6` (`build_all.py -- --stage 2016_l6`): L1-L5 done on an assumed 8 m column grid, L6
+  transfer on the deck (pour A poured, B formwork + reo), formwork props + 3 levels of backprops, edge
+  screens, core 3 levels ahead with the jump-form rig, crane, hoist placeholder, two Schwing KVM 26
+  booms, Putzmeister BSA 2109 HD line pump in the Ann St gate, delivery line, agitator, hoarding, and
+  sheds on the Ann St footpath gantry seen in the 2016 aerial.
+  Renders: `site_clay_over_2016.png`, `top_clay_over_2016.png`, `stage_flyby_sw_2016.png`, `stage_deck_nw_2016.png`.
+- Neighbour heights: no DSM exists for the CBD on the state service (ground DEM only). Heights stay OSM
+  height, else OSM levels x 3.2 m, else 12 m. Ordering the CBD LiDAR tiles from ELVIS would fix this.
+
 ## Known gaps (next steps)
 
 - Floor heights are solved from the OSM height (typical 2.88 m floor to floor - low). Need a real section.
 - The plate scale is fitted to the 2018 roof (25.5 px/m), not the drawing's scale bar (21.8 px/m).
-- Pour joint position is a guess (straight across the short axis through the core).
-- Podium is a plain prism of the lot; the sloped brick face and the podium setbacks are not modelled.
+- Pour joint position, column grid, boom and pump spots are assumptions. Jump-form system for Spire is unknown.
 - 223 of 325 buildings have no height in OSM (12 m guess). Heights from LiDAR next.
 - Footpath width is a default (3.5 m), not measured. Kerb lines can come from council parking lines.
-- Hoist position is a low-confidence read; ask John.
+- Hoist position is unknown (John doesn't know): placeholder only.

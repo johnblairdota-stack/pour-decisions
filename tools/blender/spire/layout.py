@@ -75,7 +75,76 @@ LEVELS = {
     "top_level": 43,
     "roof_over_top_m": 3.0,        # roof slab above L43
     "parapet_m": 1.2,
-    "pour_split": "plan x = 0",    # 2 pours a level: split across the short axis through the core
+}
+
+# Core (step 3): its own element, NOT part of any slab pour. Cast in a climbing jump form ahead of the
+# slabs; the slabs are poured round it later. Square and plumb (same box every level) so the lifts run.
+CORE = {
+    "wall_m": 0.30,               # assumption (typical residential core wall)
+    "lifts": 3,                   # three lift cars along the south side of the core on the plan
+    "overrun_m": 3.5,             # lift overrun above the roof slab
+    "jump_form": {
+        "type": "unknown: no public source names the system for Spire. Modelled as a generic "
+                "self-climbing core jump form (screen-enclosed rig, 3 working decks).",
+        "lead_levels": 3,         # core top this many levels above the working deck (brief: 2-4)
+        "rig_levels": 2,          # the rig hangs over this many levels of finished core wall
+        "rig_out_m": 1.2,         # deck/screen stand-off round the core walls
+    },
+    "source": "Core box from the typical floor plan; jump-form lead from common Australian practice "
+              "(core 2-4 levels ahead). Spire-specific system not found in public sources.",
+}
+# Pour joint (step 3): two pours a level split by a construction joint made of two short lines, one on
+# each side of the core, from the core face to the slab edge. ASSUMPTION: about a third of the span
+# from the west (Ann St / Clark Lane) end, across the plan's short axis, the same on every level.
+# Not on a column line (columns unknown). Pour A = the west third, pour B = the rest.
+JOINT = {
+    "plan_px_x": 600,             # plan x of the joint (plate 205..1240 px, core 555..860 px)
+    "assumption": True,
+    "note": "Not shown in any photo or drawing we have. Change plan_px_x to move it.",
+}
+# Podium (step 3): the Ann St face is a sloped brick wall (NW podium elevation + John's Ann St photos):
+# set back at the footpath, leaning out to the boundary at the top.
+PODIUM = {
+    "top_level": "L03",
+    "ann_st_corners": ((-28.53, 3.74), (-3.48, 25.09)),   # OSM lot vertices on Ann St
+    "ann_st_setback_at_ground_m": 3.0,                    # read off the NW elevation (glass line under the brick)
+    "source": "NW podium elevation drawing + photo 'street view Ann st 1' (John, not in git)",
+}
+
+# ---------------------------------------------------------------- construction stages
+# A stage turns the finished tower back into a site. build_all.build_all(stage="2016_l6").
+STAGES = {
+    "2016_l6": {
+        "name": "Mid-2016: L6 transfer slab on the deck",
+        "evidence": "aerial_2016_site160m_0p1m.jpg: frame up a few levels, formwork deck, crane mast top "
+                    "next to the west corner (matches the brief's L6 transfer stage).",
+        "deck_level": 6,          # working deck (formwork up, pour in progress)
+        "deck_pours_done": ["A"], # pour A of the deck is poured, B is still formwork + reo
+        "props_levels_below": 3,  # backprops stay in this many levels under the deck (transfer slab)
+        "screen_levels": 2,       # edge screens cover the deck and this many levels below
+        "screen_above_deck_m": 2.0,
+        "column_grid_m": 8.0,     # ASSUMPTION: columns on an 8 m grid inside the plate (no structural drawings)
+        "crane_over_core_m": 14.0,
+        "hoarding_m": 2.4,
+        # 2016 aerial: a long white strip over the Ann St footpath from past the west corner to the north
+        # end = a B-class gantry with site sheds on top (the 2015 ground sheds are under the podium now).
+        "gantry": {"from_t": -0.15, "to_t": 1.0, "out_m": 2.2, "width_m": 3.4, "clear_m": 3.2,
+                   "shed_m": (3.0, 6.0), "evidence": "aerial_2016_site160m_0p1m.jpg, white strip along Ann St"},
+    },
+}
+# Plant on the 2016 deck and at the gate (step 3). Shapes are blockout, sizes from maker data sheets
+# (rounded): Schwing KVM 26 static placing boom, ~26 m reach, 4-section; Putzmeister BSA 2109 HD
+# trailer line pump, ~6.6 x 2.2 x 2.5 m.
+PLANT = {
+    "booms": [
+        {"id": "boom_A", "model": "Schwing KVM 26", "pour": "A", "plan_px": (360, 500), "reach_m": 26.0,
+         "slew_deg": 230.0, "note": "ASSUMPTION: one boom per pour area, on a pedestal through the deck"},
+        {"id": "boom_B", "model": "Schwing KVM 26", "pour": "B", "plan_px": (1010, 520), "reach_m": 26.0,
+         "slew_deg": 40.0, "note": "ASSUMPTION: see boom_A"},
+    ],
+    "line_pump": {"model": "Putzmeister BSA 2109 HD", "size_m": (6.6, 2.2, 2.5),
+                  "note": "inside the Ann St gate, rear (hopper) to the kerb for the agitators"},
+    "pipe_m": 0.25,               # drawn thicker than the real 125 mm line so it reads
 }
 
 # Default road widths (kerb to kerb, metres) by OSM highway class when the way has no width/lanes tag.
@@ -180,6 +249,13 @@ CAMERAS = [
      "shift_y": 0.0, "show_logistics": True,
      "note": "Aerial fly-by during the build (crane up): camera high to the SW looking NE up Ann St, steeply "
              "down. Used to check the crane and hoist spots, so the logistics markers are shown."},
+]
+# Views of the 2016 stage (no photo of this exact moment; spots chosen to show the site).
+STAGE_CAMERAS = [
+    {"id": "stage_flyby_sw", "pos": (-120.0, -150.0, 160.0), "look_at": (-3.0, 2.0, 25.0), "lens_mm": 50.0,
+     "portrait": False, "note": "high to the SW looking NE up Ann St (like the fly-by photos)"},
+    {"id": "stage_deck_nw", "pos": (-55.0, 75.0, 55.0), "look_at": (-5.0, 2.0, 20.0), "lens_mm": 35.0,
+     "portrait": False, "note": "over Ann St from the NW: gate, pump, gantry, booms on the deck"},
 ]
 TOP_VIEW = {"half": 400.0, "aerial_year": 2016}   # top-down clay overlay: whole 800 m square, 2016 aerial
 SITE_VIEW = {"half": 80.0, "aerial_year": 2016}   # close top-down of the site (matches aerial_*_site160m)
@@ -326,15 +402,70 @@ def local_to_aerial_px(x, y, spec=AERIAL_800):
 
 
 # ================================================================ Spire massing helpers
+# Plan frame (u, v): metres from the plate centroid, u along Ann St (plan +x), v to the NW (plan up).
+def plan_uv(px, py):
+    cx, cy = _plan_centroid_px()
+    s = TOWER_PLAN["px_per_m"]
+    return (px - cx) / s, -(py - cy) / s          # image y is down
+
+
+def uv_to_local(u, v):
+    a = math.radians(TOWER_PLAN["rotation_deg"])
+    x0, y0 = TOWER_PLAN["centre_xy"]
+    return (x0 + u * math.cos(a) - v * math.sin(a), y0 + u * math.sin(a) + v * math.cos(a))
+
+
+def local_to_uv(x, y):
+    a = math.radians(TOWER_PLAN["rotation_deg"])
+    x0, y0 = TOWER_PLAN["centre_xy"]
+    dx, dy = x - x0, y - y0
+    return dx * math.cos(a) + dy * math.sin(a), -dx * math.sin(a) + dy * math.cos(a)
+
+
 def plan_to_local(px, py):
     """Floor-plan pixel -> local metres (rotated and placed per TOWER_PLAN)."""
-    P = TOWER_PLAN
-    cx, cy = _plan_centroid_px()
-    u = (px - cx) / P["px_per_m"]
-    v = -(py - cy) / P["px_per_m"]          # image y is down
-    a = math.radians(P["rotation_deg"])
-    x0, y0 = P["centre_xy"]
-    return (x0 + u * math.cos(a) - v * math.sin(a), y0 + u * math.sin(a) + v * math.cos(a))
+    return uv_to_local(*plan_uv(px, py))
+
+
+def core_uv():
+    """Core box in the plan frame: (u0, u1, v0, v1)."""
+    x0, y0, x1, y1 = TOWER_PLAN["core_px"]
+    (u0, v1), (u1, v0) = plan_uv(x0, y0), plan_uv(x1, y1)
+    return u0, u1, v0, v1
+
+
+def joint_u():
+    return plan_uv(JOINT["plan_px_x"], 0)[0]
+
+
+ACTIVE_STAGE = None   # set by build_all: None = finished building, else a STAGES entry
+
+
+def stage():
+    return ACTIVE_STAGE
+
+
+def level(n_or_name):
+    for lv in spire_levels():
+        if lv["n"] == n_or_name or lv["name"] == n_or_name:
+            return lv
+    raise KeyError(n_or_name)
+
+
+def core_top_ahd():
+    st = stage()
+    lv = spire_levels()
+    if st is None:
+        return lv[-1]["top_ahd"] + CORE["overrun_m"]
+    return level(min(st["deck_level"] + CORE["jump_form"]["lead_levels"], lv[-1]["n"]))["top_ahd"]
+
+
+def ann_st_frame():
+    """(unit vector along Ann St boundary, unit outward normal to the street)."""
+    (ax, ay), (bx, by) = PODIUM["ann_st_corners"]
+    ln = math.hypot(bx - ax, by - ay)
+    ex, ey = (bx - ax) / ln, (by - ay) / ln
+    return (ex, ey), (-ey, ex)
 
 
 def _plan_centroid_px():
@@ -357,12 +488,6 @@ def tower_outline():
 def core_outline():
     x0, y0, x1, y1 = TOWER_PLAN["core_px"]
     return [plan_to_local(x, y) for x, y in ((x0, y1), (x1, y1), (x1, y0), (x0, y0))]
-
-
-def pour_split_line():
-    """Two local points on the pour joint (plan x through the plate centroid, along plan y)."""
-    cx, cy = _plan_centroid_px()
-    return plan_to_local(cx, cy - 600), plan_to_local(cx, cy + 600)
 
 
 def spire_base_ahd():
