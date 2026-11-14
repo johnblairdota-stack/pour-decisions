@@ -275,10 +275,11 @@
    "mode": "tilt",
    "guess": {
     "x": 45,
-    "y": 75,
-    "heading": 225,
+    "y": 60,
+    "heading": 235,
     "pitch": 35,
-    "f35": 26
+    "f35": 26,
+    "xy_weight": 0.5
    },
    "marks": [
     [
@@ -301,7 +302,8 @@
      191,
      366
     ]
-   ]
+   ],
+   "note": "taken from the open Queen St roadway east of the Orient (x 30-55); position held there"
   },
   {
    "id": "west_with_spires",

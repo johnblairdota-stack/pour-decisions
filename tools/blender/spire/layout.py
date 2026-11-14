@@ -354,9 +354,25 @@ HERO_CAMERAS.append({"id": "hero_spire_facade", "pos": (-62.0, 38.0, 24.0), "loo
                      "photo": "my_photos/spire/Spire-Residences street view Ann st 1.jpg + fly-by photos",
                      "note": "across Ann St, raised: staggered slab edges, frames, balustrades, brick podium, lobby"})
 # Brisbane ~06:45 AEST, clear autumn morning (mid April): sun ~10 deg up, bearing ~80 deg (just N of E).
-MORNING = {"sun_azimuth_deg": 80.0, "sun_elevation_deg": 10.0, "sun_strength": 4.5, "sun_colour": (1.0, 0.88, 0.74),
-           "sky_strength": 0.25, "haze_dust": 2.0, "haze_density": 0.0, "exposure": -0.3,
-           "note": "06:45 AEST mid-April, Brisbane (27.5 S): approximate sun position; physical sky + light haze"}
+MORNING = {"sun_azimuth_deg": 62.0, "sun_elevation_deg": 34.0, "sun_strength": 5.0, "sun_colour": (1.0, 0.95, 0.88),
+           "sky_strength": 0.32, "haze_dust": 0.4, "haze_density": 0.0, "exposure": -1.1,
+           "note": "step 7j: 09:00 AEST mid-April, Brisbane (27.5 S): hard sun, deep blue physical sky, little haze"}
+LAT, LON = -27.47, 153.03
+
+
+def sun_position(date="", hour=12.0):
+    """Sun azimuth (deg from north, clockwise) and elevation (deg) over Brisbane for a date 'YYYY[-MM[-DD]]'
+    (missing month/day: mid-April) and local hour (AEST, UTC+10). Simple declination model, good to ~1 deg."""
+    import datetime as _d
+    parts = [int(p) for p in str(date or "2019").split("-") if p.isdigit()]
+    y, m, d = (parts + [4, 15][len(parts) - 1:])[:3] if parts else (2019, 4, 15)
+    doy = _d.date(y, m, d).timetuple().tm_yday
+    dec = math.radians(23.44) * math.sin(2 * math.pi * (284 + doy) / 365.0)
+    ha = math.radians(15.0 * (hour + (LON - 150.0) / 15.0 - 12.0))
+    lat = math.radians(LAT)
+    el = math.asin(math.sin(lat) * math.sin(dec) + math.cos(lat) * math.cos(dec) * math.cos(ha))
+    az = math.atan2(-math.sin(ha) * math.cos(dec), math.cos(lat) * math.sin(dec) - math.sin(lat) * math.cos(dec) * math.cos(ha))
+    return math.degrees(az) % 360.0, math.degrees(el)
 TOP_VIEW = {"half": 400.0, "aerial_year": 2016}   # top-down clay overlay: whole 800 m square, 2016 aerial
 SITE_VIEW = {"half": 80.0, "aerial_year": 2016}   # close top-down of the site (matches aerial_*_site160m)
 

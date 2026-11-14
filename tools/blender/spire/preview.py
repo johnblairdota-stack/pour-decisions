@@ -196,11 +196,12 @@ def setup_morning():
         if bsdf is None:
             continue
         bsdf.inputs["Base Color"].default_value = m.diffuse_color
-        rough = {"clay_water": 0.06, "clay_spire_glass": 0.75, "clay_spire_balustrade": 0.8, "clay_spire_soffit": 0.9, "clay_balustrade": 0.05, "clay_steel": 0.45}.get(m.name, 0.85)
+        rough = {"clay_water": 0.06, "clay_spire_glass": 0.08, "clay_spire_balustrade": 0.8, "clay_spire_soffit": 0.9, "clay_balustrade": 0.05, "clay_steel": 0.45}.get(m.name, 0.85)
         bsdf.inputs["Roughness"].default_value = rough
         if m.name == "clay_water":                       # Brisbane River: brown-green, sky reflection, small ripples
-            bsdf.inputs["Base Color"].default_value = (0.13, 0.13, 0.085, 1)
-            bsdf.inputs["Roughness"].default_value = 0.04
+            bsdf.inputs["Base Color"].default_value = (0.05, 0.055, 0.045, 1)   # step 7j: darker, less mirror-like
+            bsdf.inputs["Roughness"].default_value = 0.22
+            bsdf.inputs["Specular IOR Level"].default_value = 0.3
             nt = m.node_tree
             tex = nt.nodes.new("ShaderNodeTexNoise")
             tex.inputs["Scale"].default_value = 0.35
@@ -208,7 +209,7 @@ def setup_morning():
             geo = nt.nodes.new("ShaderNodeNewGeometry")
             nt.links.new(geo.outputs["Position"], tex.inputs["Vector"])
             bump = nt.nodes.new("ShaderNodeBump")
-            bump.inputs["Strength"].default_value = 0.08
+            bump.inputs["Strength"].default_value = 0.25
             nt.links.new(tex.outputs["Fac"], bump.inputs["Height"])
             nt.links.new(bump.outputs["Normal"], bsdf.inputs["Normal"])
         if m.name == "clay_road":                        # step 7d: bitumen with aggregate speckle and patches
@@ -349,6 +350,9 @@ def setup_morning():
             bump.inputs["Strength"].default_value = 0.4
             nt.links.new(wave.outputs["Fac"], bump.inputs["Height"])
             nt.links.new(bump.outputs["Normal"], bsdf.inputs["Normal"])
+        if m.name == "clay_spire_glass":                 # step 7j: glass reflects the sky (photos), not flat paint
+            bsdf.inputs["Base Color"].default_value = (0.022, 0.026, 0.032, 1)
+            bsdf.inputs["Metallic"].default_value = 0.6
         if m.name == "clay_balustrade":
             bsdf.inputs["Alpha"].default_value = 0.35
             try:
@@ -364,38 +368,8 @@ def setup_morning():
             facade_material(m, None)
         m["look_done"] = True
     mo = L.MORNING
-    sun = bpy.data.objects.get("SUN_morning")
-    if sun is None:
-        sun = bpy.data.objects.new("SUN_morning", bpy.data.lights.new("SUN_morning", "SUN"))
-        sc.collection.objects.link(sun)
-    sun.data.energy = mo["sun_strength"]
-    sun.data.color = mo["sun_colour"]
-    sun.data.angle = math.radians(0.6)
-    az, el = math.radians(mo["sun_azimuth_deg"]), math.radians(mo["sun_elevation_deg"])
-    d = Vector((math.sin(az) * math.cos(el), math.cos(az) * math.cos(el), math.sin(el)))   # towards the sun
-    sun.rotation_euler = (-d).to_track_quat("-Z", "Y").to_euler()
-    if sc.world is None:
-        sc.world = bpy.data.worlds.new("World")
-    w = sc.world
-    w.use_nodes = True
-    nt = w.node_tree
-    bg = nt.nodes.get("Background")
-    sky = nt.nodes.get("SKY_morning")
-    if sky is None:
-        sky = nt.nodes.new("ShaderNodeTexSky")
-        sky.name = "SKY_morning"
-        nt.links.new(sky.outputs["Color"], bg.inputs["Color"])
-    try:
-        sky.sky_type = "NISHITA"
-        sky.sun_disc = False
-        sky.sun_elevation = el
-        sky.sun_rotation = math.radians(90.0 - mo["sun_azimuth_deg"])   # Blender: 0 = +X (east), CCW
-        sky.air_density = 1.0
-        sky.dust_density = mo["haze_dust"]
-        sky.ozone_density = 1.0
-    except (AttributeError, TypeError):
-        pass
-    bg.inputs["Strength"].default_value = mo["sky_strength"]
+    apply_light(mo["sun_azimuth_deg"], mo["sun_elevation_deg"])
+    nt = sc.world.node_tree
     out = nt.nodes.get("World Output")
     vol = nt.nodes.get("HAZE_morning")
     if vol is None and mo["haze_density"] > 0:
@@ -412,6 +386,59 @@ def setup_morning():
     except (AttributeError, TypeError):
         pass
     return sc
+
+
+def apply_light(az_deg, el_deg, kind="day"):
+    """Sun lamp + physical sky for a sun position (step 7j: hard shadows, deep blue sky, little haze).
+    kind 'dusk': low warm sun, darker sky, more exposure."""
+    import math
+    sc = bpy.context.scene
+    mo = L.MORNING
+    dusk = kind == "dusk" or el_deg < 6.0
+    sun = bpy.data.objects.get("SUN_morning")
+    if sun is None:
+        sun = bpy.data.objects.new("SUN_morning", bpy.data.lights.new("SUN_morning", "SUN"))
+        sc.collection.objects.link(sun)
+    k = max(0.15, min(1.0, math.sin(math.radians(max(el_deg, 1.0))) * 2.2))
+    sun.data.energy = mo["sun_strength"] * (0.12 if dusk else k)
+    sun.data.color = (1.0, 0.62, 0.38) if dusk else mo["sun_colour"]
+    sun.data.angle = math.radians(0.53)
+    try:
+        sun.data.shadow_maximum_resolution = 0.006
+        sc.eevee.shadow_pool_size = "1024"
+    except (AttributeError, TypeError):
+        pass
+    az, el = math.radians(az_deg), math.radians(max(el_deg, 0.5))
+    d = Vector((math.sin(az) * math.cos(el), math.cos(az) * math.cos(el), math.sin(el)))   # towards the sun
+    sun.rotation_euler = (-d).to_track_quat("-Z", "Y").to_euler()
+    if sc.world is None:
+        sc.world = bpy.data.worlds.new("World")
+    w = sc.world
+    w.use_nodes = True
+    nt = w.node_tree
+    bg = nt.nodes.get("Background")
+    sky = nt.nodes.get("SKY_morning")
+    if sky is None:
+        sky = nt.nodes.new("ShaderNodeTexSky")
+        sky.name = "SKY_morning"
+        nt.links.new(sky.outputs["Color"], bg.inputs["Color"])
+    try:
+        sky.sky_type = "NISHITA"
+        sky.sun_disc = False
+        sky.sun_elevation = math.radians(-1.0) if dusk else el     # dusk: civil twilight, no sun glow on the river
+        sky.sun_rotation = math.radians(90.0 - az_deg)   # Blender: 0 = +X (east), CCW
+        sky.air_density = 1.0
+        sky.dust_density = 1.2 if dusk else mo["haze_dust"]
+        sky.ozone_density = 1.5
+        sky.altitude = 30.0
+    except (AttributeError, TypeError):
+        pass
+    bg.inputs["Strength"].default_value = mo["sky_strength"] * (6.0 if dusk else 1.0)
+    sc.view_settings.exposure = mo["exposure"] + (0.5 if dusk else 0.0)
+    try:
+        sc.view_settings.look = "AgX - Medium High Contrast"
+    except TypeError:
+        pass
 
 
 def camera(name):
@@ -604,6 +631,9 @@ def photo_cam(c, out_dir, look):
     W, H = c["size"]
     k = 1600 / max(W, H)
     hide(["logistics"], c["stage"] == "as_built")
+    dusk = "dusk" in c["id"]
+    hour = float(c.get("time_h") or (17.4 if dusk else 12.0))                   # EXIF time when known, else midday
+    apply_light(*L.sun_position(c.get("date", ""), hour), "dusk" if dusk else "day")
     # trees stay in: the 6 m near clip on street cams removes any crown right on the lens
     path = os.path.join(out_dir, "%s_render.png" % c["id"])
     sec = render(path, int(round(W * k)), int(round(H * k)))

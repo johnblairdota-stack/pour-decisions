@@ -126,7 +126,9 @@ def solve(photo, LM):
         q, dz = project_marks(p, P, W, H)
         res = (q - obs).ravel()
         res = np.where(np.repeat(dz, 2) > 0, res, 1e4)
-        return np.concatenate([res, [(p[2] - zprior) * wz * 10, (p[5] - f0) * wf * 10]])
+        wxy = g.get("xy_weight", 0.0)                       # keep the camera in the open street it was taken from
+        return np.concatenate([res, [(p[2] - zprior) * wz * 10, (p[5] - f0) * wf * 10,
+                                     (p[0] - g["x"]) * wxy * 10, (p[1] - g["y"]) * wxy * 10]])
 
     lam = 1e-2
     for _ in range(200):
@@ -165,7 +167,7 @@ def main():
             continue
         pose, err, q = solve(ph, LM)
         if "z" not in ph["guess"]:          # street cam: hold the eye 1.6 m over the ground where it ended up
-            ph2 = dict(ph, guess=dict(ph["guess"], x=float(pose[0]), y=float(pose[1]), heading=float(pose[3])))
+            ph2 = ph if ph["guess"].get("xy_weight") else dict(ph, guess=dict(ph["guess"], x=float(pose[0]), y=float(pose[1]), heading=float(pose[3])))
             pose, err, q = solve(ph2, LM)
         W, H = ph["size"]
         held = []                               # honest score: each mark predicted by a solve that never saw it

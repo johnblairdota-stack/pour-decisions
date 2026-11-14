@@ -147,9 +147,9 @@ def dress(rec, bf, ring, ground, z0, top, first, last, lines, glass_rail):
         a = offset(ring, 0.0)
         b = offset(ring, 1.5)
         n = len(ring)
-        verts = [(x, y, ground + 7.9) for x, y in a] + [(x, y, ground + 7.2) for x, y in b]
+        verts = [(x, y, ground + 5.3) for x, y in a] + [(x, y, ground + 4.6) for x, y in b]
         bf.accent.add(verts, [[i, (i + 1) % n, n + (i + 1) % n, n + i] for i in range(n)])
-        bf.accent.prism(b, ground + 7.0, ground + 7.2)                       # fascia
+        bf.accent.prism(b, ground + 4.4, ground + 4.6)                       # fascia
     if first and rec.get("verandah") and top - ground < 14:
         ver = offset(ring, 2.4)
         for zz in (ground + 3.6, ground + 7.0):
@@ -265,6 +265,9 @@ def build(zone=None, collection="buildings", skip_zone=HSW_ZONE, exclude=(), onl
             top = t["top_ahd"] + lift
             if cut:
                 top = min(top, cut)
+            cap = _ROOFS.get(str(b["osm"]), {}).get("eave_above_ground")    # LiDAR top includes a roof sign
+            if cap:
+                top = min(top, b["base_ahd"] + cap + lift)
             if top - z0 < 1.0:
                 continue
             bf.walls.prism(ring, z0, top)

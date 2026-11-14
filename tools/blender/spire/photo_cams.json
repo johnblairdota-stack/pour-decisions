@@ -396,33 +396,33 @@
    ],
    "mode": "tilt",
    "pos": [
-    89.0,
-    72.3,
-    19.5
+    49.9,
+    60.3,
+    20.5
    ],
-   "eye_above_ground_m": 1.6,
-   "heading_deg": 234.3,
-   "pitch_deg": 28.07,
+   "eye_above_ground_m": 1.7,
+   "heading_deg": 223.5,
+   "pitch_deg": 37.86,
    "roll_deg": 0.0,
-   "focal_35mm": 27.5,
+   "focal_35mm": 24.7,
    "blender": {
-    "lens_mm": 28.66,
+    "lens_mm": 25.71,
     "sensor_mm": 36.0,
     "shift_y": -0.0
    },
    "marks": 4,
-   "fit_rms_px": 14.2,
-   "fit_max_px": 23.7,
+   "fit_rms_px": 24.8,
+   "fit_max_px": 34.5,
    "per_mark_px": {
-    "spire_top": 5.1,
-    "willahra_top": 23.7,
-    "orient_top": 4.3,
-    "spire_tower_base": 14.0
+    "spire_top": 3.9,
+    "willahra_top": 19.5,
+    "orient_top": 29.6,
+    "spire_tower_base": 34.5
    },
-   "holdout_rms_px": 41.6,
-   "holdout_px_at_1600": 130.4,
+   "holdout_rms_px": 44.8,
+   "holdout_px_at_1600": 140.7,
    "confidence": "low",
-   "note": ""
+   "note": "taken from the open Queen St roadway east of the Orient (x 30-55); position held there"
   },
   {
    "id": "west_with_spires",

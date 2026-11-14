@@ -236,6 +236,44 @@ def grid_points(ring, step, keep_out=1.0):
     return pts
 
 
+def facade(col, levels, outline_for, plate, upto_n=None):
+    """The as-built facade on every finished floor (one look in every view and stage): dark glass line set
+    back under the slab, white frame posts (thick, varied, staggered floor to floor like the photos),
+    white slab-edge bands and glass balustrades. upto_n: only storeys whose top level is below this."""
+    objs = []
+    sb, fr, gl, eb = C.MeshBuf(), C.MeshBuf(), C.MeshBuf(), C.MeshBuf()
+    for lo, hi in zip(levels[:-1], levels[1:]):
+        if upto_n is not None and hi["n"] > upto_n:
+            break
+        if lo["kind"] == "ground" or (lo["kind"] == "podium" and hi["kind"] == "podium"):
+            continue
+        inset_m = 0.2 if hi["kind"] == "transfer" else 0.9                     # L5->L6: flush, no dark recess
+        sb.prism(inset(plate, inset_m), lo["top_ahd"] - 0.05, hi["top_ahd"] - hi["slab_m"] + 0.02)
+        if lo["kind"] in ("ground", "podium"):
+            continue
+        ring = outline_for(lo)
+        z0, z1 = lo["top_ahd"], hi["top_ahd"] - hi["slab_m"]
+        h = (lo["n"] * 2654435761) % 1000 / 1000.0                       # per-floor stagger (photos: posts never line up)
+        for x, y, ang in walk(inset(ring, 0.15), BAY_M, BAY_M * h):
+            k = (int(x * 7.3) * 31 + int(y * 5.1) * 17 + lo["n"] * 13) % 10
+            wv = 0.24 + 0.20 * k / 10.0                                  # 0.24-0.44 m posts, varied
+            fr.box(x, y, z0, wv, 0.42, z1 - z0, ang)
+            if k in (2, 7):                                              # paired posts on some bays
+                fr.box(x + math.cos(ang) * 0.75, y + math.sin(ang) * 0.75, z0, 0.22, 0.42, z1 - z0, ang)
+        eb.prism(ring, z0 - 0.03, z0 + 0.22)                             # white slab-edge band (photos)
+        bal = inset(ring, 0.08)
+        n = len(bal)
+        for i in range(n):
+            (ax_, ay_), (bx_, by_) = bal[i], bal[(i + 1) % n]
+            gl.add([(ax_, ay_, z0), (bx_, by_, z0), (bx_, by_, z0 + 1.05), (ax_, ay_, z0 + 1.05)], [[0, 1, 2, 3]])
+    for buf, name, mat in ((sb, "SPIRE_storeys", "spire_glass"), (fr, "SPIRE_facade_frames", "band"),
+                           (eb, "SPIRE_slab_edge_bands", "band"), (gl, "SPIRE_glass_balustrades", "spire_balustrade")):
+        ob = buf.object(name, col, mat)
+        if ob:
+            objs.append(ob.name)
+    return objs
+
+
 def build():
     st = L.spire_stage()
     col = C.collection("spire")
@@ -275,7 +313,8 @@ def build():
             buf = C.MeshBuf()
             if poured:
                 buf.prism(part, z0, z1)
-                mat = (key if tag != "B" else key + "_b") if st is not None else "spire_soffit"   # step 7b: balcony soffits warm grey (photos)
+                done = st is None or lv["n"] < st["deck_level"] - st["screen_levels"]
+                mat = "spire_soffit" if done else (key if tag != "B" else key + "_b")   # step 7b: balcony soffits warm grey (photos)
             else:
                 buf.prism(part, z0 + lv["slab_m"] * 0.45, z0 + lv["slab_m"] * 0.55)   # reo mat
                 mat = "reo"
@@ -305,38 +344,12 @@ def build():
         obp.data.materials[0] = C.material_rgb("spire_podium_brick", SPIRE_LOOK["podium_brick"], shader="brick")
         objs.append(obp.name)
         objs += queen_st_podium(col, lot, ground_min, top_podium)
-        sb = C.MeshBuf()
-        for lo, hi in zip(levels[:-1], levels[1:]):
-            if lo["kind"] == "ground" or (lo["kind"] == "podium" and hi["kind"] == "podium"):
-                continue
-            inset_m = 0.2 if hi["kind"] == "transfer" else 1.4                     # L5->L6: flush, no dark recess
-            sb.prism(inset(plate, inset_m), lo["top_ahd"] - 0.05, hi["top_ahd"] - hi["slab_m"] + 0.02)
-        objs.append(sb.object("SPIRE_storeys", col, "spire_glass").name)
+        objs += facade(col, levels, outline_for, plate)
         top = levels[-1]["top_ahd"]
         pp = C.MeshBuf()
         pp.prism(inset(plate, 0.05), top - 0.6, top + 0.12)      # step 7c: slab edge only; the railing is in crown()
         objs.append(pp.object("SPIRE_parapet", col, "band").name)
         objs += crown(col, plate, top)
-        # step 6 facade (John's photos): white frame posts round every balcony level, staggered half a bay
-        # on alternate levels over the staggered slab edges (the "net"), glass balustrades, Ann St lobby
-        fr, gl, eb = C.MeshBuf(), C.MeshBuf(), C.MeshBuf()
-        for lo, hi in zip(levels[:-1], levels[1:]):
-            if lo["kind"] in ("ground", "podium"):
-                continue
-            ring = outline_for(lo)
-            z0, z1 = lo["top_ahd"], hi["top_ahd"] - hi["slab_m"]
-            for x, y, ang in walk(inset(ring, 0.15), BAY_M, BAY_M / 2 if lo["n"] % 2 else 0.0):
-                wv = 0.12 + 0.16 * ((int(x * 7.3) * 31 + int(y * 5.1) * 17 + lo["n"] * 13) % 10) / 10.0   # woven: frames vary
-                fr.box(x, y, z0, wv, 0.32, z1 - z0, ang)
-            eb.prism(ring, z0 - 0.02, z0 + 0.16)                     # white slab-edge band (photos)
-            bal = inset(ring, 0.08)
-            n = len(bal)
-            for i in range(n):
-                (ax_, ay_), (bx_, by_) = bal[i], bal[(i + 1) % n]
-                gl.add([(ax_, ay_, z0), (bx_, by_, z0), (bx_, by_, z0 + 1.05), (ax_, ay_, z0 + 1.05)], [[0, 1, 2, 3]])
-        objs.append(fr.object("SPIRE_facade_frames", col, "band").name)
-        objs.append(eb.object("SPIRE_slab_edge_bands", col, "band").name)
-        objs.append(gl.object("SPIRE_glass_balustrades", col, "spire_balustrade").name)
         lb = C.MeshBuf()
         (ax_, ay_), (bx_, by_) = L.PODIUM["ann_st_corners"]
         (ux_, uy_), (nx_, ny_) = L.ann_st_frame()
@@ -398,6 +411,7 @@ def build():
                      (*inner[i], z1), (*outer[i], z1), (*outer[j], z1), (*inner[j], z1)],
                     [[0, 1, 5, 4], [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7]])
         objs.append(scr.object("EDGE_SCREENS", col, "screen").name)
+        objs += facade(col, levels, outline_for, plate, upto_n=deck - st["screen_levels"])
 
     typ = levels[-1]["typical_ftf_solved_m"]
     return {"module": "spire", "stage": st["name"] if st else "finished", "objects": objs,
