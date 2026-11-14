@@ -215,7 +215,16 @@ def main():
     what = [a for a in argv if a in every] or every
     os.makedirs(L.DOCS, exist_ok=True)
     times = {}
+    passes = [a for a in argv if a in ("finished", "stage")] or ["finished", "stage"]
     # ---------------------------------------------------------------- finished tower
+    if "finished" in passes:
+        finished(what, mode, times)
+    if "stage" in passes:
+        stage_pass(what, mode, times)
+    print("render seconds:", {k: round(v, 1) for k, v in times.items()})
+
+
+def finished(what, mode, times):
     build_all.build_all(None)
     if "fit" in what:     # finished tower over the 2018 aerial: checks the plate position
         setup("look")
@@ -244,9 +253,13 @@ def main():
             times[c["id"]] = cam_view(c, mode)
     if "morning" in what:  # first pass of materials and morning light
         setup_morning()
-        for c in (L.HERO_CAMERAS[0], L.CAMERAS[0]):
+        pick = {c["id"]: c for c in L.CAMERAS + L.HERO_CAMERAS}
+        for c in (pick["hero_bridge_hsw"], pick["hero_cathedral"], pick["cam_ann_queen_corner"], pick["cam_queen_st"]):
             times[c["id"] + "_morning"] = cam_view(c, "morning")
         setup(mode)
+
+
+def stage_pass(what, mode, times):
     # ---------------------------------------------------------------- 2016 site at the L6 transfer slab
     build_all.build_all("2016_l6")
     if "top" in what:
@@ -262,7 +275,6 @@ def main():
         setup("look")
         for c in L.STAGE_CAMERAS:
             times[c["id"]] = cam_view(dict(c, show_logistics=True), "2016")
-    print("render seconds:", {k: round(v, 1) for k, v in times.items()})
 
 
 if __name__ == "__main__":

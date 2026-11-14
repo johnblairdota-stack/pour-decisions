@@ -76,7 +76,7 @@ LEVELS = {
     "transfer_level": 6,
     "slab_m": 0.20,                # typical PT slab
     "transfer_m": 1.25,
-    "top_level": 39,               # step 4: 40 storeys (developer: "40-level tower"); roof slab = L40 "RF"
+    "top_level": 42,               # step 5: John's 43 PT slabs = L1..L42 + the roof slab (L43 "RF") at the LiDAR roof
     "roof_slab_ahd": 136.0,        # step 4: 2019 LiDAR roof deck (cells 135-137.5 m AHD); plant tops 147.7 m
 
     "parapet_m": 1.2,
@@ -249,6 +249,9 @@ CAMERAS = [
      "pos": (-8.0, 30.0, 1.6), "look_at": (-70.0, -60.0, 1.6), "lens_mm": 28.0, "portrait": True, "shift_y": 0.20,
      "note": "Ann St, SE kerb, at the north end of Spire's podium, looking SW: sloped brick podium on the left, "
              "Clark Lane heritage roofs and St John's Cathedral ahead to the right of the road."},
+    {"id": "cam_queen_st", "photo": "spire-residences street view Queens st 1.JPEG",
+     "pos": (52.0, -30.0, 1.7), "look_at": (0.0, 5.0, 1.7), "lens_mm": 24.0, "portrait": True, "shift_y": 0.30,
+     "note": "Queen St, east kerb south of the bend, looking NW at the Queen St face of Spire (spot estimated)."},
     {"id": "cam_flyby_crane", "photo": "Spire-Residences construction site fly by almost complete with crane placement 2.jpg",
      "pos": (-120.0, -150.0, 330.0), "look_at": (0.0, 0.0, 60.0), "lens_mm": 50.0, "portrait": True,
      "shift_y": 0.0, "show_logistics": True,
@@ -262,6 +265,24 @@ STAGE_CAMERAS = [
     {"id": "stage_deck_nw", "pos": (-70.0, 85.0, 115.0), "look_at": (0.0, 4.0, 22.0), "lens_mm": 35.0,
      "portrait": False, "note": "over Ann St from the NW: gate, pump, gantry, booms on the deck"},
 ]
+# Story Bridge (step 5): measured from the 2019 LiDAR bridge points (bridge_hsw voxels). t = metres along
+# the axis (+ to the south / Kangaroo Point), n = metres across (+ east). Heights m AHD.
+STORY_BRIDGE = {
+    "centre_xy": (491.5, -182.2), "axis": (-0.0083, -0.99997),
+    "truss_centre_n": -3.5, "truss_half_m": 10.5,
+    "truss_t": (-395.0, 165.0),               # north anchor end .. south anchor end (truss length 560 m)
+    "main_piers_t": (-255.0, 25.0),           # main span 280 m between the main piers (published: 282 m)
+    "suspended_span_t": (-185.0, -45.0),
+    "panel_m": 14.0,
+    "top_chord_profile": [(-395, 42.0), (-255, 80.0), (-185, 53.0), (-115, 49.5), (-45, 53.0), (25, 80.0), (165, 44.0)],
+    "deck_profile": [(-485, 33.0), (-395, 34.0), (-255, 35.5), (-115, 36.5), (25, 35.5), (115, 32.5), (200, 30.5),
+                     (280, 28.5), (360, 26.5), (430, 24.5), (500, 22.5), (600, 20.5), (700, 19.5)],
+    "deck_t": (-485.0, 700.0),                # north approach (Fortitude Valley) .. south approach (Kangaroo Pt)
+    "approach_span_m": 40.0,
+    "light_spacing_m": 30.0,
+    "measured_from": "2019 LiDAR: 20 m bins along the axis; main piers where points reach the water, "
+                     "top chord = max height, deck = 10th percentile height",
+}
 # Landmark views (step 4). Matching photos (John's, not in git) named where one exists.
 HERO_CAMERAS = [
     {"id": "hero_bridge_hsw", "pos": (520.0, -170.0, 80.0), "look_at": (600.0, 70.0, 12.0), "lens_mm": 24.0,
@@ -397,7 +418,7 @@ def ground_z(x, y):
     """Ground (m AHD) at local x, y: 2019 LiDAR ground (bilinear) inside LIDAR_BOX, else the old DEM."""
     x0, y0, x1, y1 = LIDAR_BOX
     if os.path.exists(os.path.join(REF, "lidar", "lidar.json")) and x0 + 1 <= x < x1 - 1 and y0 + 1 < y <= y1 - 1:
-        g = lidar("ground")
+        g = lidar("ground_smooth")
         c = x - x0 - 0.5
         r = y1 - y - 0.5
         c0, r0 = int(c), int(r)
@@ -561,10 +582,31 @@ def lidar_header():
     return _cache["lidar_hdr"]
 
 
+def box_blur(a, r):
+    """Mean over a (2r+1) square window (edges clamped), via cumulative sums."""
+    import numpy as np
+    p = np.pad(a.astype("f8"), r, mode="edge")
+    c = p.cumsum(0).cumsum(1)
+    c = np.pad(c, ((1, 0), (1, 0)))
+    k = 2 * r + 1
+    s = c[k:, k:] - c[:-k, k:] - c[k:, :-k] + c[:-k, :-k]
+    return (s / (k * k)).astype("f4")
+
+
 def lidar(name):
-    """'dsm' | 'ground' (float32 m AHD) | 'class' (uint8) over LIDAR_BOX, rows north->south, 1 m."""
+    """'dsm' | 'ground' (float32 m AHD) | 'class' (uint8) over LIDAR_BOX, rows north->south, 1 m.
+    'ground_smooth': the ground with the river pushed under the water and two 5 m box blurs (no cars,
+    no noise) - this is what ground_z and the visible ground use (step 5)."""
     import numpy as np
     key = "lidar_" + name
+    if name == "ground_smooth":
+        if key not in _cache:
+            g = lidar("ground").copy()
+            cl = lidar("class")
+            wet = ((cl == 0) | (cl == 4)) & (g < 3.0)      # no return, or under the bridge deck
+            g[wet] = np.minimum(g[wet], RIVER_LEVEL_AHD - 2.0)
+            _cache[key] = box_blur(box_blur(g, 2), 2)
+        return _cache[key]
     if key not in _cache:
         h = lidar_header()
         fn, dt = {"dsm": ("dsm_1m.f32.gz", "<f4"), "ground": ("ground_1m.f32.gz", "<f4"),

@@ -126,8 +126,12 @@ def build():
     deck = st["deck_level"] if st else None
     objs, slabs, joint_lines = [], [], None
 
+    plate_out = ccw(inset(plate, -0.35))     # step 5: staggered slab edges (photos): odd levels stick out
+
     def outline_for(lv):
-        return lot if lv["kind"] in ("ground", "podium") else plate
+        if lv["kind"] in ("ground", "podium"):
+            return lot
+        return plate_out if (lv["kind"] == "tower" and lv["n"] % 2 == 1) else plate
 
     # ---------------------------------------------------------------- slabs (one object per pour area)
     for lv in levels:

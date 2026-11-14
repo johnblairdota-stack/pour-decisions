@@ -16,8 +16,7 @@
   {
    "module": "ground",
    "objects": [
-    "ground_lidar2019_2m",
-    "ground_lidar2019_1m_hsw_cliffs",
+    "ground_lidar2019_smooth",
     "river_water"
    ],
    "box": [
@@ -26,13 +25,12 @@
     1000,
     500
    ],
-   "verts": 743300,
-   "z_min_ahd": -2.94,
-   "z_max_ahd": 48.23,
-   "spire_ground_ahd": 20.69,
+   "verts": 560000,
+   "rock_faces": 6835,
+   "spire_ground_ahd": 20.71,
    "water_level_ahd": 0.3,
-   "source": "2019 LiDAR ground (class 2 mean), gaps and river bed from the QldDem default mix",
-   "seconds": 0.68
+   "source": "2019 LiDAR ground, river pushed under the water, two 5 m box blurs",
+   "seconds": 0.81
   },
   {
    "module": "streets",
@@ -41,32 +39,32 @@
     "footpaths_kerbs",
     "footways"
    ],
-   "car_ways": 283,
-   "walk_ways": 467,
+   "car_ways": 565,
+   "walk_ways": 1107,
    "width_source": {
-    "class default": 112,
-    "lanes x 3.3": 171
+    "lanes x 3.3": 310,
+    "class default": 255
    },
    "footpath_width_m": 3.5,
    "kerb_m": 0.15,
    "note": "Footpath widths are a CBD default, not measured. Bridges/tunnels/upper layers left out (Story Bridge is in landmarks.py).",
-   "seconds": 3.28
+   "seconds": 8.7
   },
   {
    "module": "buildings",
    "objects": [
-    "buildings_lidar_roofscape",
-    "buildings_lod1_lidar_heights"
+    "bldg_fam_heritage",
+    "bldg_fam_brick",
+    "bldg_fam_concrete",
+    "bldg_fam_glass",
+    "bldg_roofs_parapets_gables",
+    "bldg_floor_lines",
+    "bldg_spires_masts"
    ],
-   "roof_cells": 761714,
-   "wall_quads": 144566,
-   "lod1_height_source": {
-    "lidar 2019": 339,
-    "osm levels": 1,
-    "default (no tag)": 1
-   },
-   "note": "Rendered buildings are the 2019 LiDAR roofscape (1 m). LOD1 prisms (hidden) use LiDAR heights per OSM footprint; OSM tags only where no LiDAR roof was found. The LiDAR is 2019: buildings finished after mid-2019 are missing, earlier demolitions are gone.",
-   "seconds": 1.45
+   "buildings": 739,
+   "source": "OSM footprints (simplified 0.3 m, squared) + 2019 LiDAR roof tiers (prep_clean.py)",
+   "note": "Facade families are picked from height/tags; floor lines every 3.2 m. No LiDAR mesh is shown.",
+   "seconds": 0.56
   },
   {
    "module": "spire",
@@ -173,14 +171,14 @@
      "level": "L07",
      "pour_area": "A",
      "poured": true,
-     "area_m2": 346.0
+     "area_m2": 363.4
     },
     {
      "name": "SLAB_L07_B",
      "level": "L07",
      "pour_area": "B",
      "poured": true,
-     "area_m2": 538.3
+     "area_m2": 561.5
     },
     {
      "name": "SLAB_L08_A",
@@ -201,14 +199,14 @@
      "level": "L09",
      "pour_area": "A",
      "poured": true,
-     "area_m2": 346.0
+     "area_m2": 363.4
     },
     {
      "name": "SLAB_L09_B",
      "level": "L09",
      "pour_area": "B",
      "poured": true,
-     "area_m2": 538.3
+     "area_m2": 561.5
     },
     {
      "name": "SLAB_L10_A",
@@ -229,14 +227,14 @@
      "level": "L11",
      "pour_area": "A",
      "poured": true,
-     "area_m2": 346.0
+     "area_m2": 363.4
     },
     {
      "name": "SLAB_L11_B",
      "level": "L11",
      "pour_area": "B",
      "poured": true,
-     "area_m2": 538.3
+     "area_m2": 561.5
     },
     {
      "name": "SLAB_L12_A",
@@ -257,14 +255,14 @@
      "level": "L13",
      "pour_area": "A",
      "poured": true,
-     "area_m2": 346.0
+     "area_m2": 363.4
     },
     {
      "name": "SLAB_L13_B",
      "level": "L13",
      "pour_area": "B",
      "poured": true,
-     "area_m2": 538.3
+     "area_m2": 561.5
     },
     {
      "name": "SLAB_L14_A",
@@ -285,14 +283,14 @@
      "level": "L15",
      "pour_area": "A",
      "poured": true,
-     "area_m2": 346.0
+     "area_m2": 363.4
     },
     {
      "name": "SLAB_L15_B",
      "level": "L15",
      "pour_area": "B",
      "poured": true,
-     "area_m2": 538.3
+     "area_m2": 561.5
     },
     {
      "name": "SLAB_L16_A",
@@ -313,14 +311,14 @@
      "level": "L17",
      "pour_area": "A",
      "poured": true,
-     "area_m2": 346.0
+     "area_m2": 363.4
     },
     {
      "name": "SLAB_L17_B",
      "level": "L17",
      "pour_area": "B",
      "poured": true,
-     "area_m2": 538.3
+     "area_m2": 561.5
     },
     {
      "name": "SLAB_L18_A",
@@ -341,14 +339,14 @@
      "level": "L19",
      "pour_area": "A",
      "poured": true,
-     "area_m2": 346.0
+     "area_m2": 363.4
     },
     {
      "name": "SLAB_L19_B",
      "level": "L19",
      "pour_area": "B",
      "poured": true,
-     "area_m2": 538.3
+     "area_m2": 561.5
     },
     {
      "name": "SLAB_L20_A",
@@ -369,14 +367,14 @@
      "level": "L21",
      "pour_area": "A",
      "poured": true,
-     "area_m2": 346.0
+     "area_m2": 363.4
     },
     {
      "name": "SLAB_L21_B",
      "level": "L21",
      "pour_area": "B",
      "poured": true,
-     "area_m2": 538.3
+     "area_m2": 561.5
     },
     {
      "name": "SLAB_L22_A",
@@ -397,14 +395,14 @@
      "level": "L23",
      "pour_area": "A",
      "poured": true,
-     "area_m2": 346.0
+     "area_m2": 363.4
     },
     {
      "name": "SLAB_L23_B",
      "level": "L23",
      "pour_area": "B",
      "poured": true,
-     "area_m2": 538.3
+     "area_m2": 561.5
     },
     {
      "name": "SLAB_L24_A",
@@ -425,14 +423,14 @@
      "level": "L25",
      "pour_area": "A",
      "poured": true,
-     "area_m2": 346.0
+     "area_m2": 363.4
     },
     {
      "name": "SLAB_L25_B",
      "level": "L25",
      "pour_area": "B",
      "poured": true,
-     "area_m2": 538.3
+     "area_m2": 561.5
     },
     {
      "name": "SLAB_L26_A",
@@ -453,14 +451,14 @@
      "level": "L27",
      "pour_area": "A",
      "poured": true,
-     "area_m2": 346.0
+     "area_m2": 363.4
     },
     {
      "name": "SLAB_L27_B",
      "level": "L27",
      "pour_area": "B",
      "poured": true,
-     "area_m2": 538.3
+     "area_m2": 561.5
     },
     {
      "name": "SLAB_L28_A",
@@ -481,14 +479,14 @@
      "level": "L29",
      "pour_area": "A",
      "poured": true,
-     "area_m2": 346.0
+     "area_m2": 363.4
     },
     {
      "name": "SLAB_L29_B",
      "level": "L29",
      "pour_area": "B",
      "poured": true,
-     "area_m2": 538.3
+     "area_m2": 561.5
     },
     {
      "name": "SLAB_L30_A",
@@ -509,14 +507,14 @@
      "level": "L31",
      "pour_area": "A",
      "poured": true,
-     "area_m2": 346.0
+     "area_m2": 363.4
     },
     {
      "name": "SLAB_L31_B",
      "level": "L31",
      "pour_area": "B",
      "poured": true,
-     "area_m2": 538.3
+     "area_m2": 561.5
     },
     {
      "name": "SLAB_L32_A",
@@ -537,14 +535,14 @@
      "level": "L33",
      "pour_area": "A",
      "poured": true,
-     "area_m2": 346.0
+     "area_m2": 363.4
     },
     {
      "name": "SLAB_L33_B",
      "level": "L33",
      "pour_area": "B",
      "poured": true,
-     "area_m2": 538.3
+     "area_m2": 561.5
     },
     {
      "name": "SLAB_L34_A",
@@ -565,14 +563,14 @@
      "level": "L35",
      "pour_area": "A",
      "poured": true,
-     "area_m2": 346.0
+     "area_m2": 363.4
     },
     {
      "name": "SLAB_L35_B",
      "level": "L35",
      "pour_area": "B",
      "poured": true,
-     "area_m2": 538.3
+     "area_m2": 561.5
     },
     {
      "name": "SLAB_L36_A",
@@ -593,14 +591,14 @@
      "level": "L37",
      "pour_area": "A",
      "poured": true,
-     "area_m2": 346.0
+     "area_m2": 363.4
     },
     {
      "name": "SLAB_L37_B",
      "level": "L37",
      "pour_area": "B",
      "poured": true,
-     "area_m2": 538.3
+     "area_m2": 561.5
     },
     {
      "name": "SLAB_L38_A",
@@ -621,11 +619,53 @@
      "level": "L39",
      "pour_area": "A",
      "poured": true,
-     "area_m2": 346.0
+     "area_m2": 363.4
     },
     {
      "name": "SLAB_L39_B",
      "level": "L39",
+     "pour_area": "B",
+     "poured": true,
+     "area_m2": 561.5
+    },
+    {
+     "name": "SLAB_L40_A",
+     "level": "L40",
+     "pour_area": "A",
+     "poured": true,
+     "area_m2": 346.0
+    },
+    {
+     "name": "SLAB_L40_B",
+     "level": "L40",
+     "pour_area": "B",
+     "poured": true,
+     "area_m2": 538.3
+    },
+    {
+     "name": "SLAB_L41_A",
+     "level": "L41",
+     "pour_area": "A",
+     "poured": true,
+     "area_m2": 363.4
+    },
+    {
+     "name": "SLAB_L41_B",
+     "level": "L41",
+     "pour_area": "B",
+     "poured": true,
+     "area_m2": 561.5
+    },
+    {
+     "name": "SLAB_L42_A",
+     "level": "L42",
+     "pour_area": "A",
+     "poured": true,
+     "area_m2": 346.0
+    },
+    {
+     "name": "SLAB_L42_B",
+     "level": "L42",
      "pour_area": "B",
      "poured": true,
      "area_m2": 538.3
@@ -645,11 +685,11 @@
      "area_m2": 538.3
     }
    ],
-   "slab_objects": 81,
-   "levels_total": 41,
-   "base_ahd": 21.84,
+   "slab_objects": 87,
+   "levels_total": 44,
+   "base_ahd": 21.81,
    "roof_ahd": 136.0,
-   "typical_ftf_m": 2.755,
+   "typical_ftf_m": 2.532,
    "plate_area_m2": 975.7,
    "lot_area_m2": 1670.0,
    "joint": {
@@ -658,8 +698,8 @@
     "lines_local": [
      [
       [
-       -12.57,
-       11.87
+       -12.81,
+       12.13
       ],
       [
        -6.12,
@@ -672,13 +712,13 @@
        -0.63
       ],
       [
-       7.06,
-       -9.18
+       7.32,
+       -9.46
       ]
      ]
     ]
    },
-   "note": "Typical floor to floor 2.75 m is solved from the OSM height (low; check a section). Joint position and column grid are assumptions.",
+   "note": "Typical floor to floor 2.53 m is solved from the OSM height (low; check a section). Joint position and column grid are assumptions.",
    "seconds": 0.03
   },
   {
@@ -703,125 +743,105 @@
   {
    "module": "landmarks",
    "objects": [
-    "story_bridge_lidar_voxels",
-    "st_johns_cathedral_lidar_0p5m"
+    "story_bridge_truss",
+    "story_bridge_piers_footways",
+    "story_bridge_deck",
+    "story_bridge_rails_lights"
    ],
-   "story_bridge": {
-    "voxels": 95530,
-    "faces": 236556,
-    "voxel_m": 1,
-    "deck_top_ahd_max": 109.5,
-    "rule": "bridge_hsw voxels whose 1 m column top is class 4 (bridge, 17) or empty (water)"
-   },
-   "cathedral": {
-    "cells_0p5m": 7271,
-    "wall_quads": 788,
-    "top_ahd": 76.0,
-    "ground_ahd": 27.9
-   },
-   "note": "Built straight from the 2019 LiDAR. Walls below the eaves and the truss's far faces are where the scanner saw them; gaps are real gaps in the point cloud. Photos still needed for windows, tracery and colours.",
-   "seconds": 3.01
+   "panels": 40,
+   "main_span_m": 280.0,
+   "measured": "2019 LiDAR: 20 m bins along the axis; main piers where points reach the water, top chord = max height, deck = 10th percentile height",
+   "note": "Member sizes and panel layout are simplified; heights, piers, alignment and the deck profile are measured from the 2019 LiDAR points.",
+   "seconds": 0.05
+  },
+  {
+   "module": "cathedral",
+   "objects": [
+    "cathedral_stone",
+    "cathedral_roofs_spires",
+    "cathedral_buttresses_pinnacles"
+   ],
+   "ground_ahd": 27.91,
+   "length_m": 73.1,
+   "width_m": 38.3,
+   "nave_eave_m": 17.9,
+   "nave_ridge_m": 24.2,
+   "aisle_m": 14.9,
+   "transept": [
+    6.7,
+    6.8
+   ],
+   "towers": [
+    {
+     "uv": [
+      -31.8,
+      6.2
+     ],
+     "side_m": 9.8,
+     "top_m": 48.1
+    },
+    {
+     "uv": [
+      -31.7,
+      -8.3
+     ],
+     "side_m": 9.9,
+     "top_m": 48.0
+    },
+    {
+     "uv": [
+      5.9,
+      -0.9
+     ],
+     "side_m": 10.0,
+     "top_m": 42.8
+    }
+   ],
+   "note": "Massing measured from the LiDAR; plan proportions (nave 42% of the width) are assumed.",
+   "seconds": 0.05
   },
   {
    "module": "hsw",
    "objects": [
-    "hsw_lidar_1m"
+    "bldg_fam_heritage.001",
+    "bldg_fam_brick.001",
+    "bldg_fam_concrete.001",
+    "bldg_fam_glass.001",
+    "bldg_roofs_parapets_gables.001",
+    "bldg_floor_lines.001",
+    "bldg_spires_masts.001",
+    "hsw_boardwalk_deck",
+    "hsw_boardwalk_cantilevers"
    ],
+   "buildings": 25,
+   "boardwalk_ways": 10,
    "zone_local": [
     380,
     -130,
     800,
     140
    ],
-   "cells": 15838,
-   "over_water_cells": 301,
-   "named_osm": [
-    {
-     "name": "Crystalbrook Vincent",
-     "kind": "building=yes",
-     "xy": [
-      460.4,
-      104.4
-     ],
-     "osm_way": 679146305
-    },
-    {
-     "name": "New Farm Riverwalk",
-     "kind": "highway=living_street",
-     "xy": [
-      461.2,
-      80.9
-     ],
-     "osm_way": 1474756640
-    },
-    {
-     "name": "New Farm Riverwalk",
-     "kind": "highway=cycleway",
-     "xy": [
-      410.5,
-      77.1
-     ],
-     "osm_way": 657600178
-    },
-    {
-     "name": "New Farm Riverwalk",
-     "kind": "highway=cycleway",
-     "xy": [
-      388.3,
-      73.3
-     ],
-     "osm_way": 657600177
-    },
-    {
-     "name": "Stanley Restaurant",
-     "kind": "building=retail",
-     "xy": [
-      420.3,
-      66.9
-     ],
-     "osm_way": 58693432
-    },
-    {
-     "name": "Howard Smith Wharves",
-     "kind": "",
-     "xy": [
-      647.2,
-      1.2
-     ],
-     "osm_way": 564498898
-    },
-    {
-     "name": "Clem Jones Tunnel",
-     "kind": "highway=motorway",
-     "xy": [
-      412.1,
-      -40.8
-     ],
-     "osm_way": 52492319
-    },
-    {
-     "name": "Story Bridge",
-     "kind": "man_made=bridge",
-     "xy": [
-      484.4,
-      -93.3
-     ],
-     "osm_way": 507264554
-    }
-   ],
    "mid_build_2017_18": "not built yet",
-   "note": "As-built shell from LiDAR only. Facades, the corten lift towers' detail, Mr Percival's and the boardwalk cantilevers need John's photos for the detailed pass.",
-   "seconds": 0.03
+   "note": "Lift towers, Mr Percival's and the mid-build state need John's photos (next step).",
+   "seconds": 0.19
   },
   {
    "module": "trees",
    "objects": [
     "tree_trunks",
-    "tree_crowns"
+    "tree_crowns",
+    "palm_fronds"
    ],
-   "trees": 9725,
-   "source": "2019 LiDAR vegetation (classes 3-5)",
-   "seconds": 0.57
+   "species_count": {
+    "generic": 6871,
+    "jacaranda": 913,
+    "palm": 539,
+    "poinciana": 779,
+    "fig": 332,
+    "eucalypt": 291
+   },
+   "note": "Positions and heights from the 2019 LiDAR; species are stand-ins (see the docstring).",
+   "seconds": 1.59
   },
   {
    "module": "logistics",

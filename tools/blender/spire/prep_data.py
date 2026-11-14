@@ -30,6 +30,12 @@ def inside(x, y, half=HALF + MARGIN):
     return abs(x) <= half and abs(y) <= half
 
 
+def in_lidar(x, y, pad=MARGIN):
+    """Step 5: OSM is cropped to the LiDAR box (+ margin) so HSW and the bridge ends are in."""
+    x0, y0, x1, y1 = L.LIDAR_BOX
+    return x0 - pad <= x <= x1 + pad and y0 - pad <= y <= y1 + pad
+
+
 # ---------------------------------------------------------------- OSM
 def prep_osm(src):
     raw = json.load(gzip.open(os.path.join(src, "osm", "osm_all.json.gz"), "rt", encoding="utf-8"))
@@ -46,7 +52,7 @@ def prep_osm(src):
     for wid, w in ways.items():
         t = w.get("tags", {})
         pts = [loc[n] for n in w["nodes"] if n in loc]
-        if any(inside(*p) for p in pts):
+        if any(in_lidar(*p) for p in pts):
             keep_w.add(wid)
         elif "Story Bridge" in t.get("name", "") and any(inside(*p, half=1500) for p in pts):
             keep_w.add(wid)   # whole bridge, for the skyline line
@@ -61,7 +67,7 @@ def prep_osm(src):
     for wid in keep_w:
         keep_n.update(ways[wid]["nodes"])
     for nid, p in loc.items():
-        if inside(*p) and nodes[nid].get("tags"):
+        if in_lidar(*p) and nodes[nid].get("tags"):
             keep_n.add(nid)
     els = []
     for nid in sorted(keep_n):
@@ -73,8 +79,8 @@ def prep_osm(src):
             els.append(e)
     els += [ways[w] for w in sorted(keep_w)]
     els += keep_r
-    out = {"note": "OpenStreetMap data (c) OpenStreetMap contributors, ODbL 1.0. Cropped to 880 m square round "
-                   "Spire Residences (550 Queen St) + the whole Story Bridge.", "elements": els}
+    out = {"note": "OpenStreetMap data (c) OpenStreetMap contributors, ODbL 1.0. Cropped to the LiDAR box "
+                   "(local x -640..1040, y -940..540 round Spire Residences, 550 Queen St) + the whole Story Bridge.", "elements": els}
     p = L.ref("osm_spire_800m.json.gz")
     with gzip.open(p, "wt", encoding="utf-8") as f:
         json.dump(out, f, separators=(",", ":"))

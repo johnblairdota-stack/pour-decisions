@@ -1,47 +1,64 @@
-"""Howard Smith Wharves (its own level later). As-built from the 2019 LiDAR (captured mid-2019, after the
-precinct opened in late 2018): wharf sheds, hotel, lift towers, the riverside boardwalk and the
-over-water decks, as a 1 m solid surface. The cliff face is the 1 m ground patch in ground.py; the Story
-Bridge above is in landmarks.py. Named OSM features in the zone are listed in the metadata for the
-detailed pass. Mid-build 2017-18 state: not built yet (see the README's next steps)."""
-import numpy as np
+"""Howard Smith Wharves (its own level later), clean (step 5).
+- Buildings in the HSW strip: the same clean builder as the city (OSM footprints + LiDAR-measured tiers):
+  wharf sheds, the hotel (Crystalbrook Vincent), Stanley restaurant and the rest.
+- The riverside boardwalk (OSM New Farm Riverwalk) as a clean timber deck on steel cantilever beams and
+  headstocks, ~5 m out from the bank (RESEARCH.md: cantilevers on tensioned piles, built from land).
+- The cliff is the smoothed LiDAR ground (ground.py), shown in the rock colour here.
+Still to do (needs John's photos): corten lift towers, Mr Percival's, facades, the 2017-18 mid-build state."""
+import math
 
 import layout as L
 import common as C
-import heightfield as HF
-from buildings import HSW_ZONE
+import buildings as B
 
-LOW_DECK_MAX_AHD = 12.0     # boardwalk / bar decks; the Story Bridge deck is far higher
+DECK_AHD = 3.6
+DECK_W = 5.0
+CANTILEVER_STEP = 5.0
 
 
 def build():
+    meta = B.build(zone=B.HSW_ZONE, collection="hsw")
     col = C.collection("hsw")
-    x0, y0, x1, y1 = L.LIDAR_BOX
-    hx0, hy0, hx1, hy1 = HSW_ZONE
-    rs = slice(int(y1 - hy1), int(y1 - hy0))
-    cs = slice(int(hx0 - x0), int(hx1 - x0))
-    dsm, gnd, cls = L.lidar("dsm")[rs, cs], L.lidar("ground")[rs, cs], L.lidar("class")[rs, cs]
-    built = (cls == 3) | ((cls == 4) & (dsm < LOW_DECK_MAX_AHD))
-    over_water = built & (gnd < L.RIVER_LEVEL_AHD + 0.5)
-    ob, roofs, walls = HF.heightfield("hsw_lidar_1m", col, dsm, np.maximum(gnd, L.RIVER_LEVEL_AHD - 1.0),
-                                      built, hx0, hy1, 1.0, "building")
     o = L.osm()
-    named = []
+    hx0, hy0, hx1, hy1 = B.HSW_ZONE
+    deck, beams = C.MeshBuf(), C.MeshBuf()
+    walks = 0
     for wid, w in o["ways"].items():
         t = w.get("tags", {})
-        if not t.get("name"):
+        if t.get("highway") not in ("footway", "cycleway", "living_street", "path", "pedestrian"):
             continue
-        P = o["line"](w)
-        if not P:
+        pts = o["line"](w)
+        if len(pts) < 2 or not any(hx0 <= x <= hx1 and hy0 <= y <= hy1 for x, y in pts):
             continue
-        cx = sum(p[0] for p in P) / len(P)
-        cy = sum(p[1] for p in P) / len(P)
-        if hx0 <= cx <= hx1 and hy0 <= cy <= hy1:
-            kind = next((k + "=" + t[k] for k in ("building", "amenity", "highway", "leisure", "man_made", "tourism")
-                         if k in t), "")
-            named.append({"name": t["name"], "kind": kind, "xy": [round(cx, 1), round(cy, 1)], "osm_way": wid})
-    named.sort(key=lambda d: d["xy"][1], reverse=True)
-    return {"module": "hsw", "objects": [ob.name], "zone_local": HSW_ZONE, "cells": roofs,
-            "over_water_cells": int(over_water.sum()), "named_osm": named[:60],
-            "mid_build_2017_18": "not built yet",
-            "note": "As-built shell from LiDAR only. Facades, the corten lift towers' detail, Mr Percival's and "
-                    "the boardwalk cantilevers need John's photos for the detailed pass."}
+        near_water = [p for p in pts if L.ground_z(*p) < 2.5]
+        if not near_water and "Riverwalk" not in t.get("name", ""):
+            continue
+        pts = C.densify(pts, 2.0)
+        left, right = C.offset_line(pts, DECK_W / 2), C.offset_line(pts, -DECK_W / 2)
+        n = len(pts)
+        z = [max(DECK_AHD, L.ground_z(*p) + 0.15) for p in pts]
+        verts = ([(x, y, zz) for (x, y), zz in zip(left, z)] + [(x, y, zz) for (x, y), zz in zip(right, z)] +
+                 [(x, y, zz - 0.35) for (x, y), zz in zip(left, z)] + [(x, y, zz - 0.35) for (x, y), zz in zip(right, z)])
+        faces = [[i, n + i, n + i + 1, i + 1] for i in range(n - 1)]
+        faces += [[2 * n + i + 1, 3 * n + i + 1, 3 * n + i, 2 * n + i] for i in range(n - 1)]
+        faces += [[i, i + 1, 2 * n + i + 1, 2 * n + i] for i in range(n - 1)]
+        faces += [[n + i + 1, n + i, 3 * n + i, 3 * n + i + 1] for i in range(n - 1)]
+        deck.add(verts, faces)
+        acc = 0.0
+        for i in range(1, n):
+            acc += math.dist(pts[i - 1], pts[i])
+            if acc >= CANTILEVER_STEP:
+                acc = 0.0
+                (lx, ly), (rx, ry) = left[i], right[i]
+                beams.beam((lx, ly, z[i] - 0.6), (rx, ry, z[i] - 0.6), 0.45)                 # cantilever beam
+                beams.beam(((lx + rx) / 2, (ly + ry) / 2, z[i] - 0.6),
+                           ((lx + rx) / 2, (ly + ry) / 2, min(L.ground_z((lx + rx) / 2, (ly + ry) / 2), 0.0) - 1.0), 0.6)
+        walks += 1
+    objs = meta["objects"]
+    for buf, name, key in ((deck, "hsw_boardwalk_deck", "timber"), (beams, "hsw_boardwalk_cantilevers", "steel")):
+        ob = buf.object(name, col, key)
+        if ob:
+            objs.append(ob.name)
+    return {"module": "hsw", "objects": objs, "buildings": meta["buildings"], "boardwalk_ways": walks,
+            "zone_local": B.HSW_ZONE, "mid_build_2017_18": "not built yet",
+            "note": "Lift towers, Mr Percival's and the mid-build state need John's photos (next step)."}

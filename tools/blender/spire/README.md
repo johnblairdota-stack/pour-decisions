@@ -65,7 +65,7 @@ third) and B, split by a construction joint of two short lines from the core fac
 
 ## Known gaps (next steps)
 
-- Floor count: LiDAR roof 136 m AHD with 40 storeys gives 2.75 m floor to floor (low). Check the real count and section.
+- Floor count: 43 PT slabs to the LiDAR roof (136 m AHD) gives 2.53 m floor to floor above L6 - too low for real floors. Check the section.
 - The plate scale is fitted to the 2018 roof (25.5 px/m), not the drawing's scale bar (21.8 px/m).
 - Pour joint position, column grid, boom and pump spots are assumptions. Jump-form system for Spire is unknown.
 - Footpath width is a default (3.5 m), not measured. Kerb lines can come from council parking lines.
@@ -93,3 +93,24 @@ products in `reference/sites/spire/lidar/` over `layout.LIDAR_BOX` (1.6 x 1.4 km
 - Renders: `hero_bridge_hsw_clay.png` (photo to compare: my_photos/hsw/...aerial-2017-06-june),
   `hero_hsw_lift_tower_clay.png` (photo: my_photos/hsw/hb-m-hsw-shoot2-2), `hero_cathedral_clay.png`,
   `hero_bridge_hsw_morning.png`, `cam_ann_queen_corner_morning.png`. Photos are John's, not in git.
+
+## Step 5 results (clean look)
+
+Rule from here on: the LiDAR is for measuring only. No mesh made straight from points or the DSM is shown.
+
+- Buildings (`prep_clean.py` -> `lidar/buildings_clean.json`, built by `buildings.py`): 1,102 OSM footprints,
+  simplified to 0.3 m and squared, extruded to LiDAR-measured roof tiers; parapets on flat roofs, clean
+  gables on pitched ones, pyramids for spires and masts, floor lines every 3.2 m, and four facade families
+  (heritage stone, brick low-rise, 70s-80s concrete, glass) picked from height and OSM tags.
+- Story Bridge (`landmarks.py`, `layout.STORY_BRIDGE`): parametric steel cantilever truss (anchor arms,
+  cantilevers, suspended span, chords, verticals, diagonals, top bracing, floor beams), main and anchor
+  piers, approach spans on piers, deck, footways, railings, lights. LiDAR only fixed the alignment,
+  pier positions (main span 280 m), top chord and deck heights.
+- St John's Cathedral (`cathedral.py`): nave, aisles with lean-to roofs, transept, buttresses, two towers
+  with spires and pinnacles; heights from the LiDAR, plan from the OSM footprint.
+- HSW (`hsw.py`): clean buildings of the strip, the riverwalk as a timber deck on steel cantilevers.
+- Ground: LiDAR ground smoothed (no cars/noise), rock colour on slopes over 40 deg (the cliffs). Streets now
+  cover the whole LiDAR area.
+- Trees: clean models (fig, jacaranda/poinciana, eucalypt, palm, generic) on the LiDAR tree tops.
+- Spire: 43 PT slabs (L1-L42 + the roof slab at 136 m AHD, John's count); staggered slab edges.
+- New: `cam_queen_st_*` (Queen St street level), `*_morning.png` for the bridge, cathedral and two street views.

@@ -67,7 +67,7 @@ def build():
     for w in car_ways:
         t = w["tags"]
         pts = o["line"](w)
-        if len(pts) < 2 or not any(C.in_model(x, y, 20) for x, y in pts):
+        if len(pts) < 2 or not any(C.in_lidar(x, y) for x, y in pts):
             continue
         wd, src = road_width(t)
         width_src[src] += 1
@@ -93,7 +93,7 @@ def build():
         if t.get("highway") in WALK and t.get("area") != "yes" and t.get("bridge", "no") == "no" \
                 and t.get("tunnel", "no") == "no" and str(t.get("layer", "0")) == "0":
             pts = o["line"](w)
-            if len(pts) < 2 or not any(C.in_model(x, y) for x, y in pts):
+            if len(pts) < 2 or not any(C.in_lidar(x, y) for x, y in pts):
                 continue
             wd = L.ROAD_WIDTH.get(t["highway"], 2.0)
             pts = C.densify(pts)

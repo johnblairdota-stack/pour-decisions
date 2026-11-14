@@ -33,6 +33,21 @@ COLOURS = {
     "hoarding": (0.15, 0.35, 0.65, 1),
     "truck": (0.92, 0.92, 0.92, 1),
     "tree": (0.35, 0.55, 0.30, 1),
+    "tree_dark": (0.22, 0.40, 0.22, 1),
+    "palm": (0.45, 0.60, 0.30, 1),
+    "bark": (0.45, 0.38, 0.30, 1),
+    "fam_heritage": (0.82, 0.72, 0.56, 1),   # sandstone / porphyry stand-in
+    "fam_brick": (0.72, 0.50, 0.40, 1),
+    "fam_concrete": (0.80, 0.79, 0.75, 1),
+    "fam_glass": (0.50, 0.60, 0.70, 1),
+    "roof": (0.62, 0.63, 0.64, 1),
+    "band": (0.92, 0.92, 0.90, 1),
+    "steel": (0.42, 0.50, 0.56, 1),          # Story Bridge grey
+    "pier": (0.70, 0.68, 0.64, 1),
+    "deck": (0.30, 0.30, 0.31, 1),
+    "rock": (0.55, 0.47, 0.40, 1),
+    "timber": (0.60, 0.48, 0.35, 1),
+    "corten": (0.62, 0.32, 0.18, 1),
     "bridge": (0.35, 0.45, 0.55, 1),
     "crane": (0.95, 0.70, 0.10, 1),
     "hoist": (0.20, 0.55, 0.85, 1),
@@ -244,6 +259,11 @@ def densify(pts, step=2.0):
 
 def line_length(pts):
     return sum(math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]) for i in range(1, len(pts)))
+
+
+def in_lidar(x, y, pad=0.0):
+    x0, y0, x1, y1 = L.LIDAR_BOX
+    return x0 - pad <= x <= x1 + pad and y0 - pad <= y <= y1 + pad
 
 
 def in_model(x, y, pad=0.0):
