@@ -158,6 +158,8 @@ def main():
     LM = landmarks()
     out = []
     for ph in marks["photos"]:
+        if len(sys.argv) > 3 and ph["id"] not in sys.argv[3].split(","):
+            continue
         if ph.get("skip"):
             out.append({k: ph[k] for k in ("id", "file", "date", "stage", "skip")})
             continue
@@ -166,6 +168,14 @@ def main():
             ph2 = dict(ph, guess=dict(ph["guess"], x=float(pose[0]), y=float(pose[1]), heading=float(pose[3])))
             pose, err, q = solve(ph2, LM)
         W, H = ph["size"]
+        held = []                               # honest score: each mark predicted by a solve that never saw it
+        if len(ph["marks"]) >= 3:
+            for i in range(len(ph["marks"])):
+                rest = dict(ph, marks=[m for j, m in enumerate(ph["marks"]) if j != i],
+                            guess=dict(ph["guess"], x=float(pose[0]), y=float(pose[1]), heading=float(pose[3])))
+                p_i, _, _ = solve(rest, LM)
+                q_i, _ = project_marks(p_i, [LM[ph["marks"][i][0]]], W, H)
+                held.append(float(np.hypot(*(q_i[0] - np.array(ph["marks"][i][1:], float)))))
         x, y, z, yaw, pitch, f, shift = pose
         long_side = max(W, H)
         rms = float(np.sqrt((err ** 2).mean()))
@@ -180,6 +190,8 @@ def main():
                            "shift_y": round(-shift / long_side, 4)},
                "marks": len(err), "fit_rms_px": round(rms, 1), "fit_max_px": round(float(err.max()), 1),
                "per_mark_px": {m[0]: round(float(e), 1) for m, e in zip(ph["marks"], err)},
+               "holdout_rms_px": round(float(np.sqrt(np.mean(np.square(held)))), 1) if held else None,
+               "holdout_px_at_1600": round(float(np.sqrt(np.mean(np.square(held)))) * 1600 / long_side, 1) if held else None,
                "confidence": conf, "note": ph.get("note", "")}
         out.append(rec)
         print("%-24s pos %s heading %5.1f pitch %5.1f f35 %5.1f rms %5.1f px (%s)" % (

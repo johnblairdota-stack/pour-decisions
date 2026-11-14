@@ -171,6 +171,8 @@
     "willahra_top": 10.3,
     "soleil_top": 1.7
    },
+   "holdout_rms_px": 48.4,
+   "holdout_px_at_1600": 38.7,
    "confidence": "high",
    "note": ""
   },
@@ -211,6 +213,8 @@
     "admiralty2_top": 4.9,
     "cath_spire_n": 4.1
    },
+   "holdout_rms_px": 80.2,
+   "holdout_px_at_1600": 64.2,
    "confidence": "high",
    "note": ""
   },
@@ -251,6 +255,8 @@
     "willahra_top": 28.0,
     "orient_top": 5.0
    },
+   "holdout_rms_px": 39.3,
+   "holdout_px_at_1600": 34.2,
    "confidence": "medium",
    "note": ""
   },
@@ -290,6 +296,8 @@
     "orient_top": 14.0,
     "cath_spire_n": 10.9
    },
+   "holdout_rms_px": 47.3,
+   "holdout_px_at_1600": 46.8,
    "confidence": "medium",
    "note": "Canon 5D3 at 24 mm (EXIF), shift lens"
   },
@@ -330,6 +338,8 @@
     "mantra_top": 5.3,
     "orient_top": 6.1
    },
+   "holdout_rms_px": 27.9,
+   "holdout_px_at_1600": 46.0,
    "confidence": "medium",
    "note": ""
   },
@@ -368,6 +378,8 @@
     "spire_top": 12.0,
     "spire_tower_base": 3.6
    },
+   "holdout_rms_px": 59.6,
+   "holdout_px_at_1600": 187.0,
    "confidence": "low",
    "note": ""
   },
@@ -384,28 +396,31 @@
    ],
    "mode": "tilt",
    "pos": [
-    51.7,
-    59.0,
-    20.3
+    89.0,
+    72.3,
+    19.5
    ],
    "eye_above_ground_m": 1.6,
-   "heading_deg": 226.2,
-   "pitch_deg": 39.98,
+   "heading_deg": 234.3,
+   "pitch_deg": 28.07,
    "roll_deg": 0.0,
-   "focal_35mm": 27.0,
+   "focal_35mm": 27.5,
    "blender": {
-    "lens_mm": 28.07,
+    "lens_mm": 28.66,
     "sensor_mm": 36.0,
     "shift_y": -0.0
    },
-   "marks": 3,
-   "fit_rms_px": 0.1,
-   "fit_max_px": 0.2,
+   "marks": 4,
+   "fit_rms_px": 14.2,
+   "fit_max_px": 23.7,
    "per_mark_px": {
-    "spire_top": 0.2,
-    "willahra_top": 0.1,
-    "orient_top": 0.0
+    "spire_top": 5.1,
+    "willahra_top": 23.7,
+    "orient_top": 4.3,
+    "spire_tower_base": 14.0
    },
+   "holdout_rms_px": 41.6,
+   "holdout_px_at_1600": 130.4,
    "confidence": "low",
    "note": ""
   },
@@ -458,6 +473,8 @@
     "spire_top": 0.4,
     "willahra_top": 0.4
    },
+   "holdout_rms_px": 110.9,
+   "holdout_px_at_1600": 147.8,
    "confidence": "low",
    "note": ""
   },
@@ -498,6 +515,8 @@
     "admiralty2_top": 5.2,
     "willahra_top": 11.8
    },
+   "holdout_rms_px": 14.5,
+   "holdout_px_at_1600": 29.0,
    "confidence": "medium",
    "note": ""
   },
