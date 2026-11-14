@@ -8,7 +8,7 @@ import layout as L
 # Clay palette (viewport/Workbench colours). "look" previews use these; "clay" previews use one grey.
 COLOURS = {
     "ground": (0.46, 0.46, 0.44, 1),
-    "water": (0.30, 0.40, 0.46, 1),
+    "water": (0.26, 0.27, 0.20, 1),          # Brisbane River: muddy brown-green
     "road": (0.24, 0.24, 0.25, 1),
     "footpath": (0.62, 0.61, 0.58, 1),
     "footway": (0.55, 0.53, 0.50, 1),
@@ -45,10 +45,12 @@ COLOURS = {
     "steel": (0.42, 0.50, 0.56, 1),          # Story Bridge grey
     "pier": (0.70, 0.68, 0.64, 1),
     "deck": (0.30, 0.30, 0.31, 1),
-    "rock": (0.55, 0.47, 0.40, 1),
+    "rock": (0.52, 0.47, 0.42, 1),           # Kangaroo Point tuff: grey-brown
     "timber": (0.60, 0.48, 0.35, 1),
     "corten": (0.62, 0.32, 0.18, 1),
-    "spire_glass": (0.14, 0.17, 0.20, 1),
+    "spire_glass": (0.165, 0.176, 0.192, 1),   # #2a2d31 dark glass / recessed balconies (photo sheet)
+    "spire_frame": (0.91, 0.90, 0.88, 1),      # #e8e6e0 white frame lattice and slab edges
+    "spire_balustrade": (0.20, 0.22, 0.25, 1),
     "balustrade": (0.70, 0.80, 0.85, 1),
     "line": (0.95, 0.95, 0.92, 1),          # road markings
     "line_yellow": (0.95, 0.80, 0.20, 1),
@@ -78,6 +80,24 @@ def material(key):
         m = bpy.data.materials.new(name)
         m.diffuse_color = COLOURS[key]
         m.roughness = 0.9
+    return m
+
+
+def material_rgb(name, rgb, window=None, shader="render", palette=None):
+    """A material with an explicit colour. The morning look (preview.setup_morning) turns the props into a
+    procedural shader: shader = render | brick | ashlar | glass, palette = ashlar block colours,
+    window = facade grid (bay, win, sill, head, floor, glass, rough)."""
+    m = bpy.data.materials.get(name)
+    if m is None:
+        m = bpy.data.materials.new(name)
+    m.diffuse_color = (*rgb, 1)
+    m.roughness = 0.85
+    m["shader"] = shader
+    if palette:
+        m["palette"] = [c for col in palette for c in col]
+    if window:
+        for k, v in window.items():
+            m["win_" + k] = list(v) if isinstance(v, tuple) else v
     return m
 
 

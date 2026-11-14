@@ -1,12 +1,7 @@
-"""Neighbouring buildings, clean (step 5). LiDAR is for measuring only.
-
-Each OSM footprint (simplified, squared) is extruded to its LiDAR-measured roof tiers
-(reference/sites/spire/lidar/buildings_clean.json, made by prep_clean.py), with:
-  - flat roofs: a parapet; pitched roofs: a clean gable over the footprint's rectangle
-  - spires / roof masts: clean pyramids
-  - floor lines every LEVEL_HEIGHT on the walls, and a facade family colour
-    (heritage stone, brick low-rise, 70s-80s concrete, glass curtain wall)
-"""
+"""Neighbouring buildings (step 7a): every OSM footprint (simplified, squared), extruded to its LiDAR-measured
+roof tiers (reference/sites/spire/lidar/buildings_clean.json), dressed with a facade recipe from looks.py:
+named buildings from the photo research, the rest from generic recipes by use and height. LiDAR is for
+measuring only. Materials are procedural (preview.setup_morning builds the shaders from the props)."""
 import json
 import math
 import os
@@ -14,10 +9,11 @@ import os
 import layout as L
 import common as C
 import shapes as S
+from looks import look_for, PATTERNS
 
 HSW_ZONE = (380, -130, 800, 140)      # local x0, y0, x1, y1: the strip under the cliffs (hsw.py adds the rest)
-SKIP = {26384715, 679146312}         # St John's Cathedral (cathedral.py), Mr Percival's (hsw.py)
-FAMILY_KEY = {"heritage": "fam_heritage", "brick": "fam_brick", "concrete": "fam_concrete", "glass": "fam_glass"}
+SKIP = {26384715, 679146312}          # St John's Cathedral (cathedral.py), Mr Percival's (hsw.py)
+STREETS_WITH_AWNINGS = ("Ann Street", "Queen Street", "Adelaide Street", "Wickham Street", "Boundary Street")
 
 
 def records():
@@ -44,31 +40,150 @@ def offset(ring, d):
     return out
 
 
+def loop_wall(buf, ring, z0, z1):
+    """Thin open wall (one quad per edge) - balustrades."""
+    n = len(ring)
+    for i in range(n):
+        (ax, ay), (bx, by) = ring[i], ring[(i + 1) % n]
+        buf.add([(ax, ay, z0), (bx, by, z0), (bx, by, z1), (ax, ay, z1)], [[0, 1, 2, 3]])
+
+
 def gable(buf, g, base):
-    """Triangular prism roof on the footprint's min rectangle, from the eave to the ridge."""
     c, s = math.cos(g["angle"]), math.sin(g["angle"])
     hl, hw = g["length"] / 2 + 0.3, g["width"] / 2 + 0.3
     e, r = g["eave_ahd"], g["ridge_ahd"]
     def P(u, v, z):
         return (g["cx"] + u * c - v * s, g["cy"] + u * s + v * c, z)
     verts = [P(-hl, -hw, e), P(hl, -hw, e), P(hl, hw, e), P(-hl, hw, e), P(-hl, 0, r), P(hl, 0, r)]
-    faces = [[0, 1, 5, 4], [2, 3, 4, 5], [0, 4, 3], [1, 2, 5], [0, 3, 2, 1]]
+    buf.add(verts, [[0, 1, 5, 4], [2, 3, 4, 5], [0, 4, 3], [1, 2, 5], [0, 3, 2, 1]])
+
+
+def cone(buf, x, y, z0, r, z1, n=8):
+    ring = [(x + r * math.cos(2 * math.pi * k / n), y + r * math.sin(2 * math.pi * k / n), z0) for k in range(n)]
+    buf.add(ring + [(x, y, z1)], [[k, (k + 1) % n, n] for k in range(n)] + [list(range(n - 1, -1, -1))])
+
+
+def dome(buf, x, y, z0, r):
+    rings, n = 4, 12
+    verts, faces = [], []
+    for j in range(rings):
+        a = math.pi / 2 * j / rings
+        for k in range(n):
+            t = 2 * math.pi * k / n
+            verts.append((x + r * math.cos(a) * math.cos(t), y + r * math.cos(a) * math.sin(t), z0 + r * math.sin(a)))
+    verts.append((x, y, z0 + r))
+    for j in range(rings - 1):
+        for k in range(n):
+            faces.append([j * n + k, j * n + (k + 1) % n, (j + 1) * n + (k + 1) % n, (j + 1) * n + k])
+    top = len(verts) - 1
+    faces += [[(rings - 1) * n + k, (rings - 1) * n + (k + 1) % n, top] for k in range(n)]
     buf.add(verts, faces)
 
 
-def spire(buf, sp):
-    n = 8
-    ring = [(sp["x"] + sp["r"] * math.cos(2 * math.pi * k / n), sp["y"] + sp["r"] * math.sin(2 * math.pi * k / n),
-             sp["base_ahd"]) for k in range(n)]
-    buf.add(ring + [(sp["x"], sp["y"], sp["top_ahd"])],
-            [[k, (k + 1) % n, n] for k in range(n)] + [list(range(n - 1, -1, -1))])
+def street_lines():
+    o = L.osm()
+    return [o["line"](w) for w in o["ways"].values()
+            if w.get("tags", {}).get("highway") and w.get("tags", {}).get("name") in STREETS_WITH_AWNINGS]
+
+
+def near_street(x, y, lines, d=11.0):
+    for ln in lines:
+        for (ax, ay), (bx, by) in zip(ln[:-1], ln[1:]):
+            dx, dy = bx - ax, by - ay
+            l2 = dx * dx + dy * dy or 1
+            t = max(0, min(1, ((x - ax) * dx + (y - ay) * dy) / l2))
+            if math.hypot(ax + dx * t - x, ay + dy * t - y) < d:
+                return True
+    return False
+
+
+class Bufs:
+    def __init__(self):
+        self.walls, self.roof, self.band, self.accent, self.ground = (C.MeshBuf() for _ in range(5))
+
+
+def dress(rec, bf, ring, ground, z0, top, first, last, lines, glass_rail):
+    """Recipe geometry for one tier: bands/balconies, ground band, pilasters, cornice, awnings, verandahs, accent."""
+    pat = PATTERNS.get(rec.get("pattern") or "none")
+    floor = pat["floor"] if pat else L.LEVEL_HEIGHT
+    if rec.get("band") or rec.get("balcony"):
+        out = offset(ring, 1.2 if rec.get("balcony") else 0.12)
+        z = ground + floor
+        while z < top - 1.0:
+            if z > z0 + 0.5:
+                bf.band.prism(out, z - 0.25, z)
+                if rec.get("balcony") == "white_solid":
+                    loop_wall(bf.band, offset(ring, 1.15), z, z + 1.05)
+                elif rec.get("balcony") == "glass":
+                    loop_wall(glass_rail, offset(ring, 1.15), z, z + 1.05)
+            z += floor
+    if first and rec.get("ground"):
+        bf.ground.prism(offset(ring, 0.06), z0, min(top, ground + 4.5))
+    if rec.get("pilasters"):
+        n = len(ring)
+        for i in range(n):
+            (ax, ay), (bx, by) = ring[i], ring[(i + 1) % n]
+            ln = math.dist((ax, ay), (bx, by))
+            k = int(ln // 4.0)
+            ang = math.atan2(by - ay, bx - ax)
+            nx, ny = math.sin(ang), -math.cos(ang)
+            for j in range(1, k):
+                t = j / k
+                bf.ground.box(ax + (bx - ax) * t + nx * 0.15, ay + (by - ay) * t + ny * 0.15, z0, 0.45, 0.3, top - z0, ang)
+    if last and rec.get("cornice") and top - ground > 5:
+        bf.roof.prism(offset(ring, 0.35), top - 0.7, top - 0.2)
+    if first and rec.get("awning") and top - ground < 18:
+        n = len(ring)
+        for i in range(n):
+            (ax, ay), (bx, by) = ring[i], ring[(i + 1) % n]
+            mx, my = (ax + bx) / 2, (ay + by) / 2
+            ln = math.dist((ax, ay), (bx, by))
+            if ln < 3 or not near_street(mx, my, lines):
+                continue
+            ang = math.atan2(by - ay, bx - ax)
+            nx, ny = math.sin(ang), -math.cos(ang)
+            bf.roof.box(mx + nx * 1.5, my + ny * 1.5, ground + 3.4, ln, 2.8, 0.2, ang)
+    if first and rec.get("verandah") and top - ground < 14:
+        ver = offset(ring, 2.4)
+        for zz in (ground + 3.6, ground + 7.0):
+            if zz < top - 0.5:
+                bf.band.prism(ver, zz, zz + 0.2)
+                loop_wall(bf.band, offset(ring, 2.3), zz + 0.2, zz + 1.1)
+                for x, y in ver:
+                    bf.band.box(x, y, zz - 3.4, 0.18, 0.18, 3.4)
+    if last and rec.get("accent") and top - ground > 12:
+        n = len(ring)
+        i = max(range(n), key=lambda k: math.dist(ring[k], ring[(k + 1) % n]))
+        (ax, ay), (bx, by) = ring[i], ring[(i + 1) % n]
+        ang = math.atan2(by - ay, bx - ax)
+        nx, ny = math.sin(ang), -math.cos(ang)
+        bf.accent.box((ax + bx) / 2 + nx * 0.4, (ay + by) / 2 + ny * 0.4, ground + 4.0, 1.8, 0.6, top - ground - 3.0, ang)
+
+
+def toppers(rec, bf, ring, top):
+    cx = sum(p[0] for p in ring) / len(ring)
+    cy = sum(p[1] for p in ring) / len(ring)
+    rmin = min(math.dist((cx, cy), p) for p in ring)
+    if rec.get("dome"):
+        r = max(2.5, 0.45 * rmin)
+        bf.accent.box(cx, cy, top, 2 * r, 2 * r, 1.5)
+        dome(bf.accent, cx, cy, top + 1.5, r)
+    if rec.get("spike"):
+        cone(bf.roof, cx, cy, top, 1.2, top + 18.0, 6)
+    if rec.get("crown"):
+        for p in ring[:: max(1, len(ring) // 6)]:
+            bf.roof.box(p[0], p[1], top, 0.5, 0.5, 6.0)
+        bf.roof.prism(offset(ring, 0.1), top + 5.6, top + 6.0)
 
 
 def build(zone=None, collection="buildings", skip_zone=HSW_ZONE, exclude=(), only=None, lift=0.0, suffix=""):
     col = C.collection(collection)
-    walls = {k: C.MeshBuf() for k in FAMILY_KEY.values()}
-    roofs, bands, extras = C.MeshBuf(), C.MeshBuf(), C.MeshBuf()
-    n = 0
+    o = L.osm()
+    lines = street_lines()
+    st = L.spire_stage()
+    bufs, recipes = {}, {}
+    spire_buf, glass_rail = C.MeshBuf(), C.MeshBuf()
+    n, named = 0, set()
     for b in records():
         if b["osm"] in SKIP or b["osm"] in exclude:
             continue
@@ -82,45 +197,62 @@ def build(zone=None, collection="buildings", skip_zone=HSW_ZONE, exclude=(), onl
             continue
         if zone is None and (inz(skip_zone) or not C.in_model(cx, cy, 300)):
             continue
-        fam = FAMILY_KEY[b["family"]]
+        tags = o["ways"].get(b["osm"], {}).get("tags", {})
+        hmax = max(t["top_ahd"] for t in b["tiers"]) - b["base_ahd"]
+        key, rec = look_for(b["osm"], tags, hmax, b["family"])
+        if key.startswith("look_"):
+            named.add(rec["name"])
+        recipes[key] = rec
+        bf = bufs.setdefault(key, Bufs())
         base = b["base_ahd"] - 0.5 + lift
         lower = base
-        for k, t in enumerate(b["tiers"]):
+        cut = b["base_ahd"] + 0.55 * hmax if (st and rec.get("under_construction_2016")) else None
+        tiers = b["tiers"]
+        for k, t in enumerate(tiers):
             ring = S.ccw([tuple(p) for p in t["ring"]])
             z0 = base if k == 0 else max(lower - 0.2, base)
             top = t["top_ahd"] + lift
+            if cut:
+                top = min(top, cut)
             if top - z0 < 1.0:
                 continue
-            walls[fam].prism(ring, z0, top)
-            flat = not (k == 0 and b["gable"])
-            if flat and top - b["base_ahd"] > 8:
-                pr = offset(ring, -0.25)
-                roofs.prism(pr, top, top + 0.9)                     # parapet (solid cap, reads clean)
-            if b["family"] != "heritage":
-                z = b["base_ahd"] + L.LEVEL_HEIGHT
-                band_ring = offset(ring, 0.08)
-                while z < top - 1.0:
-                    if z > z0 + 0.5:
-                        bands.prism(band_ring, z, z + 0.25)
-                    z += L.LEVEL_HEIGHT
+            bf.walls.prism(ring, z0, top)
+            if not (k == 0 and b["gable"]) and top - b["base_ahd"] > 8:
+                bf.roof.prism(offset(ring, -0.25), top, top + 0.9)    # parapet cap
+            dress(rec, bf, ring, b["base_ahd"] + lift, z0, top, k == 0, k == len(tiers) - 1, lines, glass_rail)
+            if k == len(tiers) - 1 and not cut:
+                toppers(rec, bf, ring, top + 0.9)
             lower = top
         if b["gable"]:
             gb = b["gable"]
-            gable(roofs, dict(gb, eave_ahd=gb["eave_ahd"] + lift, ridge_ahd=gb["ridge_ahd"] + lift), base)
+            gable(bf.roof, dict(gb, eave_ahd=gb["eave_ahd"] + lift, ridge_ahd=gb["ridge_ahd"] + lift), base)
         for sp in b["spires"]:
-            spire(extras, sp)
+            cone(spire_buf, sp["x"], sp["y"], sp["base_ahd"] + lift, sp["r"], sp["top_ahd"] + lift)
         n += 1
     objs = []
-    for key, buf in walls.items():
-        ob = buf.object("bldg_" + key + suffix, col, key)
-        if ob:
-            objs.append(ob.name)
-    for buf, name, key in ((roofs, "bldg_roofs_parapets_gables", "roof"), (bands, "bldg_floor_lines", "band"),
-                           (extras, "bldg_spires_masts", "roof")):
+    for key, bf in bufs.items():
+        rec = recipes[key]
+        pat = PATTERNS.get(rec.get("pattern") or "none")
+        mats = {
+            "walls": C.material_rgb(key + "_wall", rec["wall"], window=dict(pat, glass=rec["glass"]) if pat else None,
+                                    shader=rec.get("shader", "render"), palette=rec.get("stone_palette")),
+            "roof": C.material_rgb(key + "_roof", rec["roof"]),
+            "band": C.material_rgb(key + "_band", rec.get("band") or rec.get("verandah") or (0.95, 0.95, 0.93)),
+            "accent": C.material_rgb(key + "_accent", rec.get("accent") or rec.get("dome") or rec["roof"]),
+            "ground": C.material_rgb(key + "_ground", rec.get("ground") or rec["wall"]),
+        }
+        for part in ("walls", "roof", "band", "accent", "ground"):
+            ob = getattr(bf, part).object("bldg_%s_%s%s" % (key, part, suffix), col, "roof")
+            if ob:
+                ob.data.materials[0] = mats[part]
+                ob["recipe"] = rec.get("name", key)
+                ob["recipe_source"] = rec.get("src", "generic (looks.GENERIC)")
+                objs.append(ob.name)
+    for buf, name, key in ((spire_buf, "bldg_spires_masts", "roof"), (glass_rail, "bldg_glass_balustrades", "balustrade")):
         ob = buf.object(name + suffix, col, key)
         if ob:
             objs.append(ob.name)
     return {"module": "buildings" if zone is None else collection, "objects": objs, "buildings": n,
-            "source": "OSM footprints (simplified 0.3 m, squared) + 2019 LiDAR roof tiers (prep_clean.py)",
-            "note": "Facade families are picked from height/tags; floor lines every %.1f m. No LiDAR mesh is "
-                    "shown." % L.LEVEL_HEIGHT}
+            "named_recipes": sorted(named), "generic_recipes": sorted(k for k in bufs if k.startswith("gen_")),
+            "source": "OSM footprints + 2019 LiDAR tiers (prep_clean.py); recipes in looks.py",
+            "note": "Procedural facades from the photo notes; nothing copied from photos."}

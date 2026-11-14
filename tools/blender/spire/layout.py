@@ -321,7 +321,19 @@ HERO_CAMERAS = [
      "portrait": False, "photo": "my_photos/spire/Spire-Residences street view Ann st 1.jpg (spires in the distance)",
      "note": "raised view from the NE (over Ann St by Spire) down onto St John's Cathedral"},
 ]
-HERO_CAMERAS.append({"id": "hero_spire_facade", "pos": (-48.0, 52.0, 18.0), "look_at": (-4.0, 8.0, 40.0),
+HERO_CAMERAS.append({"id": "hero_cathedral_street", "pos": (-38.0, -62.0, 1.7), "look_at": (-80.0, -100.0, 1.7),
+                     "lens_mm": 24.0, "portrait": True, "shift_y": 0.28,
+                     "photo": "Google: St John's Cathedral Brisbane Ann Street exterior (Wikipedia view)",
+                     "note": "cathedral grounds, NE of the church, looking SW up at the towers"})
+HERO_CAMERAS.append({"id": "hero_cathedral_west_front", "pos": (-124.0, -48.0, 1.7), "look_at": (-101.0, -75.0, 1.7),
+                     "lens_mm": 24.0, "portrait": True, "shift_y": 0.30,
+                     "photo": "materials_from_photos.md: west front from the Ann St lawn",
+                     "note": "Ann St kerb by the lawn, looking SE at the west front and the twin spires"})
+HERO_CAMERAS.append({"id": "cam_ann_st_precinct", "pos": (-82.0, -27.0, 1.7), "look_at": (-30.0, 20.0, 7.0),
+                     "lens_mm": 24.0, "portrait": False,
+                     "photo": "materials_from_photos.md: Church House, Webber House, The Manhattan, Metropolis",
+                     "note": "Ann St near the cathedral looking NE towards Spire: precinct on the right, Manhattan/Metropolis left"})
+HERO_CAMERAS.append({"id": "hero_spire_facade", "pos": (-62.0, 38.0, 24.0), "look_at": (-4.0, 6.0, 45.0),
                      "lens_mm": 35.0, "portrait": True,
                      "photo": "my_photos/spire/Spire-Residences street view Ann st 1.jpg + fly-by photos",
                      "note": "across Ann St, raised: staggered slab edges, frames, balustrades, brick podium, lobby"})
@@ -658,7 +670,12 @@ def lidar(name):
             cl = lidar("class")
             wet = ((cl == 0) | (cl == 4)) & (g < 3.0)      # no return, or under the bridge deck
             g[wet] = np.minimum(g[wet], RIVER_LEVEL_AHD - 2.0)
-            _cache[key] = box_blur(box_blur(g, 2), 2)
+            smooth = box_blur(box_blur(g, 2), 2)
+            # step 7a: keep the cliffs crisp - where the raw ground is steeper than 50 deg use a light blur only
+            gy, gx = np.gradient(box_blur(g, 1))
+            steep = np.degrees(np.arctan(np.hypot(gx, gy))) > 50
+            steep = box_blur(steep.astype("f4"), 1) > 0.2
+            _cache[key] = np.where(steep, box_blur(g, 1), smooth).astype("f4")
         return _cache[key]
     if key not in _cache:
         h = lidar_header()

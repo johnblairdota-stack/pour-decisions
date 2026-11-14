@@ -60,8 +60,10 @@ FACADES = {
 }
 
 
-def window_material(m, spec):
-    """Wall colour with a window grid from the facade UVs (u = metres round, v = metres AHD)."""
+def facade_material(m, spec=None):
+    """Procedural facade from material props (step 7a): base layer by shader type (render, brick in stretcher
+    bond, mottled ashlar from a palette, glass), then the window grid from the facade UVs (u = metres round,
+    v = metres AHD). Nothing comes from photos; the values are in looks.py."""
     nt = m.node_tree
     nodes, links = nt.nodes, nt.links
     bsdf = nodes.get("Principled BSDF")
@@ -69,7 +71,8 @@ def window_material(m, spec):
     uv.uv_map = "facade"
     sep = nodes.new("ShaderNodeSeparateXYZ")
     links.new(uv.outputs["UV"], sep.inputs[0])
-    def math_node(op, a, b=None):
+
+    def mnode(op, a, b=None):
         n = nodes.new("ShaderNodeMath")
         n.operation = op
         for k, v in enumerate((a, b)):
@@ -80,23 +83,96 @@ def window_material(m, spec):
             else:
                 links.new(v, n.inputs[k])
         return n.outputs[0]
-    fu = math_node("FRACT", math_node("DIVIDE", sep.outputs["X"], spec["bay"]))
-    fv = math_node("FRACT", math_node("DIVIDE", sep.outputs["Y"], L.LEVEL_HEIGHT))
-    half = spec["win"] / spec["bay"] / 2
-    inu = math_node("LESS_THAN", math_node("ABSOLUTE", math_node("SUBTRACT", fu, 0.5)), half)
-    inv = math_node("MULTIPLY", math_node("GREATER_THAN", fv, spec["sill"]), math_node("LESS_THAN", fv, spec["head"]))
-    mask = math_node("MULTIPLY", inu, inv)
-    mix = nodes.new("ShaderNodeMix")
-    mix.data_type = "RGBA"
-    links.new(mask, mix.inputs["Factor"])
-    mix.inputs[6].default_value = m.diffuse_color
-    mix.inputs[7].default_value = (*spec["glass"], 1)
-    links.new(mix.outputs[2], bsdf.inputs["Base Color"])
-    r = nodes.new("ShaderNodeMapRange")
-    links.new(mask, r.inputs["Value"])
-    r.inputs["To Min"].default_value = 0.85
-    r.inputs["To Max"].default_value = spec["rough"]
-    links.new(r.outputs["Result"], bsdf.inputs["Roughness"])
+
+    base = tuple(m.diffuse_color)
+    kind = m.get("shader", "render")
+    base_out = None
+    if kind == "brick":
+        br = nodes.new("ShaderNodeTexBrick")
+        links.new(uv.outputs["UV"], br.inputs["Vector"])
+        br.inputs["Scale"].default_value = 1.0
+        br.inputs["Brick Width"].default_value = 0.23
+        br.inputs["Row Height"].default_value = 0.076
+        br.inputs["Mortar Size"].default_value = 0.008
+        br.inputs["Color1"].default_value = base
+        br.inputs["Color2"].default_value = tuple(c * 0.82 for c in base[:3]) + (1,)
+        br.inputs["Mortar"].default_value = (0.78, 0.74, 0.68, 1)
+        br.offset = 0.5
+        base_out = br.outputs["Color"]
+    elif kind == "ashlar":
+        pal = list(m.get("palette", [])) or [c for c in base[:3]] + [c * 0.9 for c in base[:3]] + [min(1, c * 1.08) for c in base[:3]]
+        cols = [tuple(pal[i:i + 3]) for i in range(0, len(pal), 3)]
+        sc = nodes.new("ShaderNodeMapping")
+        links.new(uv.outputs["UV"], sc.inputs["Vector"])
+        sc.inputs["Scale"].default_value = (1 / 0.6, 1 / 0.3, 1)
+        vo = nodes.new("ShaderNodeTexVoronoi")
+        vo.feature = "F1"
+        vo.inputs["Randomness"].default_value = 0.0
+        links.new(sc.outputs["Vector"], vo.inputs["Vector"])
+        ramp = nodes.new("ShaderNodeValToRGB")
+        ramp.color_ramp.interpolation = "CONSTANT"
+        el = ramp.color_ramp.elements
+        while len(el) < len(cols):
+            el.new(0.5)
+        for i, c in enumerate(cols):
+            el[i].position = i / len(cols)
+            el[i].color = (*c, 1)
+        sepc = nodes.new("ShaderNodeSeparateColor")
+        links.new(vo.outputs["Color"], sepc.inputs[0])
+        links.new(sepc.outputs[0], ramp.inputs["Fac"])
+        br = nodes.new("ShaderNodeTexBrick")                     # mortar joints on the same block size
+        links.new(uv.outputs["UV"], br.inputs["Vector"])
+        br.inputs["Scale"].default_value = 1.0
+        br.inputs["Brick Width"].default_value = 0.6
+        br.inputs["Row Height"].default_value = 0.3
+        br.inputs["Mortar Size"].default_value = 0.015
+        br.inputs["Color1"].default_value = (1, 1, 1, 1)
+        br.inputs["Color2"].default_value = (1, 1, 1, 1)
+        br.inputs["Mortar"].default_value = (0.82, 0.78, 0.72, 1)
+        mixm = nodes.new("ShaderNodeMix")
+        mixm.data_type = "RGBA"
+        mixm.blend_type = "MULTIPLY"
+        mixm.inputs["Factor"].default_value = 1.0
+        links.new(ramp.outputs["Color"], mixm.inputs[6])
+        links.new(br.outputs["Color"], mixm.inputs[7])
+        base_out = mixm.outputs[2]
+    else:
+        noise = nodes.new("ShaderNodeTexNoise")
+        noise.inputs["Scale"].default_value = 0.6
+        links.new(uv.outputs["UV"], noise.inputs["Vector"])
+        mixn = nodes.new("ShaderNodeMix")
+        mixn.data_type = "RGBA"
+        mixn.inputs[6].default_value = base
+        mixn.inputs[7].default_value = tuple(c * 0.92 for c in base[:3]) + (1,)
+        links.new(noise.outputs["Fac"], mixn.inputs["Factor"])
+        base_out = mixn.outputs[2]
+    out_col = base_out
+    rough_out = None
+    if spec:
+        fu = mnode("FRACT", mnode("DIVIDE", sep.outputs["X"], spec["bay"]))
+        fv = mnode("FRACT", mnode("DIVIDE", sep.outputs["Y"], spec.get("floor", L.LEVEL_HEIGHT)))
+        half = spec["win"] / spec["bay"] / 2
+        inu = mnode("LESS_THAN", mnode("ABSOLUTE", mnode("SUBTRACT", fu, 0.5)), half)
+        inv = mnode("MULTIPLY", mnode("GREATER_THAN", fv, spec["sill"]), mnode("LESS_THAN", fv, spec["head"]))
+        mask = mnode("MULTIPLY", inu, inv)
+        mix = nodes.new("ShaderNodeMix")
+        mix.data_type = "RGBA"
+        links.new(mask, mix.inputs["Factor"])
+        links.new(base_out, mix.inputs[6])
+        mix.inputs[7].default_value = (*spec["glass"], 1)
+        out_col = mix.outputs[2]
+        r = nodes.new("ShaderNodeMapRange")
+        links.new(mask, r.inputs["Value"])
+        r.inputs["To Min"].default_value = 0.85 if kind != "glass" else 0.3
+        r.inputs["To Max"].default_value = spec["rough"]
+        rough_out = r.outputs["Result"]
+    links.new(out_col, bsdf.inputs["Base Color"])
+    if rough_out is not None:
+        links.new(rough_out, bsdf.inputs["Roughness"])
+
+
+def window_material(m, spec):
+    facade_material(m, spec)
 
 
 def setup_morning():
@@ -113,7 +189,7 @@ def setup_morning():
     sc.render.image_settings.color_mode = "RGB"
     sc.render.film_transparent = False
     for m in bpy.data.materials:
-        if not m.name.startswith("clay_") or m.get("look_done"):
+        if m.get("look_done") or m.name.startswith("Dots") or m.users == 0:
             continue
         m.use_nodes = True
         bsdf = m.node_tree.nodes.get("Principled BSDF")
@@ -122,8 +198,37 @@ def setup_morning():
         bsdf.inputs["Base Color"].default_value = m.diffuse_color
         rough = {"clay_water": 0.06, "clay_spire_glass": 0.08, "clay_balustrade": 0.05, "clay_steel": 0.45}.get(m.name, 0.85)
         bsdf.inputs["Roughness"].default_value = rough
-        if m.name == "clay_water":
-            bsdf.inputs["Base Color"].default_value = (0.10, 0.13, 0.11, 1)
+        if m.name == "clay_water":                       # Brisbane River: brown-green, sky reflection, small ripples
+            bsdf.inputs["Base Color"].default_value = (0.13, 0.13, 0.085, 1)
+            bsdf.inputs["Roughness"].default_value = 0.04
+            nt = m.node_tree
+            tex = nt.nodes.new("ShaderNodeTexNoise")
+            tex.inputs["Scale"].default_value = 0.35
+            tex.inputs["Detail"].default_value = 6.0
+            geo = nt.nodes.new("ShaderNodeNewGeometry")
+            nt.links.new(geo.outputs["Position"], tex.inputs["Vector"])
+            bump = nt.nodes.new("ShaderNodeBump")
+            bump.inputs["Strength"].default_value = 0.08
+            nt.links.new(tex.outputs["Fac"], bump.inputs["Height"])
+            nt.links.new(bump.outputs["Normal"], bsdf.inputs["Normal"])
+        if m.name == "clay_rock":                        # tuff cliff: grey-brown with vertical banding
+            nt = m.node_tree
+            geo = nt.nodes.new("ShaderNodeNewGeometry")
+            wave = nt.nodes.new("ShaderNodeTexWave")
+            wave.wave_type = "BANDS"
+            wave.bands_direction = "X"
+            wave.inputs["Scale"].default_value = 0.35
+            wave.inputs["Distortion"].default_value = 6.0
+            nt.links.new(geo.outputs["Position"], wave.inputs["Vector"])
+            ramp = nt.nodes.new("ShaderNodeValToRGB")
+            ramp.color_ramp.elements[0].color = (0.40, 0.36, 0.32, 1)
+            ramp.color_ramp.elements[1].color = (0.62, 0.56, 0.49, 1)
+            nt.links.new(wave.outputs["Fac"], ramp.inputs["Fac"])
+            nt.links.new(ramp.outputs["Color"], bsdf.inputs["Base Color"])
+            bump = nt.nodes.new("ShaderNodeBump")
+            bump.inputs["Strength"].default_value = 0.4
+            nt.links.new(wave.outputs["Fac"], bump.inputs["Height"])
+            nt.links.new(bump.outputs["Normal"], bsdf.inputs["Normal"])
         if m.name == "clay_balustrade":
             bsdf.inputs["Alpha"].default_value = 0.35
             try:
@@ -132,6 +237,11 @@ def setup_morning():
                 m.blend_method = "BLEND"
         if m.name in FACADES:
             window_material(m, FACADES[m.name])
+        elif m.get("win_bay"):
+            facade_material(m, {k: (tuple(m["win_" + k]) if k == "glass" else m["win_" + k])
+                                for k in ("bay", "win", "sill", "head", "glass", "rough", "floor") if "win_" + k in m})
+        elif m.get("shader") in ("brick", "ashlar"):
+            facade_material(m, None)
         m["look_done"] = True
     mo = L.MORNING
     sun = bpy.data.objects.get("SUN_morning")
@@ -344,7 +454,7 @@ def finished(what, mode, times):
         setup_morning()
         pick = {c["id"]: c for c in L.CAMERAS + L.HERO_CAMERAS}
         for c in (pick["hero_bridge_hsw"], pick["hero_cathedral"], pick["cam_ann_queen_corner"], pick["cam_queen_st"],
-                  pick["hero_spire_facade"]):
+                  pick["hero_spire_facade"], pick["hero_cathedral_west_front"], pick["cam_ann_st_precinct"]):
             times[c["id"] + "_morning"] = cam_view(c, "morning")
         setup(mode)
 

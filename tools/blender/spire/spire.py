@@ -6,6 +6,7 @@ import math
 
 import layout as L
 import common as C
+from looks import SPIRE_LOOK
 
 EPS = 1e-6
 
@@ -97,6 +98,37 @@ def walk(ring, step, start=0.0):
     return out
 
 
+def queen_st_podium(col, lot, ground_min, top):
+    """Queen St face of the podium (photos): glass shopfront at street level, vertical timber battens and a
+    planted wall above. The Queen St edges are the lot edges facing east."""
+    bat, plant, shop = C.MeshBuf(), C.MeshBuf(), C.MeshBuf()
+    n = len(lot)
+    for i in range(n):
+        (ax, ay), (bx, by) = lot[i], lot[(i + 1) % n]
+        ang = math.atan2(by - ay, bx - ax)
+        nx, ny = math.sin(ang), -math.cos(ang)               # outward for a CCW ring
+        if nx < 0.6:
+            continue
+        ln = math.dist((ax, ay), (bx, by))
+        gz = min(L.ground_z(ax, ay), L.ground_z(bx, by))
+        mx, my = (ax + bx) / 2, (ay + by) / 2
+        shop.box(mx + nx * 0.1, my + ny * 0.1, gz, ln, 0.2, 4.2, ang)
+        k = int(ln // 0.3)
+        for j in range(k):
+            t = (j + 0.5) / k
+            bat.box(ax + (bx - ax) * t + nx * 0.2, ay + (by - ay) * t + ny * 0.2, gz + 4.5, 0.08, 0.15, (top - gz - 4.5) * 0.55, ang)
+        plant.box(mx + nx * 0.25, my + ny * 0.25, gz + 4.5 + (top - gz - 4.5) * 0.55, ln, 0.4, (top - gz - 4.5) * 0.45, ang)
+    objs = []
+    for buf, name, key, col_ in ((bat, "SPIRE_queen_st_battens", "battens", SPIRE_LOOK["battens"]),
+                                 (plant, "SPIRE_queen_st_planted_wall", "planted", SPIRE_LOOK["planted"]),
+                                 (shop, "SPIRE_queen_st_shopfront", "shopfront", SPIRE_LOOK["shopfront"])):
+        ob = buf.object(name, col, "roof")
+        if ob:
+            ob.data.materials[0] = C.material_rgb("spire_" + key, col_)
+            objs.append(ob.name)
+    return objs
+
+
 def lot_outline():
     """Podium slab edge: traced from the 2019 LiDAR (step 4); the OSM lot if that is missing."""
     try:
@@ -179,7 +211,7 @@ def build():
             buf = C.MeshBuf()
             if poured:
                 buf.prism(part, z0, z1)
-                mat = key if tag != "B" else key + "_b"
+                mat = (key if tag != "B" else key + "_b") if st is not None else "spire_frame"   # finished: white slab edges
             else:
                 buf.prism(part, z0 + lv["slab_m"] * 0.45, z0 + lv["slab_m"] * 0.55)   # reo mat
                 mat = "reo"
@@ -205,7 +237,10 @@ def build():
         top_podium = next(lv for lv in levels if lv["name"] == L.PODIUM["top_level"])["top_ahd"]
         pb = C.MeshBuf()
         pb.loft(podium_bottom(lot), ground_min - 0.5, lot, top_podium)
-        objs.append(pb.object("SPIRE_podium_brick", col, "brick").name)
+        obp = pb.object("SPIRE_podium_brick", col, "brick")
+        obp.data.materials[0] = C.material_rgb("spire_podium_brick", SPIRE_LOOK["podium_brick"], shader="brick")
+        objs.append(obp.name)
+        objs += queen_st_podium(col, lot, ground_min, top_podium)
         sb = C.MeshBuf()
         for lo, hi in zip(levels[:-1], levels[1:]):
             if lo["kind"] in ("ground", "podium"):
@@ -225,14 +260,15 @@ def build():
             ring = outline_for(lo)
             z0, z1 = lo["top_ahd"], hi["top_ahd"] - hi["slab_m"]
             for x, y, ang in walk(inset(ring, 0.15), BAY_M, BAY_M / 2 if lo["n"] % 2 else 0.0):
-                fr.box(x, y, z0, 0.22, 0.32, z1 - z0, ang)
+                wv = 0.18 + 0.27 * ((int(x * 7.3) * 31 + int(y * 5.1) * 17 + lo["n"] * 13) % 10) / 10.0   # woven: frames vary
+                fr.box(x, y, z0, wv, 0.32, z1 - z0, ang)
             bal = inset(ring, 0.08)
             n = len(bal)
             for i in range(n):
                 (ax_, ay_), (bx_, by_) = bal[i], bal[(i + 1) % n]
                 gl.add([(ax_, ay_, z0), (bx_, by_, z0), (bx_, by_, z0 + 1.05), (ax_, ay_, z0 + 1.05)], [[0, 1, 2, 3]])
         objs.append(fr.object("SPIRE_facade_frames", col, "band").name)
-        objs.append(gl.object("SPIRE_glass_balustrades", col, "balustrade").name)
+        objs.append(gl.object("SPIRE_glass_balustrades", col, "spire_balustrade").name)
         lb = C.MeshBuf()
         (ax_, ay_), (bx_, by_) = L.PODIUM["ann_st_corners"]
         (ux_, uy_), (nx_, ny_) = L.ann_st_frame()
