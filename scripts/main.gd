@@ -46,11 +46,12 @@ const Yard := preload("res://scripts/yard.gd")
 const WestWing := preload("res://scripts/west_wing.gd")
 const ExploreScript := preload("res://scripts/explore.gd")
 const Look := preload("res://scripts/look.gd")
+const SpireSite := preload("res://scripts/spire_site.gd")
 const LookFx := preload("res://scripts/look_fx.gd")
 
 # Riverlight: 11 levels; 10 lattice sections reached a 41.4 m free-stand.
 const FLOORS := 11
-const FH := 3.0
+var FH := 3.0          # floor to floor (Spire: 2.9 m)
 # The slab this crew pours each level: Riverlight's east wing, 30 x 21.8 m
 # (a second crew pours the west wing beside it). Its north-west corner (game
 # +x, +z) is set 4 m short of the boom tower, which stands in the notch
@@ -79,6 +80,7 @@ const SECTIONS_PER_CLIMB := 2      # 4 starting + 3 climbs x 2 = Riverlight's 10
 const HOIST_X := -6.6
 const HOIST_SEC := 1.5   # m, one hoist mast section (tools/blender/towers.py)
 var HOIST_Z := 4.4
+var hoist_x := HOIST_X     # (Spire: on pour A's Ann St walkway)
 # The perimeter scaffold: a walkway right round the slab, off the concrete,
 # that climbs with the deck. The boom operator works from it and never steps
 # on the pad; everyone else can use it to get round without walking through
@@ -125,6 +127,44 @@ const GROUND_STATIONS := {
 	"van": {"pos": Vector3(31.0, 0, 12.1), "label": "COFFEE VAN", "color": Color("f4f7fa")},
 }
 const PLAYER_COLORS := UI.P_COLORS
+
+## Which site: "riverlight" (Chapter 1) or "spire" (Spire Residences, `--site=spire`: L6 up, the
+## players pour the Ann St side of each level while a bot crew pours the other: spire_site.gd)
+var site := _pick_site()
+var spire := site == "spire"
+## Height of level 0's floor (Riverlight: the ground; Spire: under the L6 deck, up on the podium)
+var base_y := 0.0
+var _spire_world: Node3D
+var _spire_core := {}
+var _spire_bots := {}
+var _spire_t := 0.0
+
+## The site: `--site=spire` / `--site=riverlight`, else the one picked last on the site page (X there
+## swaps them). Test runs only go by the command line.
+static func _pick_site() -> String:
+	var args := OS.get_cmdline_user_args()
+	if args.has("--site=spire"):
+		return "spire"
+	if args.has("--site=riverlight") or args.has("--autotest") or args.has("--tutorial"):
+		return "riverlight"
+	return "spire" if Settings.value("site") == "spire" else "riverlight"
+
+## Where this site's medals are saved (Spire's 34 levels mustn't overwrite Riverlight's 11).
+func medal_key() -> String:
+	return "medals_spire" if spire else "medals"
+
+## The site page's floor label for level i (0-based).
+func level_label(i: int) -> String:
+	return SpireSite.level_name(i) if spire else "L%d" % (i + 1)
+
+## The other site, picked on the site page: saved, then the game starts again on it.
+func swap_site() -> void:
+	Settings.put("site", "riverlight" if spire else "spire")
+	get_tree().reload_current_scene()
+
+## Height of the floor of level i (its slab is poured at level_y(i + 1)).
+func level_y(i: int) -> float:
+	return base_y + i * FH
 
 var kit := ""
 var phase := "roles"
@@ -272,6 +312,8 @@ func _ready() -> void:
 	if tutorial or args.has("--oldslab"):
 		# (dev `--oldslab`: the old 16 x 12 slab, to compare against)
 		_use_tut_frame()
+	if spire:
+		_use_spire_frame()
 	_build_environment()
 	_build_world()
 	_build_site()
@@ -682,7 +724,7 @@ var _light_now: Array = []   # the story light as last shown ([] after a dawn po
 ## eased in from the last one, and on the storm day the sky closing in as the
 ## shower comes and lifting after it.
 func _update_story_light(delta: float) -> void:
-	var want: Array = Story.LIGHTS["morning"] if tutorial else Story.light(k)
+	var want: Array = Story.LIGHTS["morning"] if tutorial else Story.light(story_k(k))
 	if cfg.get("rain", false) and not tutorial:
 		var t0: float = cfg["rain_at"]
 		var t1: float = t0 + float(cfg["rain_len"])
@@ -918,7 +960,7 @@ var _ink_sealed := -1.0                    # phase_t when it was pressed in, or 
 func ink_centre() -> Vector3:
 	# (the front corner away from the boom tower, clear of the end hose
 	# where the boom rests)
-	return Vector3(SC.x - BW * 0.5 + INK_SIZE.x * 0.5 + 2.0, floors() * FH + 0.07, SC.z + BD * 0.5 - INK_SIZE.y * 0.5 - 1.0)
+	return Vector3(SC.x - BW * 0.5 + INK_SIZE.x * 0.5 + 2.0, level_y(floors()) + 0.07, SC.z + BD * 0.5 - INK_SIZE.y * 0.5 - 1.0)
 
 func ink_left() -> float:
 	return maxf(0.0, (INK_BOTS if crew.humans().is_empty() else INK_TIME) - phase_t) if phase == "sign" and _ink_sealed < 0.0 else 0.0
@@ -1229,7 +1271,7 @@ func _update_fly(delta: float) -> void:
 
 func _fly_camera() -> void:
 	camera.position = _fly_point(_fly_t)
-	var tower := -REAL_ORIGIN + Vector3(0, floors() * FH * 0.7, 0)
+	var tower := -REAL_ORIGIN + Vector3(0, level_y(floors()) * 0.7, 0)
 	var look := tower.lerp(ink_centre(), smoothstep(12.0, 17.0, _fly_t))
 	camera.look_at(look, Vector3.UP)
 
@@ -1251,6 +1293,14 @@ func _end_fly() -> void:
 func _build_world() -> void:
 	# The real place: the river, the park, the neighbours, Bulimba over the
 	# water, the CBD and the Gateway Bridge (scripts/surrounds.gd)
+	if spire:
+		# Spire: the Blender model round the tower (streets, neighbours, the cathedral, the podium on site)
+		_spire_world = SpireSite.build_world(self)
+		yard = Node3D.new()
+		yard.name = "Yard"
+		add_child(yard)
+		_build_rain()
+		return
 	var world := Node3D.new()
 	world.name = "Surrounds"
 	world.position = -REAL_ORIGIN
@@ -1280,6 +1330,9 @@ func _build_world() -> void:
 	add_child(F.box(Vector3(Yard.GATE.x - 8.5, 0.15, 0.3), kerb, Vector3((Yard.GATE.x + 8.5) * 0.5, 0.075, 13.05), false))
 	add_child(F.box(Vector3(35.0 - Yard.GATE.y, 0.15, 0.3), kerb, Vector3((35.0 + Yard.GATE.y) * 0.5, 0.075, 13.05), false))
 
+	_build_rain()
+
+func _build_rain() -> void:
 	rain = CPUParticles3D.new()
 	rain.amount = 700
 	rain.lifetime = 0.9
@@ -1322,13 +1375,60 @@ const TUT_HOIST_Z := 8.4
 func deck_pos(key: String) -> Vector3:
 	if tutorial and TUT_DECK.has(key):
 		return TUT_DECK[key]
+	if spire:
+		# Spire: round pour A, with the boom tower at its Ann St face (z1 is that face's walkway line)
+		var x0 := SC.x - BW * 0.5
+		var z0 := SC.z - BD * 0.5
+		var z1 := SC.z + BD * 0.5 + WALK_MID
+		var spots := {"boom": Vector3(LAT_X - 3.15, 0, z1), "dogman": Vector3(LAT_X - 3.15, 0, z1),
+			"bin": Vector3(LAT_X - 6.8, 0, z1), "hoist": Vector3(hoist_x + 1.5, 0, z1),
+			"screed": Vector3(x0 + 1.2, 0, z0 + 1.6), "poker": Vector3(LAT_X + 4.0, 0, -1.5),
+			"pinsets": Vector3(LAT_X - 5.0, 0, -0.8)}
+		if spots.has(key):
+			return spots[key]
 	return DECK_STATIONS[key]["pos"]
 
 func floors() -> int:
+	if spire:
+		return SpireSite.levels().size()
 	return TUT_LAST + 1 if tutorial else FLOORS
 
 func climb_levels() -> Array:
+	if spire:
+		# (no climb days on Spire yet: its booms jump with the crane between pours: _spire_level)
+		return []
 	return [TUT_LAST] if tutorial else CLIMB_LEVELS
+
+## Spire: the frame. The players' slab is pour A (the Ann St side of the joint): the pour grid is its
+## box in the game's frame, the boom tower stands at its Ann St face, and the deck sits on the podium.
+func _use_spire_frame() -> void:
+	if not SpireSite.setup():
+		spire = false
+		site = "riverlight"
+		return
+	FH = float(SpireSite.d["tower_ftf_m"])
+	base_y = SpireSite.top_y(0) - FH
+	var a := SpireSite.poly("A")
+	var bb := Rect2(a[0], Vector2.ZERO)
+	for p in a:
+		bb = bb.expand(p)
+	BW = bb.size.x + 0.6
+	BD = bb.size.y + 0.6
+	SC = Vector3(bb.get_center().x, 0, bb.get_center().y)
+	# The hoist: where Spire's stood is unknown (John), so it's on pour A's Ann St face, at its
+	# west end, the way Riverlight's stands off its deck
+	hoist_x = SC.x - BW * 0.5 + 2.5
+	HOIST_Z = SC.z + BD * 0.5 + 2.4
+	cam_yaw = SpireSite.cam_yaw()
+
+## The story's day for level k (Spire has 34 levels; the days go round).
+func story_k(i: int) -> int:
+	return i % 11 if spire else i
+
+## Spire's level title: "L06 · TRANSFER SLAB".
+func spire_title(i: int) -> String:
+	var nm := SpireSite.level_name(i)
+	return "%s · %s" % [nm, "TRANSFER SLAB" if SpireSite.is_transfer(i) else Story.title(story_k(i)).to_upper()]
 
 func sections_per_climb() -> int:
 	return 1 if tutorial else SECTIONS_PER_CLIMB
@@ -1352,6 +1452,7 @@ func _use_tut_frame() -> void:
 	hoist_mast.position.z = HOIST_Z
 	hoist_cage.position.z = HOIST_Z
 	(stations["hoist_g"]["node"] as Node3D).position.z = HOIST_Z + 1.4
+	(stations["hoist_g"]["node"] as Node3D).position.x = hoist_x + 1.6
 
 ## Turns the site into the water tower: round rails, the walkway run in to
 ## the round deck, a round slab.
@@ -1415,6 +1516,9 @@ func _build_site() -> void:
 	var pr := Rect2(SC.x - BW * 0.5 - 5.0, SC.z - BD * 0.5 - 5.0, BW + 10.0, BD + 10.0)
 	var ours := PackedVector2Array([pr.position, Vector2(pr.end.x, pr.position.y), pr.end, Vector2(pr.position.x, pr.end.y)])
 	var apron: Array = Geometry2D.offset_polygon(PackedVector2Array(OTHER_WING), 3.0, Geometry2D.JOIN_MITER)
+	if spire:
+		podium.visible = false      # (Spire's podium is in the site model)
+		apron = []
 	if not apron.is_empty():
 		west_podium = Node3D.new()
 		west_podium.name = "WestPodium"
@@ -1513,10 +1617,10 @@ func _build_site() -> void:
 	# (its mast gets a 1.5 m section at a time, to just above the deck as the
 	# building climbs: _update_see_through)
 	hoist_mast = Node3D.new()
-	hoist_mast.position = Vector3(HOIST_X - 1.25, 0, HOIST_Z)
+	hoist_mast.position = Vector3(hoist_x - 1.25, 0, HOIST_Z)
 	add_child(hoist_mast)
 	hoist_cage = F.prop("HoistCage", {}, F.TOWERS)
-	hoist_cage.position = Vector3(HOIST_X, 0, HOIST_Z)
+	hoist_cage.position = Vector3(hoist_x, 0, HOIST_Z)
 	add_child(hoist_cage)
 
 	confetti = CPUParticles3D.new()
@@ -1553,7 +1657,7 @@ func _build_site() -> void:
 
 	# Starting tower: enough sections to clear level 1
 	section_count = 0
-	while section_count * LS < FH + HEAD_TARGET:
+	while section_count * LS < level_y(1) + HEAD_TARGET:
 		_add_section()
 	head.position.y = section_count * LS
 
@@ -1646,8 +1750,8 @@ func _build_walkway() -> void:
 	# the walkway out to the boom
 	var runs := [
 		[Vector3(-ox, 0, -oz), Vector3(ox, 0, -oz)],
-		[Vector3(-ox, 0, oz), Vector3(HOIST_X - SC.x - 1.0, 0, oz)],
-		[Vector3(HOIST_X - SC.x + 1.0, 0, oz), Vector3(ox, 0, oz)],
+		[Vector3(-ox, 0, oz), Vector3(hoist_x - SC.x - 1.0, 0, oz)],
+		[Vector3(hoist_x - SC.x + 1.0, 0, oz), Vector3(ox, 0, oz)],
 		[Vector3(-ox, 0, -oz), Vector3(-ox, 0, oz)],
 		[Vector3(ox, 0, -oz), Vector3(ox, 0, -SC.z - 1.3)],
 		[Vector3(ox, 0, -SC.z + 1.3), Vector3(ox, 0, oz)],
@@ -1686,8 +1790,8 @@ func _build_walkway() -> void:
 	var sz := SC.z - oz - 0.25
 	Yard.screen_line(_screens, Vector3(wx, 0, sz), Vector3(ex, 0, sz), Vector3(0, 0, 1))
 	Yard.screen_line(_screens, Vector3(wx, 0, sz), Vector3(wx, 0, nz), Vector3(1, 0, 0))
-	Yard.screen_line(_screens, Vector3(wx, 0, nz), Vector3(HOIST_X - 1.9, 0, nz), Vector3(0, 0, -1))
-	Yard.screen_line(_screens, Vector3(HOIST_X + 1.2, 0, nz), Vector3(ex, 0, nz), Vector3(0, 0, -1))
+	Yard.screen_line(_screens, Vector3(wx, 0, nz), Vector3(hoist_x - 1.9, 0, nz), Vector3(0, 0, -1))
+	Yard.screen_line(_screens, Vector3(hoist_x + 1.2, 0, nz), Vector3(ex, 0, nz), Vector3(0, 0, -1))
 	Yard.screen_line(_screens, Vector3(ex, 0, sz), Vector3(ex, 0, OTHER_WING[0].y), Vector3(-1, 0, 0))
 	Yard.screen_line(_screens, Vector3(ex, 0, 1.5), Vector3(ex, 0, nz), Vector3(-1, 0, 0))
 
@@ -1833,6 +1937,21 @@ func _menu_frame_crew(delta: float) -> void:
 	camera.h_offset = _menu_h
 
 ## Dev: `--only=coldopen` holds the cold open for its screenshot.
+## Spire: a new level. The core's jump form jumps to stay LEAD levels ahead of the deck, the bot
+## crew's pour B is reset, and the camera swings round to look across pour A at the core.
+func _spire_level() -> void:
+	if _spire_core.is_empty():
+		_spire_core = SpireSite.build_core(building)
+		_spire_bots = SpireSite.build_bots(self)
+	var lead := int(SpireSite.d["jump_form"]["lead_levels"])
+	SpireSite.set_core(_spire_core, level_y(0) - 0.3, level_y(mini(k + 1 + lead, floors() + 1)), FH)
+	cam_yaw = lerp_angle(cam_yaw, SpireSite.cam_yaw(), 1.0)
+	# The players' boom: the crane jumps it up with the deck (no climb day yet), so its head stays
+	# HEAD_TARGET over the slab being poured
+	while section_count * LS < level_y(k + 1) + HEAD_TARGET:
+		_add_section()
+	head.position.y = section_count * LS
+
 func wants_cold_open() -> bool:
 	return shot_dir != "" and "coldopen" in _shot_only and not _shots_taken.has("coldopen")
 
@@ -2153,6 +2272,11 @@ func _apply_kit(which: String) -> void:
 		hud.toast("Truck boom it is. Mind the reach up top.", 2.4)
 	elif tutorial:
 		_build_boom(12.0, 12.0)
+	elif spire:
+		# Spire ran Schwing KVM 26 separate placing booms, one per pour area: 30 m here reaches the
+		# far end of pour A from its Ann St face
+		_build_boom(15.0, 15.0)
+		hud.toast("Spire: your crew pours the Ann St side. The bot crew's on pour B with the other boom.", 3.0)
 	else:
 		# Long enough to reach the far corner of the east wing from the tower
 		# in the notch (an MX42 reaches about 38 m; this is a shade more)
@@ -2269,8 +2393,8 @@ func _tut_prebuild() -> void:
 		k += 1
 	_start_floor()
 	line.rebuild_riser()
-	work_y = k * FH
-	work_target = k * FH
+	work_y = level_y(k)
+	work_target = level_y(k)
 	for p in players:
 		if p.zone == "deck":
 			p.position.y = work_y
@@ -2924,9 +3048,18 @@ func _make_pour() -> void:
 	pour.walk_mid = WALK_MID
 	pour.visible = false
 	pour.position = Vector3(SC.x, 0, SC.z)
+	if spire:
+		# pour A's outline, the core and the boom tower's pedestal left out
+		var rel := func(pp: PackedVector2Array) -> PackedVector2Array:
+			var o := PackedVector2Array()
+			for p in pp:
+				o.append(p - Vector2(SC.x, SC.z))
+			return o
+		var mast := PackedVector2Array([Vector2(LAT_X - 1.3, -1.3), Vector2(LAT_X + 1.3, -1.3), Vector2(LAT_X + 1.3, 1.3), Vector2(LAT_X - 1.3, 1.3)])
+		pour.set_poly(rel.call(SpireSite.poly("A")), [rel.call(SpireSite.poly("core")), rel.call(mast)])
 
 func pour_level() -> float:
-	return (k + 1) * FH
+	return level_y(k + 1)
 
 func deck_top() -> float:
 	return pour_level() - 0.3
@@ -3044,8 +3177,8 @@ func _level_cfg(level: int) -> Dictionary:
 	# The day in the tower's story sets the weather to match its light
 	if not tutorial:
 		var dawn: bool = c["dawn"]
-		for key in Story.day(level)[3]:
-			c[key] = Story.day(level)[3][key]
+		for key in Story.day(story_k(level))[3]:
+			c[key] = Story.day(story_k(level))[3][key]
 		c["dawn"] = dawn or c.get("dawn", false)
 		c["open"] = 44.0 - (int(c["temp"]) - 21) * 1.0
 		c["late"] = 26.0 if c["traffic"] > 1.0 else 0.0
@@ -3078,7 +3211,9 @@ func _toolbox(wait: bool) -> Dictionary:
 	var notes: Array = []
 	var t: int = cfg["temp"]
 	if not tutorial:
-		notes.append(Story.line(k))
+		notes.append(Story.line(story_k(k)))
+		if spire and SpireSite.is_transfer(k):
+			notes.push_front("Transfer slab: 1250 mm deep. More trucks, a longer pour. The bot crew's pouring B with the other boom.")
 	if bool(cfg.get("quiet", false)):
 		chips.append(["A QUIET ONE", ""])
 		notes.append("Good loads all day. Pump operator: one spike, and you'll see the needle climb first.")
@@ -3110,7 +3245,7 @@ func _toolbox(wait: bool) -> Dictionary:
 		if st.is_empty():
 			continue
 		moves.append({"role": role, "btn": st[0][0], "text": st[0][1], "p": p.index, "bot": p.bot})
-	return {"title": "WATER TOWER · TOOLBOX TALK" if tutorial else "LEVEL %d · %s" % [k + 1, Story.title(k).to_upper()],
+	return {"title": "WATER TOWER · TOOLBOX TALK" if tutorial else (spire_title(k) if spire else "LEVEL %d · %s" % [k + 1, Story.title(k).to_upper()]),
 		"plan": "%d bays, far end first, back toward the boom. Keep the edge wet." % pour.BAYS,
 		"chips": chips, "notes": notes, "moves": moves, "wait": wait}
 
@@ -3134,13 +3269,15 @@ func _set_phase(p: String) -> void:
 
 func _start_floor() -> void:
 	var f := Node3D.new()
-	f.position.y = k * FH
+	f.position.y = level_y(k)
 	var frame := Node3D.new()
 	frame.name = "Frame"
 	f.add_child(frame)
 	var col := F.mat("column")
 	if tutorial:
 		_tut_frame(frame)
+	elif spire:
+		pass        # (Spire: the core and the slabs are spire_site.gd's)
 	else:
 		for c in _column_xz():
 			frame.add_child(F.box(Vector3(0.6, FH - 0.3, 0.6), col, Vector3(SC.x + c.x, (FH - 0.3) * 0.5, SC.z + c.y)))
@@ -3150,9 +3287,12 @@ func _start_floor() -> void:
 	building.add_child(f)
 	floor_nodes.append(f)
 	pour.visible = false
-	work_target = k * FH
+	work_target = level_y(k)
 	cfg = _level_cfg(k)
-	if not tutorial:
+	if spire:
+		hud.toast(spire_title(k), 3.5)
+		_spire_level()
+	elif not tutorial:
 		hud.toast("LEVEL %d · %s" % [k + 1, Story.title(k).to_upper()], 3.5)
 		if west == null:
 			west = WestWing.new()
@@ -3266,8 +3406,19 @@ func _start_pour() -> void:
 	_incidents = _plan_incidents()
 	# (the medal times get slack for the trouble planned on this floor)
 	_fault_slack = score.fault_slack(_incidents) if kit != "truck" else 0.0
+	if spire:
+		# (Spire's riser starts 21 m up, and the transfer slab is 1250 mm deep: the medal times allow for it)
+		# (pour A is smaller than Riverlight's east wing, so a normal Spire level's times are a bit tighter)
+		_fault_slack += 0.8 * float(score.SILVER_T.get(kit, 80.0)) if SpireSite.is_transfer(k) else -16.0
 	# (and the trucks come closer together and carry more, so the pump
 	# isn't kept waiting on changeovers)
+	if spire:
+		# (the 1250 mm transfer slab takes much more concrete per square metre of deck)
+		if not pour.has_meta("vol_k0"):
+			pour.set_meta("vol_k0", pour.vol_k)
+		pour.vol_k = float(pour.get_meta("vol_k0")) / (1.7 if SpireSite.is_transfer(k) else 1.0)
+		# (and it stays workable longer: retarded mix, poured in layers)
+		pour.open_time = cfg["open"] * sqrt(float(pour.get_meta("vol_k0"))) * (1.8 if SpireSite.is_transfer(k) else 1.0)
 	line.load_m3 = line.TRUCK_LOAD * minf(BIG_SLAB_LOAD, sqrt(pour.vol_k))
 	line.start_pour(pour.needed(), cfg)
 	line.interval /= minf(BIG_SLAB_TRUCKS, sqrt(pour.vol_k))
@@ -3497,7 +3648,7 @@ func _slab_report(quality: float, verdict: String, medal: int, note: String, los
 func first_day() -> bool:
 	if autotest:
 		return false
-	var m = Settings.value("medals")
+	var m = Settings.value(medal_key())
 	return not (m is Array and not (m as Array).is_empty())
 
 func _save_medal(medal: int) -> void:
@@ -3505,12 +3656,12 @@ func _save_medal(medal: int) -> void:
 		Settings.put("tut_done", true)
 	if tutorial or autotest:
 		return
-	var m = Settings.value("medals")
+	var m = Settings.value(medal_key())
 	var arr: Array = (m as Array).duplicate() if m is Array else []
 	while arr.size() <= k:
 		arr.append(-1)
 	arr[k] = maxi(int(arr[k]), medal)
-	Settings.put("medals", arr)
+	Settings.put(medal_key(), arr)
 
 func _mmss(t: float) -> String:
 	return "%d:%02d" % [int(t) / 60, int(t) % 60]
@@ -3527,6 +3678,10 @@ func _lock_slab(level: int, instant := false) -> void:
 		disc.material_override = F.color_mat(Color("b5b6b3"))
 		disc.position.y = FH - 0.15
 		floor_nodes[level].add_child(disc)
+		return
+	if spire:
+		var lv: Dictionary = SpireSite.levels()[clampi(level, 0, SpireSite.levels().size() - 1)]
+		SpireSite.floor_slab(floor_nodes[level], FH, float(lv["slab_m"]), FH)
 		return
 	var slab := F.box(Vector3(BW + 0.6, 0.3, BD + 0.6), F.color_mat(Color("b5b6b3")), Vector3(SC.x, FH - 0.15, SC.z))
 	floor_nodes[level].add_child(slab)
@@ -3572,7 +3727,7 @@ func _other_crew_floor(level: int, instant: bool) -> void:
 		# Their edge screens, all round except along the link and the
 		# boom tower's notch
 		Yard.screen_ring(_other_stacks, plan, 0.5, [0, 1, 8, 9, 10])
-	_other_stacks.position.y = (level + 1) * FH
+	_other_stacks.position.y = level_y(level + 1)
 	_other_stacks.visible = phase != "topout"
 
 ## Clad storey `level` of both wings, a few floors behind the deck, with
@@ -3602,8 +3757,8 @@ func _top_out() -> void:
 	hud._card_t = 0.0
 	skyline = true
 	flag.visible = true
-	flag.position = SC + Vector3(-BW * 0.5 + 2.0, floors() * FH, -BD * 0.5 + 2.0)
-	confetti.position = SC + Vector3(0, floors() * FH + 2.0, 0)
+	flag.position = SC + Vector3(-BW * 0.5 + 2.0, level_y(floors()), -BD * 0.5 + 2.0)
+	confetti.position = SC + Vector3(0, level_y(floors()) + 2.0, 0)
 	confetti.restart()
 	confetti.emitting = true
 	if not tutorial:
@@ -3619,7 +3774,7 @@ func _top_out() -> void:
 		tally[m] += 1
 	var medal_line := "Medals: %d gold · %d silver · %d bronze\n" % [tally[2], tally[1], tally[0]]
 	if tutorial:
-		flag.position = Vector3(0, floors() * FH, 0)
+		flag.position = Vector3(0, level_y(floors()), 0)
 		hud.show_topout(
 			"Water tower · tutorial done\n" +
 			"Shafts like this are cast in lifts a couple of metres high with jump forms (or slipformed day and night).\n" +
@@ -3647,7 +3802,7 @@ func _top_out() -> void:
 ## The finished roof of both wings: grey membrane, a white parapet, plant
 ## rooms, the lift overrun and rows of solar panels
 func _build_roof() -> void:
-	var top := floors() * FH
+	var top := level_y(floors())
 	var roof := Node3D.new()
 	roof.position.y = top
 	building.add_child(roof)
@@ -3820,6 +3975,15 @@ func _process(delta: float) -> void:
 	if west != null:
 		west.visible = phase != "topout"
 		west.update(delta, _filled_ratio() if phase == "pour" else 0.0)
+	if spire and not _spire_bots.is_empty():
+		_spire_t += delta
+		var fb := 0.0
+		if phase == "pour":
+			fb = _filled_ratio()
+		elif phase in ["screed", "cure", "sign", "report"]:
+			fb = 1.0
+		SpireSite.bot_update(_spire_bots, deck_top() + 0.3 - 0.25, fb, _spire_t, base_y)
+		(_spire_bots["root"] as Node3D).visible = phase != "topout"
 	perf.mark("climb")
 	line.update(delta, phase == "pour")
 	perf.mark("line")
@@ -4458,8 +4622,8 @@ func _dev_skip(target: int) -> void:
 		k += 1
 		_start_floor()
 	line.rebuild_riser()
-	work_y = k * FH
-	work_target = k * FH
+	work_y = level_y(k)
+	work_target = level_y(k)
 	for p in players:
 		if p.zone == "deck":
 			p.position.y = work_y
@@ -4912,7 +5076,7 @@ func _handle_player(p, delta: float) -> void:
 			if p.action_pressed():
 				p.zone = "hoist"
 				p.set_meta("hoist_to", 0.0 if near == "hoist" else -1.0)
-				p.position = Vector3(HOIST_X, p.position.y, HOIST_Z)
+				p.position = Vector3(hoist_x, p.position.y, HOIST_Z)
 				# The cage gate: only for people (bots ride a lot, and quietly)
 				if not p.bot:
 					sfx.hit("clank")
@@ -4941,16 +5105,16 @@ func _update_hoist(delta: float) -> void:
 	var to: float = rider.get_meta("hoist_to")
 	if to < 0.0:
 		to = work_y
-	rider.position = Vector3(HOIST_X, move_toward(rider.position.y, to, 7.0 * delta), HOIST_Z)
+	rider.position = Vector3(hoist_x, move_toward(rider.position.y, to, 7.0 * delta), HOIST_Z)
 	hoist_cage.position.y = rider.position.y
 	rider.say("%d m" % int(rider.position.y))
 	if absf(rider.position.y - to) < 0.01:
 		if to <= 0.01:
 			rider.zone = "ground"
-			rider.position = Vector3(HOIST_X, 0, HOIST_Z + 1.4)
+			rider.position = Vector3(hoist_x, 0, HOIST_Z + 1.4)
 		else:
 			rider.zone = "deck"
-			rider.position = Vector3(HOIST_X, work_y, HOIST_Z - 1.55)
+			rider.position = Vector3(hoist_x, work_y, HOIST_Z - 1.55)
 		if not rider.bot:
 			sfx.hit("clank")
 
@@ -6090,6 +6254,8 @@ func _update_hud() -> void:
 		hud.level_label.text = "WATER TOWER · " + ("TANK FLOOR" if k <= TUT_FIRST else "ROOF")
 	else:
 		hud.set_floor(k if phase != "topout" else floors() - 1, floors())
+		if spire:
+			hud.level_label.text = "%s/%d" % [level_label(mini(k, floors() - 1)), floors()]
 	hud.set_score(score.total, score.rank_name(), score.next_rank(), score.rank_frac(), score.bump)
 	var crew_rows: Array = []
 	for p in players:
@@ -6734,7 +6900,7 @@ func _update_camera_views(delta: float) -> void:
 		# (side on, so the floors read one above the other)
 		pitch = lerpf(cam_pitch, 0.07, ease(_menu_shift, -1.8))
 	if skyline:
-		var top := maxf(head.position.y, (k + 1) * FH)
+		var top := maxf(head.position.y, level_y(k + 1))
 		# (the whole of Riverlight, both wings)
 		focus = (Vector3.ZERO if tutorial else -REAL_ORIGIN) + Vector3(0, top * 0.45, -8.0)
 		dist = maxf(110.0, top * 2.4)
@@ -7210,7 +7376,7 @@ func _maybe_shot() -> void:
 		_shot_cam = [-REAL_ORIGIN + Vector3(0, 30, 0), 60.0]
 	if EXT_SHOTS.has(key) and EXT_SHOTS[key].size() == 1:
 		var t: Vector2 = EXT_SHOTS[key][0]
-		var roof := floors() * FH + 8.0
+		var roof := level_y(floors()) + 8.0
 		cam_yaw = atan2(-t.x, -t.y)
 		cam_pitch = -0.02
 		_shot_cam = [-REAL_ORIGIN + Vector3(t.x, roof + t.length() * 0.02, t.y), t.length()]

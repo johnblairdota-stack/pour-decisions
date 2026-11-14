@@ -47,6 +47,9 @@ func build(owner_game) -> void:
 	unit.add_child(motor)
 	game.rig.add_child(unit)
 	unit_local = Vector3(1.5, 0, game.SC.z + game.BD * 0.5 - 1.6)
+	if game.spire:
+		# (Spire: on pour A by the boom tower, inside the slab's Ann St edge)
+		unit_local = Vector3(game.LAT_X + 2.5, 0, game.SC.z + game.BD * 0.5 - 1.6)
 	unit.position = unit_local
 	# The "plunge here" hint: a soft chevron bobbing over the next raw spot
 	hint = Node3D.new()

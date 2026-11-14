@@ -730,5 +730,6 @@
   "keep_radius_m": 450.0,
   "built_to": "L05",
   "objects_removed": 19
- }
+ },
+ "street_ahd": 21.54
 }

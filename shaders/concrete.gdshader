@@ -38,6 +38,9 @@ uniform float edge_view : hint_range(0.0, 1.0) = 0.4;
 uniform float low_light : hint_range(0.0, 1.0) = 0.0;
 // > 0: a round slab of this radius (local metres); outside it there's no slab
 uniform float round_r = 0.0;
+// 1: a slab of any outline (Spire's pour areas): mask_tex is 1 on the slab's cells, 0 off it
+uniform float use_mask = 0.0;
+uniform sampler2D mask_tex : filter_nearest, repeat_disable;
 
 varying float vh;
 varying vec2 lp;
@@ -84,6 +87,9 @@ void vertex() {
 
 void fragment() {
 	if (round_r > 0.0 && length(lp) > round_r) {
+		discard;
+	}
+	if (use_mask > 0.5 && texture(mask_tex, lp / slab_size + 0.5).r < 0.5) {
 		discard;
 	}
 	// (noise sized in metres: the same grain on any size of slab)
