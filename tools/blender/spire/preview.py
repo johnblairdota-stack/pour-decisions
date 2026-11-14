@@ -211,6 +211,31 @@ def setup_morning():
             bump.inputs["Strength"].default_value = 0.08
             nt.links.new(tex.outputs["Fac"], bump.inputs["Height"])
             nt.links.new(bump.outputs["Normal"], bsdf.inputs["Normal"])
+        if m.name == "clay_road":                        # step 7d: bitumen with aggregate speckle and patches
+            nt = m.node_tree
+            geo = nt.nodes.new("ShaderNodeNewGeometry")
+            sp = nt.nodes.new("ShaderNodeTexNoise")
+            sp.inputs["Scale"].default_value = 40.0
+            nt.links.new(geo.outputs["Position"], sp.inputs["Vector"])
+            pa = nt.nodes.new("ShaderNodeTexVoronoi")
+            pa.inputs["Scale"].default_value = 0.08
+            nt.links.new(geo.outputs["Position"], pa.inputs["Vector"])
+            ramp = nt.nodes.new("ShaderNodeValToRGB")
+            ramp.color_ramp.elements[0].color = (0.030, 0.031, 0.034, 1)
+            ramp.color_ramp.elements[1].color = (0.075, 0.075, 0.078, 1)
+            mixf = nt.nodes.new("ShaderNodeMath")
+            mixf.operation = "MULTIPLY_ADD"
+            nt.links.new(sp.outputs["Fac"], mixf.inputs[0])
+            mixf.inputs[1].default_value = 0.6
+            sepc = nt.nodes.new("ShaderNodeSeparateColor")
+            nt.links.new(pa.outputs["Color"], sepc.inputs[0])
+            nt.links.new(sepc.outputs[0], mixf.inputs[2])
+            nt.links.new(mixf.outputs[0], ramp.inputs["Fac"])
+            nt.links.new(ramp.outputs["Color"], bsdf.inputs["Base Color"])
+            bsdf.inputs["Roughness"].default_value = 0.9
+        if m.get("emit"):                                # lit signal aspects
+            bsdf.inputs["Emission Color"].default_value = m.diffuse_color
+            bsdf.inputs["Emission Strength"].default_value = m["emit"]
         if m.name == "clay_rock":                        # tuff cliff: grey-brown with vertical banding
             nt = m.node_tree
             geo = nt.nodes.new("ShaderNodeNewGeometry")
@@ -457,7 +482,8 @@ def finished(what, mode, times):
         setup_morning()
         pick = {c["id"]: c for c in L.CAMERAS + L.HERO_CAMERAS}
         for c in (pick["hero_bridge_hsw"], pick["hero_cathedral"], pick["cam_ann_queen_corner"], pick["cam_queen_st"],
-                  pick["hero_spire_facade"], pick["hero_cathedral_west_front"], pick["cam_ann_st_precinct"], pick["hero_spire_roof"]):
+                  pick["hero_spire_facade"], pick["hero_cathedral_west_front"], pick["cam_ann_st_precinct"], pick["hero_spire_roof"],
+                  pick["street_ann_queen"], pick["street_ann_cathedral"]):
             times[c["id"] + "_morning"] = cam_view(c, "morning")
         setup(mode)
 

@@ -9,7 +9,7 @@ import layout as L
 COLOURS = {
     "ground": (0.46, 0.46, 0.44, 1),
     "water": (0.26, 0.27, 0.20, 1),          # Brisbane River: muddy brown-green
-    "road": (0.24, 0.24, 0.25, 1),
+    "road": (0.045, 0.046, 0.05, 1),       # step 7d: bitumen #3a3b3d (linear)
     "footpath": (0.62, 0.61, 0.58, 1),
     "footway": (0.55, 0.53, 0.50, 1),
     "building": (0.80, 0.80, 0.78, 1),
@@ -53,7 +53,7 @@ COLOURS = {
     "spire_soffit": (0.20, 0.19, 0.17, 1),     # recessed balcony soffits / walls, read dark-warm at distance      # #e8e6e0 white frame lattice and slab edges
     "spire_balustrade": (0.20, 0.22, 0.25, 1),
     "balustrade": (0.70, 0.80, 0.85, 1),
-    "line": (0.95, 0.95, 0.92, 1),          # road markings
+    "line": (0.89, 0.89, 0.86, 1),          # #f2f2ee          # road markings
     "line_yellow": (0.95, 0.80, 0.20, 1),
     "pole": (0.55, 0.57, 0.58, 1),
     "shotcrete": (0.66, 0.64, 0.60, 1),
@@ -82,6 +82,25 @@ def material(key):
         m.diffuse_color = COLOURS[key]
         m.roughness = 0.9
     return m
+
+
+def text_obj(col, name, body, loc, rot, size, rgb, emit=0.0):
+    """A Blender text object (street signs, road words)."""
+    cu = bpy.data.curves.new(name, "FONT")
+    cu.body = body
+    cu.size = size
+    cu.align_x = "CENTER"
+    cu.align_y = "CENTER"
+    cu.extrude = 0.005
+    ob = bpy.data.objects.new(name, cu)
+    ob.location = loc
+    ob.rotation_euler = rot
+    m = material_rgb("text_%s" % ("%.2f_%.2f_%.2f" % tuple(rgb)), rgb)
+    if emit:
+        m["emit"] = emit
+    cu.materials.append(m)
+    col.objects.link(ob)
+    return ob
 
 
 def material_rgb(name, rgb, window=None, shader="render", palette=None):

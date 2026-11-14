@@ -25,8 +25,26 @@ def heading_to(a, b):
     return math.atan2(b[1] - a[1], b[0] - a[0])
 
 
+ROAD = {}   # set per node: centre point, across-direction and width, so marks follow the road crown
+
+
 def flat_quad(buf, pts, z_lift=0.06):
-    buf.add([(x, y, L.ground_z(x, y) + z_lift) for x, y in pts], [[0, 1, 2, 3]])
+    def z(x, y):
+        if ROAD:
+            cx, cy, nx, ny, wd = ROAD["c"]
+            v = abs((x - cx) * nx + (y - cy) * ny)
+            return L.ground_z(x, y) + 0.046 + 0.025 * max(0.0, wd / 2 - v) + 0.008
+        return L.ground_z(x, y) + z_lift
+    buf.add([(x, y, z(x, y)) for x, y in pts], [[0, 1, 2, 3]])
+
+
+def lantern(lant, board, lit_r, lit_g, x, y, z, ang, green):
+    """Brisbane 3-aspect lantern: black housing on a yellow target board, one aspect lit."""
+    board.box(x, y, z - 0.15, 0.75, 0.04, 1.35, ang)
+    nx, ny = math.cos(ang - math.pi / 2), math.sin(ang - math.pi / 2)
+    lant.box(x + nx * 0.06, y + ny * 0.06, z, 0.36, 0.25, 1.05, ang)
+    zz = z + (0.15 if green else 0.82)
+    (lit_g if green else lit_r).box(x + nx * 0.2, y + ny * 0.2, zz, 0.22, 0.03, 0.22, ang)
 
 
 def build():
@@ -35,6 +53,8 @@ def build():
     c = cat()
     col = C.collection("streetscape")
     o = L.osm()
+    lant, board, lit_r, lit_g, blade, yellow = (C.MeshBuf() for _ in range(6))
+    nblade = 0
     poles, heads, banners_b, banners_p, signs, sign_faces, boards, art1, art2, red, white, hedge, plant = (C.MeshBuf() for _ in range(13))
     counts = {}
     # ---------------------------------------------------------------- street lights along named streets
@@ -105,15 +125,43 @@ def build():
         wd = road_width(w["tags"])
         ux, uy = math.cos(ang), math.sin(ang)
         nx, ny = -uy, ux
+        ROAD["c"] = (x, y, nx, ny, wd)
         if sig:
-            for side in (1, -1):
-                px, py = x + nx * side * (wd / 2 + 0.8), y + ny * side * (wd / 2 + 0.8)
-                g = L.ground_z(px, py) + L.KERB_HEIGHT
-                poles.box(px, py, g, 0.18, 0.18, 5.0)
-                heads.box(px, py, g + 3.0, 0.35, 0.3, 1.1, ang)
+            names = sorted({ww["tags"].get("name") for ww in ways_of[e["id"]] if ww["tags"].get("name")})
+            for k, side in enumerate((1, -1)):
+                for fb in (1, -1):                                         # a pole at each corner
+                    px = x + nx * side * (wd / 2 + 0.8) + ux * fb * 3.0
+                    py = y + ny * side * (wd / 2 + 0.8) + uy * fb * 3.0
+                    g = L.ground_z(px, py) + L.KERB_HEIGHT
+                    poles.box(px, py, g, 0.18, 0.18, 5.2)
+                    face = ang + (0 if fb > 0 else math.pi)                # lantern faces oncoming traffic
+                    fx, fy = math.cos(face), math.sin(face)
+                    lantern(lant, board, lit_r, lit_g, px + fx * 0.25, py + fy * 0.25, g + 2.6, face + math.pi / 2,
+                            green=(k + (fb > 0)) % 2 == 0)
+                    lant.box(px - fx * 0.2, py - fy * 0.2, g + 2.2, 0.25, 0.2, 0.45, face)        # ped lantern
+                    (lit_r if (k + (fb > 0)) % 2 else lit_g).box(px - fx * 0.31, py - fy * 0.31, g + 2.3, 0.16, 0.02, 0.16, face)
+                    poles.box(px - fx * 0.12, py - fy * 0.12, g + 1.0, 0.12, 0.08, 0.18, face)       # push button
+                    if names and fb > 0:                                   # BCC blue blade, white name
+                        nm = names[(k) % len(names)]
+                        bang = ang if k == 0 else ang + math.pi / 2
+                        blade.box(px, py, g + 5.2, 2.2, 0.04, 0.42, bang)
+                        poles.box(px, py, g + 5.0, 0.1, 0.1, 0.6)
+                        for s2 in (1, -1):
+                            C.text_obj(col, "streetname", nm.upper().replace("STREET", "ST").replace("TERRACE", "TCE"),
+                                       (px - math.sin(bang) * 0.03 * s2, py + math.cos(bang) * 0.03 * s2, g + 5.41),
+                                       (math.radians(90), 0, bang + (0 if s2 > 0 else math.pi)), 0.26, (0.95, 0.95, 0.95))
+                        nblade += 1
                 if side == 1 and wd > 9:                                   # mast arm over the road
-                    poles.beam((px, py, g + 5.6), (px - nx * wd * 0.6, py - ny * wd * 0.6, g + 5.6), 0.15)
-                    heads.box(px - nx * wd * 0.45, py - ny * wd * 0.45, g + 4.8, 0.35, 0.3, 1.0, ang)
+                    px, py = x + nx * (wd / 2 + 0.8) - ux * 3.0, y + ny * (wd / 2 + 0.8) - uy * 3.0
+                    g = L.ground_z(px, py) + L.KERB_HEIGHT
+                    poles.box(px, py, g, 0.3, 0.3, 6.4)
+                    poles.beam((px, py, g + 6.2), (px - nx * wd * 0.7, py - ny * wd * 0.7, g + 6.2), 0.18)
+                    for f in (0.35, 0.6):
+                        lantern(lant, board, lit_r, lit_g, px - nx * wd * f, py - ny * wd * f, g + 5.0, ang + math.pi / 2, green=True)
+            for oo in (1, -1):                                             # yellow no-stopping lines 20 m back
+                kx, ky = x + nx * oo * (wd / 2 - 0.15), y + ny * oo * (wd / 2 - 0.15)
+                flat_quad(yellow, [(kx, ky), (kx - ux * 20, ky - uy * 20), (kx - ux * 20 + nx * 0.1, ky - uy * 20 + ny * 0.1),
+                                   (kx + nx * 0.1, ky + ny * 0.1)], 0.07)
             sx, sy = x - ux * 2.0, y - uy * 2.0                            # stop line
             flat_quad(white, [(sx + nx * wd / 2, sy + ny * wd / 2), (sx - nx * wd / 2, sy - ny * wd / 2),
                               (sx - nx * wd / 2 - ux * 0.4, sy - ny * wd / 2 - uy * 0.4), (sx + nx * wd / 2 - ux * 0.4, sy + ny * wd / 2 - uy * 0.4)])
@@ -126,7 +174,9 @@ def build():
                 flat_quad(white, [(cx - ux * 1.5, cy - uy * 1.5), (cx + ux * 1.5, cy + uy * 1.5),
                                   (cx + ux * 1.5 + nx * 0.5, cy + uy * 1.5 + ny * 0.5), (cx - ux * 1.5 + nx * 0.5, cy - uy * 1.5 + ny * 0.5)])
             ncross += 1
+    ROAD.clear()
     counts["signals"] = nsig
+    counts["street_name_blades"] = nblade
     counts["crossings"] = ncross
     # ---------------------------------------------------------------- signs
     for s in c["signs"]:
@@ -162,10 +212,25 @@ def build():
         wd = road_width(t)
         a, b = C.offset_line(pts, wd / 2 - 0.15), C.offset_line(pts, wd / 2 - 0.15 - bl["width_m"])
         m = len(pts)
-        red.add([(x, y, L.ground_z(x, y) + 0.055) for x, y in a] + [(x, y, L.ground_z(x, y) + 0.055) for x, y in b],
+        za = 0.046 + 0.025 * 0.15 + 0.006
+        zb = 0.046 + 0.025 * (0.15 + bl["width_m"]) + 0.006
+        red.add([(x, y, L.ground_z(x, y) + za) for x, y in a] + [(x, y, L.ground_z(x, y) + zb) for x, y in b],
                 [[i, m + i, m + i + 1, i + 1] for i in range(m - 1)])
         nb += 1
     counts["bus_lane_ways"] = nb
+    for w in o["ways"].values():                                           # BUS ONLY words every ~60 m
+        t2 = w.get("tags", {})
+        if t2.get("name") != bl["street"] or t2.get("highway") not in CAR:
+            continue
+        pts = C.densify(o["line"](w), 60.0)
+        wd = road_width(t2)
+        for (ax, ay), (bx, by) in zip(pts[:-1], pts[1:]):
+            if math.hypot(ax, ay) > 300:
+                continue
+            a2 = math.atan2(by - ay, bx - ax)
+            cx = ax - math.sin(a2) * (wd / 2 - 1.8)
+            cy = ay + math.cos(a2) * (wd / 2 - 1.8)
+            C.text_obj(col, "busonly", "BUS ONLY", (cx, cy, L.ground_z(cx, cy) + 0.046 + 0.025 * 1.8 + 0.012), (0, 0, a2 - math.pi / 2), 1.3, (0.9, 0.9, 0.86))
     for ar in c["lane_markings"]["turn_arrows"]:
         x, y = ar["xy"]
         h = math.radians(90 - ar["heading"])
@@ -201,6 +266,16 @@ def build():
             "banners_p": (0.85, 0.25, 0.55), "signs": (0.92, 0.92, 0.90), "sign_faces": (0.10, 0.45, 0.25),
             "boards": (0.15, 0.15, 0.16), "art1": (0.25, 0.65, 0.80), "art2": (0.80, 0.42, 0.12),
             "red": (0.55, 0.16, 0.12), "white": (0.93, 0.93, 0.90), "hedge": (0.42, 0.36, 0.28), "plant": (0.22, 0.42, 0.18)}
+    for name, buf, rgb, emit in (("lanterns", lant, (0.03, 0.03, 0.035), 0), ("target_boards", board, (0.85, 0.65, 0.05), 0),
+                                 ("lit_red", lit_r, (1.0, 0.08, 0.05), 6.0), ("lit_green", lit_g, (0.1, 1.0, 0.45), 6.0),
+                                 ("name_blades", blade, (0.04, 0.16, 0.50), 0), ("no_stopping_yellow", yellow, (0.92, 0.75, 0.10), 0)):
+        ob = buf.object("street_" + name, col, "roof")
+        if ob:
+            m = C.material_rgb("street_" + name, rgb)
+            if emit:
+                m["emit"] = emit
+            ob.data.materials[0] = m
+            objs.append(ob.name)
     for name, buf in (("poles", poles), ("heads", heads), ("banners_b", banners_b), ("banners_p", banners_p),
                       ("signs", signs), ("sign_faces", sign_faces), ("boards", boards), ("art1", art1), ("art2", art2),
                       ("red", red), ("white", white), ("hedge", hedge), ("plant", plant)):

@@ -30,7 +30,7 @@
    "spire_ground_ahd": 20.71,
    "water_level_ahd": 0.3,
    "source": "2019 LiDAR ground, river pushed under the water, two 5 m box blurs",
-   "seconds": 0.96
+   "seconds": 1.0
   },
   {
    "module": "streets",
@@ -54,7 +54,7 @@
    "footpath_width_m": 3.5,
    "kerb_m": 0.15,
    "note": "Footpath widths are a CBD default, not measured. Bridges/tunnels/upper layers left out (Story Bridge is in landmarks.py).",
-   "seconds": 13.51
+   "seconds": 16.57
   },
   {
    "module": "buildings",
@@ -203,7 +203,7 @@
    ],
    "source": "OSM footprints + 2019 LiDAR tiers (prep_clean.py); recipes in looks.py",
    "note": "Procedural facades from the photo notes; nothing copied from photos.",
-   "seconds": 1.86
+   "seconds": 1.88
   },
   {
    "module": "spire",
@@ -846,7 +846,7 @@
     ]
    },
    "note": "Typical floor to floor 2.90 m is solved from the OSM height (low; check a section). Joint position and column grid are assumptions.",
-   "seconds": 0.14
+   "seconds": 0.12
   },
   {
    "module": "core",
@@ -879,7 +879,7 @@
    "main_span_m": 280.0,
    "measured": "2019 LiDAR: 20 m bins along the axis; main piers where points reach the water, top chord = max height, deck = 10th percentile height",
    "note": "Member sizes and panel layout are simplified; heights, piers, alignment and the deck profile are measured from the 2019 LiDAR points.",
-   "seconds": 0.09
+   "seconds": 0.08
   },
   {
    "module": "cathedral",
@@ -923,7 +923,7 @@
    "crossing_tower_top_m": 32.2,
    "source": "docs/spire/materials_from_photos.md",
    "note": "Heights from the LiDAR; plan proportions, bay rhythm and detail sizes from the photo notes.",
-   "seconds": 0.06
+   "seconds": 0.07
   },
   {
    "module": "hsw",
@@ -974,7 +974,7 @@
     "eucalypt": 289
    },
    "note": "Positions and heights from the 2019 LiDAR; species are stand-ins (see the docstring).",
-   "seconds": 2.92
+   "seconds": 3.09
   },
   {
    "module": "logistics",
@@ -991,6 +991,12 @@
   {
    "module": "streetscape",
    "objects": [
+    "street_lanterns",
+    "street_target_boards",
+    "street_lit_red",
+    "street_lit_green",
+    "street_name_blades",
+    "street_no_stopping_yellow",
     "street_poles",
     "street_heads",
     "street_banners_b",
@@ -1009,13 +1015,14 @@
     "street_lights": 101,
     "heritage_lamps": 2,
     "signals": 42,
+    "street_name_blades": 80,
     "crossings": 82,
     "signs": 8,
     "billboards": 2,
     "bus_lane_ways": 10
    },
    "note": "From street_catalogue.json (photos) + OSM nodes; billboard art is placeholder colour, not real ads.",
-   "seconds": 0.36
+   "seconds": 0.47
   }
  ]
 }

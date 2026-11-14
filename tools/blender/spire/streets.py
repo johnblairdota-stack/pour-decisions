@@ -124,16 +124,21 @@ def build():
         crowned(roads, pts, wd, lift)
         n_car += 1
         lanes = int(L.tag_float(t, "lanes") or (2 if t["highway"] in ("primary", "secondary", "tertiary") else 1))
-        mz = lift + 0.012
-        if lanes >= 2 and t["highway"] != "service":
+        mz = lift + 0.005                                    # step 7d: 5 mm proud of the surface
+        zat = lambda off: mz + CROSSFALL * max(0.0, wd / 2 - abs(off))   # follow the crown
+        if t["highway"] != "service":
             oneway = t.get("oneway") == "yes"
-            if oneway:
+            if lanes >= 2 and oneway:
                 for k in range(1, lanes):
-                    dashes(lines, pts, -wd / 2 + k * wd / lanes, mz + CROSSFALL * abs(-wd / 2 + k * wd / lanes - 0) * 0)
-            else:
-                dashes(lines, pts, 0.0, mz + CROSSFALL * wd / 2, solid=lanes >= 4)
+                    of = -wd / 2 + k * wd / lanes
+                    dashes(lines, pts, of, zat(of), dash=3.0, gap=9.0, w=0.12)        # QLD lane line 3 m / 9 m
+            elif lanes >= 2:
+                dashes(lines, pts, 0.0, zat(0.0), dash=3.0, gap=9.0, w=0.12, solid=lanes >= 4)
+                if lanes >= 4:
+                    dashes(lines, pts, 0.25, zat(0.25), w=0.12, solid=True)          # double barrier line
             for side in (1, -1):
-                dashes(lines, pts, side * (wd / 2 - 0.4), mz, solid=True, w=0.1)
+                of = side * (wd / 2 - 0.35)
+                dashes(lines, pts, of, zat(of), solid=True, w=0.12)                   # edge lines
         if t["highway"] == "service" or t.get("sidewalk") == "no":
             n_drive += t.get("service") == "driveway"
             continue

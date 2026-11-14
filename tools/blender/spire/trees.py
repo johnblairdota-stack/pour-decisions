@@ -73,7 +73,7 @@ def build():
             continue
         if s == "fig":
             r = 0.42 * h
-            trunks.box(x, y, g, 1.4, 1.4, h * 0.45)
+            trunks.box(x, y, g, 0.7, 0.7, h * 0.45)
             blob(crowns, x, y, g + h - 0.45 * r, r, 0.45 * r)
         elif s in ("jacaranda", "poinciana"):
             r = 0.38 * h
