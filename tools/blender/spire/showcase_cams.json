@@ -1,0 +1,218 @@
+{
+ "note": "Camera poses solved from hand-marked landmarks (photo_fit.py). Photos are John's and are not in git; only file names are listed.",
+ "landmarks": {
+  "spire_top": [
+   0.42,
+   4.98,
+   139.21
+  ],
+  "spire_plant": [
+   0.0,
+   4.6,
+   147.7
+  ],
+  "spire_tower_base": [
+   0.0,
+   4.6,
+   42.31
+  ],
+  "mantra_top": [
+   4.93,
+   85.52,
+   109.73
+  ],
+  "willahra_top": [
+   13.77,
+   -28.83,
+   96.46
+  ],
+  "marriott_top": [
+   92.6,
+   -50.8,
+   123.55
+  ],
+  "admiralty2_top": [
+   118.1,
+   -102.25,
+   128.82
+  ],
+  "admiralty1_top": [
+   171.16,
+   -29.0,
+   91.44
+  ],
+  "soleil_top": [
+   168.57,
+   73.12,
+   249.83
+  ],
+  "aurora_top": [
+   -43.73,
+   -249.4,
+   214.88
+  ],
+  "macrossan_top": [
+   153.01,
+   45.18,
+   136.47
+  ],
+  "orient_top": [
+   19.51,
+   39.8,
+   31.0
+  ],
+  "webber_top": [
+   -35.65,
+   -17.47,
+   37.08
+  ],
+  "cath_spire_n": [
+   -93.3,
+   -74.3,
+   75.9
+  ],
+  "cath_spire_s": [
+   -104.2,
+   -83.9,
+   75.9
+  ],
+  "ann_queen_corner": [
+   31.0,
+   38.0,
+   17.86
+  ],
+  "customs_dome": [
+   31.0,
+   -263.0,
+   38.0
+  ],
+  "bridge_peak_n": [
+   490.12,
+   72.82,
+   80.0
+  ],
+  "bridge_peak_s": [
+   487.79,
+   -207.17,
+   80.0
+  ],
+  "bridge_pier_n_deck": [
+   490.12,
+   72.82,
+   34.5
+  ],
+  "bridge_pier_s_deck": [
+   487.79,
+   -207.17,
+   34.5
+  ],
+  "bridge_anchor_s_deck": [
+   486.63,
+   -347.17,
+   33.0
+  ],
+  "bridge_portal_n_w": [
+   479.62,
+   72.91,
+   80.0
+  ],
+  "bridge_portal_n_e": [
+   500.62,
+   72.73,
+   80.0
+  ]
+ },
+ "cams": [
+  {
+   "id": "spire_ann_st_2018",
+   "file": "550_Queen_Street__Brisbane_in_June_2018.jpg",
+   "src_dir": "spire",
+   "credit": {},
+   "date": "2018-06-02",
+   "stage": "as_built",
+   "size": [
+    1499,
+    2000
+   ],
+   "mode": "tilt",
+   "pos": [
+    167.0,
+    241.9,
+    25.8
+   ],
+   "eye_above_ground_m": 1.7,
+   "heading_deg": 215.2,
+   "pitch_deg": 11.29,
+   "roll_deg": 0.0,
+   "focal_35mm": 67.2,
+   "blender": {
+    "lens_mm": 69.91,
+    "sensor_mm": 36.0,
+    "shift_y": -0.0
+   },
+   "marks": 4,
+   "fit_rms_px": 21.2,
+   "fit_max_px": 29.9,
+   "per_mark_px": {
+    "spire_top": 29.9,
+    "spire_plant": 27.8,
+    "willahra_top": 9.3,
+    "orient_top": 6.6
+   },
+   "confidence": "medium",
+   "note": ""
+  },
+  {
+   "id": "cathedral_ann_st_2012",
+   "file": "St_John_s_Anglican_Cathedral_373_Ann_St_Brisbane_P1210856.jpg",
+   "src_dir": "showcase_extra",
+   "credit": {},
+   "date": "2012-02-21",
+   "stage": "pre_spire",
+   "size": [
+    1500,
+    2000
+   ],
+   "mode": "tilt",
+   "pos": [
+    -189.3,
+    -111.1,
+    26.7
+   ],
+   "eye_above_ground_m": 1.6,
+   "heading_deg": 68.5,
+   "pitch_deg": 14.33,
+   "roll_deg": 0.0,
+   "focal_35mm": 48.5,
+   "blender": {
+    "lens_mm": 50.39,
+    "sensor_mm": 36.0,
+    "shift_y": -0.0
+   },
+   "marks": 3,
+   "fit_rms_px": 4.8,
+   "fit_max_px": 6.6,
+   "per_mark_px": {
+    "cath_spire_s": 4.7,
+    "cath_spire_n": 6.6,
+    "soleil_top": 1.8
+   },
+   "confidence": "low",
+   "note": "the tall tower behind is Soleil (finished 2012)"
+  },
+  {
+   "id": "customs_story_bridge",
+   "file": "Brisbane_s_Customs_House_and_Story_Bridge.jpg",
+   "date": "c. 1960",
+   "stage": "as_built",
+   "skip": "fit too poor (54 px; historic photo from an unknown building)"
+  },
+  {
+   "id": "story_bridge_deck_2020",
+   "file": "Approaching_Story_Bridge_from_Fortitude_Valley__Brisbane.jpg",
+   "date": "2020-05-12",
+   "stage": "as_built",
+   "skip": "pose fits the wrong truss portal; trees from the LiDAR stand on the deck - fix next pass"
+  }
+ ]
+}

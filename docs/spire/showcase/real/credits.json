@@ -1,0 +1,27 @@
+{
+ "note": "Real photos: Wikimedia Commons, reused under the licence named; resized only.",
+ "pairs": [
+  {
+   "id": "spire_ann_st_2018",
+   "title": "550 Queen Street, Brisbane in June 2018.jpg",
+   "author": "Kgbo",
+   "licence": "CC BY-SA 4.0",
+   "licence_url": "https://creativecommons.org/licenses/by-sa/4.0",
+   "commons_page": "https://commons.wikimedia.org/wiki/File:550_Queen_Street,_Brisbane_in_June_2018.jpg",
+   "date": "2018-06-02",
+   "fit_rms_px": 21.2,
+   "caption": "Spire from Ann St, NE of the Queen St junction"
+  },
+  {
+   "id": "cathedral_ann_st_2012",
+   "title": "St John's Anglican Cathedral 373 Ann St Brisbane P1210856.jpg",
+   "author": "John Robert McPherson",
+   "licence": "CC BY-SA 4.0",
+   "licence_url": "https://creativecommons.org/licenses/by-sa/4.0",
+   "commons_page": "https://commons.wikimedia.org/wiki/File:St_John%27s_Anglican_Cathedral_373_Ann_St_Brisbane_P1210856.jpg",
+   "date": "2012-02-21",
+   "fit_rms_px": 4.8,
+   "caption": "St John's Cathedral west towers from Ann St (2012, before Spire)"
+  }
+ ]
+}

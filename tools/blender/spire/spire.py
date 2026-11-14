@@ -149,7 +149,9 @@ def crown(col, plate, top):
 def queen_st_podium(col, lot, ground_min, top):
     """Queen St face of the podium (photos): glass shopfront at street level, vertical timber battens and a
     planted wall above. The Queen St edges are the lot edges facing east."""
+    import foliage as FO
     bat, plant, shop = C.MeshBuf(), C.MeshBuf(), C.MeshBuf()
+    green = FO.Foliage(seed=21)
     n = len(lot)
     for i in range(n):
         (ax, ay), (bx, by) = lot[i], lot[(i + 1) % n]
@@ -165,15 +167,29 @@ def queen_st_podium(col, lot, ground_min, top):
         for j in range(k):
             t = (j + 0.5) / k
             bat.box(ax + (bx - ax) * t + nx * 0.2, ay + (by - ay) * t + ny * 0.2, gz + 4.5, 0.08, 0.15, (top - gz - 4.5) * 0.55, ang)
-        plant.box(mx + nx * 0.25, my + ny * 0.25, gz + 4.5 + (top - gz - 4.5) * 0.55, ln, 0.4, (top - gz - 4.5) * 0.45, ang)
+        z_led = top - 0.2                                               # planter ledge along the podium top
+        plant.box(mx + nx * 0.45, my + ny * 0.45, z_led - 0.9, ln, 0.9, 0.9, ang)
+        ux_, uy_ = math.cos(ang), math.sin(ang)
+        k2 = max(2, int(ln / 1.6))
+        for j in range(k2):                                              # spilling shrubs on the ledge
+            tt = (j + 0.5) / k2 - 0.5
+            green.cloud((mx + ux_ * tt * ln + nx * 0.6, my + uy_ * tt * ln + ny * 0.6, z_led + 0.3), (0.9, 0.6, 0.6), 35, 0.45, shell=0.5)
+        hang = [(mx + ux_ * ((j + 0.5) / (k2 * 3) - 0.5) * ln + nx * 0.9, my + uy_ * ((j + 0.5) / (k2 * 3) - 0.5) * ln + ny * 0.9, z_led - 0.4)
+                for j in range(k2 * 3)]
+        green.strands(hang, (nx, ny), (top - gz - 4.5) * 0.7, 0.35, 0.5)  # trailing plants over the battens
+        zm = gz + 4.5 + (top - gz - 4.5) * 0.55                          # vertical garden panel between battens
+        green.cloud((mx + nx * 0.3, my + ny * 0.3, zm + (top - zm) * 0.4), (ln * 0.5, 0.25, (top - zm) * 0.45), int(ln * 25), 0.4, shell=0.2)
     objs = []
     for buf, name, key, col_ in ((bat, "SPIRE_queen_st_battens", "battens", SPIRE_LOOK["battens"]),
-                                 (plant, "SPIRE_queen_st_planted_wall", "planted", SPIRE_LOOK["planted"]),
+                                 (plant, "SPIRE_queen_st_planter_ledge", "ledge", (0.10, 0.10, 0.11)),
                                  (shop, "SPIRE_queen_st_shopfront", "shopfront", SPIRE_LOOK["shopfront"])):
         ob = buf.object(name, col, "roof")
         if ob:
             ob.data.materials[0] = C.material_rgb("spire_" + key, col_)
             objs.append(ob.name)
+    og = green.object("SPIRE_green_facade", col, (0.04, 0.11, 0.03), (0.14, 0.27, 0.07))
+    if og:
+        objs.append(og.name)
     return objs
 
 

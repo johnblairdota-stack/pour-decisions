@@ -438,36 +438,6 @@
    ],
    "heading": 95,
    "n": 4
-  },
-  {
-   "kind": "cars",
-   "xy": [
-    36,
-    8
-   ],
-   "heading": 95,
-   "n": 3,
-   "note": "Queen St kerb, street view 4"
-  },
-  {
-   "kind": "cars",
-   "xy": [
-    -20,
-    -10
-   ],
-   "heading": 310,
-   "n": 2,
-   "note": "Clark Lane"
-  },
-  {
-   "kind": "cars",
-   "xy": [
-    60,
-    -60
-   ],
-   "heading": 100,
-   "n": 3,
-   "note": "Queen St, street view"
   }
  ]
 }

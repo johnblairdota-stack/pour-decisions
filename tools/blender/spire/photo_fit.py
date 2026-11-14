@@ -23,6 +23,19 @@ import layout as L  # noqa: E402
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 
+def bridge_points():
+    B = L.STORY_BRIDGE
+    (cx, cy), (ax, ay) = B["centre_xy"], B["axis"]
+    nx, ny = -ay, ax
+    P = lambda t, n, z: (cx + ax * t + nx * n, cy + ay * t + ny * n, z)
+    tn, ts = B["main_piers_t"]
+    nc, hw = B["truss_centre_n"], B["truss_half_m"]
+    return {"bridge_peak_n": P(tn, nc, 80.0), "bridge_peak_s": P(ts, nc, 80.0),
+            "bridge_pier_n_deck": P(tn, nc, 34.5), "bridge_pier_s_deck": P(ts, nc, 34.5),
+            "bridge_anchor_s_deck": P(B["truss_t"][1], nc, 33.0),
+            "bridge_portal_n_w": P(tn, nc - hw, 80.0), "bridge_portal_n_e": P(tn, nc + hw, 80.0)}
+
+
 def landmarks():
     """Named 3D points (local x, y, z AHD) measured from the model data (LiDAR/OSM)."""
     d = {b["osm"]: b for b in json.load(open(L.ref("lidar/buildings_clean.json")))["buildings"]}
@@ -52,6 +65,8 @@ def landmarks():
         "cath_spire_n": (-93.3, -74.3, 75.9),
         "cath_spire_s": (-104.2, -83.9, 75.9),
         "ann_queen_corner": (31.0, 38.0, L.ground_z(31.0, 38.0)),  # kerb point at the Ann/Queen split
+        "customs_dome": (31.0, -263.0, 38.0),
+        **bridge_points(),
     }
     return {k: (p if isinstance(p, dict) else tuple(float(v) for v in p)) for k, p in pts.items()}
 
@@ -135,7 +150,9 @@ def solve(photo, LM):
 
 
 def main():
-    marks = json.load(open(os.path.join(HERE, "photo_marks.json")))
+    src = sys.argv[1] if len(sys.argv) > 1 else os.path.join(HERE, "photo_marks.json")
+    dst = sys.argv[2] if len(sys.argv) > 2 else os.path.join(HERE, "photo_cams.json")
+    marks = json.load(open(src))
     LM = landmarks()
     out = []
     for ph in marks["photos"]:
@@ -152,7 +169,7 @@ def main():
         rms = float(np.sqrt((err ** 2).mean()))
         rel = rms / math.hypot(W, H)
         conf = "high" if rel < 0.006 and len(err) >= 5 else ("medium" if rel < 0.015 and len(err) >= 4 else "low")
-        rec = {"id": ph["id"], "file": ph["file"], "date": ph.get("date", ""), "stage": ph.get("stage", "as_built"),
+        rec = {"id": ph["id"], "file": ph["file"], "src_dir": ph.get("src_dir", ""), "credit": ph.get("credit", {}), "date": ph.get("date", ""), "stage": ph.get("stage", "as_built"),
                "size": [W, H], "mode": ph.get("mode", "tilt"),
                "pos": [round(x, 1), round(y, 1), round(z, 1)], "eye_above_ground_m": round(z - L.ground_z(x, y), 1),
                "heading_deg": round(yaw % 360, 1), "pitch_deg": round(pitch, 2), "roll_deg": 0.0,
@@ -167,7 +184,7 @@ def main():
             ph["id"], rec["pos"], rec["heading_deg"], rec["pitch_deg"], rec["focal_35mm"], rms, conf))
     json.dump({"note": "Camera poses solved from hand-marked landmarks (photo_fit.py). Photos are John's and "
                        "are not in git; only file names are listed.", "landmarks": {k: [round(v, 2) for v in centre(p)] for k, p in LM.items()},
-               "cams": out}, open(os.path.join(HERE, "photo_cams.json"), "w"), indent=1)
+               "cams": out}, open(dst, "w"), indent=1)
 
 
 if __name__ == "__main__":

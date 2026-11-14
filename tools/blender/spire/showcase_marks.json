@@ -1,0 +1,179 @@
+{
+ "note": "Free-licence Wikimedia Commons photos for the showcase side-by-sides (step 7g). Marks read by eye at the listed display size.",
+ "photos": [
+  {
+   "id": "spire_ann_st_2018",
+   "file": "550_Queen_Street__Brisbane_in_June_2018.jpg",
+   "src_dir": "spire",
+   "commons": "550 Queen Street, Brisbane in June 2018.jpg",
+   "size": [
+    1499,
+    2000
+   ],
+   "date": "2018-06-02",
+   "stage": "as_built",
+   "mode": "tilt",
+   "guess": {
+    "x": 140,
+    "y": 200,
+    "heading": 215,
+    "pitch": 10,
+    "f35": 30
+   },
+   "caption": "Spire from Ann St, NE of the Queen St junction",
+   "marks": [
+    [
+     "spire_top",
+     745,
+     240
+    ],
+    [
+     "spire_plant",
+     740,
+     183
+    ],
+    [
+     "willahra_top",
+     380,
+     850
+    ],
+    [
+     "orient_top",
+     790,
+     1695
+    ]
+   ]
+  },
+  {
+   "id": "cathedral_ann_st_2012",
+   "file": "St_John_s_Anglican_Cathedral_373_Ann_St_Brisbane_P1210856.jpg",
+   "src_dir": "showcase_extra",
+   "commons": "St John's Anglican Cathedral 373 Ann St Brisbane P1210856.jpg",
+   "size": [
+    1500,
+    2000
+   ],
+   "date": "2012-02-21",
+   "stage": "pre_spire",
+   "mode": "tilt",
+   "guess": {
+    "x": -170,
+    "y": -60,
+    "heading": 100,
+    "pitch": 15,
+    "f35": 30
+   },
+   "caption": "St John's Cathedral west towers from Ann St (2012, before Spire)",
+   "marks": [
+    [
+     "cath_spire_s",
+     920,
+     268
+    ],
+    [
+     "cath_spire_n",
+     770,
+     448
+    ],
+    [
+     "soleil_top",
+     500,
+     205
+    ]
+   ],
+   "note": "the tall tower behind is Soleil (finished 2012)"
+  },
+  {
+   "id": "customs_story_bridge",
+   "file": "Brisbane_s_Customs_House_and_Story_Bridge.jpg",
+   "src_dir": "hsw",
+   "commons": "Brisbane's Customs House and Story Bridge.jpg",
+   "size": [
+    1920,
+    1519
+   ],
+   "date": "c. 1960",
+   "stage": "as_built",
+   "mode": "tilt",
+   "guess": {
+    "x": -30,
+    "y": -225,
+    "z": 45,
+    "heading": 110,
+    "pitch": -8,
+    "f35": 35,
+    "z_weight": 0.3
+   },
+   "caption": "Customs House dome and the Story Bridge from Queen St (historic photo)",
+   "marks": [
+    [
+     "bridge_peak_n",
+     265,
+     305
+    ],
+    [
+     "bridge_peak_s",
+     1330,
+     255
+    ],
+    [
+     "bridge_pier_n_deck",
+     300,
+     470
+    ],
+    [
+     "bridge_anchor_s_deck",
+     1700,
+     455
+    ],
+    [
+     "customs_dome",
+     1150,
+     395
+    ]
+   ],
+   "skip": "fit too poor (54 px; historic photo from an unknown building)"
+  },
+  {
+   "id": "story_bridge_deck_2020",
+   "file": "Approaching_Story_Bridge_from_Fortitude_Valley__Brisbane.jpg",
+   "src_dir": "hsw",
+   "commons": "Approaching Story Bridge from Fortitude Valley, Brisbane.jpg",
+   "size": [
+    1920,
+    1440
+   ],
+   "date": "2020-05-12",
+   "stage": "as_built",
+   "mode": "tilt",
+   "guess": {
+    "x": 488,
+    "y": 160,
+    "z": 36.5,
+    "heading": 180,
+    "pitch": 6,
+    "f35": 50,
+    "z_weight": 2.0
+   },
+   "caption": "Story Bridge north portal from the Fortitude Valley approach",
+   "marks": [
+    [
+     "bridge_portal_n_e",
+     690,
+     65
+    ],
+    [
+     "bridge_portal_n_w",
+     1255,
+     65
+    ],
+    [
+     "bridge_pier_n_deck",
+     960,
+     1150
+    ]
+   ],
+   "skip": "pose fits the wrong truss portal; trees from the LiDAR stand on the deck - fix next pass"
+  }
+ ]
+}

@@ -30,7 +30,7 @@
    "spire_ground_ahd": 20.71,
    "water_level_ahd": 0.3,
    "source": "2019 LiDAR ground, river pushed under the water, two 5 m box blurs",
-   "seconds": 1.0
+   "seconds": 1.19
   },
   {
    "module": "streets",
@@ -55,7 +55,7 @@
    "footpath_width_m": 3.5,
    "kerb_m": 0.15,
    "note": "Footpath widths are a CBD default, not measured. Bridges/tunnels/upper layers left out (Story Bridge is in landmarks.py).",
-   "seconds": 15.09
+   "seconds": 14.85
   },
   {
    "module": "buildings",
@@ -204,7 +204,7 @@
    ],
    "source": "OSM footprints + 2019 LiDAR tiers (prep_clean.py); recipes in looks.py",
    "note": "Procedural facades from the photo notes; nothing copied from photos.",
-   "seconds": 1.81
+   "seconds": 1.76
   },
   {
    "module": "spire",
@@ -212,8 +212,9 @@
    "objects": [
     "SPIRE_podium_brick",
     "SPIRE_queen_st_battens",
-    "SPIRE_queen_st_planted_wall",
+    "SPIRE_queen_st_planter_ledge",
     "SPIRE_queen_st_shopfront",
+    "SPIRE_green_facade",
     "SPIRE_storeys",
     "SPIRE_parapet",
     "SPIRE_roof_deck",
@@ -847,7 +848,7 @@
     ]
    },
    "note": "Typical floor to floor 2.90 m is solved from the OSM height (low; check a section). Joint position and column grid are assumptions.",
-   "seconds": 0.16
+   "seconds": 0.18
   },
   {
    "module": "core",
@@ -956,15 +957,24 @@
    ],
    "midbuild": {},
    "note": "Lift tower position, Mr Percival's size and which shed is 'E' are estimates from the photos; the dig depth and crane spot are assumptions.",
-   "seconds": 0.27
+   "seconds": 0.28
   },
   {
    "module": "trees",
    "objects": [
     "tree_flowering_tops",
+    "leaves_fig",
+    "leaves_poinciana",
+    "leaves_jacaranda",
+    "leaves_eucalypt",
+    "leaves_generic",
+    "leaves_palm",
+    "blooms_poinciana",
+    "blooms_jacaranda",
     "tree_trunks",
-    "tree_crowns",
-    "palm_fronds"
+    "tree_trunks_eucalypt",
+    "tree_crowns_far",
+    "palm_fronds_far"
    ],
    "species_count": {
     "generic": 6791,
@@ -974,8 +984,9 @@
     "fig": 432,
     "eucalypt": 289
    },
-   "note": "Positions and heights from the 2019 LiDAR; species are stand-ins (see the docstring).",
-   "seconds": 12.94
+   "leaf_card_trees": 1384,
+   "note": "Leaf-card trees within 330 m of Spire and 160 m of the cathedral; simple crowns further out.",
+   "seconds": 12.71
   },
   {
    "module": "logistics",
@@ -992,6 +1003,8 @@
   {
    "module": "streetscape",
    "objects": [
+    "street_shrubs",
+    "street_lomandra",
     "street_lanterns",
     "street_target_boards",
     "street_lit_red",
@@ -999,7 +1012,6 @@
     "street_lenses_unlit",
     "street_bins",
     "street_bollards",
-    "street_parked_cars",
     "street_name_blades",
     "street_no_stopping_yellow",
     "street_poles",
@@ -1027,7 +1039,7 @@
     "bus_lane_ways": 10
    },
    "note": "From street_catalogue.json (photos) + OSM nodes; billboard art is placeholder colour, not real ads.",
-   "seconds": 0.54
+   "seconds": 0.67
   }
  ]
 }

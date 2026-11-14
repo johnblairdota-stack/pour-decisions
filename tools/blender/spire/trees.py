@@ -78,54 +78,120 @@ def species(x, y, h):
     return "generic"
 
 
+HERO_CENTRES = [(0.0, 0.0, 330.0), (-80.0, -100.0, 160.0)]   # leaf-card trees round Spire and the cathedral
+SPECIES_LEAF = {   # leaf colour pairs (dark, light) and trunk colour
+    "fig": ((0.035, 0.09, 0.03), (0.09, 0.19, 0.06), (0.30, 0.27, 0.22)),
+    "poinciana": ((0.07, 0.15, 0.04), (0.16, 0.28, 0.07), (0.28, 0.24, 0.20)),
+    "jacaranda": ((0.06, 0.13, 0.05), (0.14, 0.24, 0.08), (0.26, 0.22, 0.19)),
+    "eucalypt": ((0.08, 0.12, 0.07), (0.17, 0.22, 0.13), (0.78, 0.76, 0.70)),
+    "generic": ((0.05, 0.12, 0.04), (0.13, 0.24, 0.07), (0.30, 0.26, 0.21)),
+    "palm": ((0.08, 0.17, 0.05), (0.20, 0.32, 0.09), (0.45, 0.43, 0.40)),
+}
+
+
+def hero(x, y):
+    return any(math.hypot(x - cx, y - cy) < r for cx, cy, r in HERO_CENTRES)
+
+
+def fig_trunk(buf, x, y, g, h, rb):
+    """Buttressed fig: wide flared base narrowing to the trunk, then thick limbs."""
+    n = 10
+    levels = [(0.0, rb * 2.4), (0.6, rb * 1.6), (1.6, rb * 1.1), (h, rb * 0.8)]
+    rings = [[(x + r * math.cos(2 * math.pi * k / n) * (1 + 0.25 * math.sin(k * 2.7)), y + r * math.sin(2 * math.pi * k / n) * (1 + 0.25 * math.cos(k * 1.9)), g + z)
+              for k in range(n)] for z, r in levels]
+    for lo, hi in zip(rings[:-1], rings[1:]):
+        buf.add(lo + hi, [[k, (k + 1) % n, n + (k + 1) % n, n + k] for k in range(n)])
+
+
 def build():
+    import foliage as FO
     col = C.collection("trees")
-    trunks, crowns, palms = C.MeshBuf(), C.MeshBuf(), C.MeshBuf()
+    trunks, pale, crowns, palms = C.MeshBuf(), C.MeshBuf(), C.MeshBuf(), C.MeshBuf()
+    leaves = {s: FO.Foliage(seed=i + 3) for i, s in enumerate(SPECIES_LEAF)}
+    blooms = {"poinciana": FO.Foliage(seed=91), "jacaranda": FO.Foliage(seed=92)}
     flowers = []
-    count = {}
+    count, nhero = {}, 0
     for x, y, h, g in L.tree_points():
         if h < 3.0 or h > 40.0:
             continue
         s = species(x, y, h)
         count[s] = count.get(s, 0) + 1
+        near = hero(x, y)
+        nhero += near
         if s == "palm":
-            trunks.box(x, y, g, 0.35, 0.35, h - 1.0)
-            for k in range(7):
-                a = 2 * math.pi * k / 7
-                palms.beam((x, y, g + h - 1.2), (x + 3.2 * math.cos(a), y + 3.2 * math.sin(a), g + h - 2.6), 0.5, 0.12)
+            trunk(trunks, x, y, g, 0.2, h - 1.0, 0)
+            n = 12 if near else 7
+            for k in range(n):
+                a = 2 * math.pi * k / n
+                if near:                                                    # arching frond of cards
+                    pts = [(x + math.cos(a) * 3.4 * f, y + math.sin(a) * 3.4 * f, g + h - 1.0 + 1.2 * f - 2.6 * f * f) for f in [i / 8 for i in range(1, 9)]]
+                    leaves["palm"].strands([(px, py, pz + 0.2) for px, py, pz in pts], (0, 0, 1), 0.6, 0.5, 0.9)
+                else:
+                    palms.beam((x, y, g + h - 1.2), (x + 3.2 * math.cos(a), y + 3.2 * math.sin(a), g + h - 2.6), 0.5, 0.12)
             continue
         if s == "fig":
             r = 0.42 * h
-            trunk(trunks, x, y, g, 0.45, h * 0.45, 4, r * 0.6)
-            crown(crowns, x, y, g + h - 0.45 * r, r, 0.5, 6)
+            rz = 0.25 * h
+            fig_trunk(trunks, x, y, g, h * 0.45, 0.5)
+            trunk(trunks, x, y, g + h * 0.4, 0.4, 0.1, 6, r * 0.6)
+            cz = g + h - rz
+            if near:
+                leaves["fig"].cloud((x, y, cz), (r, r, rz), int(150 + 6 * r * r), 1.5, shell=0.65, top_bias=0.3)
+            else:
+                crown(crowns, x, y, cz, r, 0.5, 6)
         elif s in ("jacaranda", "poinciana"):
-            r = 0.38 * h
-            trunk(trunks, x, y, g, 0.25, h * 0.6, 3, r * 0.5)
-            crown(crowns, x, y, g + h - 0.3 * r, r, 0.3, 5)
-            if s == "poinciana":
-                flowers.append((x, y, g + h - 0.05 * r, r * 0.9))
+            r, rz = 0.4 * h, 0.12 * h
+            trunk(trunks, x, y, g, 0.25, h * 0.6, 4, r * 0.55)
+            cz = g + h - rz
+            if near:
+                leaves[s].cloud((x, y, cz), (r, r, rz), int(120 + 5 * r * r), 1.1, shell=0.75, top_bias=0.5)
+                blooms[s].cloud((x, y, cz + rz * 0.4), (r * 0.9, r * 0.9, rz * 0.6), int(25 + r * r), 0.8, shell=0.8, top_bias=0.8)
+            else:
+                crown(crowns, x, y, cz, r, 0.3, 5)
+                if s == "poinciana":
+                    flowers.append((x, y, g + h - 0.05 * r, r * 0.9))
         elif s == "eucalypt":
             r = 0.25 * h
-            trunk(trunks, x, y, g, 0.3, h * 0.7, 3, r * 0.7)
-            crown(crowns, x + 0.3 * r, y, g + h - r, r, 0.9, 3)
-            crown(crowns, x - 0.4 * r, y + 0.3 * r, g + h - 2.2 * r, 0.8 * r, 0.9, 3)
+            trunk(pale, x, y, g, 0.3, h * 0.7, 3, r * 0.7)
+            if near:
+                for k in range(4):                                          # open, clumpy crown
+                    a = k * 1.7
+                    leaves["eucalypt"].cloud((x + math.cos(a) * r * 0.6, y + math.sin(a) * r * 0.6, g + h - r * (0.6 + 0.3 * k % 2)),
+                                             (r * 0.5, r * 0.5, r * 0.4), 40, 0.9, shell=0.5)
+            else:
+                crown(crowns, x + 0.3 * r, y, g + h - r, r, 0.9, 3)
         else:
-            r = max(1.0, 0.24 * h)
-            trunk(trunks, x, y, g, 0.18, max(0.5, h - 1.6 * r), 2, r * 0.5)
-            crown(crowns, x, y, g + h - r, r, 0.85, 4)
+            r = max(1.0, 0.26 * h)
+            trunk(trunks, x, y, g, 0.18, max(0.5, h - 1.6 * r), 3, r * 0.5)
+            if near:
+                leaves["generic"].cloud((x, y, g + h - r), (r, r, r * 0.85), int(70 + 8 * r * r), 0.9, shell=0.6, top_bias=0.2)
+            else:
+                crown(crowns, x, y, g + h - r, r, 0.85, 4)
+    objs = []
     fl = C.MeshBuf()
     for x, y, z, r in flowers:
         blob(fl, x, y, z, r, 0.12 * r)
-    objs = []
     if fl.v:
         ob = fl.object("tree_flowering_tops", col, "tree")
-        ob.data.materials[0] = C.material_rgb("tree_flowers", (0.85, 0.55, 0.10))
+        ob.data.materials[0] = C.material_rgb("tree_flowers", (0.70, 0.12, 0.05))
         objs.append(ob.name)
-    for buf, name, key in ((trunks, "tree_trunks", "bark"), (crowns, "tree_crowns", "tree"), (palms, "palm_fronds", "palm")):
+    for s, fo in leaves.items():
+        dark, light, _ = SPECIES_LEAF[s]
+        ob = fo.object("leaves_" + s, col, dark, light)
+        if ob:
+            objs.append(ob.name)
+    for s, rgb in (("poinciana", (0.75, 0.10, 0.04)), ("jacaranda", (0.35, 0.22, 0.65))):
+        ob = blooms[s].object("blooms_" + s, col, rgb, tuple(min(1, c * 1.4) for c in rgb))
+        if ob:
+            objs.append(ob.name)
+    for buf, name, key, rgb in ((trunks, "tree_trunks", "bark", (0.30, 0.26, 0.21)), (pale, "tree_trunks_eucalypt", "bark", (0.78, 0.76, 0.70)),
+                                (crowns, "tree_crowns_far", "tree", None), (palms, "palm_fronds_far", "palm", None)):
         ob = buf.object(name, col, key)
         if ob:
+            if rgb:
+                ob.data.materials[0] = C.material_rgb(name, rgb)
             for p in ob.data.polygons:
                 p.use_smooth = key != "bark"
             objs.append(ob.name)
-    return {"module": "trees", "objects": objs, "species_count": count,
-            "note": "Positions and heights from the 2019 LiDAR; species are stand-ins (see the docstring)."}
+    return {"module": "trees", "objects": objs, "species_count": count, "leaf_card_trees": nhero,
+            "note": "Leaf-card trees within 330 m of Spire and 160 m of the cathedral; simple crowns further out."}

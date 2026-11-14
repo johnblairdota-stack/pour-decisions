@@ -233,6 +233,101 @@ def setup_morning():
             nt.links.new(mixf.outputs[0], ramp.inputs["Fac"])
             nt.links.new(ramp.outputs["Color"], bsdf.inputs["Base Color"])
             bsdf.inputs["Roughness"].default_value = 0.9
+        if m.get("shader") == "leaf":                    # step 7f: procedural leaf cards, two-tone, translucent
+            nt = m.node_tree
+            nodes, links = nt.nodes, nt.links
+            uv = nodes.new("ShaderNodeUVMap")
+            uv.uv_map = "facade"
+            vo = nodes.new("ShaderNodeTexVoronoi")              # leaf clusters inside each card
+            vo.inputs["Scale"].default_value = 3.2
+            links.new(uv.outputs["UV"], vo.inputs["Vector"])
+            cen = nodes.new("ShaderNodeMath")                   # fade to the card edge
+            sep = nodes.new("ShaderNodeSeparateXYZ")
+            links.new(uv.outputs["UV"], sep.inputs[0])
+            dx = nodes.new("ShaderNodeVectorMath")
+            dx.operation = "DISTANCE"
+            links.new(uv.outputs["UV"], dx.inputs[0])
+            dx.inputs[1].default_value = (0.5, 0.5, 0)
+            ramp_a = nodes.new("ShaderNodeValToRGB")
+            ramp_a.color_ramp.interpolation = "CONSTANT"
+            ramp_a.color_ramp.elements[0].color = (1, 1, 1, 1)
+            ramp_a.color_ramp.elements[1].position = 0.38
+            ramp_a.color_ramp.elements[1].color = (0, 0, 0, 1)
+            links.new(vo.outputs["Distance"], ramp_a.inputs["Fac"])
+            edge = nodes.new("ShaderNodeMath")
+            edge.operation = "LESS_THAN"
+            links.new(dx.outputs["Value"], edge.inputs[0])
+            edge.inputs[1].default_value = 0.5
+            cen.operation = "MULTIPLY"
+            links.new(ramp_a.outputs["Color"], cen.inputs[0])
+            links.new(edge.outputs[0], cen.inputs[1])
+            geo = nodes.new("ShaderNodeNewGeometry")
+            nz = nodes.new("ShaderNodeTexNoise")                # tone varies across the crown and tree to tree
+            nz.inputs["Scale"].default_value = 0.35
+            links.new(geo.outputs["Position"], nz.inputs["Vector"])
+            mix = nodes.new("ShaderNodeMix")
+            mix.data_type = "RGBA"
+            links.new(nz.outputs["Fac"], mix.inputs["Factor"])
+            mix.inputs[6].default_value = m.diffuse_color
+            mix.inputs[7].default_value = (*m.get("leaf2", m.diffuse_color[:3]), 1)
+            links.new(mix.outputs[2], bsdf.inputs["Base Color"])
+            ao = nodes.new("ShaderNodeAmbientOcclusion")         # darker inside the crown
+            ao.inputs["Distance"].default_value = 1.5
+            aom = nodes.new("ShaderNodeMix")
+            aom.data_type = "RGBA"
+            aom.blend_type = "MULTIPLY"
+            links.new(ao.outputs["AO"], aom.inputs["Factor"])
+            links.new(mix.outputs[2], aom.inputs[6])
+            aom.inputs[7].default_value = (0.35, 0.4, 0.3, 1)
+            links.new(aom.outputs[2], bsdf.inputs["Base Color"])
+            bsdf.inputs["Roughness"].default_value = 0.6
+            links.new(cen.outputs[0], bsdf.inputs["Alpha"])
+            out = nodes.get("Material Output")
+            tr = nodes.new("ShaderNodeBsdfTranslucent")
+            links.new(mix.outputs[2], tr.inputs["Color"])
+            ms = nodes.new("ShaderNodeMixShader")
+            ms.inputs["Fac"].default_value = m.get("translucency", 0.3)
+            links.new(bsdf.outputs[0], ms.inputs[1])
+            links.new(tr.outputs[0], ms.inputs[2])
+            tp = nodes.new("ShaderNodeBsdfTransparent")
+            ms2 = nodes.new("ShaderNodeMixShader")
+            links.new(cen.outputs[0], ms2.inputs["Fac"])
+            links.new(tp.outputs[0], ms2.inputs[1])
+            links.new(ms.outputs[0], ms2.inputs[2])
+            links.new(ms2.outputs[0], out.inputs["Surface"])
+            try:
+                m.surface_render_method = "DITHERED"
+            except AttributeError:
+                m.blend_method = "HASHED"
+            m.use_backface_culling = False
+        if m.name == "clay_grass":                       # lawn: colour patches and mown stripes
+            nt = m.node_tree
+            geo = nt.nodes.new("ShaderNodeNewGeometry")
+            nz = nt.nodes.new("ShaderNodeTexNoise")
+            nz.inputs["Scale"].default_value = 0.25
+            nt.links.new(geo.outputs["Position"], nz.inputs["Vector"])
+            wv = nt.nodes.new("ShaderNodeTexWave")
+            wv.inputs["Scale"].default_value = 0.06
+            wv.inputs["Distortion"].default_value = 0.0
+            nt.links.new(geo.outputs["Position"], wv.inputs["Vector"])
+            ramp = nt.nodes.new("ShaderNodeValToRGB")
+            ramp.color_ramp.elements[0].color = (0.07, 0.15, 0.035, 1)
+            ramp.color_ramp.elements[1].color = (0.17, 0.29, 0.07, 1)
+            add = nt.nodes.new("ShaderNodeMath")
+            add.operation = "MULTIPLY_ADD"
+            nt.links.new(wv.outputs["Fac"], add.inputs[0])
+            add.inputs[1].default_value = 0.25
+            nt.links.new(nz.outputs["Fac"], add.inputs[2])
+            nt.links.new(add.outputs[0], ramp.inputs["Fac"])
+            nt.links.new(ramp.outputs["Color"], bsdf.inputs["Base Color"])
+            bsdf.inputs["Roughness"].default_value = 0.95
+            bump = nt.nodes.new("ShaderNodeBump")
+            bump.inputs["Strength"].default_value = 0.15
+            nz2 = nt.nodes.new("ShaderNodeTexNoise")
+            nz2.inputs["Scale"].default_value = 40.0
+            nt.links.new(geo.outputs["Position"], nz2.inputs["Vector"])
+            nt.links.new(nz2.outputs["Fac"], bump.inputs["Height"])
+            nt.links.new(bump.outputs["Normal"], bsdf.inputs["Normal"])
         if m.get("emit"):                                # lit signal aspects
             bsdf.inputs["Emission Color"].default_value = m.diffuse_color
             bsdf.inputs["Emission Strength"].default_value = m["emit"]
@@ -483,7 +578,8 @@ def finished(what, mode, times):
         pick = {c["id"]: c for c in L.CAMERAS + L.HERO_CAMERAS}
         for c in (pick["hero_bridge_hsw"], pick["hero_cathedral"], pick["cam_ann_queen_corner"], pick["cam_queen_st"],
                   pick["hero_spire_facade"], pick["hero_cathedral_west_front"], pick["cam_ann_st_precinct"], pick["hero_spire_roof"],
-                  pick["street_ann_queen"], pick["street_ann_cathedral"]):
+                  pick["street_ann_queen"], pick["street_ann_cathedral"],
+                  pick["hero_spire_green_wall"], pick["hero_cathedral_lawn"]):
             times[c["id"] + "_morning"] = cam_view(c, "morning")
         setup(mode)
 

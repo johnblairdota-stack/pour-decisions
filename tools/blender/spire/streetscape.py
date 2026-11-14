@@ -9,6 +9,7 @@ import layout as L
 import common as C
 
 CAT = os.path.join(L.HERE, "street_catalogue.json")
+SHOW_CARS = False   # John (14 Nov): no cars in the renders
 CAR = {"primary", "secondary", "tertiary", "secondary_link", "tertiary_link", "unclassified", "residential"}
 
 
@@ -72,6 +73,8 @@ def build():
     global unlit
     unlit = C.MeshBuf()
     bins, bollards, cars = C.MeshBuf(), C.MeshBuf(), C.MeshBuf()
+    import foliage as FO
+    shrubs, tufts = FO.Foliage(seed=11), FO.Foliage(seed=12)
     nblade = 0
     poles, heads, banners_b, banners_p, signs, sign_faces, boards, art1, art2, red, white, hedge, plant = (C.MeshBuf() for _ in range(13))
     counts = {}
@@ -272,9 +275,13 @@ def build():
         hedge.prism(ring, z, z + 0.15)                                    # kerbed island, mulch top
         cx_ = sum(p[0] for p in ring) / 4
         cy_ = sum(p[1] for p in ring) / 4
-        for i in range(14):                                               # low hedge + shrubs
+        for i in range(16):                                               # shrubs + lomandra tufts (leaf cards)
             a, rr = i * 2.4, 0.15 + 0.6 * ((i * 37) % 10) / 10
-            plant.box(cx_ + math.cos(a) * rr * 7, cy_ + math.sin(a) * rr * 9, z + 0.15, 1.2, 1.2, 0.45 + 0.25 * (i % 3), a)
+            sx_, sy_ = cx_ + math.cos(a) * rr * 7, cy_ + math.sin(a) * rr * 9
+            if i % 3 == 0:
+                tufts.tufts((sx_, sy_, z + 0.15), 0.6, 30, 0.7)
+            else:
+                shrubs.cloud((sx_, sy_, z + 0.6), (0.9, 0.9, 0.55), 40, 0.45, shell=0.5, top_bias=0.4)
         for px, py in isl["palms"]:
             poles.box(px, py, z, 0.35, 0.35, 8.0)
             for k in range(7):
@@ -289,7 +296,7 @@ def build():
         elif it["kind"] == "bollards":
             for k in range(it.get("n", 4)):
                 bollards.box(x + math.cos(ang) * 1.4 * k, y + math.sin(ang) * 1.4 * k, g, 0.18, 0.18, 0.95)
-        elif it["kind"] == "cars":
+        elif it["kind"] == "cars" and SHOW_CARS:
             for k in range(it.get("n", 3)):
                 cx2, cy2 = x + math.cos(ang) * 6.0 * k, y + math.sin(ang) * 6.0 * k
                 gz = L.ground_z(cx2, cy2) + 0.05
@@ -300,8 +307,14 @@ def build():
         sx, sy, sz = pl["size"]
         g = L.ground_z(x, y) + L.KERB_HEIGHT
         boards.box(x, y, g, sx, sy, sz)
-        plant.box(x, y, g + sz, sx * 0.9, sy * 0.8, 0.6)
+        for k in range(3):
+            shrubs.cloud((x - sx / 3 + k * sx / 3, y, g + sz + 0.35), (sx / 5, sy / 2.5, 0.4), 30, 0.4, shell=0.5)
     objs = []
+    for fo, name, rgb, rgb2 in ((shrubs, "shrubs", (0.05, 0.12, 0.04), (0.14, 0.26, 0.08)),
+                                (tufts, "lomandra", (0.10, 0.18, 0.06), (0.22, 0.32, 0.10))):
+        ob = fo.object("street_" + name, col, rgb, rgb2)
+        if ob:
+            objs.append(ob.name)
     mats = {"poles": (0.55, 0.57, 0.58), "heads": (0.20, 0.21, 0.22), "banners_b": (0.10, 0.35, 0.75),
             "banners_p": (0.85, 0.25, 0.55), "signs": (0.92, 0.92, 0.90), "sign_faces": (0.10, 0.45, 0.25),
             "boards": (0.15, 0.15, 0.16), "art1": (0.25, 0.65, 0.80), "art2": (0.80, 0.42, 0.12),

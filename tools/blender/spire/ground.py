@@ -38,7 +38,28 @@ def build():
     dzx = np.abs(sub[:-1, 1:] - sub[:-1, :-1]) / STEP
     dzy = np.abs(sub[1:, :-1] - sub[:-1, :-1]) / STEP
     steep = (np.degrees(np.arctan(np.hypot(dzx, dzy))) > ROCK_SLOPE).ravel().astype("i4")
-    ob.data.polygons.foreach_set("material_index", steep)
+    # step 7f: grass where OSM has parks, gardens, lawns (and not too steep)
+    import prep_lidar as PL
+    mask = np.zeros(g.shape, bool)
+    o = L.osm()
+    grass_tags = {("leisure", "park"), ("leisure", "garden"), ("landuse", "grass"), ("leisure", "pitch"),
+                  ("landuse", "religious"), ("natural", "scrub")}
+    for w in o["ways"].values():
+        t = w.get("tags", {})
+        if not any((k, t.get(k)) in grass_tags for k, _ in grass_tags):
+            continue
+        ring = o["line"](w)
+        if len(ring) < 3:
+            continue
+        m_, r0, c0 = PL.ring_mask(ring, L.LIDAR_BOX)
+        if m_ is not None:
+            mask[r0:r0 + m_.shape[0], c0:c0 + m_.shape[1]] |= m_
+    cls = L.lidar("class")
+    mask &= (cls != 3)                                       # no grass on roofs
+    gm = mask[np.ix_(rows, cols)][:-1, :-1].ravel()
+    ob.data.materials.append(C.material("grass"))
+    mi = np.where(steep > 0, 1, np.where(gm, 2, 0)).astype("i4")
+    ob.data.polygons.foreach_set("material_index", mi)
     ob.data.shade_smooth()
     w = C.mesh_object("river_water", [(x0, y0, L.RIVER_LEVEL_AHD), (x1, y0, L.RIVER_LEVEL_AHD),
                                        (x1, y1, L.RIVER_LEVEL_AHD), (x0, y1, L.RIVER_LEVEL_AHD)],

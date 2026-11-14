@@ -345,6 +345,10 @@ HERO_CAMERAS.append({"id": "street_ann_queen", "pos": (62.0, 96.0, 1.6), "look_a
                      "lens_mm": 24.0, "portrait": False, "note": "Ann/Queen/Boundary junction at eye height, looking SW"})
 HERO_CAMERAS.append({"id": "street_ann_cathedral", "pos": (-52.0, -10.0, 1.6), "look_at": (-110.0, -60.0, 3.0),
                      "lens_mm": 24.0, "portrait": False, "note": "Ann St outside the cathedral at eye height, looking SW"})
+HERO_CAMERAS.append({"id": "hero_spire_green_wall", "pos": (52.0, 10.0, 1.7), "look_at": (20.0, 2.0, 9.0),
+                     "lens_mm": 24.0, "portrait": True, "shift_y": 0.15, "note": "Queen St kerb: Spire podium battens and green wall"})
+HERO_CAMERAS.append({"id": "hero_cathedral_lawn", "pos": (-128.0, -40.0, 1.7), "look_at": (-95.0, -78.0, 6.0),
+                     "lens_mm": 24.0, "portrait": False, "note": "Ann St edge of the cathedral lawn, looking at the west front"})
 HERO_CAMERAS.append({"id": "hero_spire_facade", "pos": (-62.0, 38.0, 24.0), "look_at": (-4.0, 6.0, 45.0),
                      "lens_mm": 35.0, "portrait": True,
                      "photo": "my_photos/spire/Spire-Residences street view Ann st 1.jpg + fly-by photos",
