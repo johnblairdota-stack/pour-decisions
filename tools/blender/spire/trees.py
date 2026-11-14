@@ -181,6 +181,45 @@ def build():
                 leaves["generic"].cloud((x, y, g + h - r), (r, r, r * 0.85), int(5 * (70 + 8 * r * r)), 0.32, shell=0.4, top_bias=0.2)
             else:
                 crown(crowns, x, y, g + h - r, r, 0.85, 4)
+    # canopy fill: every 4 m block of LiDAR vegetation with no placed crown nearby gets one
+    import numpy as np
+    cls = L.lidar("class")
+    hgt = L.lidar("dsm") - L.lidar("ground")
+    gnd = L.lidar("ground")
+    x0, y0, x1, y1 = L.LIDAR_BOX
+    veg = (cls == 2) & (hgt > 0.8)
+    placed = np.array([(x, y) for x, y, h, g in L.tree_points() if 3 <= h <= 40] or [(1e9, 1e9)])
+    nfill = nshrub = 0
+    for r0 in range(0, veg.shape[0] - 4, 4):
+        for c0 in range(0, veg.shape[1] - 4, 4):
+            blk = veg[r0:r0 + 4, c0:c0 + 4]
+            if blk.sum() < 6:
+                continue
+            x = x0 + c0 + 2.0
+            y = y1 - r0 - 2.0
+            if abs(x) > 420 or abs(y) > 420:
+                continue
+            h = float(np.percentile(hgt[r0:r0 + 4, c0:c0 + 4][blk], 80))
+            g = float(gnd[r0 + 2, c0 + 2])
+            if np.min(np.hypot(placed[:, 0] - x, placed[:, 1] - y)) < max(3.0, 0.3 * h):
+                continue
+            near = hero(x, y)
+            if h < 3.0:                                                      # shrubs and hedges
+                if near:
+                    leaves["generic"].cloud((x, y, g + h * 0.55), (2.0, 2.0, h * 0.55), 160, 0.28, shell=0.3, top_bias=0.3)
+                else:
+                    blob(crowns, x, y, g + h * 0.5, 2.0, h * 0.5)
+                nshrub += 1
+            else:
+                r = min(3.2, 0.3 * h + 1.0)
+                trunk(trunks, x, y, g, 0.18, max(0.5, h - 1.6 * r), 2, r * 0.5)
+                if near:
+                    leaves["generic"].cloud((x, y, g + h - r), (r, r, r * 0.8), int(5 * (40 + 8 * r * r)), 0.32, shell=0.4, top_bias=0.2)
+                else:
+                    crown(crowns, x, y, g + h - r, r, 0.85, 3)
+                nfill += 1
+    count["canopy_fill_trees"] = nfill
+    count["canopy_fill_shrubs"] = nshrub
     objs = []
     fl = C.MeshBuf()
     for x, y, z, r in flowers:

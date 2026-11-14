@@ -307,9 +307,10 @@ def build():
         objs += queen_st_podium(col, lot, ground_min, top_podium)
         sb = C.MeshBuf()
         for lo, hi in zip(levels[:-1], levels[1:]):
-            if lo["kind"] in ("ground", "podium"):
+            if lo["kind"] == "ground" or (lo["kind"] == "podium" and hi["kind"] == "podium"):
                 continue
-            sb.prism(inset(plate, 1.4), lo["top_ahd"], hi["top_ahd"] - hi["slab_m"])      # glass line behind balconies
+            inset_m = 0.2 if hi["kind"] == "transfer" else 1.4                     # L5->L6: flush, no dark recess
+            sb.prism(inset(plate, inset_m), lo["top_ahd"] - 0.05, hi["top_ahd"] - hi["slab_m"] + 0.02)
         objs.append(sb.object("SPIRE_storeys", col, "spire_glass").name)
         top = levels[-1]["top_ahd"]
         pp = C.MeshBuf()

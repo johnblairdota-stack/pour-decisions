@@ -80,12 +80,64 @@
    31.0,
    38.0,
    17.86
+  ],
+  "customs_dome": [
+   31.0,
+   -263.0,
+   38.0
+  ],
+  "bridge_peak_n": [
+   490.12,
+   72.82,
+   80.0
+  ],
+  "bridge_peak_s": [
+   487.79,
+   -207.17,
+   80.0
+  ],
+  "bridge_pier_n_deck": [
+   490.12,
+   72.82,
+   34.5
+  ],
+  "bridge_pier_s_deck": [
+   487.79,
+   -207.17,
+   34.5
+  ],
+  "bridge_anchor_s_deck": [
+   486.63,
+   -347.17,
+   33.0
+  ],
+  "bridge_anchor_n_w": [
+   480.78,
+   212.9,
+   42.0
+  ],
+  "bridge_anchor_n_e": [
+   501.78,
+   212.73,
+   42.0
+  ],
+  "bridge_portal_n_w": [
+   479.62,
+   72.91,
+   80.0
+  ],
+  "bridge_portal_n_e": [
+   500.62,
+   72.73,
+   80.0
   ]
  },
  "cams": [
   {
    "id": "aerial_ne_dusk",
    "file": "Spire-Residences-4.jpg",
+   "src_dir": "",
+   "credit": {},
    "date": "2020-02-20",
    "stage": "as_built",
    "size": [
@@ -125,6 +177,8 @@
   {
    "id": "cathedral_forecourt",
    "file": "Spire-Residences-5.jpg",
+   "src_dir": "",
+   "credit": {},
    "date": "2020-02-20",
    "stage": "as_built",
    "size": [
@@ -163,6 +217,8 @@
   {
    "id": "fly_by_east",
    "file": "Spire-Residences fly by view.jpg",
+   "src_dir": "",
+   "credit": {},
    "date": "",
    "stage": "as_built",
    "size": [
@@ -201,6 +257,8 @@
   {
    "id": "ann_queen_corner",
    "file": "Spire-Residences opposite corner intersection of Ann and Queen st.jpg",
+   "src_dir": "",
+   "credit": {},
    "date": "2017-10-24",
    "stage": "as_built",
    "size": [
@@ -238,6 +296,8 @@
   {
    "id": "ann_st_far",
    "file": "Spire-Residences futher away on ann st.jpg",
+   "src_dir": "",
+   "credit": {},
    "date": "",
    "stage": "as_built",
    "size": [
@@ -276,6 +336,8 @@
   {
    "id": "queen_st_willahra",
    "file": "Spire-Residences street view.jpg",
+   "src_dir": "",
+   "credit": {},
    "date": "2019-11-25",
    "stage": "as_built",
    "size": [
@@ -312,6 +374,8 @@
   {
    "id": "orient_front",
    "file": "Spire-Residences street view 2.jpg",
+   "src_dir": "",
+   "credit": {},
    "date": "2026-08-22",
    "stage": "as_built",
    "size": [
@@ -350,76 +414,20 @@
    "file": "Spire-Residences street view 3.jpg",
    "date": "2025-09-08",
    "stage": "as_built",
-   "size": [
-    384,
-    510
-   ],
-   "mode": "tilt",
-   "pos": [
-    -394.1,
-    -217.7,
-    15.6
-   ],
-   "eye_above_ground_m": 2.5,
-   "heading_deg": 61.7,
-   "pitch_deg": 10.57,
-   "roll_deg": 0.0,
-   "focal_35mm": 131.2,
-   "blender": {
-    "lens_mm": 136.61,
-    "sensor_mm": 36.0,
-    "shift_y": -0.0
-   },
-   "marks": 3,
-   "fit_rms_px": 5.8,
-   "fit_max_px": 8.1,
-   "per_mark_px": {
-    "spire_top": 5.1,
-    "cath_spire_n": 3.1,
-    "cath_spire_s": 8.1
-   },
-   "confidence": "low",
-   "note": ""
+   "skip": "pose not trustworthy: 3 landmarks, telephoto from an unknown spot; render did not match (John, 14 Nov)"
   },
   {
    "id": "queen_st_podium",
    "file": "Spire-Residences street view 4.jpg",
    "date": "2020-11-26",
    "stage": "as_built",
-   "size": [
-    382,
-    510
-   ],
-   "mode": "tilt",
-   "pos": [
-    80.8,
-    -5.7,
-    16.2
-   ],
-   "eye_above_ground_m": 3.2,
-   "heading_deg": 272.7,
-   "pitch_deg": 14.67,
-   "roll_deg": 0.0,
-   "focal_35mm": 13.9,
-   "blender": {
-    "lens_mm": 14.45,
-    "sensor_mm": 36.0,
-    "shift_y": -0.0
-   },
-   "marks": 3,
-   "fit_rms_px": 7.3,
-   "fit_max_px": 9.3,
-   "per_mark_px": {
-    "spire_top": 9.3,
-    "spire_tower_base": 8.3,
-    "orient_top": 1.2
-   },
-   "confidence": "low",
-   "note": ""
+   "skip": "pose not trustworthy: 3 landmarks, strongly distorted ultra-wide phone shot; render did not match (John, 14 Nov)"
   },
   {
    "id": "crane_from_south",
    "file": "Spire-Residences construction site fly by almost complete with crane placement 2.jpg",
+   "src_dir": "",
+   "credit": {},
    "date": "2017",
    "stage": "2017_top",
    "size": [
@@ -456,6 +464,8 @@
   {
    "id": "crane_from_nw",
    "file": "Spire-Residences construction site fly by almost complete with crane placement 3.jpg",
+   "src_dir": "",
+   "credit": {},
    "date": "2017",
    "stage": "2017_top",
    "size": [

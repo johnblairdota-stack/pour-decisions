@@ -150,10 +150,10 @@
   {
    "id": "orient_roof",
    "xy": [
-    17,
-    44
+    9,
+    31
    ],
-   "base_ahd": 31.5,
+   "base_ahd": 32.2,
    "size": [
     9.0,
     3.2
@@ -168,18 +168,19 @@
     "orient_front",
     "ann_st_far",
     "fly_by_east"
-   ]
+   ],
+   "note": "raised over the Orient's rear roof, toward Spire (Ann St photos)"
   },
   {
-   "id": "mantra_corner",
+   "id": "queen576_facade",
    "xy": [
-    32,
-    93
+    25.6,
+    95.6
    ],
-   "base_above_ground": 6.0,
+   "base_above_ground": 4.5,
    "size": [
-    11.0,
-    3.6
+    10.0,
+    3.4
    ],
    "face_to": [
     92,
@@ -188,7 +189,9 @@
    "art": "warm_dark",
    "photos": [
     "ann_queen_corner"
-   ]
+   ],
+   "note": "on the east face of 576 Queen St, right of the Orient (Ann/Queen corner photo); lit",
+   "lit": true
   }
  ],
  "lane_markings": {

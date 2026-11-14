@@ -143,6 +143,13 @@ def dress(rec, bf, ring, ground, z0, top, first, last, lines, glass_rail):
             ang = math.atan2(by - ay, bx - ax)
             nx, ny = math.sin(ang), -math.cos(ang)
             bf.roof.box(mx + nx * 1.5, my + ny * 1.5, ground + 3.4, ln, 2.8, 0.2, ang)
+    if first and rec.get("skirt_roof") and top - ground > 7:                 # tier roof between L1 and L2 (Orient)
+        a = offset(ring, 0.0)
+        b = offset(ring, 1.5)
+        n = len(ring)
+        verts = [(x, y, ground + 7.9) for x, y in a] + [(x, y, ground + 7.2) for x, y in b]
+        bf.accent.add(verts, [[i, (i + 1) % n, n + (i + 1) % n, n + i] for i in range(n)])
+        bf.accent.prism(b, ground + 7.0, ground + 7.2)                       # fascia
     if first and rec.get("verandah") and top - ground < 14:
         ver = offset(ring, 2.4)
         for zz in (ground + 3.6, ground + 7.0):

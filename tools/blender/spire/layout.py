@@ -684,7 +684,7 @@ def lidar(name):
         if key not in _cache:
             g = lidar("ground").copy()
             cl = lidar("class")
-            wet = ((cl == 0) | (cl == 4)) & (g < 3.0)      # no return, or under the bridge deck
+            wet = (((cl == 0) | (cl == 4)) & (g < 3.0)) | (g < 1.0)   # no return / under the bridge / below 1 m AHD
             g[wet] = np.minimum(g[wet], RIVER_LEVEL_AHD - 2.0)
             smooth = box_blur(box_blur(g, 2), 2)
             # step 7a: keep the cliffs crisp - where the raw ground is steeper than 50 deg use a light blur only

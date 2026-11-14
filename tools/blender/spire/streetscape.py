@@ -262,7 +262,14 @@ def build():
         t = w.get("tags", {})
         if t.get("name") != bl["street"] or t.get("highway") not in CAR:
             continue
-        pts = C.densify(o["line"](w), 3.0)
+        raw = o["line"](w)
+        if len(raw) >= 2:
+            (ax, ay), (bx, by) = raw[0], raw[1]
+            (cx, cy), (dx, dy) = raw[-2], raw[-1]
+            l1 = math.hypot(bx - ax, by - ay) or 1
+            l2 = math.hypot(dx - cx, dy - cy) or 1
+            raw = [(ax - (bx - ax) / l1 * 8, ay - (by - ay) / l1 * 8)] + raw + [(dx + (dx - cx) / l2 * 8, dy + (dy - cy) / l2 * 8)]
+        pts = C.densify(raw, 3.0)
         if not any(math.hypot(*p) < 350 for p in pts) or len(pts) < 2:
             continue
         wd = road_width(t)
@@ -389,6 +396,8 @@ def build():
         ob = buf.object("street_" + name, col, "roof")
         if ob:
             ob.data.materials[0] = C.material_rgb("street_" + name, mats[name])
+            if name == "art2":
+                ob.data.materials[0]["emit"] = 1.2                      # lit digital billboard
             objs.append(ob.name)
     if offenders:
         print("streetscape: %d items kept off the road:" % len(offenders))

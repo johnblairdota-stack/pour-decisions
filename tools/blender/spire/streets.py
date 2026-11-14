@@ -80,6 +80,22 @@ def _strip(buf, seg, w, z_lift):
     buf.add(verts, [[i, n + i, n + i + 1, i + 1] for i in range(n - 1)])
 
 
+def on_other_road(pt, me, car_ways, o, pad=0.2):
+    x, y = pt
+    for w in car_ways:
+        if w is me:
+            continue
+        P = o["line"](w)
+        hw = road_width(w["tags"])[0] / 2
+        for (ax, ay), (bx, by) in zip(P[:-1], P[1:]):
+            dx, dy = bx - ax, by - ay
+            l2 = dx * dx + dy * dy or 1.0
+            k = max(0.0, min(1.0, ((x - ax) * dx + (y - ay) * dy) / l2))
+            if math.hypot(ax + dx * k - x, ay + dy * k - y) < hw + pad:
+                return True
+    return False
+
+
 def kerb_band(buf, inner, outer):
     """Footpath band: top at kerb height, with a kerb face down to the road along `inner`."""
     n = len(inner)
@@ -155,8 +171,17 @@ def build():
         if len(core) < 2 or C.line_length(core) < 2:
             continue
         for side in (1, -1):
+            fw = L.FOOTPATH_WIDTH
+            probe = C.offset_line(core, side * (wd / 2 + 0.5))
+            mid = probe[len(probe) // 2]
+            if on_other_road(mid, w, car_ways, o):                         # median on a divided road
+                for d in (0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5):
+                    pp = C.offset_line(core, side * (wd / 2 + d))[len(core) // 2]
+                    if on_other_road(pp, w, car_ways, o):
+                        fw = max(0.4, d / 2 if d < 3.5 else d - 0.5)
+                        break
             inner = C.offset_line(core, side * wd / 2)
-            outer = C.offset_line(core, side * (wd / 2 + L.FOOTPATH_WIDTH))
+            outer = C.offset_line(core, side * (wd / 2 + fw))
             if side < 0:
                 inner, outer = inner[::-1], outer[::-1]
             kerb_band(paths, inner, outer)
@@ -173,6 +198,38 @@ def build():
             n_walk += 1
     objs = [ob.name for ob in (roads.object("roads", col, "road"), paths.object("footpaths_kerbs", col, "footpath"),
                                walks.object("footways", col, "footway"), lines.object("line_marking", col, "line")) if ob]
+    import shapes as S
+    park, bays = C.MeshBuf(), C.MeshBuf()
+    npark = 0
+    for w in o["ways"].values():
+        t = w.get("tags", {})
+        if t.get("amenity") != "parking" or t.get("parking") in ("underground", "multi-storey") or "building" in t:
+            continue
+        ring = S.ccw(C.clean_ring(o["line"](w)))
+        if len(ring) < 3 or not C.in_lidar(*ring[0]):
+            continue
+        z = min(L.ground_z(x, y) for x, y in ring)
+        park.prism(ring, z - 0.3, z + 0.07)                                  # asphalt slab with a kerbed edge
+        cx, cy, ln, wd_, ang = S.min_rect(ring)
+        ux, uy = math.cos(ang), math.sin(ang)
+        vx, vy = -uy, ux
+        for row in (-1, 1):                                                  # two rows of 5 m bays, 2.6 m wide
+            v = row * (wd_ / 2 - 2.5)
+            if wd_ < 8:
+                v = 0
+            k = int(ln // 2.6)
+            for j in range(k + 1):
+                u = -ln / 2 + j * ln / max(k, 1)
+                px, py = cx + ux * u + vx * v, cy + uy * u + vy * v
+                if not S.point_in(px, py, ring):
+                    continue
+                bays.box(px, py, z + 0.07, 0.1, 5.0, 0.008, ang + math.pi / 2)
+        npark += 1
+    for buf, name, rgb in ((park, "car_parks", (0.05, 0.05, 0.055)), (bays, "car_park_bay_lines", (0.89, 0.89, 0.86))):
+        ob = buf.object(name, col, "road")
+        if ob:
+            ob.data.materials[0] = C.material_rgb(name, rgb)
+            objs.append(ob.name)
     og = GUTTER.object("kerb_gutter", col, "road")
     if og:
         og.data.materials[0] = C.material_rgb("kerb_gutter", (0.10, 0.09, 0.08))
