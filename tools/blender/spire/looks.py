@@ -38,6 +38,9 @@ LOOKS = {
     186586595: {"name": "Orient Hotel (560 Queen St)", "src": "Google: Orient Hotel Ann Street Queen Street Brisbane",
                 "shader": "render", "wall": hx("e3d1a2"), "roof": hx("6b8585"), "glass": hx("2c3038"),
                 "pattern": "punched", "skirt_roof": True, "awning": True},
+    236155563: {"name": "Lawler building (501 Ann St)", "src": "Ann/Queen corner photo: white rendered front, tall punched windows",
+                "shader": "render", "wall": hx("f1efe8"), "roof": hx("d9d7d0"), "glass": hx("2a2f36"),
+                "pattern": "punched", "pilasters": True, "cornice": True},
     # ---------------------------------------------------------------- Queen St towers
     26253098: {"name": "Willahra Tower", "src": SHEET, "shader": "glass", "wall": hx("f2f1ec"), "glass": hx("6f8496"),
                "roof": hx("e6e5e0"), "pattern": "balcony", "band": hx("f4f3ee"), "balcony": "white_solid",

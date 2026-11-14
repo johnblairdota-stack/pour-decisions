@@ -183,6 +183,21 @@ def toppers(rec, bf, ring, top):
         bf.roof.prism(offset(ring, 0.1), top + 5.6, top + 6.0)
 
 
+ROUNDED = {26253098, 26386543, 26386571}          # Willahra, Admiralty Towers II and I (step 7j)
+
+
+def round_ring(ring, eps=1.6, it=3):
+    r = S.simplify(ring, eps) if len(ring) > 6 else ring
+    for _ in range(it):
+        n = len(r)
+        out = []
+        for i in range(n):
+            (ax, ay), (bx, by) = r[i], r[(i + 1) % n]
+            out += [(0.75 * ax + 0.25 * bx, 0.75 * ay + 0.25 * by), (0.25 * ax + 0.75 * bx, 0.25 * ay + 0.75 * by)]
+        r = out
+    return S.ccw(r)
+
+
 _ROOFS = json.load(open(os.path.join(L.HERE, "street_catalogue.json"), encoding="utf-8"))["roofs"]
 
 
@@ -214,11 +229,32 @@ def roof_override(osm, bf, ring, top, ground):
     if shape == "swoosh":
         cx = sum(p[0] for p in ring) / len(ring)
         cy = sum(p[1] for p in ring) / len(ring)
-        for p in sorted(ring, key=lambda p: -math.dist(p, (cx, cy)))[:2]:
-            for k in range(6):                                           # blue fin sweeping out and up
-                f = k / 5
-                bf.accent.box(p[0] + (p[0] - cx) * 0.45 * f * f, p[1] + (p[1] - cy) * 0.45 * f * f, top - 24 + 24 * f,
-                              1.4, 1.4, 4.4)
+        far = sorted(ring, key=lambda p: -math.dist(p, (cx, cy)))
+        ends = [far[0], max(ring, key=lambda p: math.dist(p, far[0]))]   # the two opposite ends
+        for p in ends:                                                   # one sweeping fin per end (photos)
+            dx, dy = p[0] - cx, p[1] - cy
+            l = math.hypot(dx, dy) or 1.0
+            nx, ny = dx / l, dy / l
+            tx, ty = -ny, nx
+            secs = []
+            N = 16
+            for k in range(N + 1):
+                f = k / N
+                z = top - 58.0 + 66.0 * f
+                out = 1.2 + 9.0 * f ** 2.4                               # outer edge flares out near the top
+                i0, i1 = -0.5, out                                       # plate in the radial plane, from the wall out
+                secs.append([(p[0] + nx * i0 - tx * 0.35, p[1] + ny * i0 - ty * 0.35, z),
+                             (p[0] + nx * i1 - tx * 0.35, p[1] + ny * i1 - ty * 0.35, z),
+                             (p[0] + nx * i1 + tx * 0.35, p[1] + ny * i1 + ty * 0.35, z),
+                             (p[0] + nx * i0 + tx * 0.35, p[1] + ny * i0 + ty * 0.35, z)])
+            verts = [v for s in secs for v in s]
+            faces = []
+            for k in range(N):
+                a0, b0 = 4 * k, 4 * (k + 1)
+                for j in range(4):
+                    faces.append([a0 + j, a0 + (j + 1) % 4, b0 + (j + 1) % 4, b0 + j])
+            faces += [[3, 2, 1, 0], [4 * N, 4 * N + 1, 4 * N + 2, 4 * N + 3]]
+            bf.accent.add(verts, faces)
     if r.get("plant") or shape in ("crown_ring", "swoosh", "flat"):
         cx = sum(p[0] for p in ring) / len(ring)
         cy = sum(p[1] for p in ring) / len(ring)
@@ -261,6 +297,8 @@ def build(zone=None, collection="buildings", skip_zone=HSW_ZONE, exclude=(), onl
         tiers = b["tiers"]
         for k, t in enumerate(tiers):
             ring = S.ccw([tuple(p) for p in t["ring"]])
+            if b["osm"] in ROUNDED:
+                ring = round_ring(ring)
             z0 = base if k == 0 else max(lower - 0.2, base)
             top = t["top_ahd"] + lift
             if cut:

@@ -83,11 +83,46 @@ class Cath:
         put(arch_pts(w, z0, z1), 0.09, key)
 
     def pinnacle(self, u, v, z, h=3.0, r=0.45):
+        """Gabled pinnacle (photos): square shaft, a small gable on each face, then a tall crocketed spike."""
         x, y, zz = self.P(u, v, z)
-        self.b["dress"].box(x, y, zz, 2 * r, 2 * r, h * 0.35, self.ang)
-        ring = [(x + r * math.cos(self.ang + math.pi / 4 + k * math.pi / 2), y + r * math.sin(self.ang + math.pi / 4 + k * math.pi / 2),
-                 zz + h * 0.35) for k in range(4)]
-        self.b["dress"].add(ring + [(x, y, zz + h)], [[k, (k + 1) % 4, 4] for k in range(4)])
+        sh = h * 0.38
+        self.b["dress"].box(x, y, zz, 2 * r, 2 * r, sh, self.ang)
+        gz, gh = zz + sh, r * 1.3
+        for k in range(4):                                               # gablets on the four faces
+            a = self.ang + k * math.pi / 2
+            ox, oy = math.cos(a), math.sin(a)
+            px, py = -oy, ox
+            p0 = (x + ox * r + px * r, y + oy * r + py * r, gz)
+            p1 = (x + ox * r - px * r, y + oy * r - py * r, gz)
+            p2 = (x + ox * r, y + oy * r, gz + gh)
+            q2 = (x, y, gz + gh)
+            self.b["dress"].add([p0, p1, p2], [[0, 1, 2], [2, 1, 0]])
+            self.b["dress"].add([p0, p2, q2, (x + px * r, y + py * r, gz + gh * 0.5)], [[0, 1, 2, 3]])
+            self.b["dress"].add([p1, p2, q2, (x - px * r, y - py * r, gz + gh * 0.5)], [[3, 2, 1, 0]])
+        n = 8
+        rr = r * 0.8
+        ring = [(x + rr * math.cos(self.ang + math.pi / 8 + k * math.pi / 4), y + rr * math.sin(self.ang + math.pi / 8 + k * math.pi / 4),
+                 gz + gh * 0.4) for k in range(n)]
+        self.b["dress"].add(ring + [(x, y, zz + h)], [[k, (k + 1) % n, n] for k in range(n)])
+
+    def arch_frame(self, uplane, c, w, z0, z1, t, out, key="dress"):
+        """A moulded arch order: strip between an outer and an inner pointed arch, on the plane u = uplane."""
+        def line(wd):
+            pts = [(-wd / 2, z0), (-wd / 2, z1)]
+            apex = z1 + 0.85 * wd
+            for k in range(1, 7):
+                s = k / 7
+                pts.append((-wd / 2 * math.cos(s * math.pi / 2), z1 + (apex - z1) * math.sin(s * math.pi / 2)))
+            pts.append((0.0, apex))
+            pts += [(-a, z) for a, z in reversed(pts[1:-1])]
+            return pts + [(wd / 2, z0)]
+        A, Bn = line(w), line(w - 2 * t)
+        vs = [self.P(uplane, c + a, z) for a, z in A] + [self.P(uplane, c + a, z) for a, z in Bn]
+        n = len(A)
+        faces = [[i, i + 1, n + i + 1, n + i] for i in range(n - 1)]
+        if out < 0:
+            faces = [f[::-1] for f in faces]
+        self.b[key].add(vs, faces)
 
     def octagon(self, key, u, v, r, z0, z1):
         ring = [self.xy(u + r * math.cos(math.pi / 8 + k * math.pi / 4), v + r * math.sin(math.pi / 8 + k * math.pi / 4))
@@ -193,10 +228,11 @@ def build():
                     K.lancet(True, a0, ub + d * 0.8, 0.8, aisle_top + 3.0, eave - 1.6, s)    # clerestory pair
             bu = ub + BAY / 2
             if bu < nu1 - 0.5:
-                x0 = a1 + s * 0.7
-                K.block("dress", bu - 0.6, bu + 0.6, x0 - 0.7, x0 + 0.7, -0.3, aisle_top - 1.5)
-                K.block("dress", bu - 0.45, bu + 0.45, x0 - 0.45, x0 + 0.45, aisle_top - 1.5, aisle_top + 1.2)
-                K.pinnacle(bu, x0, aisle_top + 1.2, 3.2, 0.45)
+                x0 = a1 + s * 1.0                                              # thick buttress, three stepped offsets
+                K.block("dress", bu - 0.8, bu + 0.8, x0 - 1.0, x0 + 1.0, -0.3, aisle_top * 0.4)
+                K.block("dress", bu - 0.7, bu + 0.7, x0 - 0.75 - s * 0.25, x0 + 0.75 - s * 0.25, aisle_top * 0.4, aisle_top * 0.75)
+                K.block("dress", bu - 0.6, bu + 0.6, x0 - 0.5 - s * 0.5, x0 + 0.5 - s * 0.5, aisle_top * 0.75, aisle_top + 1.2)
+                K.pinnacle(bu, x0 - s * 0.5, aisle_top + 1.2, 4.0, 0.55)
                 K.b["dress"].beam(K.P(bu, x0, aisle_top + 0.8), K.P(bu, a0 + s * 0.2, eave - 2.0), 0.45)   # flying buttress
     # ------------------------------------------------------------ apse at the east end
     r = nave_w / 2
@@ -233,10 +269,8 @@ def build():
         K.block("stone", tu - ts / 2, tu + ts / 2, tv - ts / 2, tv + ts / 2, -0.5, sq_top)
         for du in (-1, 1):                                              # angle buttresses stepping in
             for dv in (-1, 1):
-                K.block("dress", tu + du * ts / 2 - 0.6, tu + du * ts / 2 + 0.6, tv + dv * ts / 2 - 0.6, tv + dv * ts / 2 + 0.6,
-                        -0.3, sq_top * 0.6)
-                K.block("dress", tu + du * ts / 2 - 0.4, tu + du * ts / 2 + 0.4, tv + dv * ts / 2 - 0.4, tv + dv * ts / 2 + 0.4,
-                        sq_top * 0.6, sq_top - 0.5)
+                for z0_, z1_, hw_ in ((-0.3, sq_top * 0.35, 1.0), (sq_top * 0.35, sq_top * 0.7, 0.8), (sq_top * 0.7, sq_top - 0.5, 0.6)):
+                    K.block("dress", tu + du * ts / 2 - hw_, tu + du * ts / 2 + hw_, tv + dv * ts / 2 - hw_, tv + dv * ts / 2 + hw_, z0_, z1_)
         K.octagon("stone", tu, tv, ts * 0.52, sq_top, oct_top)
         for s in (-1, 1):                                               # tall paired belfry lancets
             for d in (-0.7, 0.7):
@@ -244,9 +278,9 @@ def build():
                 K.lancet(False, tu + s * ts * 0.48, tv + d, 0.9, sq_top + 1.2, oct_top - 2.5, s)
         for du in (-1, 1):                                              # step 7b: round corner turrets with cone caps
             for dv in (-1, 1):
-                K.octagon("stone", tu + du * ts * 0.48, tv + dv * ts * 0.48, 0.9, sq_top - 4.0, oct_top + 1.0)
+                K.octagon("stone", tu + du * ts * 0.48, tv + dv * ts * 0.48, 1.25, sq_top - 4.0, oct_top + 1.0)
                 x_, y_, _ = K.P(tu + du * ts * 0.48, tv + dv * ts * 0.48, 0)
-                ring_ = [(x_ + 1.0 * math.cos(k * math.pi / 4), y_ + 1.0 * math.sin(k * math.pi / 4), g + oct_top + 1.0) for k in range(8)]
+                ring_ = [(x_ + 1.35 * math.cos(k * math.pi / 4), y_ + 1.35 * math.sin(k * math.pi / 4), g + oct_top + 1.0) for k in range(8)]
                 K.b["dress"].add(ring_ + [(x_, y_, g + oct_top + 6.0)], [[k, (k + 1) % 8, 8] for k in range(8)])
         K.spire(tu, tv, ts * 0.36, oct_top, top)
         tower_meta.append({"uv": [round(tu, 1), round(tv, 1)], "spire_top_m": round(top, 1), "octagon_from_m": round(sq_top, 1)})
@@ -257,9 +291,31 @@ def build():
     K.block("stone", ub0, ub1, -fw / 2, fw / 2, -0.5, eave)
     K.gable_roof("tile", ub0, ub1, -fw / 2 - 0.3, fw / 2 + 0.3, eave)
     K.gable_end("stone", uw, -fw / 2, fw / 2, eave, eave + math.tan(PITCH) * (fw / 2 + 0.3), west)
-    for dv, w_, h_ in ((-fw * 0.3, 2.2, 4.4), (0.0, 3.0, 5.4), (fw * 0.3, 2.2, 4.4)):           # three deep portals
-        K.lancet(False, uw, dv, w_ + 1.4, 0.0, h_, west, frame=False, key="dress")
-        K.lancet(False, uw + west * 0.06, dv, w_, 0.0, h_ - 0.3, west, frame=False)
+    for dv, w_, h_ in ((-fw * 0.3, 2.2, 4.4), (fw * 0.3, 2.2, 4.4)):                        # side portals, two orders
+        for k in range(2):
+            K.arch_frame(uw + west * (0.5 - 0.35 * k), dv, w_ + 1.2 - 0.6 * k, 0.0, h_ - 0.3 * k, 0.3, west)
+        K.block("stone", *sorted((uw, uw + west * 0.5)), dv - w_ / 2 - 0.9, dv - w_ / 2 - 0.3, -0.5, h_)
+        K.block("stone", *sorted((uw, uw + west * 0.5)), dv + w_ / 2 + 0.3, dv + w_ / 2 + 0.9, -0.5, h_)
+        K.lancet(False, uw + west * 0.02, dv, w_, 0.0, h_ - 0.6, west, frame=False)
+    # central porch (photos): projecting gabled porch, four arch orders stepping back to the doors, steps in front
+    pd, pw, ph = 3.0, 7.2, 6.2
+    up = uw + west * pd
+    for s_ in (-1, 1):                                                  # porch side piers with gabled pinnacles
+        K.block("stone", *sorted((uw, up)), s_ * pw / 2 - (0.8 if s_ > 0 else 0), s_ * pw / 2 + (0.8 if s_ < 0 else 0), -0.5, ph + 1.0)
+        K.block("dress", *sorted((up - west * 0.6, up + west * 0.4)), s_ * (pw / 2 + 0.3) - 0.5, s_ * (pw / 2 + 0.3) + 0.5, -0.5, ph + 0.4)
+        K.pinnacle(up, s_ * (pw / 2 + 0.3), ph + 0.4, 4.5, 0.5)
+    K.block("stone", *sorted((uw, up)), -pw / 2, pw / 2, ph + 1.0, ph + 1.6)
+    pr = ph + 1.6 + math.tan(PITCH) * pw / 2
+    K.b["stone"].add([K.P(up, -pw / 2, ph + 1.6), K.P(up, pw / 2, ph + 1.6), K.P(up, 0, pr)], [[0, 1, 2] if west > 0 else [2, 1, 0]])
+    K.gable_roof("slate", *sorted((uw, up + west * 0.3)), -pw / 2 - 0.2, pw / 2 + 0.2, ph + 1.6)
+    for k in range(4):                                                  # arch orders stepping in to the doors
+        K.arch_frame(up - west * (0.02 + 0.85 * k), 0.0, pw - 0.6 - 0.9 * k, 0.0, ph - 2.6 - 0.25 * k, 0.42, west)
+        K.block("dress", *sorted((up - west * 0.85 * k, up - west * (0.85 * k + 0.85))), -(pw - 0.6 - 0.9 * k) / 2, -(pw - 0.6 - 0.9 * k) / 2 + 0.45, -0.5, ph - 2.6 - 0.25 * k)
+        K.block("dress", *sorted((up - west * 0.85 * k, up - west * (0.85 * k + 0.85))), (pw - 0.6 - 0.9 * k) / 2 - 0.45, (pw - 0.6 - 0.9 * k) / 2, -0.5, ph - 2.6 - 0.25 * k)
+    K.lancet(False, uw + west * 0.03, 0.0, 2.8, 0.0, 2.9, west, frame=False)              # dark doors at the back
+    for k in range(5):                                                  # steps down to the forecourt
+        K.block("dress", *sorted((up + west * 0.4 * k, up + west * 0.4 * (k + 1))), -pw / 2 - 0.8 * k, pw / 2 + 0.8 * k,
+                -0.6, 0.15 * (5 - k) - 0.6)
     for k in range(11):                                                 # blind arcade band
         dv = -fw * 0.42 + k * fw * 0.84 / 10
         K.lancet(False, uw, dv, 0.7, 7.9, 9.0, west, frame=False, key="dress")

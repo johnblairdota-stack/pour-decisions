@@ -35,12 +35,12 @@ def trunk(buf, x, y, g, r, h, branches=0, spread=1.0):
     """Octagonal tapered trunk plus a few branches up into the crown."""
     seed = int(abs(x * 13.1 + y * 7.7)) % 360
     lx, ly = 0.04 * h * math.cos(math.radians(seed)), 0.04 * h * math.sin(math.radians(seed))     # slight lean
-    tube(buf, (x, y, g - 0.2), (x + lx * 0.5, y + ly * 0.5, g + h * 0.5), r * 1.15, r * 0.8, 12)
-    tube(buf, (x + lx * 0.5, y + ly * 0.5, g + h * 0.5), (x + lx, y + ly, g + h), r * 0.8, r * 0.55, 12)
+    tube(buf, (x, y, g - 0.2), (x + lx * 0.5, y + ly * 0.5, g + h * 0.5), r * 1.15, r * 0.8, 9)
+    tube(buf, (x + lx * 0.5, y + ly * 0.5, g + h * 0.5), (x + lx, y + ly, g + h), r * 0.8, r * 0.55, 9)
     for b in range(branches):
         a = math.radians(seed + b * 360 / max(branches, 1))
         s2 = spread * 0.55
-        tube(buf, (x, y, g + h * 0.85), (x + math.cos(a) * s2, y + math.sin(a) * s2, g + h + spread * 0.9), r * 0.5, r * 0.15, 10)
+        tube(buf, (x, y, g + h * 0.85), (x + math.cos(a) * s2, y + math.sin(a) * s2, g + h + spread * 0.9), r * 0.5, r * 0.15, 6)
 
 
 def tube(buf, p, q, r0, r1, n=8):
@@ -119,6 +119,9 @@ def fig_trunk(buf, x, y, g, h, rb):
 
 def build():
     import foliage as FO
+    near_cam = lambda c: math.hypot(c[0], c[1]) < 140 or math.hypot(c[0] + 80, c[1] + 100) < 90 or         math.hypot(c[0] - 150, c[1] - 220) < 80                          # Spire, cathedral, Ann St photo spots
+    FO.CLOUDS.clear()
+    FO.LOD = lambda c: (1.0, 1.0) if near_cam(c) else (0.3, 1.8)          # GPU budget: ~3M cards in all
     col = C.collection("trees")
     trunks, pale, crowns, palms = C.MeshBuf(), C.MeshBuf(), C.MeshBuf(), C.MeshBuf()
     leaves = {s: FO.Foliage(seed=i + 3) for i, s in enumerate(SPECIES_LEAF)}
@@ -131,6 +134,10 @@ def build():
                 if not c.get("skip") and c.get("eye_above_ground_m", 99) < 3.0]
     except (OSError, KeyError):
         pass
+    for c in list(L.CAMERAS) + list(L.HERO_CAMERAS):                     # hero/street views too
+        p = c.get("pos")
+        if p and p[2] - L.ground_z(p[0], p[1]) < 4.0:
+            cams.append(tuple(p[:2]))
     clear = lambda x, y: all(math.hypot(x - cx, y - cy) > 9.0 for cx, cy in cams)   # photos: taken from open spots
     for x, y, h, g in L.tree_points():
         if h < 3.0 or h > 40.0 or not clear(x, y):
@@ -157,7 +164,7 @@ def build():
             trunk(trunks, x, y, g + h * 0.4, 0.4, 0.1, 5, r * 0.45)
             cz = g + h - rz
             if near:
-                leaves["fig"].cloud((x, y, cz), (r, r, rz), int(11 * (150 + 6 * r * r)), 0.6, shell=0.2, top_bias=0.3)
+                leaves["fig"].cloud((x, y, cz), (r, r, rz), int(9 * (150 + 6 * r * r)), 0.6, shell=0.2, top_bias=0.3)
             else:
                 crown(crowns, x, y, cz, r, 0.5, 6)
         elif s in ("jacaranda", "poinciana"):
@@ -183,7 +190,7 @@ def build():
             r = max(1.2, 0.32 * h)
             trunk(trunks, x, y, g, 0.2, max(0.8, h - 1.7 * r), 3, r * 0.45)
             if near:
-                leaves["generic"].cloud((x, y, g + h - r), (r, r, r * 0.85), int(11 * (70 + 8 * r * r)), 0.5, shell=0.2, top_bias=0.2)
+                leaves["generic"].cloud((x, y, g + h - r), (r, r, r * 0.85), int(9 * (70 + 8 * r * r)), 0.5, shell=0.2, top_bias=0.2)
             else:
                 crown(crowns, x, y, g + h - r, r, 0.85, 4)
     # canopy fill: every 4 m block of LiDAR vegetation with no placed crown nearby gets one
@@ -219,7 +226,7 @@ def build():
                 r = min(3.2, 0.3 * h + 1.0)
                 trunk(trunks, x, y, g, 0.18, max(0.5, h - 1.6 * r), 2, r * 0.5)
                 if near:
-                    leaves["generic"].cloud((x, y, g + h - r), (r, r, r * 0.8), int(11 * (40 + 8 * r * r)), 0.5, shell=0.2, top_bias=0.2)
+                    leaves["generic"].cloud((x, y, g + h - r), (r, r, r * 0.8), int(9 * (40 + 8 * r * r)), 0.5, shell=0.2, top_bias=0.2)
                 else:
                     crown(crowns, x, y, g + h - r, r, 0.85, 3)
                 nfill += 1
@@ -238,6 +245,14 @@ def build():
         ob = fo.object("leaves_" + s, col, dark, light)
         if ob:
             objs.append(ob.name)
+    sp = C.MeshBuf()                                                     # crown shadow casters (not seen by the camera)
+    for (cx_, cy_, cz_), (rx_, ry_, rz_) in FO.CLOUDS:
+        blob(sp, cx_, cy_, cz_, 0.8 * max(rx_, ry_), 0.8 * rz_)
+    if sp.v:
+        obs = sp.object("tree_shadow_proxies", col, "tree")
+        obs.visible_camera = False
+        obs.visible_diffuse = obs.visible_glossy = obs.visible_transmission = False
+        objs.append(obs.name)
     for s, rgb in (("poinciana", (0.75, 0.10, 0.04)), ("jacaranda", (0.35, 0.22, 0.65))):
         ob = blooms[s].object("blooms_" + s, col, rgb, tuple(min(1, c * 1.4) for c in rgb))
         if ob:

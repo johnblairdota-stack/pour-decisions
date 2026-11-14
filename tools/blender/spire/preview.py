@@ -99,43 +99,58 @@ def facade_material(m, spec=None):
         br.inputs["Mortar"].default_value = (0.78, 0.74, 0.68, 1)
         br.offset = 0.5
         base_out = br.outputs["Color"]
-    elif kind == "ashlar":
+    elif kind == "ashlar":                                       # step 7j: coursed ashlar (horizontal courses,
         pal = list(m.get("palette", [])) or [c for c in base[:3]] + [c * 0.9 for c in base[:3]] + [min(1, c * 1.08) for c in base[:3]]
-        cols = [tuple(pal[i:i + 3]) for i in range(0, len(pal), 3)]
-        sc = nodes.new("ShaderNodeMapping")
-        links.new(uv.outputs["UV"], sc.inputs["Vector"])
-        sc.inputs["Scale"].default_value = (1 / 0.6, 1 / 0.3, 1)
-        vo = nodes.new("ShaderNodeTexVoronoi")
-        vo.feature = "F1"
-        vo.inputs["Randomness"].default_value = 0.0
-        links.new(sc.outputs["Vector"], vo.inputs["Vector"])
+        cols = [tuple(pal[i:i + 3]) for i in range(0, len(pal), 3)]   # varied block lengths, colour per block)
+        course = 0.34
+        row = mnode("FLOOR", mnode("DIVIDE", sep.outputs["Y"], course))
+        wn1 = nodes.new("ShaderNodeTexWhiteNoise")
+        wn1.noise_dimensions = "1D"
+        links.new(row, wn1.inputs["W"])
+        rl = mnode("MULTIPLY_ADD", wn1.outputs["Value"], 0.55)
+        nodes[rl.node.name].inputs[2].default_value = 0.45            # block length 0.45-1.0 m per course
+        off = mnode("MULTIPLY", mnode("FRACT", mnode("MULTIPLY", wn1.outputs["Value"], 7.31)), rl)
+        uu = mnode("DIVIDE", mnode("ADD", sep.outputs["X"], off), rl)
+        blk = mnode("FLOOR", uu)
+        cv = nodes.new("ShaderNodeCombineXYZ")
+        links.new(blk, cv.inputs[0])
+        links.new(row, cv.inputs[1])
+        wn2 = nodes.new("ShaderNodeTexWhiteNoise")
+        wn2.noise_dimensions = "2D"
+        links.new(cv.outputs[0], wn2.inputs["Vector"])
         ramp = nodes.new("ShaderNodeValToRGB")
-        ramp.color_ramp.interpolation = "CONSTANT"
         el = ramp.color_ramp.elements
         while len(el) < len(cols):
             el.new(0.5)
         for i, c in enumerate(cols):
-            el[i].position = i / len(cols)
+            el[i].position = i / max(1, len(cols) - 1)
             el[i].color = (*c, 1)
-        sepc = nodes.new("ShaderNodeSeparateColor")
-        links.new(vo.outputs["Color"], sepc.inputs[0])
-        links.new(sepc.outputs[0], ramp.inputs["Fac"])
-        br = nodes.new("ShaderNodeTexBrick")                     # mortar joints on the same block size
-        links.new(uv.outputs["UV"], br.inputs["Vector"])
-        br.inputs["Scale"].default_value = 1.0
-        br.inputs["Brick Width"].default_value = 0.6
-        br.inputs["Row Height"].default_value = 0.3
-        br.inputs["Mortar Size"].default_value = 0.015
-        br.inputs["Color1"].default_value = (1, 1, 1, 1)
-        br.inputs["Color2"].default_value = (1, 1, 1, 1)
-        br.inputs["Mortar"].default_value = (0.82, 0.78, 0.72, 1)
+        links.new(wn2.outputs["Value"], ramp.inputs["Fac"])
+        ju = mnode("LESS_THAN", mnode("MULTIPLY", mnode("FRACT", uu), rl), 0.014)
+        jv = mnode("LESS_THAN", mnode("FRACT", mnode("DIVIDE", sep.outputs["Y"], course)), 0.045)
+        joint = mnode("MAXIMUM", ju, jv)
+        band = mnode("LESS_THAN", mnode("MODULO", row, 9.0), 0.5)     # a darker band course every 9th course
+        shade = mnode("SUBTRACT", 1.0, mnode("MULTIPLY", band, 0.14))
+        mixb = nodes.new("ShaderNodeMix")
+        mixb.data_type = "RGBA"
+        mixb.blend_type = "MULTIPLY"
+        mixb.inputs["Factor"].default_value = 1.0
+        links.new(ramp.outputs["Color"], mixb.inputs[6])
+        cs = nodes.new("ShaderNodeCombineColor")
+        for k in range(3):
+            links.new(shade, cs.inputs[k])
+        links.new(cs.outputs[0], mixb.inputs[7])
         mixm = nodes.new("ShaderNodeMix")
         mixm.data_type = "RGBA"
-        mixm.blend_type = "MULTIPLY"
-        mixm.inputs["Factor"].default_value = 1.0
-        links.new(ramp.outputs["Color"], mixm.inputs[6])
-        links.new(br.outputs["Color"], mixm.inputs[7])
+        links.new(joint, mixm.inputs["Factor"])
+        links.new(mixb.outputs[2], mixm.inputs[6])
+        mixm.inputs[7].default_value = (0.62, 0.58, 0.52, 1)
         base_out = mixm.outputs[2]
+        bump = nodes.new("ShaderNodeBump")
+        bump.inputs["Strength"].default_value = 0.35
+        bump.invert = True
+        links.new(joint, bump.inputs["Height"])
+        links.new(bump.outputs["Normal"], bsdf.inputs["Normal"])
     else:
         noise = nodes.new("ShaderNodeTexNoise")
         noise.inputs["Scale"].default_value = 0.6
@@ -272,12 +287,10 @@ def setup_morning():
             mix.inputs[6].default_value = m.diffuse_color
             mix.inputs[7].default_value = (*m.get("leaf2", m.diffuse_color[:3]), 1)
             links.new(mix.outputs[2], bsdf.inputs["Base Color"])
-            ao = nodes.new("ShaderNodeAmbientOcclusion")         # darker inside the crown
-            ao.inputs["Distance"].default_value = 1.5
-            aom = nodes.new("ShaderNodeMix")
-            aom.data_type = "RGBA"
+            aom = nodes.new("ShaderNodeMix")                   # step 7j: no AO node (GPU timeouts); cards from the
+            aom.data_type = "RGBA"                              # crown centre outwards get lighter instead
             aom.blend_type = "MULTIPLY"
-            links.new(ao.outputs["AO"], aom.inputs["Factor"])
+            aom.inputs["Factor"].default_value = 0.5
             links.new(mix.outputs[2], aom.inputs[6])
             aom.inputs[7].default_value = (0.35, 0.4, 0.3, 1)
             links.new(aom.outputs[2], bsdf.inputs["Base Color"])
@@ -424,8 +437,8 @@ def apply_light(az_deg, el_deg, kind="day"):
     sun.data.color = (1.0, 0.62, 0.38) if dusk else mo["sun_colour"]
     sun.data.angle = math.radians(0.53)
     try:
-        sun.data.shadow_maximum_resolution = 0.006
-        sc.eevee.shadow_pool_size = "1024"
+        sun.data.shadow_maximum_resolution = 0.012
+        sc.eevee.shadow_pool_size = "512"                      # 1024 caused GPU timeouts with dense leaves
     except (AttributeError, TypeError):
         pass
     az, el = math.radians(az_deg), math.radians(max(el_deg, 0.5))

@@ -8,6 +8,10 @@ import numpy as np
 import common as C
 
 
+LOD = lambda c: (1.0, 1.0)
+CLOUDS = []                                         # every crown volume: trees.py turns these into shadow casters
+
+
 class Foliage:
     def __init__(self, seed=1):
         self.v, self.f, self.uv = [], [], []
@@ -38,6 +42,9 @@ class Foliage:
 
     def cloud(self, c, radii, count, size, shell=0.7, top_bias=0.0):
         """Cards filling an ellipsoid: mostly near the surface (shell), normals pointing outwards."""
+        CLOUDS.append((tuple(c), tuple(radii)))
+        km, sm = LOD(c)                                  # far crowns: fewer, bigger cards (same cover)
+        count, size = max(8, int(count * km)), size * sm
         r = self.rng
         d = r.normal(size=(count, 3))
         d /= np.linalg.norm(d, axis=1, keepdims=True)
@@ -74,18 +81,27 @@ class Foliage:
         if P:
             self._cards(np.array(P), np.array(N), np.array(S))
 
-    def object(self, name, col, rgb, rgb2, translucency=0.15):
+    def object(self, name, col, rgb, rgb2, translucency=0.15, chunk=120000):
+        """One material; the cards are split into objects of <= chunk cards (short GPU draw calls)."""
         if not self.v:
             return None
         V = np.concatenate(self.v)
         F = np.concatenate(self.f)
         UV = np.concatenate(self.uv)
-        ob = C.mesh_fast(name, V, F, col, "tree")
-        lay = ob.data.uv_layers.new(name="facade")
-        lay.data.foreach_set("uv", UV.ravel())
         m = C.material_rgb(name + "_leaf", rgb)
         m["shader"] = "leaf"
         m["leaf2"] = list(rgb2)
         m["translucency"] = translucency
-        ob.data.materials[0] = m
-        return ob
+        first = None
+        k = len(F)
+        for i, s in enumerate(range(0, k, chunk)):
+            f = F[s:s + chunk]
+            v0 = s * 4
+            v = V[v0:v0 + len(f) * 4]
+            ob = C.mesh_fast(name if i == 0 else "%s.%02d" % (name, i), v, f - v0, col, "tree")
+            lay = ob.data.uv_layers.new(name="facade")
+            lay.data.foreach_set("uv", UV[v0:v0 + len(f) * 4].ravel())
+            ob.data.materials[0] = m
+            ob.visible_shadow = False                    # leaf cards: shadows come from the crown proxies (GPU time)
+            first = first or ob
+        return first
