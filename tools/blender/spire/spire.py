@@ -314,7 +314,7 @@ def build():
             if poured:
                 buf.prism(part, z0, z1)
                 done = st is None or lv["n"] < st["deck_level"] - st["screen_levels"]
-                mat = "spire_soffit" if done else (key if tag != "B" else key + "_b")   # step 7b: balcony soffits warm grey (photos)
+                mat = "spire_soffit" if (done and lv["kind"] not in ("ground", "podium")) else (key if tag != "B" else key + "_b")   # step 7b: balcony soffits warm grey (photos)
             else:
                 buf.prism(part, z0 + lv["slab_m"] * 0.45, z0 + lv["slab_m"] * 0.55)   # reo mat
                 mat = "reo"
