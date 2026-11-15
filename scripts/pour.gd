@@ -1142,6 +1142,14 @@ func leading_strip(b: int) -> Vector2i:
 
 ## Gold for the boom operator: the hose is over concrete that's wanted now,
 ## in the leading strip of the bay being poured and not yet full.
+## Is this point (local) over the slab itself, not off its edge or in a hole cut out of it?
+func on_slab(local: Vector3) -> bool:
+	var ix := int((local.x + bw * 0.5) / dx)
+	var iz := int((local.z + bd * 0.5) / dx)
+	if ix < 0 or ix >= NX or iz < 0 or iz >= NZ:
+		return false
+	return mask[iz * NX + ix] == 1
+
 func good_pour_spot(local: Vector3) -> bool:
 	var ix := int((local.x + bw * 0.5) / dx)
 	var iz := int((local.z + bd * 0.5) / dx)

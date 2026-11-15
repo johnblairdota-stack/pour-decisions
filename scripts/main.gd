@@ -2103,6 +2103,55 @@ func _arrive_camera(delta: float) -> void:
 		cam_focus = look
 		selector.arrived(a["card"])
 
+## The truck dispatcher must never sit idle while the slab still needs concrete: nothing in the
+## hopper, no truck anywhere between the plant and the pump, and the slab not full. Logged (an error
+## on test runs) after 20 s of it. `--trucktest` also fails the run if it ever happens.
+var _idle_dispatch := 0.0
+var _truck_test := false
+var _tt_t := 0.0
+var _tt_moved := false
+
+func _watch_dispatch(delta: float) -> void:
+	var feeding := false
+	for t in line.trucks:
+		if not (String(t["state"]) in ["leave", "leave_wait", "road", "turned"]):
+			feeding = true
+	if _filled_ratio() < 1.0 and not feeding and line.hopper < 0.3:
+		_idle_dispatch += delta
+		if _idle_dispatch > 20.0 and _idle_dispatch - delta <= 20.0:
+			var msg := "[dispatch] no truck coming for 20 s with the slab at %d%%: %s" % [int(_filled_ratio() * 100), line.dispatch_debug()]
+			if autotest:
+				push_error(msg)
+				if _truck_test:
+					print("[trucktest] FAIL")
+					get_tree().quit(1)
+			else:
+				print(msg)
+	else:
+		_idle_dispatch = 0.0
+	if _truck_test and phase == "pour" and _tt_t >= 0.0:
+		_tt_t += delta
+		var bo = crew.crew["boom"]
+		if _tt_t > 3.0 and not _tt_moved:
+			# (the boom operator off the remote, round on the far walkway: the stall seen 15 Nov)
+			_tt_moved = true
+			bo.busy = ""
+			var far := walkway_point(walkway_param(Vector2(SC.x, SC.z - BD)))
+			bo.position = Vector3(far.x, work_y, far.y)
+			print("[trucktest] boom operator moved to the far walkway at %s" % str(bo.position))
+			var st: Vector3 = (stations["boom"]["node"] as Node3D).global_position
+			var path: Array = bots._bfs(bo.position, Vector3(st.x, work_y, st.z), "deck", bo)
+			print("[trucktest]   station %s walkable %s roomy %s, start walkable %s, bounds %s, path %d" % [str(st), _walkable(st, "deck", bo), bots._roomy(Vector3(st.x, work_y, st.z), "deck", bo), _walkable(bo.position, "deck", bo), str(walk_bounds("deck")), path.size()])
+		if _tt_moved and bo.busy == "boom":
+			print("[trucktest] boom operator back on the remote after %.1fs" % (_tt_t - 3.0))
+			_tt_t = -1.0
+		elif _tt_moved and _tt_t > 60.0:
+			print("[trucktest] FAIL: the boom operator never got back to the remote (at %s)" % str(bo.position))
+			get_tree().quit(1)
+	if _truck_test and phase == "pour" and _filled_ratio() >= 1.0:
+		print("[trucktest] PASS: the slab filled after the bad loads and the blockage")
+		_truck_test = false
+
 ## Spire: a new level. The core's jump form jumps to stay LEAD levels ahead of the deck, the bot
 ## crew's pour B is reset, and the camera swings round to look across pour A at the core.
 func _spire_level() -> void:
@@ -3603,6 +3652,11 @@ func _start_pour() -> void:
 		# (and it stays workable longer: retarded mix, poured in layers)
 		pour.open_time = cfg["open"] * sqrt(float(pour.get_meta("vol_k0"))) * (1.8 if SpireSite.is_transfer(k) else 1.0)
 	line.load_m3 = line.TRUCK_LOAD * minf(BIG_SLAB_LOAD, sqrt(pour.vol_k))
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--trucktest=") and int(arg.substr(12)) == k + 1:
+			line.force_bad = 2
+			_incidents = [{"at": 0.05, "kind": "block"}] + _incidents
+			_truck_test = true
 	line.start_pour(pour.needed(), cfg)
 	line.interval /= minf(BIG_SLAB_TRUCKS, sqrt(pour.vol_k))
 	line._arrive_t = line.interval
@@ -4333,6 +4387,8 @@ func _process(delta: float) -> void:
 	if autotest and phase_t > (14.0 if spire and SpireSite.is_transfer(k) else 8.0) * 60.0:   # (the transfer slab's a long pour)
 		push_error("[autotest] stuck in phase %s at level %d (%.0fs)" % [phase, k + 1, phase_t])
 		print("[autotest]   ops stage '%s' washed %s primed %s | left %s | line live %s" % [ops.stage, ops.washed, ops.primed, str(_left), line.live])
+		print("[autotest]   trucks: %s" % line.dispatch_debug())
+		print("[autotest]   pumping %s hose_call %s pipe_calls %s hose_holder %s blocked %s fail_i %d fix_i %d wind_park %s bin %s" % [line.pumping, hose_call, pipe_calls(), hose_holder.role if hose_holder != null else "-", line.blocked, line.fail_i, line.fix_i, climb.wind_gust >= BOOM_WIND, ops.wants_bin()])
 		for q in players:
 			print("[autotest]   %s: zone %s busy '%s' held '%s' at %s" % [q.role, q.zone, q.busy, q.held_kind, q.position])
 		if climb.active:
@@ -4600,6 +4656,7 @@ func _update_pour(delta: float) -> void:
 
 	# Not enough coming to finish? Ring the plant for another truck.
 	line.top_up(pour.needed() * (1.0 - _filled_ratio()) * 1.15 + 1.0)
+	_watch_dispatch(delta)
 
 	# The slab's only done when it's full AND vibrated AND screeded
 	if _filled_ratio() >= 1.0:

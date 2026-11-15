@@ -186,8 +186,13 @@ func _open_line(a: Vector3, b: Vector3, zone := "ground", who = null) -> bool:
 	return true
 
 ## Walkable with a bit of elbow room, so routes don't hug the edges.
+## Elbow room round a route point. On a deck it's 0.25 m, not 0.35: the boom operator's scaffold
+## walkway leaves a strip only 0.75 m wide where a 0.35 m margin fits, narrower than the 0.8 m route
+## grid, so whether any grid point landed in it came down to where the slab sat. On Spire none did,
+## and a boom operator off the remote could never route back (the pour stalled with trucks queued).
 func _roomy(q: Vector3, zone := "ground", who = null) -> bool:
-	for o in [Vector3.ZERO, Vector3(0.35, 0, 0), Vector3(-0.35, 0, 0), Vector3(0, 0, 0.35), Vector3(0, 0, -0.35)]:
+	var m := 0.25 if zone == "deck" else 0.35
+	for o in [Vector3.ZERO, Vector3(m, 0, 0), Vector3(-m, 0, 0), Vector3(0, 0, m), Vector3(0, 0, -m)]:
 		if not game._walkable(q + o, zone, who):
 			return false
 	return true
@@ -497,6 +502,8 @@ func _hose(p, delta: float) -> void:
 		ok = false
 	if pour.bay_of_x(dl.x) > pour.cur_bay:
 		ok = false
+	if not pour.on_slab(dl):
+		ok = false        # (never call concrete onto nothing: off the edge or into the core)
 	p.ai_action = ok
 
 ## The lowest spot within the end hose's reach that the pour plan wants now.
