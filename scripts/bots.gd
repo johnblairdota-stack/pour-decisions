@@ -121,6 +121,25 @@ func tick(delta: float) -> void:
 			"poker": _poker(p, delta)
 			"screed": _screed(p, delta)
 			"hose": _hose(p, delta)
+		_clear_reversing(p)
+
+## A truck reversing onto the hopper stops dead while anyone's within 1.8 m of its rear (line.gd).
+## A bot standing there steps out of the way, whatever its job had it doing, so a truck is never left
+## stopped behind a bot that's waiting for that truck to arrive (the hopper ran dry for 60-90 s).
+func _clear_reversing(p) -> void:
+	if p.zone != "ground" or game.line == null:
+		return
+	for t in game.line.trucks:
+		if t["state"] != "back":
+			continue
+		var rear: Vector3 = (t["node"] as Node3D).global_transform * Vector3(-5.6, 0, 0)
+		var away := Vector2(p.position.x - rear.x, p.position.z - rear.z)
+		if away.length() < 2.6:
+			var dir := away.normalized() if away.length() > 0.05 else Vector2(-1, 0)
+			var local := Vector3(dir.x, 0, dir.y).rotated(Vector3.UP, -game.cam_yaw)
+			p.ai_move = Vector2(local.x, local.z)
+			p.ai_action = false
+			return
 
 # ------------------------------------------------------------------ getting about
 
@@ -739,7 +758,7 @@ func _pump(p, delta: float) -> void:
 		p.ai_leave = _tap()
 		return
 	if g.phase != "pour":
-		walk(p, panel + line.rot(Vector3(0.6, 0, 0.9)), 0.6)
+		walk(p, panel + line.rot(Vector3(-0.6, 0, 1.2)), 0.6)
 		return
 	# Tripped: back to the panel and hold A to restart
 	if line.tripped:
@@ -750,7 +769,7 @@ func _pump(p, delta: float) -> void:
 		if walk(p, panel, 0.6):
 			p.ai_action = fmod(g.phase_t, 0.3) < 0.1
 		return
-	walk(p, panel + line.rot(Vector3(0.6, 0, 0.9)), 0.6)
+	walk(p, panel + line.rot(Vector3(-0.6, 0, 1.2)), 0.6)
 
 ## The truck bay. With `urgent_only`, only acts if a truck needs something now.
 func _bay(p, urgent_only: bool) -> bool:

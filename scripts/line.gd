@@ -1338,6 +1338,14 @@ func _block(from_bad: bool, heralded := false) -> void:
 	if kit == "tower" and clamps.size() > 3:
 		lo = clamps.size() / 3
 	block_s = randi_range(lo, clamps.size() - 2)
+	if force_top_block:
+		force_top_block = false
+		block_s = clamps.size() - 2        # (dev --trucktest: the plug in the top section)
+	if game.autotest:
+		var ys: Array = []
+		for c in clamps:
+			ys.append(snappedf(float(c["pos"].y), 0.1))
+		print("[autotest]   block in section %d of %d, clamps at %s, riser top %.1f, deck %.1f" % [block_s, clamps.size(), str(ys), riser_top, game.work_y])
 	stats["blocks"] += 1
 	stats["jobs"] += 1
 	game.score.award(null, -20, "Line blocked", clamps[block_s]["pos"] + Vector3(0, 1.5, 0))
@@ -1849,11 +1857,18 @@ func _update_trucks(delta: float) -> void:
 				var path2: Array = _back_path(sl)
 				var rear: Vector3 = node.global_transform * Vector3(-5.6, 0, 0)
 				var blocked := false
+				var who := ""
 				for q in game.players:
 					if q.zone == "ground" and Vector2(q.position.x - rear.x, q.position.z - rear.z).length() < 1.8:
 						blocked = true
+						who += "%s(%s) at (%.1f, %.1f) " % [q.role, q.busy, q.position.x, q.position.z]
 				if blocked:
 					t["t"] -= delta
+					t["blocked_t"] = float(t.get("blocked_t", 0.0)) + delta
+					if game.autotest and float(t["blocked_t"]) > 5.0 and float(t["blocked_t"]) - delta <= 5.0:
+						print("[autotest]   truck backing in stopped 5 s: rear (%.1f, %.1f), behind it: %s" % [rear.x, rear.z, who])
+				else:
+					t["blocked_t"] = 0.0
 					if fmod(_knock_phase, 0.5) < delta and not game.sfx.has_loop("truck_beeper"):
 						game.sfx.hit("beep")
 				# A spotter waves it on: it only reverses while they hold A, and
@@ -2050,6 +2065,7 @@ func _on_trust(t: Dictionary, delta: float) -> void:
 ## Dev `--trucktest=<level>`: on that level (1-based) the first two loads after the first are too wet
 ## (sent back at the slump test) and the line blocks early: the case that used to strand a pour.
 var force_bad := 0
+var force_top_block := false
 
 ## The dispatcher, for the log: what's ordered, what's coming, and every truck's state.
 func dispatch_debug() -> String:
