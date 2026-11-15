@@ -1,0 +1,12 @@
+{
+ "rows": 801,
+ "cols": 801,
+ "x0": -400.0,
+ "y0": 400.0,
+ "step": 1.0,
+ "units": "metres AHD",
+ "order": "rows north to south, cols west to east, sample at grid point",
+ "nodata_filled": 0,
+ "source": "Queensland DEM image service (QldDem, default mix), 1 m tiles, MGA56",
+ "credit": "(c) State of Queensland (Department of Resources) 2026, CC BY 4.0"
+}

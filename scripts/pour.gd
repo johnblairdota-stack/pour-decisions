@@ -78,6 +78,12 @@ var _kernel: Array = []
 var mask := PackedByteArray()        # 1 where there's slab (a round slab leaves the corners out)
 var mask_n := NX * NZ
 var round_r := 0.0                   # > 0: a round slab of this radius (the water tower)
+## A slab of any outline (Spire's pour areas): local metres round the grid's centre, with holes (the
+## core, the boom's pedestal) left out. Empty for a rectangle or a round slab.
+var poly := PackedVector2Array()
+var poly_holes: Array = []
+var mask_img: Image
+var mask_tex: ImageTexture
 var _rect_parts: Array = []
 ## The floor pick page's deck has no form on its street (+z) side, so the
 ## concrete that gets to that edge runs off it. front_flow is how hard, column
@@ -286,7 +292,13 @@ func _build_rebar(columns: Array) -> void:
 	for y in [0.06, 0.15]:  # bottom and top mats, with cover under the finished slab level
 		var z := -bd * 0.5 + 0.2
 		while z <= bd * 0.5 - 0.15:
-			if round_r > 0.0:
+			if not poly.is_empty():
+				for part in _poly_bar(Vector2(-bw * 0.5, z), Vector2(bw * 0.5, z)):
+					var pa: Vector2 = part[0]
+					var pb: Vector2 = part[part.size() - 1]
+					if pa.distance_to(pb) > 0.3:
+						xforms.append(Transform3D(Basis().scaled(Vector3(pa.distance_to(pb) - 0.2, BAR, BAR)), Vector3((pa.x + pb.x) * 0.5, y, z)))
+			elif round_r > 0.0:
 				# A round slab: each bar runs chord to chord
 				if absf(z) < round_r - 0.2:
 					var half := sqrt(pow(round_r - 0.15, 2) - z * z)
@@ -296,7 +308,13 @@ func _build_rebar(columns: Array) -> void:
 			z += spacing
 		var x := -bw * 0.5 + 0.2
 		while x <= bw * 0.5 - 0.15:
-			if round_r > 0.0:
+			if not poly.is_empty():
+				for part in _poly_bar(Vector2(x, -bd * 0.5), Vector2(x, bd * 0.5)):
+					var qa: Vector2 = part[0]
+					var qb: Vector2 = part[part.size() - 1]
+					if qa.distance_to(qb) > 0.3:
+						xforms.append(Transform3D(Basis().scaled(Vector3(BAR, BAR, qa.distance_to(qb) - 0.2)), Vector3(x, y + BAR, (qa.y + qb.y) * 0.5)))
+			elif round_r > 0.0:
 				if absf(x) < round_r - 0.2:
 					var half2 := sqrt(pow(round_r - 0.15, 2) - x * x)
 					xforms.append(Transform3D(Basis().scaled(Vector3(BAR, BAR, half2 * 2.0)), Vector3(x, y + BAR, 0)))
@@ -329,7 +347,7 @@ func _build_rebar(columns: Array) -> void:
 	while zz < bd * 0.5:
 		var xx := -bw * 0.5 + 0.8
 		while xx < bw * 0.5:
-			if round_r <= 0.0 or Vector2(xx, zz).length() < round_r - 0.3:
+			if (round_r <= 0.0 or Vector2(xx, zz).length() < round_r - 0.3) and (poly.is_empty() or (Geometry2D.is_point_in_polygon(Vector2(xx, zz), poly) and poly_holes.all(func(hh): return not Geometry2D.is_point_in_polygon(Vector2(xx, zz), hh)))):
 				cx.append(Vector3(xx, 0.035, zz))
 			xx += 1.2
 		zz += 1.2
@@ -391,6 +409,73 @@ func set_round(r: float) -> void:
 				_bay_c1 = maxi(_bay_c1, ix + 1)
 	_bay_meshes.clear()
 	screed_bar.scale.x = (r * 2.0 + 0.4) / (bw + 0.4)
+
+## A slab of outline `outline` (local metres, round the grid's centre) with `holes` cut out: the cells
+## outside it are left out of everything, the deck, edge forms and rebar follow the outline, and the
+## concrete surface is clipped to it (shader mask).
+func set_poly(outline: PackedVector2Array, holes: Array = []) -> void:
+	poly = outline
+	poly_holes = holes
+	mask_n = 0
+	for i in NX * NZ:
+		var c := cell_center(i)
+		var p := Vector2(c.x, c.z)
+		var on := Geometry2D.is_point_in_polygon(p, outline)
+		for hole in holes:
+			if on and Geometry2D.is_point_in_polygon(p, hole):
+				on = false
+		mask[i] = 1 if on else 0
+		mask_n += mask[i]
+		reach[i] = mask[i]
+	for part in _rect_parts:
+		(part as Node3D).visible = false
+	var keep: Array = [outline]
+	for hole in holes:
+		var next: Array = []
+		for piece in keep:
+			next.append_array(Geometry2D.clip_polygons(piece, hole))
+		keep = next
+	var form_mat := StandardMaterial3D.new()
+	form_mat.albedo_color = Color("b07a45")
+	for piece in keep:
+		var deck := F.prism(piece, -0.12, 0.12, F.mat("ply"))
+		add_child(deck)
+	for ring in [outline] + holes:
+		var n: int = ring.size()
+		for j in n:
+			var a: Vector2 = ring[j]
+			var b: Vector2 = ring[(j + 1) % n]
+			var mid := (a + b) * 0.5
+			var form := F.box(Vector3(a.distance_to(b) + 0.06, FORM_H, 0.06), form_mat, Vector3(mid.x, FORM_H * 0.5, mid.y))
+			form.rotation.y = -atan2(b.y - a.y, b.x - a.x)
+			add_child(form)
+	for c in rebar.get_children():
+		c.queue_free()
+	_build_rebar([])
+	mask_img = Image.create(NX, NZ, false, Image.FORMAT_R8)
+	for i in NX * NZ:
+		mask_img.set_pixel(i % NX, i / NX, Color(float(mask[i]), 0, 0))
+	mask_tex = ImageTexture.create_from_image(mask_img)
+	smat.set_shader_parameter("mask_tex", mask_tex)
+	smat.set_shader_parameter("use_mask", 1.0)
+	_bay_c0 = NX
+	_bay_c1 = 0
+	for ix in NX:
+		for iz in NZ:
+			if mask[iz * NX + ix] == 1:
+				_bay_c0 = mini(_bay_c0, ix)
+				_bay_c1 = maxi(_bay_c1, ix + 1)
+	_bay_meshes.clear()
+
+## The cut-to-outline parts of a straight bar from a to b (local x/z).
+func _poly_bar(a: Vector2, b: Vector2) -> Array:
+	var parts: Array = Geometry2D.intersect_polyline_with_polygon(PackedVector2Array([a, b]), poly)
+	for hole in poly_holes:
+		var next: Array = []
+		for p in parts:
+			next.append_array(Geometry2D.clip_polyline_with_polygon(p, hole))
+		parts = next
+	return parts
 
 ## The boom reaches all of the slab (none of the corners a round slab leaves out).
 func reach_all() -> void:

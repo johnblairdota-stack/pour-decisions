@@ -598,14 +598,19 @@ func _build_site_page(root: Control) -> void:
 	_site_page.add_child(rail)
 	UI.place(rail, Vector2(0, 0), Vector2(36, 26))
 	rail.add_child(UI.head(Settings.brand("site").to_upper(), 24, UI.BONE, 6))
-	for n in range(FLOORS, -1, -1):
+	var many: bool = game != null and game.spire
+	for n in range(_floors(), -1, -1):
+		if many and n == 0:
+			continue          # (no water tower induction on Spire's rail)
 		# (row 0 is the water tower: a new crew's induction, under level 1)
 		var row := UI.pill(Color(UI.CARD, 0.9), Vector4(14, 1, 10, 1), Color(0, 0, 0, 0), 2)
 		row.custom_minimum_size = Vector2(132, 34)
 		var h := HBoxContainer.new()
 		h.add_theme_constant_override("separation", 8)
 		row.add_child(h)
-		var lab := UI.head("L%d" % n if n > 0 else "INDUCTION", 26 if n > 0 else 24, UI.BONE)
+		var lab := UI.head((game.level_label(n - 1) if game != null else "L%d" % n) if n > 0 else "INDUCTION", (16 if many else 26) if n > 0 else 24, UI.BONE)
+		if many:
+			row.custom_minimum_size = Vector2(110, 0)
 		lab.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		h.add_child(lab)
@@ -661,7 +666,7 @@ func _build_site_page(root: Control) -> void:
 	col.add_theme_constant_override("separation", 8)
 	_site_page.add_child(col)
 	UI.place(col, Vector2(1, 1), Vector2(-44, -36))
-	var hint := UI.head("UP / DOWN · FLOOR", 24, Color("c9c6bd"), 6)
+	var hint := UI.head("UP / DOWN · FLOOR    X · %s" % ("RIVERLIGHT" if game != null and game.spire else "SPIRE (NEW SITE)"), 24, Color("c9c6bd"), 6)
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	col.add_child(hint)
 	var bar := HBoxContainer.new()
@@ -680,6 +685,10 @@ func _build_site_page(root: Control) -> void:
 
 ## For main.gd's floors out on the site: the floor picked (0-based), or -1
 ## on the water tower's induction.
+## Floors on this site (Riverlight 11, Spire 34).
+func _floors() -> int:
+	return game.floors() if game != null and game.spire else FLOORS
+
 func floor_pick() -> int:
 	return -1 if KITS[index]["id"] == "tutorial" else _floor_pick
 
@@ -692,7 +701,7 @@ func medals() -> Array:
 	return _medals()
 
 func _medals() -> Array:
-	var m = Settings.value("medals")
+	var m = Settings.value(game.medal_key() if game != null else "medals")
 	return m if m is Array else []
 
 func _floors_done() -> int:
@@ -709,7 +718,7 @@ func _pick_defaults() -> void:
 	var done := _floors_done()
 	var on_site: bool = done > 0 or bool(Settings.value("tower_started"))
 	_induction = not on_site
-	_floor_pick = clampi(done, 0, FLOORS - 1)
+	_floor_pick = clampi(done, 0, _floors() - 1)
 	if _induction and not bool(Settings.value("tut_done")):
 		_floor_pick = -1
 	index = 2 if _floor_pick < 0 else 0
@@ -717,7 +726,7 @@ func _pick_defaults() -> void:
 
 ## Dev (`--startlevel=N` test runs): opens the site page on that floor.
 func show_floor(i: int) -> void:
-	_floor_pick = clampi(i, 0, FLOORS - 1)
+	_floor_pick = clampi(i, 0, _floors() - 1)
 	index = 0
 	_refresh_site()
 
@@ -751,8 +760,9 @@ func _refresh_site() -> void:
 		sb.bg_color = UI.GOLD if sel else Color(UI.CARD, 0.4 if locked else 0.9)
 		sb.border_color = UI.GOLD if (i == done and not sel) else Color(0, 0, 0, 0)
 		lab.add_theme_color_override("font_color", Color("14161b") if sel else (UI.DIM if locked else (Color("7cd992") if n == 0 else UI.BONE)))
-		lab.add_theme_font_size_override("font_size", (38 if n > 0 else 26) if sel else (26 if n > 0 else 24))
-		row.custom_minimum_size.y = 50 if sel else 34
+		var many: bool = game != null and game.spire
+		lab.add_theme_font_size_override("font_size", (38 if n > 0 else 26) if sel else ((16 if many else 26) if n > 0 else 24))
+		row.custom_minimum_size.y = (40 if many else 50) if sel else (20 if many else 34)
 		dot.visible = poured
 		if poured:
 			dot.color = MEDAL_COL[clampi(int(m[i]), 0, 2)]
@@ -764,13 +774,17 @@ func _refresh_site() -> void:
 		_lvl_line.text = "A short guided job on a round water tower, before the real thing."
 	else:
 		var extra := ""
-		if lvl in CLIMB_BEFORE:
+		if lvl in CLIMB_BEFORE and not (game != null and game.spire):
 			extra = " · CLIMB DAY FIRST"
 		elif lvl - 1 < m.size() and int(m[lvl - 1]) >= 0:
 			extra = " · %s LAST TIME" % ["BRONZE", "SILVER", "GOLD"][clampi(int(m[lvl - 1]), 0, 2)]
-		_lvl_k.text = "LEVEL %d OF %d%s" % [lvl, FLOORS, extra]
+		_lvl_k.text = "LEVEL %d OF %d%s" % [lvl, _floors(), extra]
 		_lvl_title.text = Story.title(lvl - 1)
 		_lvl_line.text = Story.line(lvl - 1)
+		if game != null and game.spire:
+			_lvl_k.text = "SPIRE · POUR %d OF %d%s" % [lvl, _floors(), extra]
+			_lvl_title.text = game.spire_title(lvl - 1)
+			_lvl_line.text = "Your crew pours the Ann St side. A bot crew pours the other side with the second boom."
 	# (the print of this floor's last pour)
 	var tex: Texture2D = null if tut else _floor_photo(_floor_pick)
 	_photo_pic.texture = tex
@@ -791,10 +805,14 @@ func _process_site(delta: float) -> void:
 				v = mv
 			pressed = pressed or p.action_pressed()
 			back = back or p.leave_pressed()
+			if p.alt_pressed() and _cool <= 0.0:
+				# X: the other site (Riverlight <-> Spire)
+				game.swap_site()
+				return
 	if _cool <= 0.0 and absf(v.y) > 0.5:
 		# (up a floor, as far as the next one nobody's poured; down as far
 		# as level 1, or the induction under it while that's on offer)
-		var nf := clampi(_floor_pick - int(signf(v.y)), -1 if _induction else 0, mini(_floors_done(), FLOORS - 1))
+		var nf := clampi(_floor_pick - int(signf(v.y)), -1 if (_induction and not (game != null and game.spire)) else 0, mini(_floors_done(), _floors() - 1))
 		if nf != _floor_pick:
 			_floor_pick = nf
 			index = 2 if nf < 0 else 0

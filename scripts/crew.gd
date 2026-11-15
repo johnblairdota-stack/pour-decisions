@@ -79,6 +79,10 @@ func place_start() -> void:
 			"pump":
 				p.zone = "ground"
 				p.position = Vector3(16.4, 0, 7.4)
+		if game.spire and role in ["boom", "poker", "screed", "hose"]:
+			# (Spire: on pour A's deck, by the boom tower at its Ann St face)
+			var spot := {"boom": Vector3(-3.15, 0, 0.6), "poker": Vector3(3.0, 0, -2.0), "screed": Vector3(-5.0, 0, -2.0), "hose": Vector3(1.0, 0, -3.0)}
+			p.position = Vector3(game.LAT_X, wy, 0) + spot[role]
 
 ## A bot driver. `keep` is the character it takes over as (a person leaving a
 ## job leaves their character with them, so the bot picks up a free one).

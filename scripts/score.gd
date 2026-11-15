@@ -260,6 +260,8 @@ func award(who, pts: int, why: String, at := Vector3.INF) -> void:
 
 ## Continuous work (pouring, screeding) earns fractions that pop as whole points.
 func trickle(who, amount: float, why: String, step := 10) -> void:
+	if who == null:
+		return
 	who.pts_frac += amount
 	if who.pts_frac >= step:
 		var n := int(who.pts_frac / step) * step
