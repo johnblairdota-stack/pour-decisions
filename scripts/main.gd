@@ -48,6 +48,7 @@ const ExploreScript := preload("res://scripts/explore.gd")
 const Look := preload("res://scripts/look.gd")
 const SpireSite := preload("res://scripts/spire_site.gd")
 const SpireB := preload("res://scripts/spire_b.gd")
+const SpireStreet := preload("res://scripts/spire_street.gd")
 const TowerHand := preload("res://scripts/tower_hand.gd")
 const LookFx := preload("res://scripts/look_fx.gd")
 
@@ -106,7 +107,7 @@ const DECK_STATIONS := {
 	"bin": {"pos": Vector3(5.2, 0, 2.85), "label": "BIN", "color": Color("ffc72c")},
 	"hose": {"pos": Vector3(0, 0, 0), "label": "END HOSE", "color": Color("2fd3e8")},
 }
-const GROUND_STATIONS := {
+var GROUND_STATIONS := {
 	# The pump, hopper and trucks stand on one line at 45 degrees (line.gd
 	# DIR): the bay's spot is beside the trucks' rears and the panel's on the
 	# pump's street side. The ladder's behind the pipe step-over; the haul
@@ -140,6 +141,7 @@ var base_y := 0.0
 var _spire_world: Node3D
 var _spire_core := {}
 var _spire_b: SpireB
+var _spire_street: SpireStreet
 var _spire_mast: Node3D      # the placing boom's tubular mast, up through the lift core
 var _spire_line: Node3D      # the concrete line from the riser's top, under the deck, to the mast and up it
 var _spire_jack := 0.0       # m the mast has still to be jacked this level (it rises as the form jumps)
@@ -331,6 +333,7 @@ func _ready() -> void:
 		_use_tut_frame()
 	if spire:
 		_use_spire_frame()
+	_use_street()
 	_build_environment()
 	_build_world()
 	_build_site()
@@ -1418,7 +1421,7 @@ func deck_pos(key: String) -> Vector3:
 		var spots := {"boom": edge.call(8.85, WALK_MID), "dogman": edge.call(8.85, WALK_MID),
 			"bin": edge.call(5.2, WALK_MID), "hoist": edge.call(hoist_x + 1.5, WALK_MID),
 			"screed": Vector3(far.x, 0, far.y), "poker": edge.call(1.5, -1.0),
-			"pinsets": edge.call(-3.0, -0.9)}
+			"pinsets": edge.call(-3.0, -0.9), "ladder": edge.call(13.6, WALK_MID)}
 		if spots.has(key):
 			return spots[key]
 	return DECK_STATIONS[key]["pos"]
@@ -1459,6 +1462,33 @@ func _use_spire_frame() -> void:
 	hoist_off = HOIST_Z - front
 	cam_yaw = SpireSite.cam_yaw()
 
+## The street set-up: Riverlight's yard, or Spire's kerbside work zone on Ann St (line.gd use_site).
+## The ground stations that belong to the pump move with it.
+func _use_street() -> void:
+	var rigs: Array[Vector2] = []
+	for i in 4:
+		rigs.append(LineScript.in_pf(GROUND_STATIONS["rig%d" % i]["pos"]))
+	if spire:
+		var wall := SpireSite.boundary_z(LAT_X)
+		LineScript.use_site(true, wall, base_y, SpireSite.front_z(LAT_X) + 0.3 - (wall + 0.3))
+	else:
+		LineScript.use_site(false)
+	OpsScript.use_site(spire)
+	if not spire:
+		return
+	for i in 4:
+		GROUND_STATIONS["rig%d" % i]["pos"] = LineScript.pf(rigs[i].x, rigs[i].y)
+	GROUND_STATIONS["bay"]["pos"] = LineScript.pf(3.9, 2.3)
+	GROUND_STATIONS["panel"]["pos"] = LineScript.pf(1.2, 2.0)
+	for key in ["spares", "rack"]:
+		GROUND_STATIONS[key]["pos"] = LineScript.RACKING + Vector3(1.5, 0, 0)
+	GROUND_STATIONS["pins"]["pos"] = LineScript.RACKING + Vector3(-1.5, 0, 0)
+	GROUND_STATIONS["sling"]["pos"] = Vector3(4.6, 0, 4.2)
+	GROUND_STATIONS["ladder_g"]["pos"] = LineScript.LADDER_FOOT
+	GROUND_STATIONS["ladder_g"]["label"] = "STAIRS"
+	GROUND_STATIONS["haul"]["pos"] = LineScript.HAUL + Vector3(-0.8, 0, 0.8)
+	GROUND_STATIONS["van"]["pos"] = Vector3(31.5, 0, 0.9)
+
 ## Spire: where the placing boom stands (its mast in the lift core) and how high its head is while
 ## level `lvl` is poured: clear over the jump form, which leads the deck.
 func spire_head_y(lvl: int) -> float:
@@ -1468,13 +1498,9 @@ func spire_head_y(lvl: int) -> float:
 ## Spire: the ladder tower up the Ann St face reaches just over the deck (the riser's on it), the
 ## boom's head and mast are at `head_y`, and the line runs from the riser under the deck to the mast.
 func _spire_tower(deck: float, head_y: float) -> void:
-	var want := deck + 1.1
-	while section_count * LS < want:
-		_add_section()
-	for i in lattice.get_child_count():
-		(lattice.get_child(i) as Node3D).visible = i * LS < want
-	var n := ceili(want / LS)
-	lattice.scale.y = want / (n * LS)
+	# (no pipe tower: the riser's bracketed to the building's Ann St face, with scaffold stairs
+	# beside it: line.gd)
+	lattice.visible = false
 	head.position = Vector3(SpireSite.mast_xz().x, head_y, SpireSite.mast_xz().y)
 	if _spire_mast == null:
 		_spire_mast = Node3D.new()
@@ -1500,7 +1526,7 @@ func _spire_tower(deck: float, head_y: float) -> void:
 		collar.position.y = (deck - 0.6 - i * FH) - bottom
 		collar.scale = Vector3.ONE / maxf(0.001, _spire_mast.scale.y)
 	var top := riser_top_y(deck)
-	var from := Vector3(LineScript.RISER.x, top, LineScript.RISER.z)
+	var from := LineScript.riser_at(top)
 	var under := Vector3(head.position.x + 0.6, top, head.position.z)
 	_pipe_between(_spire_line.get_child(0), from, under)
 	_pipe_between(_spire_line.get_child(1), under, Vector3(under.x, head_y + 0.6, under.z))
@@ -1631,11 +1657,7 @@ func _build_site() -> void:
 	if spire:
 		# the ladder tower's platform, from the scaffold out over the footpath to the ladder, and
 		# the hoist's landing
-		var pz := SpireSite.front_z(12.45) + WALK_GAP + WALK_W
-		rig.add_child(F.box(Vector3(3.7, 0.12, 2.4 - pz), grate, Vector3(12.45, -0.06, (2.4 + pz) * 0.5)))
-		for sx in [10.6, 14.3]:
-			for y in [0.55, 1.08]:
-				rig.add_child(F.box(Vector3(0.06, 0.06, 2.4 - pz), F.mat("orange"), Vector3(sx, y, (2.4 + pz) * 0.5)))
+		# (no platform out to a pipe tower any more: the stairs come up through the scaffold)
 		var hz := SpireSite.front_z(hoist_x) + WALK_GAP + WALK_W
 		rig.add_child(F.box(Vector3(2.2, 0.12, HOIST_Z - 0.7 - hz), grate, Vector3(hoist_x, -0.06, (HOIST_Z - 0.7 + hz) * 0.5)))
 		for sx in [hoist_x - 1.1, hoist_x + 1.1]:
@@ -1649,6 +1671,8 @@ func _build_site() -> void:
 	for key in DECK_STATIONS:
 		var def: Dictionary = DECK_STATIONS[key].duplicate()
 		def["pos"] = deck_pos(key)
+		if spire and key == "ladder":
+			def["label"] = "STAIRS"
 		_make_station(key, def, rig, "deck")
 	for key in GROUND_STATIONS:
 		_make_station(key, GROUND_STATIONS[key], ground_st, "ground")
@@ -1850,7 +1874,7 @@ func _make_station(key: String, def: Dictionary, parent: Node3D, zone: String) -
 func _build_walkway() -> void:
 	if spire:
 		# (round the plate's real edge, open at the hoist's landing and the ladder tower's platform)
-		_rect_rails = SpireSite.build_scaffold(rig, WALK_GAP, WALK_W, FH, [[hoist_x - 1.1, hoist_x + 1.1], [10.6, 14.3]], Yard)
+		_rect_rails = SpireSite.build_scaffold(rig, WALK_GAP, WALK_W, FH, [[hoist_x - 1.1, hoist_x + 1.1], [12.5, 15.6]], Yard)
 		return
 	var grate := F.mat("steel")
 	var rail := F.mat("orange")
@@ -2424,7 +2448,7 @@ func _watch_dispatch(delta: float) -> void:
 				_tt_parked = true
 				var rear: Vector3 = (tr["node"] as Node3D).global_transform * Vector3(-5.6, 0, 0)
 				var pp = crew.crew["pump"]
-				pp.position = Vector3(17.0, 0, 6.8)     # (its old waiting spot by the panel: the stall in the logs)
+				pp.position = Vector3(17.0, 0, 6.8) if not spire else LineScript.PUMP_POS + LineScript.DIR * 6.6 + LineScript.SIDE * 0.5     # (its old waiting spot by the panel: the stall in the logs)
 				print("[trucktest] pump operator put behind the reversing truck's rear at %s" % str(pp.position))
 			if tr["state"] == "back" and float(tr.get("blocked_t", 0.0)) > 25.0:
 				print("[trucktest] FAIL: a truck sat 25 s behind someone and never reached the hopper")
@@ -2464,7 +2488,8 @@ func _spire_crane(deck: float) -> void:
 	var cx := 23.0       # (west of the ladder tower: out of the way of the view in over Ann St)
 	climb.MAST = Vector3(cx, 0, SpireSite.boundary_z(cx) + 1.35)
 	climb.crane.position = climb.MAST
-	var want := deck + 34.0
+	# (well over the placing booms at full stretch: head 3 floors up, a 15 m arm standing, and clear air)
+	var want := deck + 3.0 * FH + 3.2 + 32.0
 	var n := 0
 	for c in climb.crane.get_children():
 		if c != climb.crane_slew:
@@ -2755,7 +2780,13 @@ func _menu_fall_update(delta: float) -> void:
 	var z0 := BD * 0.5
 	var lip := z0 + 0.3
 	const ROWS := 6
+	var edge: PackedFloat32Array = _menu_pour.front_edge
+	var curved: bool = not _menu_pour.poly.is_empty() and edge.size() == nx
 	for ix in range(c0, c1 + 1):
+		if curved:
+			# (Spire: the sheet follows the slab's own street edge)
+			z0 = edge[ix]
+			lip = z0 + 0.3
 		var a := maxi(ix - 1, 0)
 		var b := mini(ix + 1, nx - 1)
 		var th := maxf(0.0, (0.25 * flow[a] + 0.5 * flow[ix] + 0.25 * flow[b]) / 5.0)
@@ -2841,6 +2872,11 @@ func _apply_kit(which: String) -> void:
 		_build_boom(20.0, 20.0)
 		hud.toast(Settings.branded("Good call: that's the kit SCP ran on Riverlight."), 2.4)
 	line.build(self, kit)
+	if spire:
+		# (Ann St's kerbside work zone: barriers, the gantry, the traffic controllers and the spotter)
+		_spire_street = SpireStreet.new()
+		add_child(_spire_street)
+		_spire_street.build(self)
 	line.whip.connect(_on_whip)
 	poker = PokerScript.new()
 	add_child(poker)
@@ -3636,7 +3672,7 @@ func _walkable(p: Vector3, zone: String, who = null) -> bool:
 		if spire:
 			# Spire: Ann St's footpath and kerb lanes, off the podium's edge, round the hoist's
 			# mast and the crane's
-			ok = p.x >= -9.5 and p.x <= 33.5 and p.z <= 12.5 and p.z >= SpireSite.boundary_z(p.x) + 0.35
+			ok = p.x >= -9.5 and p.x <= 33.5 and p.z <= LineScript.KERB_EDGE - 0.3 and p.z >= SpireSite.boundary_z(p.x) + 0.35
 			if absf(p.x - (hoist_x - 1.25)) < 0.7 and absf(p.z - HOIST_Z) < 0.8:
 				ok = false
 			if climb != null and absf(p.x - climb.MAST.x) < 1.5 and absf(p.z - climb.MAST.z) < 1.5:
@@ -3648,8 +3684,10 @@ func _walkable(p: Vector3, zone: String, who = null) -> bool:
 			ok = (p.x >= NOTCH_E - 0.1 and p.x <= 33.5 and p.z >= 1.9 and p.z <= 12.5) or (p.x >= 8.4 and p.x <= NOTCH_E - 0.1 and p.z >= -1.2 and p.z <= 12.5) or (p.x >= -9.5 and p.x <= 8.4 and p.z >= 2.9 and p.z <= 12.5)
 		if not ok:
 			return false
-		if kit == "tower" and absf(p.x - LAT_X) < 1.4 and absf(p.z) < 1.4:
+		if kit == "tower" and not spire and absf(p.x - LAT_X) < 1.4 and absf(p.z) < 1.4:
 			return false
+		if spire and p.x > LineScript.LADDER.x - 0.9 and p.x < LineScript.LADDER.x + 2.2 and p.z < LineScript.LADDER.z + 0.7:
+			return false   # (the foot of the scaffold stairs)
 		# The pump and its hopper (on their 45 degree line), and the racking
 		var pfr: Vector2 = LineScript.in_pf(p)
 		if pfr.x > -2.6 and pfr.x < 4.2 and absf(pfr.y) < 1.2:
@@ -3672,8 +3710,6 @@ func _walkable(p: Vector3, zone: String, who = null) -> bool:
 		# pour A and its scaffold (never into the jump form), the ladder tower's platform and the
 		# hoist's landing
 		if Geometry2D.is_point_in_polygon(Vector2(p.x, p.z), SpireSite.poly("walk")):
-			return true
-		if p.x >= 10.7 and p.x <= 14.2 and p.z <= 2.3 and p.z >= SpireSite.front_z(p.x):
 			return true
 		if absf(p.x - hoist_x) <= 0.95 and p.z <= HOIST_Z - 0.75 and p.z >= SpireSite.front_z(p.x):
 			return true
@@ -4591,6 +4627,12 @@ func _process(delta: float) -> void:
 		_spire_b.update(delta, fb, phase, deck_top(), head.position.y)
 	perf.mark("climb")
 	line.update(delta, phase == "pour")
+	if spire:
+		# (Ann St climbs past the site: the trucks ride its surface, not the pump pad's level)
+		for t in line.trucks:
+			var tn := t["node"] as Node3D
+			if tn != null:
+				tn.position.y = SpireSite.road_lift(tn.position.x, tn.position.z)
 	perf.mark("line")
 	poker.update(delta)
 	screed.update(delta)
@@ -5875,7 +5917,7 @@ func _jobs() -> Array:
 		if not at_joint or lv2 == 2:
 			add.call("joint", line.clamps[j]["pos"] + Vector3(0.9, 0.9, 0.9), lv2, "pump", "C%d %s" % [j + 1, "BURST" if line.burst else ("BLOCKED PIPE" if line.job_kind == "block" else "CLAMP")])
 	if line.blocked and not line.block_found:
-		add.call("block", Vector3(line.RISER.x + 0.9, maxf(2.0, line.riser_top * 0.5), line.RISER.z + 0.9), 2, "pump")
+		add.call("block", line.riser_at(maxf(2.0, line.riser_top * 0.5)) + Vector3(0.9, 0, 0.9), 2, "pump")
 	var part: String = bots.part_needed()
 	if part != "" and lh.held_kind != part and not line.part_coming(part, lh):
 		add.call("spares" if part == "clamp" else "rack", st_pos.call("spares") + up, 1, "pump")
@@ -5962,10 +6004,10 @@ func where_to(p) -> String:
 		return ""
 	match String(g[3]):
 		"riser":
-			return "Up the LADDER to %s" % g[0]
+			return "Up the %s to %s" % ["STAIRS" if LineScript.STAIRS else "LADDER", g[0]]
 		"ground":
 			if p.zone == "deck":
-				return "Down the LADDER to the %s" % g[0]
+				return "Down the %s to the %s" % ["STAIRS" if LineScript.STAIRS else "LADDER", g[0]]
 		"deck":
 			if p.zone == "ground":
 				return "Up the LADDER, then the %s" % g[0]
@@ -7427,6 +7469,16 @@ func _spire_views() -> Array:
 		["air_west", at + Vector3(70, 30, 25), at],
 		["street", Vector3(26, 12, 17), Vector3(10, 3, 0)],
 		["street_low", Vector3(32, 2.5, 13), Vector3(6, 6, -2)],
+		["zone", Vector3(16, 15, 16.5), Vector3(15, 0, 3)],
+		["taper", Vector3(-27, 8, 14), Vector3(-8, 0, 4)],
+		["bay", Vector3(30, 6, 13), Vector3(22, 1, 3)],
+		["zone_w", Vector3(-34, 7, 12), Vector3(0, 1, 4)],
+		["zone_e", Vector3(48, 8, 13), Vector3(18, 1, 3)],
+		["gate", Vector3(11, 5, 12), Vector3(11, 1.5, 1)],
+		["stairs", Vector3(24, 13, 12), Vector3(13, 9, -2)],
+		["roof", Vector3(23, base_y + 7, 7), Vector3(13, base_y + 1.5, -3.5)],
+		["road_w", Vector3(2, 4, 12), Vector3(-34, -1, 15)],
+		["crane", at + Vector3(14, 95, 85), at + Vector3(10, 34, 0)],
 		["street_e", Vector3(-22, 6, 14), Vector3(2, 6, -1)],
 		["podium", Vector3(4, base_y * 0.5 + 4, 18), Vector3(4, base_y * 0.6, -4)],
 		["deck_a", Vector3(4, dk + 16, SpireSite.front_z(4.0) + 16), Vector3(0, dk, SpireSite.front_z(0.0) - 8)],

@@ -23,6 +23,7 @@ const PerfClock := preload("res://scripts/perf.gd")
 
 const UI := preload("res://scripts/ui.gd")
 const Icons := preload("res://scripts/icons.gd")
+const LineScript := preload("res://scripts/line.gd")
 
 const INK := Color("141a26")
 const STEEL := Color("dfe3ea")
@@ -295,6 +296,9 @@ func _tower_y(f: float) -> float:
 	return lerpf(_base() - 10.0, TOP + 10.0, clampf(f, 0.0, 1.0))
 
 func _draw_tower_static() -> void:
+	if LineScript.STAIRS:
+		_draw_face_static()
+		return
 	var tx := _tower_x()
 	var base := _base()
 	var n: int = maxi(1, int(st["sections"]))
@@ -341,6 +345,51 @@ func _draw_tower_static() -> void:
 	_box(Rect2(tx.y + 6.0, TOP - 52.0, 30.0, 28.0), Color("3a4252"), 5.0)          # counterweight
 	_box(Rect2(cx - 30.0, TOP - 62.0, 62.0, 44.0), YEL, 8.0)                        # turret
 	_box(Rect2(tx.y - 4.0, TOP - 56.0, 16.0, 32.0), Color("f4f7fa"), 4.0, INK, 2.5) # hydraulic tank
+	_c.draw_rect(Rect2(tx.y + 0.0, TOP - 61.0, 8.0, 6.0), INK)
+
+## Spire: the riser's bracketed to each slab up the building's face, with
+## scaffold stairs beside it, and the boom's on a tube mast above the deck.
+func _draw_face_static() -> void:
+	var tx := _tower_x()
+	var base := _base()
+	var n: int = maxi(1, int(st["sections"]))
+	var sh := (base - TOP) / n
+	var cx := (tx.x + tx.y) * 0.5
+	var right := _w + 4.0
+	# The building: a pale face with a slab edge at each floor
+	_c.draw_rect(Rect2(tx.x - 6.0, TOP, right - tx.x + 6.0, base - TOP), Color(0.80, 0.84, 0.89, 0.55))
+	for i in n + 1:
+		var y := TOP + i * sh
+		_c.draw_rect(Rect2(tx.x - 12.0, y - 4.0, right - tx.x + 12.0, 8.0), INK)
+		_c.draw_rect(Rect2(tx.x - 10.0, y - 2.0, right - tx.x + 10.0, 4.0), Color("f4f7fa"))
+		# (the bracket that holds the riser to the slab)
+		_c.draw_line(Vector2(_riser_x(), y), Vector2(tx.x - 10.0, y), INK, 3.5)
+		if i < n:
+			_c.draw_line(Vector2(_riser_x(), y + sh * 0.5), Vector2(tx.x - 6.0, y + sh * 0.5), INK, 3.0)
+	# Scaffold stairs: two standards and a zig-zag of flights
+	var sx0 := tx.x + 4.0
+	var sx1 := tx.y + 30.0
+	for x in [sx0, sx1]:
+		_c.draw_line(Vector2(x, TOP - 8.0), Vector2(x, base), Color(INK, 0.8), 3.0)
+	var flights := maxi(n * 2, 8)
+	var fh := (base - TOP) / flights
+	var zig := PackedVector2Array()
+	for i in flights + 1:
+		zig.append(Vector2(sx0 + 3.0 if i % 2 == 0 else sx1 - 3.0, base - i * fh))
+	_c.draw_polyline(zig, INK, 7.0, true)
+	_c.draw_polyline(zig, ORANGE, 3.5, true)
+	# The haul rope
+	var lx := sx1 + 12.0
+	_dashes(PackedVector2Array([Vector2(lx, TOP), Vector2(lx, base - 26.0)]), 0.0, Color(INK, 0.7), 1.5)
+	_c.draw_colored_polygon(PackedVector2Array([Vector2(lx - 4.0, base - 26.0), Vector2(lx + 4.0, base - 26.0), Vector2(lx, base - 16.0)]), INK)
+	_pipe(_line_run())
+	# The head: the deck's edge, the tube mast, turret, counterweight, tank
+	_c.draw_rect(Rect2(tx.x - 22.0, TOP - 10.0, tx.y - tx.x + 56.0, 10.0), INK)
+	_c.draw_rect(Rect2(tx.x - 19.0, TOP - 7.0, tx.y - tx.x + 50.0, 4.0), Color("596275"))
+	_box(Rect2(cx - 9.0, TOP - 24.0, 18.0, 16.0), STEEL, 3.0)
+	_box(Rect2(tx.y + 6.0, TOP - 52.0, 30.0, 28.0), Color("3a4252"), 5.0)
+	_box(Rect2(cx - 30.0, TOP - 62.0, 62.0, 44.0), YEL, 8.0)
+	_box(Rect2(tx.y - 4.0, TOP - 56.0, 16.0, 32.0), Color("f4f7fa"), 4.0, INK, 2.5)
 	_c.draw_rect(Rect2(tx.y + 0.0, TOP - 61.0, 8.0, 6.0), INK)
 
 ## What changes on the tower: the deck's plate, the dashes in the line, and

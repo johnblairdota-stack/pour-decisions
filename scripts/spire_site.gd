@@ -64,6 +64,18 @@ static func setup() -> bool:
 	off.y = (TOWER.y - TOWER_CLEAR) - (gate.y + _bound_k * (TOWER.x - gate.x))
 	_bound_a = g(d["truck_gate"]["xy"])
 	_cut_pours()
+	# The game's ground is level at the pump: y 0 is the street's own height there, not at the gate
+	# (Ann St climbs about 4 in 100 past the site).
+	var scene = load(String(d["model"]["glb"]))
+	if scene is PackedScene:
+		var m: Node3D = scene.instantiate()
+		_read_ground(m, Transform3D(Basis(Vector3.UP, th), Vector3(off.x, -street, off.y)))
+		m.free()
+		var at0 := ground_y(PAD.x, PAD.y)
+		street += at0
+		for i in _hm.size():
+			if _hm[i] > -1e8:
+				_hm[i] -= at0
 	return true
 
 static func _raw(key: String) -> PackedVector2Array:
@@ -190,6 +202,7 @@ static func build_world(parent: Node3D) -> Node3D:
 	if scene is PackedScene:
 		var m: Node3D = scene.instantiate()
 		m.rotation.y = th
+		_level_street(m, m, Transform3D(Basis(Vector3.UP, th), Vector3(off.x, -street, off.y)))
 		_tint(m)
 		# (the model's own plant stands where the Blender stage had it: the game builds the booms, the
 		# pump, the trucks and the line itself, and the Ann St planters are out for the pour)
@@ -204,6 +217,123 @@ static func build_world(parent: Node3D) -> Node3D:
 		push_warning("Spire: the site model hasn't been imported yet (open the project in the editor once)")
 	parent.add_child(root)
 	return root
+
+# ------------------------------------------------------------------ the street's own levels
+# Ann St isn't flat: it falls along the site and has a crossfall and kerbs. The game's ground is y 0 at
+# the gate, so anything that drives or walks away from the pump is put on the street's real surface.
+const PAD := Vector2(21.0, 8.0)      # the pump's hopper and truck bay (line.gd HOPPER..BAY)
+const HM_X0 := -90.0
+const HM_Z0 := -100.0
+const HM_NX := 240
+const HM_NZ := 150
+static var _hm := PackedFloat32Array()
+
+static func _read_ground(model: Node3D, xf: Transform3D) -> void:
+	_hm.resize(HM_NX * HM_NZ)
+	_hm.fill(-1e9)
+	for nm in ["roads", "footpaths_kerbs", "kerb_gutter", "footways"]:
+		var mi := model.find_child(nm, true, false) as MeshInstance3D
+		if mi == null or mi.mesh == null:
+			continue
+		var f: PackedVector3Array = mi.mesh.get_faces()
+		for t in range(0, f.size(), 3):
+			var a := xf * f[t]
+			var b := xf * f[t + 1]
+			var c := xf * f[t + 2]
+			var x0 := maxi(0, int(floor(minf(a.x, minf(b.x, c.x)) - HM_X0)))
+			var x1 := mini(HM_NX - 1, int(ceil(maxf(a.x, maxf(b.x, c.x)) - HM_X0)))
+			var z0 := maxi(0, int(floor(minf(a.z, minf(b.z, c.z)) - HM_Z0)))
+			var z1 := mini(HM_NZ - 1, int(ceil(maxf(a.z, maxf(b.z, c.z)) - HM_Z0)))
+			if x0 > x1 or z0 > z1:
+				continue
+			var den := (b.z - c.z) * (a.x - c.x) + (c.x - b.x) * (a.z - c.z)
+			if absf(den) < 1e-6:
+				continue
+			for iz in range(z0, z1 + 1):
+				for ix in range(x0, x1 + 1):
+					var px := HM_X0 + ix
+					var pz := HM_Z0 + iz
+					var w0 := ((b.z - c.z) * (px - c.x) + (c.x - b.x) * (pz - c.z)) / den
+					var w1 := ((c.z - a.z) * (px - c.x) + (a.x - c.x) * (pz - c.z)) / den
+					var w2 := 1.0 - w0 - w1
+					if w0 < -0.02 or w1 < -0.02 or w2 < -0.02:
+						continue
+					var y := w0 * a.y + w1 * b.y + w2 * c.y
+					if y > _hm[iz * HM_NX + ix]:
+						_hm[iz * HM_NX + ix] = y
+
+## The street's surface (game y) at game x/z; 0 where the model has no road or footpath.
+static func ground_y(x: float, z: float) -> float:
+	if _hm.is_empty():
+		return 0.0
+	var fx := clampf(x - HM_X0, 0.0, HM_NX - 1.001)
+	var fz := clampf(z - HM_Z0, 0.0, HM_NZ - 1.001)
+	var ix := int(fx)
+	var iz := int(fz)
+	var i := iz * HM_NX + ix
+	var h00 := _hm[i]
+	var h10 := _hm[i + 1]
+	var h01 := _hm[i + HM_NX]
+	var h11 := _hm[i + HM_NX + 1]
+	if h00 < -1e8 or h10 < -1e8 or h01 < -1e8 or h11 < -1e8:
+		var best := maxf(maxf(h00, h10), maxf(h01, h11))
+		return best if best > -1e8 else 0.0
+	var u := fx - ix
+	var v := fz - iz
+	return lerpf(lerpf(h00, h10, u), lerpf(h01, h11, u), v)
+
+# Ann St climbs about 4 in 100 past the site, and the game's street works (pump, racking, hoist, the
+# people on the ground) stand on level ground at y 0. So the street is levelled in front of the site,
+# the way a pump pad's packed level: the road, kerbs, footpaths, paint and everything standing on them
+# come to y 0 between LEVEL_X0 and LEVEL_X1 and ease back to the street's own fall over LEVEL_EASE.
+const LEVEL_X0 := -12.0
+const LEVEL_X1 := 34.0
+const LEVEL_EASE := 16.0
+const GROUND_KIT := ["ground_", "roads", "footpaths", "footways", "line_marking", "car_park", "kerb_", "streetname",
+	"busonly", "hoarding", "bus_", "street_", "tree_", "palm_"]
+
+static func _level_w(x: float) -> float:
+	return smoothstep(LEVEL_X0 - LEVEL_EASE, LEVEL_X0, x) * (1.0 - smoothstep(LEVEL_X1, LEVEL_X1 + LEVEL_EASE, x))
+
+static func _level_street(n: Node, model: Node3D, xf: Transform3D) -> void:
+	if n is MeshInstance3D:
+		var mi := n as MeshInstance3D
+		var nm := String(mi.name)
+		var kit := false
+		for pre in GROUND_KIT:
+			if nm.begins_with(pre):
+				kit = true
+		if kit and mi.mesh != null:
+			# (this node's own place in the model: the model isn't in the tree yet)
+			var rel := Transform3D.IDENTITY
+			var q: Node = mi
+			while q != model and q is Node3D:
+				rel = (q as Node3D).transform * rel
+				q = q.get_parent()
+			var to_game := xf * rel
+			var up := rel.basis.inverse() * Vector3.UP
+			var box: AABB = to_game * mi.mesh.get_aabb()
+			if box.end.x > LEVEL_X0 - LEVEL_EASE and box.position.x < LEVEL_X1 + LEVEL_EASE:
+				var out := ArrayMesh.new()
+				for si in mi.mesh.get_surface_count():
+					var arr: Array = mi.mesh.surface_get_arrays(si)
+					var vv: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+					for i in vv.size():
+						var gp := to_game * vv[i]
+						var w := _level_w(gp.x)
+						if w > 0.0:
+							vv[i] -= up * (ground_y(gp.x, gp.z) * w)
+					arr[Mesh.ARRAY_VERTEX] = vv
+					out.add_surface_from_arrays((mi.mesh as ArrayMesh).surface_get_primitive_type(si) if mi.mesh is ArrayMesh else Mesh.PRIMITIVE_TRIANGLES, arr)
+					out.surface_set_material(si, mi.mesh.surface_get_material(si))
+				mi.mesh = out
+	for c in n.get_children():
+		_level_street(c, model, xf)
+
+## How far up a truck (or anyone) at game x/z stands: 0 on the levelled street in front of the site,
+## the street's own level beyond it.
+static func road_lift(x: float, z: float) -> float:
+	return ground_y(x, z) * (1.0 - _level_w(x))
 
 ## glTF carries only flat colours, and most of the neighbours' walls are near white: under the game's
 ## sun they burnt out to blank white boxes. The neighbours get the game's own toon material (so the

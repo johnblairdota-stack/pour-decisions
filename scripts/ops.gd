@@ -167,9 +167,19 @@ func setup(owner_game) -> void:
 # with the fence, under a lift-off grate lid. Everyone walks straight over
 # all of it.
 const PAD_PUMP := Rect2(-2.2, -1.1, 4.6, 2.6)     # under the pump: along -2.2..2.4, across -1.1..1.5
-const PAD_BAY := Rect2(2.4, -3.3, 4.5, 6.6)       # under the hopper and the truck rears
-const TRENCH := Rect2(0.0, 1.5, 0.7, 6.7)         # from the pump's street side out to the pit
-const PIT := Vector3(11.9, 0, 10.85)
+static var PAD_BAY := Rect2(2.4, -3.3, 4.5, 6.6)       # under the hopper and the truck rears
+static var TRENCH := Rect2(0.0, 1.5, 0.7, 6.7)         # from the pump's street side out to the pit
+static var PIT := Vector3(11.9, 0, 10.85)
+# Spire's kerbside work zone: nothing's dug into Ann St. The pump and the truck's rear stand on a
+# bunded spill mat, the washout runs back along the gutter in a lay-flat hose (TRENCH, along the
+# pump's line this time), and the settling tank's a tray in the kerb lane behind the racking.
+static var KERB := false
+
+static func use_site(kerb: bool) -> void:
+	KERB = kerb
+	PAD_BAY = Rect2(2.4, -1.25, 4.5, 2.6) if kerb else Rect2(2.4, -3.3, 4.5, 6.6)
+	TRENCH = Rect2(-8.7, -1.12, 6.5, 0.24) if kerb else Rect2(0.0, 1.5, 0.7, 6.7)
+	PIT = Vector3(8.6, 0, 3.05) if kerb else Vector3(11.9, 0, 10.85)
 const PIT_SIZE := Vector2(3.2, 1.5)
 const GRATE_Y := 0.068
 # How far a point 1 m down in the pit shows towards the camera, on the flat
@@ -186,6 +196,8 @@ var _flow_t := 0.0
 
 ## Whether this ground point is on a grate (for the footsteps).
 func on_grate(p: Vector3) -> bool:
+	if KERB:
+		return false
 	var q: Vector2 = game.LineScript.in_pf(p)
 	if PAD_PUMP.has_point(q) or PAD_BAY.has_point(q) or TRENCH.has_point(q):
 		return true
@@ -245,14 +257,23 @@ func _build_pit() -> void:
 	pad.position = game.LineScript.PUMP_POS
 	pad.rotation.y = game.LineScript.PUMP_YAW
 	game.add_child(pad)
-	for r in [PAD_PUMP, PAD_BAY, TRENCH]:
-		_grate(pad, r, GRATE_Y)
+	if KERB:
+		# (a blue spill mat with a yellow bund round it, and the hose in the gutter)
+		for r in [PAD_PUMP, PAD_BAY]:
+			pad.add_child(F.box(Vector3(r.size.x, 0.012, r.size.y), F.color_mat(Color("2c4f86")), Vector3(r.get_center().x, GRATE_Y - 0.05, r.get_center().y), false))
+			for sx in [0.0, 1.0]:
+				pad.add_child(F.box(Vector3(0.1, 0.08, r.size.y), F.color_mat(Color("ffc72c")), Vector3(r.position.x + r.size.x * sx, GRATE_Y - 0.02, r.get_center().y), false))
+				pad.add_child(F.box(Vector3(r.size.x, 0.08, 0.1), F.color_mat(Color("ffc72c")), Vector3(r.get_center().x, GRATE_Y - 0.02, r.position.y + r.size.y * sx), false))
+		pad.add_child(F.box(Vector3(TRENCH.size.x, 0.07, TRENCH.size.y - 0.06), F.color_mat(Color("27508c")), Vector3(TRENCH.get_center().x, GRATE_Y - 0.03, TRENCH.get_center().y), false))
+	else:
+		for r in [PAD_PUMP, PAD_BAY, TRENCH]:
+			_grate(pad, r, GRATE_Y)
 	for r in [PAD_PUMP, PAD_BAY]:
 		_pad_water.append(_water_plane(pad, r, GRATE_Y + 0.008, Color("5d8fb0")))
 	# (the water in the trench runs from the pump end out to the pit)
 	_trench_water = _water_plane(pad, TRENCH, GRATE_Y + 0.008, blue)
 	for i in 7:
-		var rp := F.box(Vector3(TRENCH.size.x - 0.16, 0.006, 0.22), F.color_mat(Color("cfeaff"), false, Color("6fb7ff")), Vector3.ZERO, false)
+		var rp := F.box(Vector3(0.22, 0.006, TRENCH.size.y - 0.08) if KERB else Vector3(TRENCH.size.x - 0.16, 0.006, 0.22), F.color_mat(Color("cfeaff"), false, Color("6fb7ff")), Vector3.ZERO, false)
 		rp.visible = false
 		pad.add_child(rp)
 		_ripples.append(rp)
@@ -354,9 +375,15 @@ func _update_water(delta: float) -> void:
 	_flow = move_toward(_flow, want, delta * (0.9 if want > _flow else 0.25))
 	_trench_water.visible = _flow > 0.01
 	if _trench_water.visible:
-		var ln := (TRENCH.size.y - 0.1) * _flow
-		_trench_water.scale.z = _flow
-		_trench_water.position.z = TRENCH.position.y + 0.05 + ln * 0.5
+		if KERB:
+			# (along the hose, from the pump end back to the tray)
+			var lx := (TRENCH.size.x - 0.1) * _flow
+			_trench_water.scale.x = _flow
+			_trench_water.position.x = TRENCH.end.x - 0.05 - lx * 0.5
+		else:
+			var ln := (TRENCH.size.y - 0.1) * _flow
+			_trench_water.scale.z = _flow
+			_trench_water.position.z = TRENCH.position.y + 0.05 + ln * 0.5
 	var running: bool = call and hold > 0.02 and not washed
 	_flow_t += delta
 	for i in _ripples.size():
@@ -364,6 +391,8 @@ func _update_water(delta: float) -> void:
 		var u := fmod(_flow_t * 0.45 + float(i) / _ripples.size(), 1.0)
 		rp.visible = running and u < _flow
 		rp.position = Vector3(TRENCH.get_center().x, GRATE_Y + 0.013, TRENCH.position.y + 0.15 + (TRENCH.size.y - 0.3) * u)
+		if KERB:
+			rp.position = Vector3(TRENCH.end.x - 0.15 - (TRENCH.size.x - 0.3) * u, GRATE_Y + 0.013, TRENCH.get_center().y)
 	water_fx.emitting = running and _flow > 0.9
 	# (the water in the tank: the higher it stands, the more of it shows
 	# past the tank's near lip)
