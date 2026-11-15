@@ -189,14 +189,20 @@ def build():
     excl = ()
     if st:
         excl = (L.HSW["hotel_way"], st["shed_e_way"])
+    else:                                    # HSW round 1: the named sheds are built by hsw_hero
+        excl = tuple(s["osm"] for s in L.HSW["sheds"])
     meta = B.build(zone=B.HSW_ZONE, collection="hsw", exclude=excl)
     objs = list(meta["objects"])
-    bw, walks = boardwalk(col, with_deck=st is None)
-    objs += bw
     out = {}
+    walks = 0
     if st is None:
-        objs += percivals(col) + lift_towers(col)
+        import hsw_hero
+        out = hsw_hero.build(col)
+        objs += out.pop("objects")
+        walks = out.get("riverwalk_ways", 0)
     else:
+        bw, walks = boardwalk(col, with_deck=False)
+        objs += bw
         mb, out = midbuild(col, st)
         objs += mb
     return {"module": "hsw", "stage": st["name"] if st else "as built (2019)", "objects": objs,

@@ -33,6 +33,12 @@ def build():
     verts = np.stack([X, Y, sub], -1).reshape(-1, 3)
     idx = np.arange(R * Cn).reshape(R, Cn)
     faces = np.stack([idx[:-1, :-1], idx[1:, :-1], idx[1:, 1:], idx[:-1, 1:]], -1).reshape(-1, 4)
+    keep = None
+    if not st:                               # HSW round 1: hsw_hero builds a 1 m patch here
+        px0, py0, px1, py1 = L.HSW["patch_box"]
+        fc = verts[faces[:, 0]]
+        keep = ~((fc[:, 0] >= px0 + 1) & (fc[:, 0] < px1 - 1) & (fc[:, 1] >= py0 + 1) & (fc[:, 1] < py1 - 1))
+        faces = faces[keep]
     ob = C.mesh_fast("ground_lidar2019_smooth", verts, faces, col, "ground")
     ob.data.materials.append(C.material("rock"))
     dzx = np.abs(sub[:-1, 1:] - sub[:-1, :-1]) / STEP
@@ -59,6 +65,8 @@ def build():
     gm = mask[np.ix_(rows, cols)][:-1, :-1].ravel()
     ob.data.materials.append(C.material("grass"))
     mi = np.where(steep > 0, 1, np.where(gm, 2, 0)).astype("i4")
+    if keep is not None:
+        mi = mi[keep]
     ob.data.polygons.foreach_set("material_index", mi)
     ob.data.shade_smooth()
     # step 7j: far land - a skirt from the LiDAR edge out 6 km (no floating edge, no void under the sky)

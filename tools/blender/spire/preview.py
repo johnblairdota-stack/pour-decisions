@@ -214,9 +214,9 @@ def setup_morning():
         rough = {"clay_water": 0.06, "clay_spire_glass": 0.08, "clay_spire_balustrade": 0.8, "clay_spire_soffit": 0.9, "clay_balustrade": 0.05, "clay_steel": 0.45}.get(m.name, 0.85)
         bsdf.inputs["Roughness"].default_value = rough
         if m.name == "clay_water":                       # Brisbane River: brown-green, sky reflection, small ripples
-            bsdf.inputs["Base Color"].default_value = (0.05, 0.055, 0.045, 1)   # step 7j: darker, less mirror-like
-            bsdf.inputs["Roughness"].default_value = 0.22
-            bsdf.inputs["Specular IOR Level"].default_value = 0.3
+            bsdf.inputs["Base Color"].default_value = (0.075, 0.07, 0.042, 1)   # HSW round 1: brown-green (photos)
+            bsdf.inputs["Roughness"].default_value = 0.26
+            bsdf.inputs["Specular IOR Level"].default_value = 0.2
             nt = m.node_tree
             tex = nt.nodes.new("ShaderNodeTexNoise")
             tex.inputs["Scale"].default_value = 0.35
@@ -438,6 +438,9 @@ def setup_morning():
                                 for k in ("bay", "win", "sill", "head", "glass", "rough", "floor") if "win_" + k in m})
         elif m.get("shader") in ("brick", "ashlar"):
             facade_material(m, None)
+        if m.get("shader") in ("tuff", "sheet", "boards", "corten", "glass_green"):   # HSW round 1 materials
+            import hsw_hero
+            hsw_hero.shade(m, bsdf)
         m["look_done"] = True
     mo = L.MORNING
     apply_light(mo["sun_azimuth_deg"], mo["sun_elevation_deg"])
