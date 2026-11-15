@@ -84,6 +84,29 @@ func place_start() -> void:
 			var spot := {"boom": Vector3(-3.15, 0, 0.6), "poker": Vector3(3.0, 0, -2.0), "screed": Vector3(-5.0, 0, -2.0), "hose": Vector3(1.0, 0, -3.0)}
 			p.position = Vector3(game.LAT_X, wy, 0) + spot[role]
 
+## The people and their jobs, kept over a reload to the other site (the tower pick): role -> identity.
+static var carry := {}
+
+func save_carry() -> void:
+	carry = {}
+	for role in ROLES:
+		var p = crew[role]
+		if not p.bot:
+			carry[role] = {"index": p.index, "prefix": p.prefix, "color": p.tag_color, "ai": p.ai, "bot": false,
+				"remote_id": p.remote_id, "touched": p.touched, "char": p.char_id}
+
+## After a reload: everyone back on the jobs they picked (bots on the rest). True if there was any.
+func restore_carry() -> bool:
+	if carry.is_empty():
+		return false
+	for role in ROLES:
+		if not carry.has(role) and not crew[role].bot:
+			crew[role].set_driver(bot_identity())
+	for role in carry:
+		crew[role].set_driver(carry[role])
+	carry = {}
+	return true
+
 ## A bot driver. `keep` is the character it takes over as (a person leaving a
 ## job leaves their character with them, so the bot picks up a free one).
 func bot_identity(keep := "") -> Dictionary:

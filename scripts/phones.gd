@@ -56,6 +56,14 @@ var ws_server := TCPServer.new()
 var _http_conns: Array = []     # [StreamPeerTCP, buffer, age]
 var clients: Array = []         # {ws, token, player, last_cues}
 var tokens := {}                # token -> player
+static var carry := {}          # token -> role, kept over a reload to the other site (the tower pick)
+
+func save_carry() -> void:
+	carry = {}
+	for tk in tokens:
+		var p = tokens[tk]
+		if p != null and is_instance_valid(p) and not p.bot:
+			carry[tk] = p.role
 var address := ""
 var addresses: Array = []       # every LAN address, best first
 var http_port := 8080
@@ -307,6 +315,9 @@ func _on_message(c: Dictionary, msg: String) -> void:
 				ws.send_text("t " + token)
 			c["token"] = token
 			var p = tokens.get(token)
+			if (p == null or not is_instance_valid(p)) and carry.has(token):
+				p = game.crew.crew.get(carry[token])
+				carry.erase(token)
 			if p == null or not is_instance_valid(p):
 				p = game.join_phone()
 			if p == null:
@@ -529,6 +540,8 @@ func screen() -> String:
 		return "pause"
 	if game.explore != null and game.explore.active:
 		return "roam"
+	if game.phase == "roles" and is_instance_valid(game.selector) and game.selector.page in ["tower", "arrive"]:
+		return "tower"       # (the hand of towers: the stick and A, and a banner saying what's up)
 	if game.phase == "roles":
 		return "lobby"
 	if game.phase == "select":
@@ -550,6 +563,10 @@ func _send_state(c: Dictionary) -> void:
 		st["count"] = int(ceil(sel._count_t)) if sel._count_t > 0.0 else -1
 		st["first"] = bool(sel.is_starter(p.index))
 		st["new"] = game.learners.has(p.index)
+	if scr == "tower":
+		var hand = game.selector._tower_page
+		st["tower"] = String(hand.TOWERS[hand.focus]["name"]) if hand != null else ""
+		st["flying"] = game.selector.page == "arrive"
 	if scr == "sign":
 		st["left"] = int(ceil(game.ink_left()))
 		st["done"] = bool(game._ink_done.get(p, false))

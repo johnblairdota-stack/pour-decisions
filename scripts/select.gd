@@ -131,8 +131,10 @@ func _ready() -> void:
 	_tower_page.picked.connect(_card_played)
 	if not TowerHand.arrival.is_empty():
 		_show_page("arrive")          # (a card played on the other site: main.gd flies in)
+		open_t = OPEN_T + 1.0         # (the soft open's been and gone)
+		open_e = 1.0
 	else:
-		_show_page("tower" if wants_tower_page() else "crew")
+		_show_page("crew")            # the soft open, then the QR and the job picks; the hand after LOCK IN
 
 ## The card's been played: its picture fills the screen. On the other site the game comes back up
 ## there behind the picture; main.gd then flies up the river to it, and arrived() opens the crew page.
@@ -140,6 +142,8 @@ func _card_played(c: Dictionary) -> void:
 	if String(c["site"]) != String(game.site):
 		Settings.put("site", c["site"])
 		TowerHand.cover(get_tree(), c)
+		game.crew.save_carry()        # (the job picks go with the crew to the other site)
+		game.phones.save_carry()
 		get_tree().reload_current_scene()
 		return
 	TowerHand.cover(get_tree(), c)
@@ -159,16 +163,17 @@ func wants_tower_page() -> bool:
 ## A tower's picked: the water tower is the induction (the water tower kit); the others go on to the
 ## crew page and then the floor pick as before.
 func _tower_picked(c: Dictionary) -> void:
+	go_site()
 	if c["kit"] == "tutorial":
 		index = 2
 		_floor_pick = -1
 		_induction = true
 	else:
 		index = 0
+		_induction = false
 		if _floor_pick < 0:
-			_floor_pick = 0
-	open_t = 0.0
-	_show_page("crew")
+			_floor_pick = clampi(_floors_done(), 0, _floors() - 1)
+	_refresh_site()
 
 # ------------------------------------------------------------------ crew page
 
@@ -196,7 +201,7 @@ func _build_crew_page(root: Control) -> void:
 	names.add_child(UI.head("Pour Decisions", 84, UI.BONE, 8))
 	# (where it is: smaller and paler, under the name)
 	names.add_child(UI.head("Brisbane", 38, Color(UI.BONE, 0.62), 6))
-	_tagline = UI.label(Settings.brand("site") + ", Hamilton Reach · a crew of six · bots fill the gaps", 24, Color("d4d1c8"), 4)
+	_tagline = UI.label(("Pick your jobs, then pick a tower" if wants_tower_page() else Settings.brand("site") + ", Hamilton Reach") + " · a crew of six · bots fill the gaps", 24, Color("d4d1c8"), 4)
 	tv.add_child(_tagline)
 	# One code for everyone, top right
 	var qr := UI.panel(UI.CARD, 18, Color(1, 1, 1, 0.08), 1, Vector4(14, 14, 18, 14))
@@ -503,7 +508,7 @@ func phone_start(index: int) -> void:
 	if first == null or first.index != index:
 		return
 	game.sfx.hit("ding")
-	go_site()
+	crew_done()
 
 ## Whether this player is the one who starts the day.
 func is_starter(index: int) -> bool:
@@ -594,7 +599,7 @@ func _process_crew(delta: float) -> void:
 			_wait_t += delta
 		if _hold_t >= HOLD_T or _wait_t >= WAIT_T:
 			game.sfx.hit("ding")
-			go_site()
+			crew_done()
 	else:
 		_hold_t = 0.0
 		_wait_t = 0.0
@@ -615,6 +620,13 @@ func _process_crew(delta: float) -> void:
 	_refresh_crew()
 
 ## On to the second page.
+## The crew's locked in: the hand of towers (test runs and --site= go straight to the floors).
+func crew_done() -> void:
+	if wants_tower_page():
+		_show_page("tower")
+	else:
+		go_site()
+
 func go_site() -> void:
 	_show_page("site")
 	open_e = 1.0
@@ -642,7 +654,7 @@ func _build_site_page(root: Control) -> void:
 	rail.add_theme_constant_override("separation", 5)
 	_site_page.add_child(rail)
 	UI.place(rail, Vector2(0, 0), Vector2(36, 26))
-	rail.add_child(UI.head(Settings.brand("site").to_upper(), 24, UI.BONE, 6))
+	rail.add_child(UI.head("SPIRE" if game != null and game.spire else Settings.brand("site").to_upper(), 24, UI.BONE, 6))
 	var many: bool = game != null and game.spire
 	for n in range(_floors(), -1, -1):
 		if many and n == 0:
@@ -915,9 +927,51 @@ func pick(i: int) -> void:
 var _uitest := OS.get_cmdline_user_args().has("--uitest")
 var _ut := 0.0
 
+## Dev `--pickshots=<dir>`: walks the new start order and saves a shot of each step
+## (the soft open, the join/QR and jobs, the hand, the focused card, the flight, the arrival, the floors).
+static var _ps_began := false
+var _ps_t := 0.0
+var _ps_i := 0
+
+func _pickshots(delta: float) -> void:
+	if TowerHand.shots == "":
+		for a in OS.get_cmdline_user_args():
+			if a.begins_with("--pickshots="):
+				TowerHand.shots = a.substr(12)
+		if TowerHand.shots == "":
+			TowerHand.shots = "-"
+	if TowerHand.shots == "-":
+		return
+	if not _ps_began:
+		_ps_began = true
+		TowerHand._demo_began = true
+		if game.site != "riverlight":
+			Settings.put("site", "riverlight")
+			get_tree().reload_current_scene()
+			return
+	_ps_t += delta
+	if page == "crew":
+		if _ps_i == 0 and _ps_t > 2.0:
+			_ps_i = 1
+			TowerHand.shot("order_1_open", get_viewport())
+		elif _ps_i == 1 and _ps_t > 9.0:
+			_ps_i = 2
+			TowerHand.shot("order_2_join_jobs", get_viewport())
+			set_ready(1, true)
+			crew_done()
+	elif page == "site" and _ps_i < 9:
+		if _ps_i < 8:
+			_ps_i = 8
+			_ps_t = 0.0
+		elif _ps_t > 2.5:
+			_ps_i = 9
+			TowerHand.shot("order_7_floors", get_viewport())
+			get_tree().quit()
+
 func _process(delta: float) -> void:
 	if game == null:
 		return
+	_pickshots(delta)
 	_t += delta
 	if _uitest:
 		# Dev: click through both pages the way a person would
@@ -940,6 +994,11 @@ func _process(delta: float) -> void:
 	if page == "arrive":
 		pass
 	elif page == "tower":
+		# (B goes back to the crew page)
+		for p in game.crew.humans():
+			if p.leave_pressed():
+				_show_page("crew")
+				return
 		var v := Vector2.ZERO
 		var pressed := false
 		for p in game.crew.humans():

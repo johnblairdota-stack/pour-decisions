@@ -398,7 +398,7 @@ var _demo_t := 0.0
 var _demo_i := 0
 
 static func shot(name: String, vp: Viewport) -> void:
-	if shots == "":
+	if shots == "" or shots == "-":
 		return
 	vp.get_texture().get_image().save_png(shots.path_join(name + ".png"))
 	print("[pickshots] " + name)
@@ -416,21 +416,17 @@ func _demo(delta: float) -> void:
 	_demo_t += delta
 	if _demo_i == 0 and _demo_t > 3.5:
 		_demo_i = 1
-		shot("pick_hand", get_viewport())
+		shot("order_3_hand", get_viewport())
 		focus = 2
 		game.sfx.hit("clank")
 	elif _demo_i == 1 and _demo_t > 4.6:
 		_demo_i = 2
-		shot("pick_focus", get_viewport())
+		shot("order_4_focus", get_viewport())
 		play()
 
 ## One frame of input from the crew (stick, A); select.gd calls it while the hand is up.
 func step(delta: float, mv: Vector2, pressed: bool) -> void:
-	if shots == "":
-		for a in OS.get_cmdline_user_args():
-			if a.begins_with("--pickshots="):
-				shots = a.substr(12)
-	if shots != "" and not _busy:
+	if shots != "" and shots != "-" and not _busy:
 		_demo(delta)
 		return
 	_cool = maxf(0.0, _cool - delta)

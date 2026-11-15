@@ -453,6 +453,11 @@ body.boomsp #B{left:22%;top:12%}
   </div>
 </div>
 
+<div id="towerbar" style="display:none;position:fixed;left:50%;top:2.5vmin;transform:translateX(-50%);z-index:30;background:#15171d;border:0.5vmin solid #ffd23f;border-radius:99px;padding:1.6vmin 5vmin;text-align:center;pointer-events:none">
+  <div class="hd" style="font-size:3.6vmin;color:#b9b6ad">PICK A TOWER ON THE TV</div>
+  <div class="hd" id="towername" style="font-size:6.5vmin;color:#ffd23f">…</div>
+  <div class="hd" style="font-size:3.4vmin;color:#f4f2ec">STICK ◀ ▶ TO FAN · A TO PLAY THE CARD</div>
+</div>
 <div id="lobby" class="screen">
   <div class="row"><div class="pdisc" id="lp">P?</div><div class="t hd">Pick your job</div><div class="sub" id="lsub"></div></div>
   <div id="ljobs"></div>
@@ -597,6 +602,7 @@ function onJson(j) {
     if (j.s !== screen) { screen = j.s; showScreen(); }
     $('cname').textContent = j.name || '';
     if (j.s === 'sign') { $('sgleft').textContent = j.done ? 'Pressed in. Nice.' : (j.left + ' s left'); signDone = !!j.done; $('slab').classList.toggle('done', signDone); $('sgok').disabled = signDone; $('sgclr').disabled = signDone; }
+    if (j.s === 'tower') { $('towername').textContent = j.flying ? ('FLYING TO ' + j.tower) : j.tower; }
     if (j.s === 'lobby') { learner = !!j.new; $('newbie').classList.toggle('on', learner); $('newbie').querySelector('b').textContent = learner ? 'FULL HELP: ON' : 'FULL HELP: OFF'; $('lnew').style.display = learner ? 'block' : 'none'; }
     if (j.s === 'lobby') { if (!!j.locked !== locked) { locked = !!j.locked; showScreen(); if (locked) buzz(BUZZ.done); } setCount(j.count, !!j.first); }
   } else if (j.t === 'roster') { roster = j.r; drawLobby(); drawSwap(); }
@@ -680,6 +686,7 @@ function showScreen() {
   $('locked').classList.toggle('on', lobby && locked);
   $('play').classList.toggle('on', !lobby && !sign);
   $('sign').classList.toggle('on', sign);
+  $('towerbar').style.display = screen === 'tower' ? 'block' : 'none';
   document.body.classList.toggle('roam', screen === 'roam');
   if (screen !== 'roam') { endLook(); onRoam({m: ''}); }
   if (sign) startSign();
