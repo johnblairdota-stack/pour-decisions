@@ -190,6 +190,9 @@ def main():
     json.dump(d, open(OUT_JSON, "w"), indent=1)
     tris = sum(len(o.data.polygons) for o in bpy.data.objects if o.type == "MESH")
     print("export_game: %s (%.1f MB, %d faces), %s" % (OUT_GLB, os.path.getsize(OUT_GLB) / 1e6, tris, OUT_JSON))
+    # the footpaths beside the site are the site's during a pour: trees, poles, signs and the bus stop off them
+    import clear_kerb
+    clear_kerb.main()
 
 
 if __name__ == "__main__":

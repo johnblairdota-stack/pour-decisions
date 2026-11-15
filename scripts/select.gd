@@ -656,6 +656,10 @@ func _build_site_page(root: Control) -> void:
 	UI.place(rail, Vector2(0, 0), Vector2(36, 26))
 	rail.add_child(UI.head("SPIRE" if game != null and game.spire else Settings.brand("site").to_upper(), 24, UI.BONE, 6))
 	var many: bool = game != null and game.spire
+	if many:
+		# (34 floors don't fit down the screen: the rail shows the eleven round the one picked)
+		_rail_up = UI.head("", 16, UI.DIM)
+		rail.add_child(_rail_up)
 	for n in range(_floors(), -1, -1):
 		if many and n == 0:
 			continue          # (no water tower induction on Spire's rail)
@@ -665,9 +669,7 @@ func _build_site_page(root: Control) -> void:
 		var h := HBoxContainer.new()
 		h.add_theme_constant_override("separation", 8)
 		row.add_child(h)
-		var lab := UI.head((game.level_label(n - 1) if game != null else "L%d" % n) if n > 0 else "INDUCTION", (16 if many else 26) if n > 0 else 24, UI.BONE)
-		if many:
-			row.custom_minimum_size = Vector2(110, 0)
+		var lab := UI.head((game.level_label(n - 1) if game != null else "L%d" % n) if n > 0 else "INDUCTION", 26 if n > 0 else 24, UI.BONE)
 		lab.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		h.add_child(lab)
@@ -678,6 +680,9 @@ func _build_site_page(root: Control) -> void:
 		h.add_child(dot)
 		rail.add_child(row)
 		_floor_rows.append({"n": n, "row": row, "label": lab, "dot": dot})
+	if many:
+		_rail_down = UI.head("", 16, UI.DIM)
+		rail.add_child(_rail_down)
 	# The plate: the countdown, the floor and its day
 	var plate := UI.panel(Color(UI.CARD, 0.92), 22, Color(1, 1, 1, 0.08), 1, Vector4(20, 14, 26, 16))
 	_site_page.add_child(plate)
@@ -740,6 +745,10 @@ func _build_site_page(root: Control) -> void:
 	back.add_child(_key_hint("B", "CREW", false))
 	bar.add_child(back)
 
+const RAIL_ROWS := 11
+var _rail_up: Label
+var _rail_down: Label
+
 ## For main.gd's floors out on the site: the floor picked (0-based), or -1
 ## on the water tower's induction.
 ## Floors on this site (Riverlight 11, Spire 34).
@@ -774,7 +783,7 @@ func _floors_done() -> int:
 func _pick_defaults() -> void:
 	var done := _floors_done()
 	var on_site: bool = done > 0 or bool(Settings.value("tower_started"))
-	_induction = not on_site
+	_induction = not on_site and not (game != null and game.spire)    # (no water tower on Spire's rail)
 	_floor_pick = clampi(done, 0, _floors() - 1)
 	if _induction and not bool(Settings.value("tut_done")):
 		_floor_pick = -1
@@ -817,9 +826,14 @@ func _refresh_site() -> void:
 		sb.bg_color = UI.GOLD if sel else Color(UI.CARD, 0.4 if locked else 0.9)
 		sb.border_color = UI.GOLD if (i == done and not sel) else Color(0, 0, 0, 0)
 		lab.add_theme_color_override("font_color", Color("14161b") if sel else (UI.DIM if locked else (Color("7cd992") if n == 0 else UI.BONE)))
-		var many: bool = game != null and game.spire
-		lab.add_theme_font_size_override("font_size", (38 if n > 0 else 26) if sel else ((16 if many else 26) if n > 0 else 24))
-		row.custom_minimum_size.y = (40 if many else 50) if sel else (20 if many else 34)
+		lab.add_theme_font_size_override("font_size", (38 if n > 0 else 26) if sel else (26 if n > 0 else 24))
+		row.custom_minimum_size.y = 50 if sel else 34
+		if _rail_up != null and n > 0:
+			# (the eleven floors round the pick)
+			var lo := clampi(_floor_pick - RAIL_ROWS / 2, 0, maxi(0, _floors() - RAIL_ROWS))
+			row.visible = i >= lo and i < lo + RAIL_ROWS
+			_rail_up.text = "▲  up to %s" % game.level_label(_floors() - 1) if lo + RAIL_ROWS < _floors() else " "
+			_rail_down.text = "▼  down to %s" % game.level_label(0) if lo > 0 else " "
 		dot.visible = poured
 		if poured:
 			dot.color = MEDAL_COL[clampi(int(m[i]), 0, 2)]
@@ -841,7 +855,7 @@ func _refresh_site() -> void:
 		if game != null and game.spire:
 			_lvl_k.text = "SPIRE · POUR %d OF %d%s" % [lvl, _floors(), extra]
 			_lvl_title.text = game.spire_title(lvl - 1)
-			_lvl_line.text = "Your crew pours the Ann St side. A bot crew pours the other side with the second boom."
+			_lvl_line.text = "Your crew pours the Ann St side. The other crew pours round the core with their own boom."
 	# (the print of this floor's last pour)
 	var tex: Texture2D = null if tut else _floor_photo(_floor_pick)
 	_photo_pic.texture = tex

@@ -47,6 +47,7 @@ const WestWing := preload("res://scripts/west_wing.gd")
 const ExploreScript := preload("res://scripts/explore.gd")
 const Look := preload("res://scripts/look.gd")
 const SpireSite := preload("res://scripts/spire_site.gd")
+const SpireB := preload("res://scripts/spire_b.gd")
 const TowerHand := preload("res://scripts/tower_hand.gd")
 const LookFx := preload("res://scripts/look_fx.gd")
 
@@ -81,7 +82,8 @@ const SECTIONS_PER_CLIMB := 2      # 4 starting + 3 climbs x 2 = Riverlight's 10
 const HOIST_X := -6.6
 const HOIST_SEC := 1.5   # m, one hoist mast section (tools/blender/towers.py)
 var HOIST_Z := 4.4
-var hoist_x := HOIST_X     # (Spire: on pour A's Ann St walkway)
+var hoist_x := HOIST_X
+var hoist_off := 2.4       # m from the slab's street edge out to the hoist (Spire: out past the podium's edge)
 # The perimeter scaffold: a walkway right round the slab, off the concrete,
 # that climbs with the deck. The boom operator works from it and never steps
 # on the pad; everyone else can use it to get round without walking through
@@ -137,8 +139,10 @@ var spire := site == "spire"
 var base_y := 0.0
 var _spire_world: Node3D
 var _spire_core := {}
-var _spire_bots := {}
-var _spire_t := 0.0
+var _spire_b: SpireB
+var _spire_mast: Node3D      # the placing boom's tubular mast, up through the lift core
+var _spire_line: Node3D      # the concrete line from the riser's top, under the deck, to the mast and up it
+var _spire_jack := 0.0       # m the mast has still to be jacked this level (it rises as the form jumps)
 
 ## The site: `--site=spire` / `--site=riverlight`, else the one picked last on the site page (X there
 ## swaps them). Test runs only go by the command line.
@@ -292,6 +296,10 @@ func _ready() -> void:
 			_cam_roles = Array(arg.substr(6).split(","))
 		if arg.begins_with("--startlevel="):
 			_start_level = int(arg.substr(13))
+		if arg.begins_with("--spireshots="):
+			_spire_shots = arg.substr(13)
+		if arg.begins_with("--spirefill="):
+			_spire_shot_fill = float(arg.substr(12))
 	# (a tablet has no console: its errors go up on the screen instead.
 	# Loaded by name, so a fault in it can't stop the game starting)
 	if OS.has_feature("mobile") or args.has("--errlog"):
@@ -1387,14 +1395,17 @@ func deck_pos(key: String) -> Vector3:
 	if tutorial and TUT_DECK.has(key):
 		return TUT_DECK[key]
 	if spire:
-		# Spire: round pour A, with the boom tower at its Ann St face (z1 is that face's walkway line)
-		var x0 := SC.x - BW * 0.5
-		var z0 := SC.z - BD * 0.5
-		var z1 := SC.z + BD * 0.5 + WALK_MID
-		var spots := {"boom": Vector3(LAT_X - 3.15, 0, z1), "dogman": Vector3(LAT_X - 3.15, 0, z1),
-			"bin": Vector3(LAT_X - 6.8, 0, z1), "hoist": Vector3(hoist_x + 1.5, 0, z1),
-			"screed": Vector3(x0 + 1.2, 0, z0 + 1.6), "poker": Vector3(LAT_X + 4.0, 0, -1.5),
-			"pinsets": Vector3(LAT_X - 5.0, 0, -0.8)}
+		# Spire: along pour A's Ann St walkway (it follows the slab's edge), spaced as Riverlight's are
+		var edge := func(x: float, inn: float) -> Vector3:
+			return Vector3(x, 0, SpireSite.front_z(x) + inn)
+		var a_poly := SpireSite.poly("A")
+		var far := Vector2(SC.x - BW * 0.5 + 3.5, SpireSite.centroid(a_poly).y)
+		if not Geometry2D.is_point_in_polygon(far, a_poly):
+			far = SpireSite.centroid(a_poly)
+		var spots := {"boom": edge.call(8.85, WALK_MID), "dogman": edge.call(8.85, WALK_MID),
+			"bin": edge.call(5.2, WALK_MID), "hoist": edge.call(hoist_x + 1.5, WALK_MID),
+			"screed": Vector3(far.x, 0, far.y), "poker": edge.call(1.5, -1.0),
+			"pinsets": edge.call(-3.0, -0.9)}
 		if spots.has(key):
 			return spots[key]
 	return DECK_STATIONS[key]["pos"]
@@ -1426,11 +1437,72 @@ func _use_spire_frame() -> void:
 	BW = bb.size.x + 0.6
 	BD = bb.size.y + 0.6
 	SC = Vector3(bb.get_center().x, 0, bb.get_center().y)
-	# The hoist: where Spire's stood is unknown (John), so it's on pour A's Ann St face, at its
-	# west end, the way Riverlight's stands off its deck
-	hoist_x = SC.x - BW * 0.5 + 2.5
-	HOIST_Z = SC.z + BD * 0.5 + 2.4
+	# The hoist: where Spire's stood is unknown (John), so it's on the Ann St face along from the
+	# ladder tower, as Riverlight's is: on the footpath outside the podium's edge, with a landing
+	# across to the scaffold
+	hoist_x = HOIST_X
+	var front := SpireSite.front_z(hoist_x)
+	HOIST_Z = maxf(front + 2.4, SpireSite.boundary_z(hoist_x - 0.6) + 1.15)
+	hoist_off = HOIST_Z - front
 	cam_yaw = SpireSite.cam_yaw()
+
+## Spire: where the placing boom stands (its mast in the lift core) and how high its head is while
+## level `lvl` is poured: clear over the jump form, which leads the deck.
+func spire_head_y(lvl: int) -> float:
+	var lead := int(SpireSite.d["jump_form"]["lead_levels"])
+	return level_y(mini(lvl + 1 + lead, floors() + 1)) + 3.2
+
+## Spire: the ladder tower up the Ann St face reaches just over the deck (the riser's on it), the
+## boom's head and mast are at `head_y`, and the line runs from the riser under the deck to the mast.
+func _spire_tower(deck: float, head_y: float) -> void:
+	var want := deck + 1.1
+	while section_count * LS < want:
+		_add_section()
+	for i in lattice.get_child_count():
+		(lattice.get_child(i) as Node3D).visible = i * LS < want
+	var n := ceili(want / LS)
+	lattice.scale.y = want / (n * LS)
+	head.position = Vector3(SpireSite.mast_xz().x, head_y, SpireSite.mast_xz().y)
+	if _spire_mast == null:
+		_spire_mast = Node3D.new()
+		_spire_mast.name = "BoomMast"
+		_spire_mast.add_child(F.cylinder(0.42, 1.0, F.mat("yellow"), Vector3(0, 0.5, 0), 12))
+		# (the climbing collars that carry it on the core's walls, a floor apart)
+		for i in 3:
+			var collar := F.box(Vector3(1.5, 0.3, 1.5), F.mat("steel"), Vector3.ZERO)
+			collar.name = "Collar%d" % i
+			_spire_mast.add_child(collar)
+		add_child(_spire_mast)
+		_spire_line = Node3D.new()
+		_spire_line.name = "DeckLine"
+		for i in 2:
+			_spire_line.add_child(F.cylinder(0.16, 1.0, F.mat("steel"), Vector3.ZERO, 8))
+		add_child(_spire_line)
+	var bottom := deck - 3.0 * FH
+	var tube := _spire_mast.get_child(0) as Node3D
+	_spire_mast.position = Vector3(head.position.x, bottom, head.position.z)
+	tube.scale.y = head_y - bottom
+	for i in 3:
+		var collar := _spire_mast.get_node("Collar%d" % i) as Node3D
+		collar.position.y = (deck - 0.6 - i * FH) - bottom
+		collar.scale = Vector3.ONE / maxf(0.001, _spire_mast.scale.y)
+	var top := riser_top_y(deck)
+	var from := Vector3(LineScript.RISER.x, top, LineScript.RISER.z)
+	var under := Vector3(head.position.x + 0.6, top, head.position.z)
+	_pipe_between(_spire_line.get_child(0), from, under)
+	_pipe_between(_spire_line.get_child(1), under, Vector3(under.x, head_y + 0.6, under.z))
+
+func _pipe_between(node: Node3D, a: Vector3, b: Vector3) -> void:
+	var d := b - a
+	node.position = (a + b) * 0.5
+	node.basis = Basis(Quaternion(Vector3.UP, d.normalized())) * Basis.from_scale(Vector3(1, maxf(0.01, d.length()), 1))
+
+## The top of the riser: at the boom's head on a lattice tower; on Spire just under the deck, where
+## the line turns in under the slab to the mast in the core.
+func riser_top_y(deck := INF) -> float:
+	if spire:
+		return (deck_top() if deck == INF else deck) - 0.55
+	return head.position.y + 0.6
 
 ## The story's day for level k (Spire has 34 levels; the days go round).
 func story_k(i: int) -> int:
@@ -1543,8 +1615,22 @@ func _build_site() -> void:
 	add_child(rig)
 	_build_walkway()
 	var grate := F.mat("steel")
-	rig.add_child(F.box(Vector3(3.6, 0.12, 2.2), grate, Vector3(9.3, -0.06, 0)))
-	rig.add_child(F.box(Vector3(3.7, 0.12, 4.8), grate, Vector3(12.45, -0.06, 0)))
+	if spire:
+		# the ladder tower's platform, from the scaffold out over the footpath to the ladder, and
+		# the hoist's landing
+		var pz := SpireSite.front_z(12.45) + WALK_GAP + WALK_W
+		rig.add_child(F.box(Vector3(3.7, 0.12, 2.4 - pz), grate, Vector3(12.45, -0.06, (2.4 + pz) * 0.5)))
+		for sx in [10.6, 14.3]:
+			for y in [0.55, 1.08]:
+				rig.add_child(F.box(Vector3(0.06, 0.06, 2.4 - pz), F.mat("orange"), Vector3(sx, y, (2.4 + pz) * 0.5)))
+		var hz := SpireSite.front_z(hoist_x) + WALK_GAP + WALK_W
+		rig.add_child(F.box(Vector3(2.2, 0.12, HOIST_Z - 0.7 - hz), grate, Vector3(hoist_x, -0.06, (HOIST_Z - 0.7 + hz) * 0.5)))
+		for sx in [hoist_x - 1.1, hoist_x + 1.1]:
+			for y in [0.55, 1.08]:
+				rig.add_child(F.box(Vector3(0.06, 0.06, HOIST_Z - 0.7 - hz), F.mat("orange"), Vector3(sx, y, (HOIST_Z - 0.7 + hz) * 0.5)))
+	else:
+		rig.add_child(F.box(Vector3(3.6, 0.12, 2.2), grate, Vector3(9.3, -0.06, 0)))
+		rig.add_child(F.box(Vector3(3.7, 0.12, 4.8), grate, Vector3(12.45, -0.06, 0)))
 	ground_st = Node3D.new()
 	add_child(ground_st)
 	for key in DECK_STATIONS:
@@ -1567,7 +1653,8 @@ func _build_site() -> void:
 	add_child(head)
 	# The collar and work deck at the tower head, and the slewing turret
 	# (tools/blender/towers.py)
-	head_deco.append(F.prop("BoomCollar", {}, F.TOWERS))
+	if not spire:
+		head_deco.append(F.prop("BoomCollar", {}, F.TOWERS))
 	for d in head_deco:
 		head.add_child(d)
 	yaw_node = Node3D.new()
@@ -1668,13 +1755,18 @@ func _build_site() -> void:
 
 	# Starting tower: enough sections to clear level 1
 	section_count = 0
-	while section_count * LS < level_y(1) + HEAD_TARGET:
-		_add_section()
-	head.position.y = section_count * LS
+	if spire:
+		_spire_tower(level_y(1) - 0.3, spire_head_y(0))
+	else:
+		while section_count * LS < level_y(1) + HEAD_TARGET:
+			_add_section()
+		head.position.y = section_count * LS
 
 	climb = ClimbScript.new()
 	add_child(climb)
 	climb.build(self)
+	if spire:
+		_spire_crane(level_y(1))
 	climb.finished.connect(_on_climb_done)
 
 ## Which job works at each station: its spot and name are in that job's colour.
@@ -1743,6 +1835,10 @@ func _make_station(key: String, def: Dictionary, parent: Node3D, zone: String) -
 ## outside (open where the walkway to the boom and the hoist meet it), and
 ## standards down to the floor below. It's all on the rig, so it climbs.
 func _build_walkway() -> void:
+	if spire:
+		# (round the plate's real edge, open at the hoist's landing and the ladder tower's platform)
+		_rect_rails = SpireSite.build_scaffold(rig, WALK_GAP, WALK_W, FH, [[hoist_x - 1.1, hoist_x + 1.1], [10.6, 14.3]], Yard)
+		return
 	var grate := F.mat("steel")
 	var rail := F.mat("orange")
 	var ox := BW * 0.5 + WALK_GAP + WALK_W     # outer edge
@@ -1812,6 +1908,8 @@ func walkway_point(s: float) -> Vector2:
 		var r := TUT_R + WALK_MID
 		var a := s / r
 		return Vector2(cos(a), sin(a)) * r
+	if spire:
+		return SpireSite.loop_point(s)
 	var A := BW * 0.5 + WALK_MID
 	var B := BD * 0.5 + WALK_MID
 	var per := 4.0 * (A + B)
@@ -1833,6 +1931,8 @@ func walkway_param(q: Vector2) -> float:
 	if tutorial:
 		var r := TUT_R + WALK_MID
 		return fposmod(atan2(q.y, q.x), TAU) * r
+	if spire:
+		return SpireSite.loop_param(q)
 	var A := BW * 0.5 + WALK_MID
 	var B := BD * 0.5 + WALK_MID
 	q -= Vector2(SC.x, SC.z)
@@ -1855,6 +1955,8 @@ func walkway_param(q: Vector2) -> float:
 func on_pad(p: Vector3) -> bool:
 	if tutorial:
 		return Vector2(p.x, p.z).length() < TUT_R - 0.2
+	if spire:
+		return Geometry2D.is_point_in_polygon(Vector2(p.x, p.z), SpireSite.poly("A"))
 	return absf(p.x - SC.x) < BW * 0.5 - 0.2 and absf(p.z - SC.z) < BD * 0.5 - 0.2
 
 ## Builds the placing boom's two arms for the chosen kit.
@@ -2170,15 +2272,44 @@ func _watch_dispatch(delta: float) -> void:
 func _spire_level() -> void:
 	if _spire_core.is_empty():
 		_spire_core = SpireSite.build_core(building)
-		_spire_bots = SpireSite.build_bots(self)
+	if _spire_b == null:
+		_spire_b = SpireB.new()
+		add_child(_spire_b)
+		_spire_b.build(self)
+	else:
+		_spire_b.start_level()
 	var lead := int(SpireSite.d["jump_form"]["lead_levels"])
 	SpireSite.set_core(_spire_core, level_y(0) - 0.3, level_y(mini(k + 1 + lead, floors() + 1)), FH)
 	cam_yaw = lerp_angle(cam_yaw, SpireSite.cam_yaw(), 1.0)
-	# The players' boom: the crane jumps it up with the deck (no climb day yet), so its head stays
-	# HEAD_TARGET over the slab being poured
-	while section_count * LS < level_y(k + 1) + HEAD_TARGET:
-		_add_section()
-	head.position.y = section_count * LS
+	# The placing boom's mast is jacked up through the core as the form jumps (no sections to add):
+	# it's on its way up over the first seconds of the level (_process)
+	_spire_jack = maxf(0.0, spire_head_y(k) - head.position.y) if k > 0 and head.position.y > level_y(k) else 0.0
+	_spire_tower(level_y(k + 1) - 0.3, spire_head_y(k) - _spire_jack)
+	_spire_crane(level_y(k + 1))
+	if line != null:
+		line.rebuild_riser()
+
+## Spire's tower crane stood outside the tower on the Ann St side, tied to the building (John's
+## fly-by photos, about the middle of that face): here it's on the footpath clear of the podium, along
+## at the Clark Lane end so it isn't between the camera and the slab, its mast a few sections over the deck.
+func _spire_crane(deck: float) -> void:
+	if climb == null or climb.crane == null:
+		return
+	var cx := 23.0       # (west of the ladder tower: out of the way of the view in over Ann St)
+	climb.MAST = Vector3(cx, 0, SpireSite.boundary_z(cx) + 1.35)
+	climb.crane.position = climb.MAST
+	var want := deck + 34.0
+	var n := 0
+	for c in climb.crane.get_children():
+		if c != climb.crane_slew:
+			n += 1
+	while n * LS < want:
+		var sec := F.lattice_section(LS, 2.2)
+		sec.position.y = n * LS
+		climb.crane.add_child(sec)
+		n += 1
+	climb.CRANE_H = n * LS
+	climb.crane_slew.position.y = climb.CRANE_H
 
 func wants_cold_open() -> bool:
 	return shot_dir != "" and "coldopen" in _shot_only and not _shots_taken.has("coldopen")
@@ -2254,10 +2385,19 @@ func _menu_build() -> void:
 	_menu_pour.set_edge_view(0.0)
 	(_menu_pour._rect_parts[1] as Node3D).visible = false
 	if spire:
-		var rel := PackedVector2Array()
-		for p in SpireSite.poly("A"):
-			rel.append(p - Vector2(SC.x, SC.z))
-		_menu_pour.set_poly(rel)
+		_menu_pour.set_poly(_spire_rel(SpireSite.poly("A")))
+		# (pour B's formwork is up too: the whole level's decked before either half is poured)
+		var bdeck := Node3D.new()
+		_menu_deck.add_child(bdeck)
+		bdeck.add_child(F.prism(SpireSite.poly("B"), -0.12, 0.12, F.mat("ply")))
+		var pb := SpireSite.poly("B")
+		for j in pb.size():
+			var fa: Vector2 = pb[j]
+			var fb: Vector2 = pb[(j + 1) % pb.size()]
+			var fm2 := (fa + fb) * 0.5
+			var form := F.box(Vector3(fa.distance_to(fb) + 0.06, 0.45, 0.06), F.color_mat(Color("b07a45")), Vector3(fm2.x, 0.225, fm2.y))
+			form.rotation.y = -atan2(fb.y - fa.y, fb.x - fa.x)
+			bdeck.add_child(form)
 	_menu_stream = F.cylinder(0.11, 1.0, F.color_mat(Color("6e7073")), Vector3.ZERO, 8)
 	_menu_deck.add_child(_menu_stream)
 	_menu_fall = MeshInstance3D.new()
@@ -2272,7 +2412,7 @@ func _menu_build() -> void:
 	_menu_mast = Node3D.new()
 	_menu_mast.position = lattice.position
 	_menu_floors.add_child(_menu_mast)
-	for n in range(4, 4 + CLIMB_LEVELS.size() * SECTIONS_PER_CLIMB):
+	for n in range(4, (4 + CLIMB_LEVELS.size() * SECTIONS_PER_CLIMB) if not spire else 4):
 		var sec := F.lattice_section(LS, LW)
 		sec.position.y = n * LS
 		_menu_mast.add_child(sec)
@@ -2323,7 +2463,14 @@ func _update_menu_floors(delta: float) -> void:
 	# The rig (walkway, rails, edge screens) rides at the deck, and the
 	# tower's head at the height it's climbed to
 	rig.position.y = lerpf(rig.position.y, deck_y, minf(1.0, delta * 6.0))
-	head.position.y = lerpf(head.position.y, _menu_sections(maxi(fp, 0)) * LS, minf(1.0, delta * 6.0))
+	if spire:
+		_spire_tower(rig.position.y, lerpf(head.position.y, spire_head_y(maxi(fp, 0)), minf(1.0, delta * 6.0)))
+		if _spire_core.is_empty():
+			_spire_core = SpireSite.build_core(_menu_floors)
+		var lead := int(SpireSite.d["jump_form"]["lead_levels"])
+		SpireSite.set_core(_spire_core, level_y(0) - 0.3, level_y(mini(maxi(fp, 0) + 1 + lead, floors() + 1)), FH)
+	else:
+		head.position.y = lerpf(head.position.y, _menu_sections(maxi(fp, 0)) * LS, minf(1.0, delta * 6.0))
 	if fp >= 0:
 		_menu_deck.position.y = deck_y
 	# The crew, in a row along the street edge for the photo
@@ -2336,7 +2483,7 @@ func _update_menu_floors(delta: float) -> void:
 		var u := clampf(float(h[2]), 0.0, 1.0)
 		var y: float = lerpf(float(h[0]), float(h[1]), ease(u, -2.0)) + sin(u * PI) * 0.9 * (0.0 if is_equal_approx(float(h[0]), float(h[1])) else 1.0)
 		if fp >= 0:
-			p.position = Vector3(float(pose[0]), y, SC.z + BD * 0.5 - 1.4)
+			p.position = Vector3(float(pose[0]), y, (SpireSite.front_z(float(pose[0])) if spire else SC.z + BD * 0.5) - 1.4)
 			# (they stand in whatever's reached them, boots just under)
 			var wet: float = _menu_pour.height_at(p.position - _menu_pour.position)
 			p.position.y += maxf(0.0, wet - BOOT_SINK)
@@ -2356,7 +2503,8 @@ func _update_menu_floors(delta: float) -> void:
 	if d < _menu_d - 0.05:
 		_menu_wash()
 	_menu_d = d
-	var tl := Vector3(MENU_TIP.x - SC.x, 0, MENU_TIP.z - SC.z)
+	var menu_tip := MENU_TIP if not spire else Vector3(MENU_TIP.x, 0, SpireSite.front_z(MENU_TIP.x) - 3.6)
+	var tl := Vector3(menu_tip.x - SC.x, 0, menu_tip.z - SC.z)
 	var mh: float = _menu_pour.height_at(tl)
 	if phase == "select":
 		var edge := BD * 0.5 - tl.z
@@ -2369,7 +2517,7 @@ func _update_menu_floors(delta: float) -> void:
 		_menu_pour.deposit(tl, rate * delta)
 	_menu_pour.step(delta)
 	_menu_fall_update(delta)
-	var tipw := Vector3(MENU_TIP.x, deck_y, MENU_TIP.z)
+	var tipw := Vector3(menu_tip.x, deck_y, menu_tip.z)
 	var hp := head.global_position + Vector3(0, SHOULDER, 0)
 	var t := tipw + Vector3(0, 1.6 + HOSE + mh, 0)
 	var hv := Vector2(t.x - hp.x, t.z - hp.z)
@@ -2479,6 +2627,7 @@ func _apply_kit(which: String) -> void:
 		_menu_floors.queue_free()
 		_menu_floors = null
 		_menu_storeys.clear()
+		_spire_core = {}       # (the menu's core went with its floors: the level builds its own)
 		_menu_hop.clear()
 		_menu_pour = null
 		_menu_fall = null
@@ -2487,7 +2636,8 @@ func _apply_kit(which: String) -> void:
 		# (the site page lifted the rig and the tower's head, and had the
 		# crew's arms up)
 		rig.position.y = 0.0
-		head.position.y = section_count * LS
+		if not spire:
+			head.position.y = section_count * LS
 		sfx.set_loop("concrete_pour", 0.0)
 		for p in players:
 			p.set_arms(0.0, 0.0)
@@ -2515,10 +2665,10 @@ func _apply_kit(which: String) -> void:
 	elif tutorial:
 		_build_boom(12.0, 12.0)
 	elif spire:
-		# Spire ran Schwing KVM 26 separate placing booms, one per pour area: 30 m here reaches the
-		# far end of pour A from its Ann St face
+		# Spire ran separate placing booms, one per pour area. Mast-mounted in the lift core they
+		# stand clear over the jump form: 30 m reaches both ends of pour A from there
 		_build_boom(15.0, 15.0)
-		hud.toast("Spire: your crew pours the Ann St side. The bot crew's on pour B with the other boom.", 3.0)
+		hud.toast("Spire: your crew pours the Ann St side. The other crew's on pour B round the core with their own boom.", 3.0)
 	else:
 		# Long enough to reach the far corner of the east wing from the tower
 		# in the notch (an MX42 reaches about 38 m; this is a shade more)
@@ -3091,7 +3241,7 @@ func _add_section() -> void:
 	s.position.y = section_count * LS
 	lattice.add_child(s)
 	section_count += 1
-	if section_count % 3 == 0:
+	if section_count % 3 == 0 and not spire:
 		var y := section_count * LS - 0.6
 		add_child(F.beam(Vector3(SC.x + BW * 0.5 + 0.3, y, 0), Vector3(LAT_X - LW * 0.5, y, 0), 0.22, F.mat("steel")))
 
@@ -3291,14 +3441,16 @@ func _make_pour() -> void:
 	pour.visible = false
 	pour.position = Vector3(SC.x, 0, SC.z)
 	if spire:
-		# pour A's outline, the core and the boom tower's pedestal left out
-		var rel := func(pp: PackedVector2Array) -> PackedVector2Array:
-			var o := PackedVector2Array()
-			for p in pp:
-				o.append(p - Vector2(SC.x, SC.z))
-			return o
-		var mast := PackedVector2Array([Vector2(LAT_X - 1.3, -1.3), Vector2(LAT_X + 1.3, -1.3), Vector2(LAT_X + 1.3, 1.3), Vector2(LAT_X - 1.3, 1.3)])
-		pour.set_poly(rel.call(SpireSite.poly("A")), [rel.call(SpireSite.poly("core")), rel.call(mast)])
+		# pour A's outline (the core's notch is cut out of it already)
+		pour.set_poly(_spire_rel(SpireSite.poly("A")))
+		pour.walk_loop = _spire_rel(SpireSite.poly("loop"))
+
+## A Spire outline (game x/z) round the pour grid's centre.
+func _spire_rel(pp: PackedVector2Array) -> PackedVector2Array:
+	var o := PackedVector2Array()
+	for p in pp:
+		o.append(p - Vector2(SC.x, SC.z))
+	return o
 
 func pour_level() -> float:
 	return level_y(k + 1)
@@ -3315,7 +3467,15 @@ func _walkable(p: Vector3, zone: String, who = null) -> bool:
 		return false
 	if zone == "ground":
 		var ok := (p.x >= 9.4 and p.x <= 33.5 and p.z >= -4.0 and p.z <= 12.5) or (p.x >= -9.5 and p.x <= 9.4 and p.z >= 6.9 and p.z <= 12.5)
-		if not tutorial:
+		if spire:
+			# Spire: Ann St's footpath and kerb lanes, off the podium's edge, round the hoist's
+			# mast and the crane's
+			ok = p.x >= -9.5 and p.x <= 33.5 and p.z <= 12.5 and p.z >= SpireSite.boundary_z(p.x) + 0.35
+			if absf(p.x - (hoist_x - 1.25)) < 0.7 and absf(p.z - HOIST_Z) < 0.8:
+				ok = false
+			if climb != null and absf(p.x - climb.MAST.x) < 1.5 and absf(p.z - climb.MAST.z) < 1.5:
+				ok = false
+		elif not tutorial:
 			# Riverlight's two wings come right up to the street: the west wing
 			# east of x 14.3 and the east wing round the slab, with the boom
 			# tower in the notch between them
@@ -3342,6 +3502,16 @@ func _walkable(p: Vector3, zone: String, who = null) -> bool:
 			return true
 		if p.x >= -7.1 and p.x <= -3.4 and p.z >= 3.4 and p.z <= 7.6:
 			return true
+	elif spire:
+		# pour A and its scaffold (never into the jump form), the ladder tower's platform and the
+		# hoist's landing
+		if Geometry2D.is_point_in_polygon(Vector2(p.x, p.z), SpireSite.poly("walk")):
+			return true
+		if p.x >= 10.7 and p.x <= 14.2 and p.z <= 2.3 and p.z >= SpireSite.front_z(p.x):
+			return true
+		if absf(p.x - hoist_x) <= 0.95 and p.z <= HOIST_Z - 0.75 and p.z >= SpireSite.front_z(p.x):
+			return true
+		return false
 	elif absf(p.x - SC.x) <= BW * 0.5 + WALK_GAP + WALK_W - 0.3 and absf(p.z - SC.z) <= BD * 0.5 + WALK_GAP + WALK_W - 0.3:
 		return true
 	if p.x >= 7.0 and p.x <= 11.0 and absf(p.z) <= 1.0:
@@ -3381,7 +3551,7 @@ func _clear_trucks_of_people() -> void:
 func walk_bounds(zone: String) -> Rect2:
 	if zone == "deck" and spire:
 		# (Spire: the whole of pour A's deck and its walkway, both sides of the boom tower)
-		return Rect2(SC.x - BW * 0.5 - 2.0, SC.z - BD * 0.5 - 2.0, BW + 4.0, BD + 4.0)
+		return Rect2(SC.x - BW * 0.5 - 2.0, SC.z - BD * 0.5 - 2.0, BW + 4.0, 2.6 - (SC.z - BD * 0.5 - 2.0))
 	if zone == "deck":
 		var x0 := SC.x - BW * 0.5 - 2.0
 		return Rect2(x0, SC.z - BD * 0.5 - 2.0, LAT_X + 2.6 - x0, BD + 4.0)
@@ -3555,6 +3725,20 @@ func _start_inspect() -> void:
 		var dx := randf_range(-BW * 0.5 + 1.5, BW * 0.25)
 		var dz := randf_range(-BD * 0.5 + 1.5, BD * 0.5 - 1.5)
 		defect.position = SC + Vector3(dx, deck_top() + 0.5, dz)
+		if spire:
+			# (somewhere on our half of the slab itself, in from its edge: the box round it is mostly not slab)
+			var m := 4
+			for tries in 200:
+				var nx: int = pour.NX
+				var i: int = randi() % (nx * int(pour.NZ))
+				var ix: int = i % nx
+				var iz: int = i / nx
+				if ix < m or ix >= pour.NX - m or iz < m or iz >= pour.NZ - m:
+					continue
+				if pour.mask[i] == 1 and pour.mask[i - m] == 1 and pour.mask[i + m] == 1 and pour.mask[i - m * nx] == 1 and pour.mask[i + m * nx] == 1:
+					var c: Vector3 = pour.position + pour.cell_center(i)
+					defect.position = Vector3(c.x, deck_top() + 0.5, c.z)
+					break
 		defect.visible = true
 	engineer.visible = true
 	engineer.position = SC + Vector3(-6.0, work_y, -4.0)
@@ -4228,15 +4412,17 @@ func _process(delta: float) -> void:
 	if west != null:
 		west.visible = phase != "topout"
 		west.update(delta, _filled_ratio() if phase == "pour" else 0.0)
-	if spire and not _spire_bots.is_empty():
-		_spire_t += delta
+	if spire and _spire_b != null:
 		var fb := 0.0
 		if phase == "pour":
 			fb = _filled_ratio()
 		elif phase in ["screed", "cure", "sign", "report"]:
 			fb = 1.0
-		SpireSite.bot_update(_spire_bots, deck_top() + 0.3 - 0.25, fb, _spire_t, base_y)
-		(_spire_bots["root"] as Node3D).visible = phase != "topout"
+		if _spire_jack > 0.0:
+			# the mast going up through the core, a few seconds behind the form
+			_spire_jack = maxf(0.0, _spire_jack - delta * 0.65)
+			_spire_tower(level_y(k + 1) - 0.3, spire_head_y(k) - _spire_jack)
+		_spire_b.update(delta, fb, phase, deck_top(), head.position.y)
 	perf.mark("climb")
 	line.update(delta, phase == "pour")
 	perf.mark("line")
@@ -4873,7 +5059,7 @@ func _dev_skip(target: int) -> void:
 	while k < target:
 		var frame: Node3D = floor_nodes[k].get_node("Frame")
 		frame.scale.y = 1.0
-		if k in CLIMB_LEVELS:
+		if k in climb_levels():
 			for i in SECTIONS_PER_CLIMB:
 				_add_section()
 			head.position.y = section_count * LS
@@ -5373,7 +5559,7 @@ func _update_hoist(delta: float) -> void:
 			rider.position = Vector3(hoist_x, 0, HOIST_Z + 1.4)
 		else:
 			rider.zone = "deck"
-			rider.position = Vector3(hoist_x, work_y, HOIST_Z - 1.55)
+			rider.position = Vector3(hoist_x, work_y, HOIST_Z - (hoist_off - WALK_MID))
 		if not rider.bot:
 			sfx.hit("clank")
 
@@ -6850,6 +7036,10 @@ func _update_see_through(delta: float) -> void:
 	if _cut_t <= 0.0:
 		_cut_t = 0.5
 		var roots: Array = [hoist_mast, hoist_cage, lattice, yaw_node.get_child(0)] + head_deco
+		if _spire_mast != null:
+			roots.append(_spire_mast)
+		if _spire_b != null:
+			roots += [_spire_b.mast, _spire_b.yaw.get_child(0), _spire_b.arm1]
 		if climb != null:
 			# (the climbing frame, the section on the hook or set down on the
 			# deck, and the tower crane's mast)
@@ -6999,6 +7189,61 @@ var _tight := 0.0            # 0 whole slab .. 1 framed on the crew and the wet 
 func _update_camera(delta: float) -> void:
 	_update_camera_views(delta)
 	_pace_views()
+	if _spire_shots != "":
+		_spire_shoot()
+
+## Dev: `--spireshots=<dir>` (with --site=spire) saves a set of views of the Spire site partway through
+## the first pour it plays (`--spirefill=0.5` for later in the pour), then quits: for checking the
+## layout from the air, from Ann St and from the deck without playing to each spot.
+var _spire_shots := ""
+var _spire_shot_i := -1
+var _spire_shot_wait := 0
+func _spire_views() -> Array:
+	var c := SpireSite.centroid(SpireSite.poly("plate"))
+	var dk := deck_top()
+	var at := Vector3(c.x, dk, c.y)
+	return [
+		["air_ann", at + Vector3(10, 55, 62), at],
+		["air_top", at + Vector3(0.1, 75, 3), at],
+		["air_back", at + Vector3(-25, 45, -60), at],
+		["air_east", at + Vector3(-70, 35, 20), at],
+		["air_west", at + Vector3(70, 30, 25), at],
+		["street", Vector3(26, 12, 17), Vector3(10, 3, 0)],
+		["street_low", Vector3(32, 2.5, 13), Vector3(6, 6, -2)],
+		["street_e", Vector3(-22, 6, 14), Vector3(2, 6, -1)],
+		["podium", Vector3(4, base_y * 0.5 + 4, 18), Vector3(4, base_y * 0.6, -4)],
+		["deck_a", Vector3(4, dk + 16, SpireSite.front_z(4.0) + 16), Vector3(0, dk, SpireSite.front_z(0.0) - 8)],
+		["deck_tower", Vector3(22, dk + 7, 6), Vector3(10, dk, -5)],
+		["deck_hoist", Vector3(-14, dk + 6, 5), Vector3(-6, dk, -5)],
+		["deck_b", at + Vector3(-18, 18, -32), at + Vector3(0, 0, -10)],
+		["far", at + Vector3(120, 90, 190), at],
+	]
+
+func _spire_shoot() -> void:
+	if not spire or phase != "pour" or _filled_ratio() < _spire_shot_fill:
+		RenderingServer.render_loop_enabled = false     # (no drawing till then: software GL is slow)
+		return
+	RenderingServer.render_loop_enabled = true
+	var views := _spire_views()
+	if _spire_shot_i < 0:
+		_spire_shot_i = 0
+		_spire_shot_wait = 0
+	for c in get_children():
+		if c is CanvasLayer:
+			(c as CanvasLayer).visible = false
+	if _spire_shot_i >= views.size():
+		get_tree().quit()
+		return
+	var v: Array = views[_spire_shot_i]
+	camera.h_offset = 0.0
+	camera.look_at_from_position(v[1], v[2], Vector3.UP)
+	_spire_shot_wait += 1
+	if _spire_shot_wait >= 4:
+		DirAccess.make_dir_recursive_absolute(_spire_shots)
+		get_viewport().get_texture().get_image().save_png(_spire_shots.path_join("%s.png" % v[0]))
+		_spire_shot_i += 1
+		_spire_shot_wait = 0
+var _spire_shot_fill := 0.3
 
 func _update_camera_views(delta: float) -> void:
 	# Who's up top and who's down on the street. While the deck's low, one
@@ -7169,7 +7414,7 @@ func _update_camera_views(delta: float) -> void:
 			var fp: int = selector.floor_pick()
 			cam_yaw = lerp_angle(cam_yaw, 0.0 if fp >= 0 else _menu_yaw, minf(1.0, delta * 2.5))
 			if fp >= 0:
-				focus = Vector3(1.6, _menu_deck_y(fp) + 0.5, -4.0)
+				focus = Vector3(1.6, _menu_deck_y(fp) + 0.5, -4.0 + ((SpireSite.front_z(1.6) - 2.0) if spire else 0.0))
 				dist = 21.0
 	if phase == "sign":
 		# (straight down onto the wet square they're signing)
