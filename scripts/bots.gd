@@ -519,7 +519,10 @@ func _hose(p, delta: float) -> void:
 		ok = ok and _boom_ok
 	elif pour.vol_k > 1.0 and pour.height_at(dl) > pour.SLAB * 1.5:
 		ok = false
-	if pour.bay_of_x(dl.x) > pour.cur_bay:
+	# (a nozzle's width over the line doesn't count: with the bay's last low spot right by it, the
+	# hose hand stood just across the line, never called the pump on, and the bay never finished:
+	# the pump sat idle on a full hopper for good)
+	if pour.bay_of_x(dl.x) > pour.cur_bay and pour.bay_of_x(dl.x - 0.9) > pour.cur_bay:
 		ok = false
 	if op == null and not pour.on_slab(dl):
 		ok = false        # (nobody on the boom and the hose off the slab: don't pump it over the edge)

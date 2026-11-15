@@ -34,9 +34,36 @@ const LookFx := preload("res://scripts/look_fx.gd")
 const Settings := preload("res://scripts/settings.gd")
 
 const PIPE := 3.0                        # standard 3 m pipe lengths: a clamp at every joint
-const RISER := Vector3(12.0, 0, 1.45)
-const LADDER := Vector3(13.35, 0, 0.7)   # where a climber hangs on the tower ladder
-const LADDER_FOOT := Vector3(13.9, 0, 1.5)   # where they step off it, just over the pipe step-over
+static var RISER := Vector3(12.0, 0, 1.45)
+static var LADDER := Vector3(13.35, 0, 0.7)   # where a climber hangs on the tower ladder
+static var LADDER_FOOT := Vector3(13.9, 0, 1.5)   # where they step off it, just over the pipe step-over
+# Spire: there's no pipe tower. The riser's bracketed to the building: up the podium's Ann St face,
+# back across the podium's roof (STEP_Y) to the tower's slab edge (STEP_DZ further in), and up that,
+# a bracket at every floor. The way up beside it is a scaffold stair, climbed like the ladder: hold
+# up and they walk up it flight by flight.
+static var STAIRS := false
+static var STEP_Y := 1.0e9
+static var STEP_DZ := 0.0
+const STAIR_RUN := 2.0          # m along the face each flight runs
+const STAIR_RISE := 1.5         # m each flight climbs (two to a 3 m pipe: a landing by every joint)
+
+## Where the riser is at height `y` (Spire: set back above the podium's roof).
+static func riser_at(y: float) -> Vector3:
+	return Vector3(RISER.x, y, RISER.z + (STEP_DZ if y > STEP_Y + 0.35 else 0.0))
+
+## Where someone on the ladder (or the stairs) is at height `y`.
+static func climb_at(y: float) -> Vector3:
+	if not STAIRS:
+		return Vector3(LADDER.x + 0.45, y, LADDER.z)
+	# (zig-zag flights, with the landings at the riser end level with each joint's working height;
+	# across the podium's roof on a gangway)
+	var u := fposmod((y + 0.4) / (STAIR_RISE * 2.0), 1.0)
+	var tri := 1.0 - absf(u * 2.0 - 1.0)
+	return Vector3(LADDER.x - 0.35 + STAIR_RUN * tri, y, LADDER.z + STEP_DZ * smoothstep(STEP_Y, STEP_Y + 1.2, y))
+
+## Which way the stairs run at height `y`: +1 away from the riser, -1 back to it.
+static func stair_dir(y: float) -> float:
+	return 1.0 if fposmod((y + 0.4) / (STAIR_RISE * 2.0), 1.0) < 0.5 else -1.0
 # The pump, its hopper and both trucks stand on one line at 45 degrees to the
 # street: the pump's nose to the tower, the hopper at its street end and the
 # trucks backed in behind it. DIR is that line (pump to trucks) and SIDE is
@@ -54,7 +81,7 @@ static var BAY := Vector3(23.253, 0, 9.653)     # the truck pump's single truck 
 static var BAY_A2 := Vector3(24.879, 0, 9.016)  # HOPPER + DIR * 5.3 - SIDE * 1.6
 static var BAY_B := Vector3(22.616, 0, 11.279)  # HOPPER + DIR * 5.3 + SIDE * 1.6
 const EXIT_Z := 19.4                      # the far lane, for trucks heading back to the plant
-const HAUL := Vector3(10.7, 0, 1.3)      # the haul rope hangs down the far side of the riser from the ladder
+static var HAUL := Vector3(10.7, 0, 1.3)      # the haul rope hangs down the far side of the riser from the ladder
 # The parts racking: pallet racking with a board down its middle, in line
 # with the tower and a touch to the right. The pump operator's side (pipes
 # and clamp kits) faces the pump; the winch side (pin bags, lifting gear)
@@ -94,17 +121,26 @@ const KERB_OUT_X := 112.0      # ...and where they're gone, up it
 const KERB_CALL_M3 := 3.0      # m3 left in the truck on the hopper when the next can be called round
 
 ## Sets the site's layout. Riverlight: the yard, at 45 degrees. Spire: along the kerb.
-static func use_site(kerb: bool) -> void:
+static func use_site(kerb: bool, wall_z := 0.0, roof_y := 1.0e9, set_back := 0.0) -> void:
 	KERB = kerb
+	STAIRS = kerb
+	STEP_Y = roof_y if kerb else 1.0e9
+	STEP_DZ = set_back if kerb else 0.0
+	RISER = Vector3(12.0, 0, wall_z + 0.3) if kerb else Vector3(12.0, 0, 1.45)
+	LADDER = Vector3(13.35, 0, wall_z + 0.75) if kerb else Vector3(13.35, 0, 0.7)
+	LADDER_FOOT = Vector3(13.9, 0, wall_z + 1.9) if kerb else Vector3(13.9, 0, 1.5)
+	HAUL = Vector3(10.7, 0, wall_z + 0.6) if kerb else Vector3(10.7, 0, 1.3)
 	if kerb:
 		PUMP_YAW = 0.0
 		DIR = Vector3(1, 0, 0)
 		SIDE = Vector3(0, 0, 1)
 		PUMP_POS = Vector3(18.9, 0, KERB_Z)
 		RACKING = Vector3(12.85, 0, 4.1)
-		PIPE_TURN = Vector3(14.6, 0, 2.45)
-		STEP_OVER = Vector3(13.85, 0, 2.16)
-		STEP_YAW = 0.37
+		# (the ground line crosses the footpath square, at the end of the site gate, then runs along
+		# the podium's wall behind the stairs to the riser's foot)
+		PIPE_TURN = Vector3(15.4, 0, wall_z + 0.55)
+		STEP_OVER = Vector3(15.68, 0, 1.2)
+		STEP_YAW = -1.43
 		PANEL_WAIT = Vector3(-0.9, 0, 0.1)
 		BAY_WAIT = Vector3(-0.5, 0, 0.2)
 	else:
@@ -713,7 +749,7 @@ func _build_stores() -> void:
 	stile.add_child(F.box(Vector3(0.05, 0.9, 0.05), ym, Vector3(0.42, 1.3, -0.22)))
 	stile.add_child(F.box(Vector3(0.05, 0.9, 0.05), ym, Vector3(0.42, 1.3, 0.22)))
 	stile.add_child(F.box(Vector3(0.05, 0.05, 0.5), ym, Vector3(0.42, 1.75, 0)))
-	stile.visible = kit == "tower"
+	stile.visible = kit == "tower" and not STAIRS
 
 ## A part to carry: a clamp kit (new clamp with its gasket) or a 3 m pipe.
 func make_item(kind: String) -> Node3D:
@@ -902,6 +938,94 @@ func _build_pump() -> void:
 	slump.setup(self, SLUMP_AT)
 	slump_cone = slump.root
 
+var _stairs: Node3D
+var _step_pipe: Node3D
+
+## Spire: the riser's run back across the podium's roof to the tower's slab edge.
+func _riser_step() -> void:
+	if _step_pipe != null:
+		_step_pipe.queue_free()
+		_step_pipe = null
+	if not STAIRS or riser_top < STEP_Y + 0.5:
+		return
+	_step_pipe = Node3D.new()
+	add_child(_step_pipe)
+	var y := STEP_Y + 0.35
+	var a := Vector3(RISER.x, y, RISER.z)
+	var b := Vector3(RISER.x, y, RISER.z + STEP_DZ)
+	# (up from the roof run to the next joint above it)
+	var next_y := 0.6
+	while next_y <= y:
+		next_y += PIPE
+	for seg in [[a, b], [b, Vector3(b.x, minf(next_y, riser_top), b.z)]]:
+		var m := MeshInstance3D.new()
+		_step_pipe.add_child(m)
+		_line(m, seg[0], seg[1], 0.16)
+	for e in [a, b]:
+		_step_pipe.add_child(F.sphere(0.2, F.mat("pipe"), e))
+	# (chairs under the run across the roof)
+	for k in 3:
+		var c: Vector3 = a.lerp(b, (k + 0.5) / 3.0)
+		_step_pipe.add_child(F.box(Vector3(0.3, 0.3, 0.12), F.mat("yellow_dark"), Vector3(c.x, STEP_Y + 0.15, c.z)))
+
+## Spire: the scaffold stair beside the riser. Flights zig-zag up the podium's face, a gangway
+## crosses the podium's roof, and they carry on up the tower's face to the deck.
+func _build_stairs(top: float) -> void:
+	if _stairs != null:
+		_stairs.queue_free()
+	_stairs = Node3D.new()
+	_stairs.name = "Stairs"
+	add_child(_stairs)
+	var tube := F.mat("steel")
+	var tread := F.mat("yellow_dark")
+	var x0 := LADDER.x - 0.75
+	var x1 := LADDER.x - 0.35 + STAIR_RUN + 0.4
+	# The standards, in two lifts: on the footpath to the podium's roof, and off the roof up
+	for part in 2:
+		var y0 := 0.0 if part == 0 else STEP_Y
+		var y1 := minf(top, STEP_Y + 2.2) if part == 0 else top + 1.1
+		if y1 <= y0 + 0.5:
+			continue
+		var z := LADDER.z + (STEP_DZ if part == 1 else 0.0)
+		for sx in [x0, x1]:
+			for sz in [-0.55, 0.55]:
+				_stairs.add_child(F.box(Vector3(0.07, y1 - y0, 0.07), tube, Vector3(sx, (y0 + y1) * 0.5, z + sz)))
+	# The flights and landings (one MultiMesh of boards)
+	var xf: Array[Transform3D] = []
+	var y := -0.4
+	var i := 0
+	while y < top:
+		var ya := maxf(y, 0.0)
+		var yb := minf(y + STAIR_RISE, top)
+		if yb > ya + 0.05:
+			var pa := climb_at(ya + 0.001)
+			var pb := climb_at(yb - 0.001)
+			var mid := (pa + pb) * 0.5
+			var d := pb - pa
+			var b := Basis(Vector3.UP, 0.0)
+			if absf(d.z) > 0.3:
+				# (the gangway across the roof)
+				xf.append(Transform3D(Basis.from_scale(Vector3(1.0, 0.06, absf(STEP_DZ) + 1.0)), Vector3(LADDER.x + 0.3, STEP_Y + 0.5, LADDER.z + STEP_DZ * 0.5)))
+			else:
+				b = Basis(Vector3(0, 0, 1), atan2(d.y, d.x))
+				xf.append(Transform3D(b * Basis.from_scale(Vector3(d.length(), 0.07, 0.9)), mid - Vector3(0, 0.05, 0)))
+				# (a landing at the top of the flight)
+				xf.append(Transform3D(Basis.from_scale(Vector3(0.7, 0.05, 1.0)), Vector3(pb.x + 0.2 * signf(d.x), pb.y - 0.03, pb.z)))
+		y += STAIR_RISE
+		i += 1
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	var bm := BoxMesh.new()
+	bm.size = Vector3.ONE
+	bm.material = tread
+	mm.mesh = bm
+	mm.instance_count = xf.size()
+	for k in xf.size():
+		mm.set_instance_transform(k, xf[k])
+	var mi := MultiMeshInstance3D.new()
+	mi.multimesh = mm
+	_stairs.add_child(mi)
+
 ## (Re)builds the riser to the boom head: 3 m sections with a clamp at every
 ## joint and a bracket to the tower between. Called at the start and after
 ## every climb, as the line is extended with the tower.
@@ -920,9 +1044,11 @@ func rebuild_riser() -> void:
 	# (Spire: the riser turns in under the deck, the ladder goes on up to the platform)
 	var ladder_top: float = top + (1.7 if game.spire else 0.0)
 	for r in ladder_rails:
-		r.visible = kit == "tower"
-	ladder_rungs.visible = kit == "tower"
-	if kit == "tower":
+		r.visible = kit == "tower" and not STAIRS
+	ladder_rungs.visible = kit == "tower" and not STAIRS
+	if STAIRS:
+		_build_stairs(ladder_top)
+	elif kit == "tower":
 		for i in ladder_rails.size():
 			var rr := ladder_rails[i]
 			rr.position = Vector3(LADDER.x + 0.15, ladder_top * 0.5, LADDER.z + (-0.28 if i == 0 else 0.28))
@@ -941,6 +1067,7 @@ func rebuild_riser() -> void:
 	var turn := PIPE_TURN + Vector3(0, 0.6, 0)
 	_line(ground_pipe, pf(-2.9, 0.0, 0.6), turn if kit == "tower" else pf(-2.91, 0.0, 0.6), 0.16)
 	_line(ground_pipe2, turn, Vector3(RISER.x, 0.6, RISER.z), 0.16)
+	_riser_step()
 	ground_pipe2.visible = kit == "tower"
 	_pipe_bend.visible = kit == "tower"
 
@@ -950,7 +1077,7 @@ func rebuild_riser() -> void:
 	if kit == "tower":
 		var y := 0.6
 		while y < top - 0.8:
-			want.append(Vector3(RISER.x, y, RISER.z))
+			want.append(riser_at(y))
 			y += PIPE
 	else:
 		for off in [Vector3(-2.6, 1.0, -0.75), Vector3(-1.2, 1.0, -0.75), Vector3(0.2, 1.0, -0.75)]:
@@ -980,11 +1107,15 @@ func rebuild_riser() -> void:
 		if i + 1 < want.size():
 			b = want[i + 1]
 		elif kit == "tower":
-			b = Vector3(RISER.x, top, RISER.z)
+			b = riser_at(top)
 		else:
 			b = PUMP_POS + Vector3(1.6, 1.0, -0.75)
 		var sm := MeshInstance3D.new()
 		add_child(sm)
+		if absf(a.z - b.z) > 0.5 and absf(a.x - b.x) < 0.01:
+			# (the pipe that turns back across the podium's roof: up to it here; _riser_step draws
+			# the run across and the rest)
+			b = Vector3(a.x, STEP_Y + 0.35, a.z)
 		_line(sm, a + (b - a).normalized() * 0.08, b - (b - a).normalized() * 0.08, 0.16)
 		sections.append({"a": a, "b": b, "node": sm})
 	for b in brackets:
@@ -993,7 +1124,7 @@ func rebuild_riser() -> void:
 	if kit == "tower":
 		var by := 2.1
 		while by < top - 0.5:
-			var br := F.box(Vector3(0.14, 0.12, 0.55), F.mat("yellow_dark"), Vector3(RISER.x, by, RISER.z - 0.38))
+			var br := F.box(Vector3(0.14, 0.12, 0.55), F.mat("yellow_dark"), riser_at(by) + Vector3(0, 0, -0.38))
 			add_child(br)
 			brackets.append(br)
 			by += PIPE
@@ -2865,7 +2996,7 @@ func update(delta: float, in_pour: bool) -> void:
 		beacon.text = "! C%d" % (mark + 1)
 	elif blocked and not block_found and in_pour and kit == "tower":
 		beacon.visible = true
-		beacon.position = Vector3(RISER.x + 0.8, riser_top * 0.5, RISER.z + 0.6)
+		beacon.position = riser_at(riser_top * 0.5) + Vector3(0.8, 0, 0.6)
 		beacon.text = "? tap"
 
 	# The old clamp: flies off in a burst, or into the line hand's hand on a swap
@@ -2911,7 +3042,7 @@ func update(delta: float, in_pour: bool) -> void:
 	if tap_hint.visible:
 		var ns := tap_next()
 		var nmid: float = (float(sections[ns]["a"].y) + float(sections[ns]["b"].y)) * 0.5
-		tap_hint.position = Vector3(RISER.x + 0.9, nmid + 0.12 * sin(_knock_phase * 4.0), RISER.z + 0.5)
+		tap_hint.position = riser_at(nmid) + Vector3(0.9, 0.12 * sin(_knock_phase * 4.0), 0.5)
 	_step_overs()
 	if _tap_t > 0.0:
 		_tap_t -= delta
@@ -3000,8 +3131,8 @@ func handle_player(p, delta: float, near: String) -> bool:
 			p.cue("action", "climb")
 			if p.action_pressed():
 				p.zone = "ladder"
-				p.position = Vector3(LADDER.x + 0.45, p.position.y, LADDER.z)
-				p.face(Vector3(RISER.x, p.position.y, RISER.z))
+				p.position = climb_at(p.position.y)
+				p.face(riser_at(p.position.y))
 			return true
 		"pins":
 			# The racking's winch side: the lifting gear off its hooks before
@@ -3283,15 +3414,24 @@ func _ladder(p, delta: float) -> void:
 		if best != INF:
 			p.position.y = move_toward(p.position.y, best, 3.0 * delta)
 	var ph: float = p.position.y * 3.0
-	if climbing:
+	if STAIRS and climbing:
+		# (walking up the flights, a hand on the rail)
+		p.pose_arms(Vector3(-0.9 + 0.3 * sin(ph * 1.6), 0, -0.2), Vector3(0.4 * sin(ph * 1.6), 0, 0.2))
+		p.model.get_node("LegL").rotation.x = 0.7 * sin(ph * 1.6)
+		p.model.get_node("LegR").rotation.x = -0.7 * sin(ph * 1.6)
+	elif climbing:
 		p.pose_arms(Vector3(-2.6 + 0.5 * sin(ph), 0, -0.3), Vector3(-2.6 - 0.5 * sin(ph), 0, 0.3))
 		p.model.get_node("LegL").rotation.x = 0.5 * sin(ph)
 		p.model.get_node("LegR").rotation.x = -0.5 * sin(ph)
 	else:
 		p.pose_arms(Vector3(-2.5, 0, -0.3), Vector3(-1.4, 0, 0.4))
-	p.position.x = LADDER.x + 0.45
-	p.position.z = LADDER.z
+	var cl := climb_at(p.position.y)
+	p.position.x = cl.x
+	p.position.z = cl.z
 	p.model.rotation.y = -PI * 0.5
+	if STAIRS and climbing:
+		# (facing the way the flight runs: up it, or back down it)
+		p.model.rotation.y = PI * 0.5 * stair_dir(p.position.y) * (1.0 if v.y < 0.0 else -1.0)
 	var at_deck: bool = absf(p.position.y - work) < 0.5 and kit == "tower" and game.deck_open()
 	var at_ground: bool = p.position.y < 0.5
 	# Still pushing down at the foot of the ladder: you're stepped off it
@@ -3329,7 +3469,7 @@ func _ladder(p, delta: float) -> void:
 	if p.leave_pressed():
 		if at_deck:
 			p.zone = "deck"
-			p.position = Vector3(13.6, work, 1.6)
+			p.position = game.deck_pos("ladder") + Vector3(0, work, 0)
 		elif at_ground:
 			p.zone = "ground"
 			# (onto the street side of the ladder, clear of the west wing)
@@ -3384,7 +3524,7 @@ func _chalk(s: int, dull: bool) -> void:
 	if s < sections.size():
 		mid = (float(sections[s]["a"].y) + float(sections[s]["b"].y)) * 0.5
 	var lab := F.label3d("✗ DULL" if dull else "✓ RINGS", 30, Color("eef0e8") if dull else Color("7cd992"))
-	lab.position = Vector3(RISER.x - 0.75, mid, RISER.z + 0.45)
+	lab.position = riser_at(mid) + Vector3(-0.75, 0, 0.45)
 	add_child(lab)
 	tap_marks[s] = {"dull": dull, "node": lab}
 
@@ -3413,7 +3553,7 @@ func _tap(y: float, j := -1) -> void:
 		return
 	var s := _tap_section(y)
 	var dull: bool = blocked and block_s >= 0 and s <= block_s
-	var at := Vector3(RISER.x - 0.4, y, RISER.z + 0.7)
+	var at := riser_at(y) + Vector3(-0.4, 0, 0.7)
 	tap_label.position = at
 	_chalk(s, dull)
 	if dull:
@@ -3436,7 +3576,7 @@ func _tap(y: float, j := -1) -> void:
 			lo_ring = mini(lo_ring, int(k))
 	if hi_dull >= 0 and lo_ring <= hi_dull + 1:
 		var mid: float = (float(sections[hi_dull]["a"].y) + float(sections[hi_dull]["b"].y)) * 0.5
-		_tap_found(Vector3(RISER.x - 0.4, mid, RISER.z + 0.7))
+		_tap_found(riser_at(mid) + Vector3(-0.4, 0, 0.7))
 
 func _tap_found(at: Vector3) -> void:
 	game.sfx.hit("thud")

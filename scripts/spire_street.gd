@@ -18,7 +18,7 @@ const ZONE_X0 := -9.0                 # the barriers start (the cone taper's ups
 const ZONE_X1 := 41.5                 # the last cone
 const OUT_GAP := Vector2(-1.0, 10.5)  # the ready truck pulls out through here
 const IN_GAP := Vector2(25.5, 37.0)   # ...and backs in (and drives out) through here
-const GATE := Vector2(5.4, 15.7)      # the site gate: no gantry here (the riser, the way up, the haul rope)
+const GATE := Vector2(5.4, 16.6)      # the site gate: no gantry here (the riser, the way up, the haul rope)
 const DECK_Y := 3.3                   # the gantry's deck over the footpath
 const WALK_SPEED := 1.3
 
@@ -219,6 +219,17 @@ func _zone(r: Rect2, text: String, col: Color) -> void:
 	add_child(l)
 
 func _zones() -> void:
+	# The ground line crosses the footpath under a pipe ramp
+	var so := Line.STEP_OVER
+	var ramp := Node3D.new()
+	ramp.position = Vector3(so.x, gy(so.x, so.z), so.z + 0.2)
+	ramp.rotation.y = 0.14
+	ramp.add_child(F.box(Vector3(0.6, 0.42, 2.6), F.color_mat(Color("ffc72c"), true), Vector3(0, 0.21, 0)))
+	for sx in [-0.62, 0.62]:
+		var w := F.box(Vector3(0.75, 0.05, 2.6), F.color_mat(Color("23272e")), Vector3(sx, 0.2, 0))
+		w.rotation.z = 0.52 * signf(sx)
+		ramp.add_child(w)
+	add_child(ramp)
 	# Round the hopper and the reversing truck: nobody on foot while one's backing in
 	_zone(Rect2(Line.HOPPER.x - 0.6, KERB + 0.1, 12.5, 2.75), "EXCLUSION ZONE · TRUCK REVERSING", Color("e23b2e"))
 	# The people on the footpath wait behind these while the gate's shut
@@ -282,7 +293,10 @@ func _people() -> void:
 		_walkers.append({"node": w, "x": -38.0 + i * 15.0, "dir": 1.0 if i % 2 == 0 else -1.0, "phase": i * 1.7, "lane": 0.35 if i % 2 == 0 else -0.35})
 
 func _path_z(x: float, lane: float) -> float:
-	return (SpireSite.boundary_z(x) + KERB) * 0.5 + lane
+	# (through the gate they keep to the kerb side, clear of the foot of the stairs)
+	var mid := (SpireSite.boundary_z(x) + KERB) * 0.5 + lane
+	var g := smoothstep(GATE.x - 3.0, GATE.x, x) * (1.0 - smoothstep(GATE.y, GATE.y + 3.0, x))
+	return lerpf(mid, KERB - 0.75 + lane * 0.6, g)
 
 func _process(delta: float) -> void:
 	if game == null or game.line == null:
