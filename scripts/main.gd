@@ -2212,6 +2212,7 @@ var _idle_dispatch := 0.0
 var _truck_test := false
 var _tt_t := 0.0
 var _tt_moved := false
+var _tt_parked := false
 
 func _watch_dispatch(delta: float) -> void:
 	var feeding := false
@@ -2250,6 +2251,18 @@ func _watch_dispatch(delta: float) -> void:
 		elif _tt_moved and _tt_t > 60.0:
 			print("[trucktest] FAIL: the boom operator never got back to the remote (at %s)" % str(bo.position))
 			get_tree().quit(1)
+	if _truck_test and phase == "pour":
+		for tr in line.trucks:
+			if tr["state"] == "back" and not _tt_parked:
+				# (the pump operator right behind the truck backing in: the hopper stall seen 15 Nov)
+				_tt_parked = true
+				var rear: Vector3 = (tr["node"] as Node3D).global_transform * Vector3(-5.6, 0, 0)
+				var pp = crew.crew["pump"]
+				pp.position = Vector3(17.0, 0, 6.8)     # (its old waiting spot by the panel: the stall in the logs)
+				print("[trucktest] pump operator put behind the reversing truck's rear at %s" % str(pp.position))
+			if tr["state"] == "back" and float(tr.get("blocked_t", 0.0)) > 25.0:
+				print("[trucktest] FAIL: a truck sat 25 s behind someone and never reached the hopper")
+				get_tree().quit(1)
 	if _truck_test and phase == "pour" and _filled_ratio() >= 1.0:
 		print("[trucktest] PASS: the slab filled after the bad loads and the blockage")
 		_truck_test = false
@@ -3846,6 +3859,7 @@ func _start_pour() -> void:
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--trucktest=") and int(arg.substr(12)) == k + 1:
 			line.force_bad = 2
+			line.force_top_block = true
 			_incidents = [{"at": 0.05, "kind": "block"}] + _incidents
 			_truck_test = true
 	line.start_pour(pour.needed(), cfg)
@@ -4587,6 +4601,8 @@ func _process(delta: float) -> void:
 		push_error("[autotest] stuck in phase %s at level %d (%.0fs)" % [phase, k + 1, phase_t])
 		print("[autotest]   ops stage '%s' washed %s primed %s | left %s | line live %s" % [ops.stage, ops.washed, ops.primed, str(_left), line.live])
 		print("[autotest]   trucks: %s" % line.dispatch_debug())
+		var po = crew.crew["pump"]
+		print("[autotest]   repair: job '%s' step '%s' (%d/%d) fix_i %d block_s %d clamp y %s riser top %.1f deck %.1f | pump %s at y %.1f held '%s' joint_near %d" % [line.job_kind, line._step_name(), line.fix_step, line.job_steps.size(), line.fix_i, line.block_s, str(line.clamps[line.fix_i]["pos"].y) if line.fix_i >= 0 and line.fix_i < line.clamps.size() else "-", line.riser_top, work_y, po.zone, po.position.y, po.held_kind, line.joint_near(po)])
 		print("[autotest]   pumping %s hose_call %s pipe_calls %s hose_holder %s blocked %s fail_i %d fix_i %d wind_park %s bin %s" % [line.pumping, hose_call, pipe_calls(), hose_holder.role if hose_holder != null else "-", line.blocked, line.fail_i, line.fix_i, climb.wind_gust >= BOOM_WIND, ops.wants_bin()])
 		for q in players:
 			print("[autotest]   %s: zone %s busy '%s' held '%s' at %s" % [q.role, q.zone, q.busy, q.held_kind, q.position])
