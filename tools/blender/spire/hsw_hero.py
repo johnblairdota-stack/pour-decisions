@@ -114,6 +114,8 @@ def terrain(col):
         water_n |= np.roll(sub < 0.0, k, 0)
     water_n[:31] = False
     sink |= (sub < 5.0) & water_n & ~lawn_v & ~riprap_zone & (X >= 400.0)   # r4: real land west of HSW stays
+    sink |= (sub < 6.0) & water_n & ~lawn_v & (X < 400.0)                  # r7: west of HSW too: a pier the LiDAR saw (p01 spit)
+    sink |= (sub < 9.0) & (Y < -60.0) & (X > 380.0) & (X < 700.0)         # r7: mid-river returns (moored boats), open water in p13
     verts[:, 2] = np.where(sink.ravel(), np.minimum(verts[:, 2], W_["sink_to_ahd"]), verts[:, 2])
     SUNK["mask"], SUNK["x0"], SUNK["y1"] = sink, float(X[0, 0]), float(Y[0, 0])
     zz = verts[:, 2].reshape(R, Cn)
@@ -273,6 +275,7 @@ def cliff_dress(col, X, Y, sub, slope, zc, orig, riprap_zone):
     leaves = FO.Foliage(seed=Cl["seed"])
     vines = FO.Foliage(seed=Cl["seed"] + 1)
     canopy = FO.Foliage(seed=Cl["seed"] + 2)
+    canopy2 = FO.Foliage(seed=Cl["seed"] + 5)
     tops = FO.Foliage(seed=Cl["seed"] + 3)
     jac = FO.Foliage(seed=Cl["seed"] + 4)
     hill_trunks = C.MeshBuf()
@@ -311,7 +314,8 @@ def cliff_dress(col, X, Y, sub, slope, zc, orig, riprap_zone):
         elif roll < 0.13:                                 # a jacaranda or two in flower
             jac.cloud((px_, py_, pz_), (rad, rad, rad * 0.6), int(9 * (20 + 4 * rad * rad)), 0.5, shell=0.2, top_bias=0.5)
         else:                                             # r4: distinct round crowns with lime-lit tops
-            canopy.cloud((px_, py_, pz_), (rad, rad, rad * 0.75), int(9 * (22 + 5 * rad * rad)), 0.55, shell=0.12, top_bias=0.2)
+            (canopy if rnd.random() < 0.6 else canopy2).cloud((px_, py_, pz_), (rad, rad, rad * 0.75), int(9 * (22 + 5 * rad * rad)),
+                                                               0.55, shell=0.12, top_bias=0.2)
             tops.cloud((px_ + 0.3, py_ - 0.3, pz_ + rad * 0.5), (rad * 0.7, rad * 0.7, rad * 0.28), int(3 * (22 + 5 * rad * rad)),
                        0.5, shell=0.3, top_bias=0.9)
         ncan += 1
@@ -339,7 +343,8 @@ def cliff_dress(col, X, Y, sub, slope, zc, orig, riprap_zone):
              obj(rip, "hsw_riprap", col, rgbm("riprap", (0.24, 0.22, 0.19), "dg"))]
     for fo, nm, a, b in ((leaves, "hsw_cliff_scrub", (0.05, 0.10, 0.035), (0.13, 0.20, 0.07)),
                          (vines, "hsw_cliff_vines", (0.045, 0.095, 0.03), (0.11, 0.19, 0.06)),
-                         (canopy, "hsw_hill_canopy", (0.04, 0.09, 0.03), (0.12, 0.21, 0.06)),
+                         (canopy, "hsw_hill_canopy", (0.06, 0.10, 0.03), (0.17, 0.24, 0.07)),
+                         (canopy2, "hsw_hill_canopy_olive", (0.10, 0.12, 0.04), (0.26, 0.29, 0.09)),
                          (tops, "hsw_hill_tops", (0.22, 0.34, 0.06), (0.40, 0.52, 0.10)),
                          (jac, "hsw_jacaranda", (0.22, 0.13, 0.45), (0.38, 0.25, 0.65))):
         o_ = fo.object(nm, col, a, b)
@@ -490,7 +495,7 @@ def sheds(col):
                 x, y, z = Pt(0, rside * (wd / 2 + o) * 0.48, 0)
                 zz = ze + (ridge - ze) * 0.52 + 0.12
                 # round 2: bigger, bolder, spaced letters (photo p09: they fill ~60 % of the roof slope)
-                size = min(0.66 * math.hypot(wd / 2 + o, ridge - ze), 1.75 * (ln + 2 * o) / max(4, len(sh["letters"])))
+                size = min(0.62 * math.hypot(wd / 2 + o, ridge - ze), 1.35 * (ln + 2 * o) / max(4, len(sh["letters"])))
                 tob = C.text_obj(col, "hsw_roof_letters_%d" % sh["osm"], sh["letters"], (x, y, zz),
                                  (th, 0.0, head), size, H["letters_rgb"])
                 try:
@@ -505,12 +510,12 @@ def sheds(col):
         if sh["osm"] in H["over_water_sheds"]:                # r3: river half on a grid of dark piles + bracing
             pg = H["pile_grid_m"]
             v1 = wd / 2 + sh.get("deck_river_m", 0.0) + 1.2
-            nu_ = max(2, int(ln / 2.2))                                     # r6: chunky piles ~2.2 m apart
+            nu_ = max(2, int(ln / 3.2))                                     # r7: fewer, fatter piles ~3.2 m apart
             for i in range(nu_ + 1):
                 u = -ln / 2 + i * ln / nu_
                 for v in np.arange(v1 % 3.0, v1 + 0.01, 3.0):
                     x, y, _ = Pt(u, rside * v, 0)
-                    pw_ = rnd_p.uniform(0.55, 0.68)                                # r6: chunky, varied
+                    pw_ = rnd_p.uniform(0.7, 0.85)                                 # r7: fat, varied
                     piles.box(x + rnd_p.uniform(-0.15, 0.15), y + rnd_p.uniform(-0.15, 0.15), -2.5, pw_, pw_, base - 0.3 + 2.5,
                               rnd_p.uniform(0, 0.4))
                 xa, ya, _ = Pt(u, rside * v1, 0)
@@ -913,7 +918,8 @@ def hotel_skin(col):
     o_ = terr.object("hsw_hotel_terrace_planting", col, (0.05, 0.11, 0.035), (0.15, 0.25, 0.07))
     if o_:
         names.append(o_.name)
-    names += felons_east_deck(col) + oakwood(col)
+    cb_, ncb_ = crest_blocks(col)
+    names += felons_east_deck(col) + cb_
     o_ = jac.object("hsw_hotel_jacaranda", col, (0.25, 0.15, 0.50), (0.42, 0.28, 0.70))
     if o_:
         names.append(o_.name)
@@ -945,6 +951,50 @@ def felons_east_deck(col):
                         obj(rail, "hsw_felons_east_rail", col, rgbm("frames", (0.12, 0.12, 0.12))),
                         obj(umb, "hsw_felons_east_umbrellas", col, rgbm("umbrella", (0.86, 0.84, 0.78))),
                         obj(pole, "hsw_felons_east_poles", col, rgbm("frames", (0.12, 0.12, 0.12)))) if n]
+
+
+def crest_blocks(col):
+    """Round 7: the cream apartment blocks along the cliff crest (Bowen Tce) and Oakwood: cream-brown walls with
+    punched windows, a balcony slab on every floor with a dark rail, wrapping the generic boxes."""
+    import json
+    import os
+    CB = H["crest_blocks"]
+    x0, y0, x1, y1 = CB["box"]
+    walls, slabs, rails = C.MeshBuf(), C.MeshBuf(), C.MeshBuf()
+    n = 0
+    skip = {H["hotel_way"]} | {s["osm"] for s in H["sheds"]}
+    for b in json.load(open(os.path.join(L.REF, "lidar", "buildings_clean.json")))["buildings"]:
+        if b["osm"] in skip:
+            continue
+        top = max(t["top_ahd"] for t in b["tiers"])
+        ring0 = b["tiers"][0]["ring"]
+        cx = sum(p[0] for p in ring0) / len(ring0)
+        cy = sum(p[1] for p in ring0) / len(ring0)
+        if not (x0 <= cx <= x1 and y0 <= cy <= y1) or top < CB["min_top_ahd"]:
+            continue
+        for ti, t in enumerate(b["tiers"]):
+            ring = [tuple(p) for p in t["ring"]]
+            tx = sum(p[0] for p in ring) / len(ring)
+            ty = sum(p[1] for p in ring) / len(ring)
+
+            def grow(d):
+                out = []
+                for x, y in ring:
+                    r_ = math.hypot(x - tx, y - ty) or 1.0
+                    out.append((tx + (x - tx) * (r_ + d) / r_, ty + (y - ty) * (r_ + d) / r_))
+                return out
+            z0 = b["base_ahd"] if ti == 0 else b["tiers"][ti - 1]["top_ahd"]
+            walls.prism(grow(0.08), z0, t["top_ahd"])
+            z = z0 + 3.0
+            while z < t["top_ahd"] - 1.0:
+                slabs.prism(grow(1.5), z, z + 0.22)
+                rails.prism(grow(1.45), z + 0.95, z + 1.05)
+                z += 3.0
+        n += 1
+    win = {"bay": 3.2, "win": 1.9, "sill": 0.35, "head": 0.85, "glass": (0.05, 0.06, 0.07), "rough": 0.2, "floor": 3.0}
+    return [m for m in (obj(walls, "hsw_crest_walls", col, rgbm("crest_wall", CB["wall"], "render", win)),
+                        obj(slabs, "hsw_crest_balconies", col, rgbm("crest_slab", CB["slab"])),
+                        obj(rails, "hsw_crest_rails", col, rgbm("crest_rail", CB["rail"]))) if m], n
 
 
 def oakwood(col):
@@ -989,6 +1039,8 @@ def mangroves(col):
             z = L.ground_z(xx, yy)
             if not (M["z"][0] <= z <= M["z"][1]) or cls[L.lidar_cell(xx, yy)] == 6:
                 continue
+            if 380.0 < xx < 700.0 and yy > -150.0:             # r7: that is open river (sunk in the 1 m patch)
+                continue
             r = rnd.uniform(1.4, 2.8)
             fo.cloud((xx, yy, z + r * 0.55), (r, r, r * 0.7), int(30 + 10 * r * r), 0.5, shell=0.2, top_bias=0.4)
             n += 1
@@ -1030,7 +1082,7 @@ def dressing(col):
         nx, ny = uy, -ux
         if ny < -0.9:                                    # the porch side (south) has the door
             continue
-        w = ln * 0.58
+        w = ln * 0.72
         mx, my = (p0[0] + p1[0]) / 2, (p0[1] + p1[1]) / 2
         z0, zs = dz + 0.9, P["wall_top_ahd"] - 0.6 - w / 2
         prof = [(-w / 2, z0)] + [(w / 2 * math.cos(math.pi - math.pi * j / 10), zs + w / 2 * math.sin(math.pi - math.pi * j / 10)) for j in range(11)] + [(w / 2, z0)]
@@ -1049,16 +1101,14 @@ def dressing(col):
     o = L.osm()
     umb, pole, plant = C.MeshBuf(), C.MeshBuf(), C.MeshBuf()
     nu = 0
-    for w in o["ways"].values():
-        if w.get("tags", {}).get("leisure") != "outdoor_seating":
-            continue
-        ring = o["line"](w)
-        if len(ring) < 3:
-            continue
+    seat = [o["line"](w) for w in o["ways"].values() if w.get("tags", {}).get("leisure") == "outdoor_seating"]
+    seat = [r_ for r_ in seat if len(r_) >= 3]
+    seat = sorted(seat, key=lambda r_: -sum(p[0] for p in r_) / len(r_))[:1]     # r7: one cluster, by the Rivershed
+    for ring in seat:
         xs, ys = [p[0] for p in ring], [p[1] for p in ring]
-        for x in np.arange(min(xs) + 2, max(xs) - 2, 5.0):
-            for y in np.arange(min(ys) + 2, max(ys) - 2, 5.0):
-                if not C.point_in_ring(x, y, ring) or rnd.random() < 0.25:
+        for x in np.arange(min(xs) + 2, max(xs) - 2, 3.6):
+            for y in np.arange(min(ys) + 2, max(ys) - 2, 3.6):
+                if not C.point_in_ring(x, y, ring) or nu >= 14:
                     continue
                 g = L.ground_z(x, y)
                 x2, y2 = x + rnd.uniform(-1, 1), y + rnd.uniform(-1, 1)
@@ -1099,6 +1149,7 @@ def dressing(col):
     # sand-pink decomposed-granite paths: OSM footways on the strip (not the riverwalk deck), draped 6 cm up
     paths = C.MeshBuf()
     npath = 0
+    cand = []
     G_ = H["ground"]
     for wid, w in o["ways"].items():
         t = w.get("tags", {})
@@ -1111,6 +1162,8 @@ def dressing(col):
             continue
         if max(L.ground_z(*p) for p in pts) > 12.0:             # cliff-top streets keep their own footpaths
             continue
+        cand.append(pts)
+    for pts in sorted(cand, key=lambda q: -sum(math.dist(a, b) for a, b in zip(q[:-1], q[1:])))[:1]:   # r7: one path
         pts = C.densify(pts, 1.0)
         lf, rt = C.offset_line(pts, G_["path_w_m"] / 2), C.offset_line(pts, -G_["path_w_m"] / 2)
         n = len(pts)
@@ -1378,20 +1431,24 @@ def shade(m, bsdf):
                     links.new(v_, n_.inputs[i_])
             return n_.outputs[0]
         u_, v_ = sep.outputs["X"], sep.outputs["Y"]
+        u_ = m_("MULTIPLY", u_, 2.5)                                  # r7: pattern 2.5x smaller (photo scale)
+        v_ = m_("MULTIPLY", v_, 2.5)
         col_ = m_("FLOOR", m_("DIVIDE", u_, 2.4))
         glass = m_("GREATER_THAN", m_("FLOORED_MODULO", col_, 4.0), 2.5)
         par = m_("FLOORED_MODULO", col_, 2.0)                       # 0 / 1: alternate columns lean the other way
         sgn = m_("SUBTRACT", 1.0, m_("MULTIPLY", par, 2.0))
         vv = m_("ADD", m_("ADD", v_, m_("MULTIPLY", m_("MULTIPLY", m_("FRACT", m_("DIVIDE", u_, 2.4)), 1.3), sgn)),
                 m_("MULTIPLY", par, 1.6))
-        tone = m_("DIVIDE", m_("FLOORED_MODULO", m_("FLOOR", m_("DIVIDE", vv, 3.2)), 3.0), 3.0)
+        tone = m_("DIVIDE", m_("FLOORED_MODULO", m_("FLOOR", m_("DIVIDE", vv, 3.2)), 4.0), 4.0)
         ramp = nodes.new("ShaderNodeValToRGB")
         ramp.color_ramp.interpolation = "CONSTANT"
         el = ramp.color_ramp.elements
         el[0].position, el[0].color = 0.0, (0.72, 0.71, 0.68, 1)
-        el[1].position, el[1].color = 0.30, (0.42, 0.42, 0.41, 1)
-        e3 = el.new(0.6)
-        e3.color = (0.07, 0.07, 0.075, 1)
+        el[1].position, el[1].color = 0.22, (0.62, 0.53, 0.40, 1)        # r7: cream panels
+        e3 = el.new(0.47)
+        e3.color = (0.42, 0.42, 0.41, 1)
+        e4 = el.new(0.72)
+        e4.color = (0.07, 0.07, 0.075, 1)
         links.new(tone, ramp.inputs["Fac"])
         c1 = mix_rgb(glass, ramp.outputs["Color"], (0.03, 0.035, 0.045, 1))
         links.new(c1, bsdf.inputs["Base Color"])

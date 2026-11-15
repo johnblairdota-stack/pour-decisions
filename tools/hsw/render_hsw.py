@@ -68,7 +68,11 @@ def horizon():
     ob = bpy.data.objects.new("hsw_far_ridge", me)
     m = bpy.data.materials.new("hsw_far_ridge")
     m.use_nodes = True
-    m.node_tree.nodes["Principled BSDF"].inputs["Base Color"].default_value = (*R["rgb"], 1)
+    bs_ = m.node_tree.nodes["Principled BSDF"]                 # r7: flat haze colour (no shading streaks)
+    bs_.inputs["Base Color"].default_value = (0, 0, 0, 1)
+    bs_.inputs["Emission Color"].default_value = (*R["rgb"], 1)
+    bs_.inputs["Emission Strength"].default_value = R.get("emit", 0.35)
+    bs_.inputs["Specular IOR Level"].default_value = 0.0
     ob.data.materials.append(m)
     sc.collection.objects.link(ob)
     try:                                        # r4: screen-space reflections so the river mirrors the sky

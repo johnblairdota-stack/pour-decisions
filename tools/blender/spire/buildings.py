@@ -13,6 +13,7 @@ from looks import look_for, PATTERNS
 
 HSW_ZONE = (380, -130, 800, 140)      # local x0, y0, x1, y1: the strip under the cliffs (hsw.py adds the rest)
 SKIP = {26384715, 679146312}          # St John's Cathedral (cathedral.py), Mr Percival's (hsw.py)
+SKIP |= L.hsw_crest_ids()             # HSW round 7: cliff-crest apartment blocks built by hsw_hero.crest_blocks
 STREETS_WITH_AWNINGS = ("Ann Street", "Queen Street", "Adelaide Street", "Wickham Street", "Boundary Street")
 
 
