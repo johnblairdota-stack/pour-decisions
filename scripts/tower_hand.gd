@@ -33,7 +33,7 @@ const TOWERS := [
 	{"id": "spire", "site": "spire", "kit": "tower", "code": "SP", "suit": "spire", "suit_col": Color("b5553a"),
 		"kind": "CBD", "name": "SPIRE", "place": "550 Queen St, Brisbane · 2015-2018",
 		"chips": ["34 POURS", "L6 TRANSFER", "2 BOOMS"], "art": "res://assets/cards/art_spire.jpg",
-		"caption": "SPIRE · 550 QUEEN ST · L6 TRANSFER SLAB"},
+		"caption": "SPIRE · 550 QUEEN ST · BRISBANE CBD"},
 ]
 
 ## The card being played, carried over the reload to the other site: main.gd flies there, then the

@@ -291,6 +291,8 @@ func _ready() -> void:
 			_card_cam = arg.substr(10).split_floats(",")
 		if arg.begins_with("--cardart="):
 			_card_art = arg.substr(10)
+		if arg == "--cardlight=day":
+			_card_day = true
 		if arg.begins_with("--cardfloor="):
 			_card_floor = int(arg.substr(12))
 		if arg.begins_with("--camtest="):
@@ -745,8 +747,8 @@ var _light_now: Array = []   # the story light as last shown ([] after a dawn po
 ## The pick screen and its river flight: golden hour, little haze.
 func picking() -> bool:
 	if _card_cam.size() >= 6:
-		return true
-	return (phase == "roles" or phase == "select") and is_instance_valid(selector) and (selector.page == "tower" or selector.page == "arrive" or selector.arriving)
+		return not _card_day
+	return (phase == "roles" or phase == "select") and is_instance_valid(selector) and (selector.page == "tower" or selector.page == "arrive")
 
 func _update_story_light(delta: float) -> void:
 	var want: Array = Story.LIGHTS["morning"] if tutorial else Story.light(story_k(k))
@@ -760,6 +762,9 @@ func _update_story_light(delta: float) -> void:
 		want = Story.mix(want, Story.LIGHTS["storm"], f)
 	if _light_now.is_empty():
 		_light_now = Story.LIGHTS["morning"]
+	if _light_snap and not picking():
+		_light_snap = false
+		_light_now = want
 	_light_now = Story.mix(_light_now, want, minf(1.0, delta * 0.6))
 	var l := _light_now
 	sky_mat.set_shader_parameter("sky_top", l[0])
@@ -2033,7 +2038,7 @@ var _menu_h := 0.0
 
 func _menu_frame_crew(delta: float) -> void:
 	var on: bool = phase == "select" and is_instance_valid(selector) and selector.floor_pick() >= 0 and crew != null and crew.crew.has("boom") and crew.crew.has("screed")
-	if on and not TowerHand.arrival.is_empty() and float(TowerHand.arrival.get("t", 0.0)) < ARRIVE_T - 2.5:
+	if on and not TowerHand.arrival.is_empty() and float(TowerHand.arrival.get("t", 0.0)) < ARRIVE_T - 4.0:
 		on = false         # (still flying in: the slide waits for the last of the arc)
 	var want := 0.0
 	if on:
@@ -2063,9 +2068,9 @@ func _menu_frame_crew(delta: float) -> void:
 # ------------------------------------------------------------------ the pick's river flights
 
 const ARRIVE_BOAT_V := 19.0      # m/s (a CityCat does about 13: a little quick, for the screen)
-const ARRIVE_RIVER_T := 5.0      # s low on the water behind the CityCat
-var ARRIVE_T := 12.5             # s all up: the river, then one arc up and round onto the floor pick (Spire's is longer)
-const ARRIVE_UI_T := 1.3         # s at the end the floor pick's page fades up over
+const ARRIVE_RIVER_T := 3.6      # s low on the water behind the CityCat
+var ARRIVE_T := 10.6             # s all up: the river, then one arc up and round onto the floor pick (Spire's is longer)
+const ARRIVE_UI_T := 0.8         # s at the end the floor pick's page fades up over (the camera all but still by then)
 var _arrive_keys: Array = []     # [t, camera, look], game coordinates; the last one is the floor pick's own view
 var _arrive_line: Array = []     # the CityCat's run in to the site, on the water
 var _river_path: Array = []      # camera points low over the river, ending by the site (game x/z, y)
@@ -2241,9 +2246,9 @@ func _arrive_build(tower: Vector3, fin: Vector3, fin_look: Vector3) -> Array:
 	var e := Vector3(out_n.z, 0, -out_n.x)
 	var deck := fin_look.y
 	# (round the end of the building: [s, along e, along out_n, m over the deck, how far the look's gone to the deck])
-	var arc: Array = [[7.4, 78.0, -150.0, 34.0, 0.35], [9.3, 58.0, -34.0, 24.0, 0.75], [10.9, 40.0, 30.0, 10.0, 1.0]]
+	var arc: Array = [[5.8, 84.0, -150.0, 34.0, 0.35], [7.6, 70.0, -40.0, 24.0, 0.75], [9.1, 46.0, 36.0, 10.0, 1.0]]
 	var floor_y := -1e9
-	ARRIVE_T = 12.5
+	ARRIVE_T = 10.6
 	if not spire:
 		e = -e          # (Riverlight: round the east end, the crew's own wing; the west wing stands at the other)
 		floor_y = 24.0  # (and over the street trees, however low the deck is)
@@ -2252,15 +2257,14 @@ func _arrive_build(tower: Vector3, fin: Vector3, fin_look: Vector3) -> Array:
 		# roofs through the gap east of the tower next door, round the cathedral end where nothing
 		# stands tall, and down onto Ann St. Checked against cuts through the city model at 40, 70
 		# and 100 m: never under 85 m until it's over the cathedral grounds.)
-		arc = [[8.0, 182.0, -187.0, 72.0, 0.35], [10.6, 84.0, -48.0, 58.0, 0.75], [12.6, 12.0, 60.0, 20.0, 1.0]]
+		# (the third key keeps it outside the tower crane's jib until it's under it)
+		arc = [[6.4, 182.0, -187.0, 72.0, 0.35], [8.8, 84.0, -48.0, 58.0, 0.7], [10.0, 70.0, 20.0, 34.0, 0.9], [11.1, 8.0, 56.0, 20.0, 1.0]]
 		floor_y = 88.0
-		ARRIVE_T = 14.3
+		ARRIVE_T = 12.6
 	for k in arc:
 		var p := Vector3(fin_look.x, deck + float(k[3]), fin_look.z) + e * float(k[1]) + out_n * float(k[2])
-		if spire and k == arc[arc.size() - 1]:
-			pass            # (the last of Spire's arc is already down in Ann St)
-		else:
-			p.y = maxf(p.y, floor_y)
+		if not spire or arc.find(k) < 2:
+			p.y = maxf(p.y, floor_y)        # (Spire's last two are already down over the cathedral grounds and Ann St)
 		keys.append([float(k[0]), p, tower.lerp(fin_look, float(k[4]))])
 	# (the first of the arc sits between the river and the site, wherever the river is)
 	var k1: Array = keys[n + 1]
@@ -2304,6 +2308,7 @@ func _arrive_camera(delta: float, fin: Vector3) -> void:
 		a["t"] = 0.0
 		_arrive_keys = []
 		selector.arrive_site(a["card"])
+		_light_snap = true       # (behind the picture: straight to that floor's own light, so nothing shifts on landing)
 		return
 	if _human_a and float(a["t"]) > 0.4:
 		a["skip"] = true                 # (A: the rest of it at six times the speed)
@@ -2314,7 +2319,9 @@ func _arrive_camera(delta: float, fin: Vector3) -> void:
 	if spire:
 		var pc := SpireSite.centroid(SpireSite.poly("plate"))
 		tower = Vector3(pc.x, cam_focus.y, pc.y)
-	if _arrive_keys.is_empty():
+	if _arrive_keys.is_empty() or t < ARRIVE_RIVER_T - 0.6:
+		# (built again while it's still on the river: the floor pick's camera takes a moment to find
+		# its deck, and the arc is measured up from that deck)
 		_arrive_keys = _arrive_build(tower, fin, cam_focus)
 	var last: Array = _arrive_keys[_arrive_keys.size() - 1]
 	last[1] = fin
@@ -2328,7 +2335,7 @@ func _arrive_camera(delta: float, fin: Vector3) -> void:
 		var strip := UI.pill(Color(0.05, 0.06, 0.08, 0.8), Vector4(24, 8, 28, 8))
 		strip.add_child(UI.head(String(a["card"]["caption"]), 34, Color("f4f2ec")))
 		_caption.add_child(strip)
-		UI.place(strip, Vector2(0.5, 1), Vector2(0, -60))
+		UI.place(strip, Vector2(0, 1), Vector2(48, -56))      # (bottom left: clear of the CityCat)
 	(_caption.get_child(0) as CanvasItem).modulate.a = smoothstep(0.8, 1.6, t) * (1.0 - smoothstep(ARRIVE_T - ARRIVE_UI_T - 1.2, ARRIVE_T - ARRIVE_UI_T - 0.2, t))
 	camera.position = _arrive_at(t, 1)
 	camera.look_at(_arrive_at(t, 2), Vector3.UP)
@@ -7343,6 +7350,8 @@ func _update_camera(delta: float) -> void:
 ## cut to a card picture's shape and quits. With `--tutorial` it's the water tower, partway through its pour.
 var _card_cam := PackedFloat64Array()
 var _card_art := ""
+var _card_day := false         # `--cardlight=day`: the floor's own light, not the pick's golden hour
+var _light_snap := false
 var _card_floor := -1
 var _card_t := 0.0
 
@@ -7362,6 +7371,8 @@ func _card_shoot(delta: float) -> void:
 		selector.visible = false
 	for n in find_children("*", "CanvasLayer", true, false):
 		(n as CanvasLayer).visible = false          # (the HUD, the toolbox talk, anything else drawn over it)
+	for n in find_children("*", "Label3D", true, false):
+		(n as Label3D).visible = false              # (name tags and signs' floating words)
 	_card_t += delta
 	camera.h_offset = 0.0
 	camera.v_offset = 0.0
