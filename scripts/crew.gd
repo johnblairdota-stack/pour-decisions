@@ -75,10 +75,10 @@ func place_start() -> void:
 			"hose": p.position = Vector3(3.0, wy, -1.0)
 			"line":
 				p.zone = "ground"
-				p.position = Vector3(17.6, 0, 10.2)
+				p.position = game.GROUND_STATIONS["bay"]["pos"] + game.LineScript.rot(game.LineScript.BAY_WAIT)
 			"pump":
 				p.zone = "ground"
-				p.position = Vector3(16.4, 0, 7.4)
+				p.position = game.GROUND_STATIONS["panel"]["pos"] + game.LineScript.rot(game.LineScript.PANEL_WAIT)
 		if game.spire and role in ["boom", "poker", "screed", "hose"]:
 			# (Spire: on pour A's deck, inside its Ann St edge)
 			var sx: float = {"boom": 8.85, "poker": 3.0, "screed": -4.0, "hose": 6.0}[role]

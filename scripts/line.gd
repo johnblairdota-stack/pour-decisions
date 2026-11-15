@@ -41,32 +41,89 @@ const LADDER_FOOT := Vector3(13.9, 0, 1.5)   # where they step off it, just over
 # street: the pump's nose to the tower, the hopper at its street end and the
 # trucks backed in behind it. DIR is that line (pump to trucks) and SIDE is
 # across it, towards the street (the pump panel's side).
-const PUMP_YAW := -PI * 0.25
-const DIR := Vector3(0.70710678, 0, 0.70710678)
-const SIDE := Vector3(-0.70710678, 0, 0.70710678)
-const PUMP_POS := Vector3(17.667, 0, 4.067)
-const HOPPER := Vector3(20.0, 0, 6.4)      # PUMP_POS + DIR * 3.3
-const BAY := Vector3(23.253, 0, 9.653)     # the truck pump's single truck (HOPPER + DIR * 4.6)
+# (These are the site's layout: Riverlight's yard here, and Spire's kerbside
+# work zone on Ann St from use_site. They're set once, before anything's built.)
+static var PUMP_YAW := -PI * 0.25
+static var DIR := Vector3(0.70710678, 0, 0.70710678)
+static var SIDE := Vector3(-0.70710678, 0, 0.70710678)
+static var PUMP_POS := Vector3(17.667, 0, 4.067)
+static var HOPPER := Vector3(20.0, 0, 6.4)      # PUMP_POS + DIR * 3.3
+static var BAY := Vector3(23.253, 0, 9.653)     # the truck pump's single truck (HOPPER + DIR * 4.6)
 # Twin feed (tower kit): both trucks back in side by side behind the hopper,
 # rears just short of it, each with a chute extension angled into it.
-const BAY_A2 := Vector3(24.879, 0, 9.016)  # HOPPER + DIR * 5.3 - SIDE * 1.6
-const BAY_B := Vector3(22.616, 0, 11.279)  # HOPPER + DIR * 5.3 + SIDE * 1.6
+static var BAY_A2 := Vector3(24.879, 0, 9.016)  # HOPPER + DIR * 5.3 - SIDE * 1.6
+static var BAY_B := Vector3(22.616, 0, 11.279)  # HOPPER + DIR * 5.3 + SIDE * 1.6
 const EXIT_Z := 19.4                      # the far lane, for trucks heading back to the plant
 const HAUL := Vector3(10.7, 0, 1.3)      # the haul rope hangs down the far side of the riser from the ladder
 # The parts racking: pallet racking with a board down its middle, in line
 # with the tower and a touch to the right. The pump operator's side (pipes
 # and clamp kits) faces the pump; the winch side (pin bags, lifting gear)
 # faces the haul rope.
-const RACKING := Vector3(12.85, 0, 5.0)
+static var RACKING := Vector3(12.85, 0, 5.0)
 const RACK_LEN := 3.3
 # The pipe step-over: where the walkway crosses the ground line to the ladder
 # (the ground line runs out from the pump's nose clear of the west wing's
 # corner, so the step-over and the ladder's foot are in the open, then turns
 # in to the riser at PIPE_TURN)
-const PIPE_TURN := Vector3(12.4, 0, 2.95)
-const STEP_OVER := Vector3(13.85, 0, 2.53)
+static var PIPE_TURN := Vector3(12.4, 0, 2.95)
+static var STEP_OVER := Vector3(13.85, 0, 2.53)
+static var STEP_YAW := 0.27               # (the stile, square to the pipe)
 const QUEUE_X := 10.0
 const ROAD_Z := 15.6
+# Where the pump operator bot waits, off the panel (in the pump's frame)
+static var PANEL_WAIT := Vector3(-0.6, 0, 1.2)
+# ...and where the truck hand bot stands by, off the bay's spot
+static var BAY_WAIT := Vector3(0.7, 0, 0.8)
+# The slump test's spot by the bay
+static var SLUMP_AT := Vector3(17.58, 0, 10.35)
+
+# ---- Spire: the kerbside work zone on Ann St (how a CBD pour is really set up).
+# One kerb lane is barricaded: the line pump stands in it by the riser, its
+# hopper downstream, and ONE truck at a time backs a short way onto it, facing
+# the way the traffic runs (+x). The next truck stands ready in the lane
+# upstream of the pump; nothing queues in the street. A called truck pulls out
+# round the pump along the next lane (the traffic controller holds the traffic),
+# stops past the bay and reverses in; it drives out forwards and away up Ann St.
+static var KERB := false
+const KERB_Z := 3.5            # the pump's line, down the middle of the kerb lane
+const KERB_EDGE := 6.3         # the barrier line: the lane line and a working strip
+const KERB_PASS := 7.9         # the lane a called truck pulls round the pump in
+const KERB_READY := Vector3(-2.5, 0, KERB_Z)   # the ready truck, upstream of the pump
+const KERB_IN_X := -62.0       # where trucks come into view, down Ann St
+const KERB_OUT_X := 112.0      # ...and where they're gone, up it
+const KERB_CALL_M3 := 3.0      # m3 left in the truck on the hopper when the next can be called round
+
+## Sets the site's layout. Riverlight: the yard, at 45 degrees. Spire: along the kerb.
+static func use_site(kerb: bool) -> void:
+	KERB = kerb
+	if kerb:
+		PUMP_YAW = 0.0
+		DIR = Vector3(1, 0, 0)
+		SIDE = Vector3(0, 0, 1)
+		PUMP_POS = Vector3(18.9, 0, KERB_Z)
+		RACKING = Vector3(12.85, 0, 4.1)
+		PIPE_TURN = Vector3(14.6, 0, 2.45)
+		STEP_OVER = Vector3(13.85, 0, 2.16)
+		STEP_YAW = 0.37
+		PANEL_WAIT = Vector3(-0.9, 0, 0.1)
+		BAY_WAIT = Vector3(-0.5, 0, 0.2)
+	else:
+		PUMP_YAW = -PI * 0.25
+		DIR = Vector3(0.70710678, 0, 0.70710678)
+		SIDE = Vector3(-0.70710678, 0, 0.70710678)
+		PUMP_POS = Vector3(17.667, 0, 4.067)
+		RACKING = Vector3(12.85, 0, 5.0)
+		PIPE_TURN = Vector3(12.4, 0, 2.95)
+		STEP_OVER = Vector3(13.85, 0, 2.53)
+		STEP_YAW = 0.27
+		PANEL_WAIT = Vector3(-0.6, 0, 1.2)
+		BAY_WAIT = Vector3(0.7, 0, 0.8)
+	HOPPER = PUMP_POS + DIR * 3.3
+	BAY = HOPPER + DIR * 4.6
+	BAY_A2 = HOPPER + DIR * 5.3 - SIDE * 1.6
+	BAY_B = HOPPER + DIR * 5.3 + SIDE * 1.6
+	SLUMP_AT = pf(4.6, 2.3) if kerb else Vector3(17.58, 0, 10.35)
+
 # The site road runs across the lot north of Riverlight (vacant in 2017) from
 # MacArthur Avenue, where the trucks come in, to Angora Road, where they leave:
 # out of the site road's mouth and left into Angora's southbound lane (keeping
@@ -643,7 +700,7 @@ func _build_stores() -> void:
 	# the racking to the ladder
 	var stile := Node3D.new()
 	stile.position = STEP_OVER
-	stile.rotation.y = 0.27   # (square to the pipe)
+	stile.rotation.y = STEP_YAW
 	add_child(stile)
 	var ym := F.mat("yellow", true)
 	stile.add_child(F.box(Vector3(0.9, 0.05, 0.5), ym, Vector3(0, 0.84, 0)))
@@ -822,7 +879,7 @@ func _build_pump() -> void:
 	add_child(wash)
 	wash.setup(self)
 	if kit == "tower":
-		for sl in ["A", "B"]:
+		for sl in (["A"] if KERB else ["A", "B"]):
 			var pose: Array = _slot_pose(sl)
 			var xf := Transform3D(Basis(Vector3.UP, _yaw_for(pose[1])), pose[0])
 			var mat := StandardMaterial3D.new()
@@ -842,7 +899,7 @@ func _build_pump() -> void:
 	# (well inside the fence, so its close-up camera, 2.5 m to the street side,
 	# stays in the yard and looks back at the pump instead of through the mesh;
 	# the tester's spot must stay inside the TRUCK BAY station's reach)
-	slump.setup(self, Vector3(17.58, 0, 10.35))
+	slump.setup(self, SLUMP_AT)
 	slump_cone = slump.root
 
 ## (Re)builds the riser to the boom head: 3 m sections with a clamp at every
@@ -1567,8 +1624,9 @@ func _spawn_truck(waiting: bool, top_up := false) -> void:
 		age += late_extra                       # stuck in traffic
 	var node := _truck_mesh()
 	add_child(node)
-	var t := {"node": node, "state": "arrive", "t": 0.0, "age": age, "slump": slump, "load": load, "checked": false, "verdict": "", "pos": Vector3(MACARTHUR_X if not waiting else _slot_x(_queue_count()), 0, ROAD_Z)}
+	var t := {"node": node, "state": "arrive", "t": 0.0, "age": age, "slump": slump, "load": load, "checked": false, "verdict": "", "pos": Vector3((KERB_IN_X if KERB else MACARTHUR_X) if not waiting else _slot_x(_queue_count()), 0, ROAD_Z)}
 	node.position = t["pos"]
+	node.position.z = _in_z(node.position.x)
 	trucks.append(t)
 	if waiting:
 		_set_truck(t, "queue")
@@ -1582,6 +1640,10 @@ func _queue_count() -> int:
 
 ## Queue slots run back along the road to the west of the site entrance.
 func _slot_x(slot: int) -> float:
+	if KERB:
+		# (one stands ready in the kerb lane behind the pump; nothing queues in Ann St, but if a
+		# second ever turns up it holds back down the lane)
+		return KERB_READY.x - slot * 12.0
 	return QUEUE_X - slot * 10.0
 
 func _set_truck(t: Dictionary, s: String) -> void:
@@ -1706,13 +1768,13 @@ static func _yaw_for(dir: Vector3) -> float:
 	return -atan2(dir.z, dir.x)
 
 func _slot_pose(slot: String) -> Array:
-	if kit != "tower":
+	if kit != "tower" or KERB:
 		return [BAY, DIR]
 	return [BAY_A2, DIR] if slot == "A" else [BAY_B, DIR]
 
 ## Which way the chute extension angles to reach the hopper (local z).
 func _chute_side(t: Dictionary) -> float:
-	if kit != "tower":
+	if kit != "tower" or KERB:
 		return 0.0
 	return 1.0 if t.get("slot", "A") == "A" else -1.0
 
@@ -1720,22 +1782,42 @@ func _chute_side(t: Dictionary) -> float:
 ## trucks parked at 45 degrees in it.
 const LANE_OUT := 1.4
 static func _lane_z(x: float) -> float:
+	if KERB:
+		# (out of the ready spot and round the racking and the pump in the next lane)
+		return KERB_Z + (KERB_PASS - KERB_Z) * smoothstep(KERB_READY.x + 1.0, KERB_READY.x + 10.0, x)
 	return ROAD_Z + LANE_OUT * smoothstep(15.0, 20.5, x)
 
 static func _lane_yaw(x: float) -> float:
 	return _yaw_for(Vector3(1.0, 0, (_lane_z(x + 0.5) - _lane_z(x - 0.5))))
+
+## The way in to the queue: along the road (Spire: up Ann St's second lane, then in through the
+## gap in the taper to the ready spot in the kerb lane).
+static func _in_z(x: float) -> float:
+	if KERB:
+		return KERB_PASS + (KERB_Z - KERB_PASS) * smoothstep(-17.0, -7.0, x)
+	return ROAD_Z
+
+static func _in_yaw(x: float) -> float:
+	return _yaw_for(Vector3(1.0, 0, (_in_z(x + 0.5) - _in_z(x - 0.5))))
 
 ## The reverse in: from the road (truck facing east) back onto the hopper.
 func _back_path(slot: String) -> Array:
 	# (along the lane past its own slot, then back on one 45 degree arc: `c`
 	# is where the slot's line meets the lane)
 	var to: Vector3 = _slot_pose(slot)[0]
+	if KERB:
+		# (past the bay in the next lane, then back a short way in to the kerb, straightening up
+		# along it before the hopper)
+		return [Vector3(to.x + 10.0, 0, KERB_PASS), Vector3(to.x + 3.5, 0, KERB_PASS), Vector3(to.x + 5.0, 0, to.z), to]
 	var c: Vector3 = to + DIR * ((ROAD_Z + LANE_OUT - to.z) / DIR.z)
 	return [c + Vector3(9.0, 0, 0), c + Vector3(1.0, 0, 0), c - DIR * 1.0, to]
 
 ## The drive out: forwards off the hopper and onto the far lane of the road.
 func _leave_path(slot: String) -> Array:
 	var at: Vector3 = _slot_pose(slot)[0]
+	if KERB:
+		# (forwards up the kerb lane past the end of the zone, then out into the traffic)
+		return [at, at + DIR * 9.0, Vector3(at.x + 15.0, 0, KERB_Z), Vector3(at.x + 24.0, 0, KERB_PASS)]
 	return [at, at + DIR * 7.0, Vector3(35.0, 0, EXIT_Z), Vector3(40.0, 0, EXIT_Z)]
 
 ## Whether a car in the street traffic is within `r` of `at` (game ground).
@@ -1750,13 +1832,38 @@ func _street_busy(at: Vector3, r: float) -> bool:
 			return true
 	return false
 
-func _yard_busy(except = null) -> bool:
+func _yard_busy(except = null, leaving := false) -> bool:
 	for t in trucks:
 		if t != except and t["state"] in ["approach", "back", "leave"]:
+			if KERB and leaving and t["state"] == "approach":
+				continue   # (the next one's coming round in the other lane: it holds past the bay)
 			return true
 	return false
 
+## Spire's one bay: whether the truck in it is nearly done (so the next can be called round to
+## wait past it), or gone.
+func _kerb_bay_clearing() -> bool:
+	for t in trucks:
+		var st: String = t["state"]
+		if st in ["called", "approach", "back", "bay", "check", "water", "ready", "docket"]:
+			return false
+		if st == "pour" and float(t["load"]) > KERB_CALL_M3:
+			return false
+	return true
+
+## Spire's one bay: whether a truck that's come round can back in yet.
+func _kerb_bay_clear(me: Dictionary) -> bool:
+	for t in trucks:
+		if t == me:
+			continue
+		var st: String = t["state"]
+		if st in ["back", "bay", "check", "water", "ready", "docket", "pour", "leave_wait"] or (st == "leave" and float(t["t"]) < 1.1):
+			return false
+	return true
+
 func _slot_free(slot: String) -> bool:
+	if KERB:
+		return slot == "A" and _kerb_bay_clearing()
 	if slot == "B" and kit != "tower":
 		return false   # the truck pump's own outriggers take that side
 	for t in trucks:
@@ -1768,7 +1875,10 @@ func _slot_free(slot: String) -> bool:
 func truck_blocks(pt: Vector3) -> bool:
 	for t in trucks:
 		var n: Node3D = t["node"]
-		if n.position.z > 13.5 and t["state"] in ["arrive", "queue", "road", "turned"]:
+		if KERB:
+			if n.position.x < -14.0 or n.position.x > 40.0:
+				continue
+		elif n.position.z > 13.5 and t["state"] in ["arrive", "queue", "road", "turned"]:
 			continue
 		var l: Vector3 = n.global_transform.affine_inverse() * Vector3(pt.x, 0.5, pt.z)
 		if absf(l.x) < 4.1 and absf(l.z) < 1.4:
@@ -1777,6 +1887,13 @@ func truck_blocks(pt: Vector3) -> bool:
 
 func _update_trucks(delta: float) -> void:
 	_arrive_t -= delta
+	if KERB:
+		# Just in time: the next load's called up from the plant's holding yard when the ready
+		# spot empties, and not before. Nothing waits in Ann St.
+		if _queue_count() > 0:
+			_arrive_t = maxf(_arrive_t, 1.0)
+		elif live:
+			_arrive_t = minf(_arrive_t, 1.0)
 	if _spawning and (_arrive_t <= 0.0 and live or _arrive_t <= -6.0):
 		_spawn_truck(false)
 		_arrive_t = interval * randf_range(0.8, 1.25)
@@ -1825,17 +1942,18 @@ func _update_trucks(delta: float) -> void:
 				# and away to the plant
 				if t["t"] < 0.3 and _yard_busy():
 					t["t"] = 0.0
-				node.position.x = move_toward(node.position.x, 40.0, 12.0 * delta)
+				var out_x := 60.0 if KERB else 40.0
+				node.position.x = move_toward(node.position.x, out_x, 12.0 * delta)
 				node.position.z = _lane_z(node.position.x)
 				node.rotation.y = _lane_yaw(node.position.x)
-				if node.position.x >= 39.95:
+				if node.position.x >= out_x - 0.05:
 					_set_truck(t, "road")
 			"arrive", "queue", "called":
 				var want_x := _slot_x(slot)
 				slot += 1
 				node.position.x = move_toward(node.position.x, want_x, 14.0 * delta)
-				node.position.z = ROAD_Z
-				node.rotation.y = 0.0
+				node.position.z = _in_z(node.position.x)
+				node.rotation.y = _in_yaw(node.position.x)
 				if st == "arrive" and absf(node.position.x - want_x) < 0.05:
 					_set_truck(t, "queue")
 				# (queued trucks' ages show to the truck hand nearby: _age_tag)
@@ -1852,7 +1970,7 @@ func _update_trucks(delta: float) -> void:
 				var ax := lerpf(t["from_x"], to_x, smoothstep(0.0, 1.0, u))
 				node.position = Vector3(ax, 0, _lane_z(ax))
 				node.rotation.y = _lane_yaw(ax)
-				if u >= 1.0:
+				if u >= 1.0 and (not KERB or _kerb_bay_clear(t)):
 					_set_truck(t, "back")
 			"back":
 				# Reverse onto the hopper. Stop dead if anyone's behind it.
@@ -1972,7 +2090,7 @@ func _update_trucks(delta: float) -> void:
 					_set_truck(t, "leave_wait")
 			"leave_wait":
 				# Chute stowed, waiting for the yard to clear before pulling out
-				if not _yard_busy(t):
+				if not _yard_busy(t, true):
 					_set_truck(t, "leave")
 			"leave":
 				var lp: Array = _leave_path(sl)
@@ -1988,22 +2106,30 @@ func _update_trucks(delta: float) -> void:
 				# the plant (waiting at the mouth for a gap in the traffic)
 				var p0 := Vector3(40.0, 0, EXIT_Z)
 				var p3 := ANGORA_LANE + ANGORA_DIR * 10.0
-				if t["t"] < 0.5 and _street_busy(ANGORA_LANE, 18.0):
-					t["t"] = 0.0
-				if t["t"] < TURN_T:
-					var k: float = t["t"] / TURN_T
-					var u := smoothstep(0.0, 1.0, k) * 0.5 + k * 0.5
-					var c1 := p0 + Vector3(7.0, 0, 0)
-					var c2 := p3 - ANGORA_DIR * 7.0
-					node.position = _bez(p0, c1, c2, p3, u)
-					node.rotation.y = _yaw_for(_bez_d(p0, c1, c2, p3, clampf(u, 0.02, 0.98)))
+				if KERB:
+					# Spire: on up Ann St with the traffic, and away
+					node.position.x += 11.0 * delta
+					node.position.z = KERB_PASS
+					node.rotation.y = 0.0
+					if node.position.x > KERB_OUT_X:
+						t["state"] = "gone"
 				else:
-					node.position = p3 + ANGORA_DIR * 9.0 * (t["t"] - TURN_T)
-					# (off the site pad and down Angora Road on the real ground)
-					node.position.y = Terrain.y_game(node.position)
-					node.rotation.y = _yaw_for(ANGORA_DIR)
-				if node.position.z < -70.0:
-					t["state"] = "gone"
+					if t["t"] < 0.5 and _street_busy(ANGORA_LANE, 18.0):
+						t["t"] = 0.0
+					if t["t"] < TURN_T:
+						var k: float = t["t"] / TURN_T
+						var u := smoothstep(0.0, 1.0, k) * 0.5 + k * 0.5
+						var c1 := p0 + Vector3(7.0, 0, 0)
+						var c2 := p3 - ANGORA_DIR * 7.0
+						node.position = _bez(p0, c1, c2, p3, u)
+						node.rotation.y = _yaw_for(_bez_d(p0, c1, c2, p3, clampf(u, 0.02, 0.98)))
+					else:
+						node.position = p3 + ANGORA_DIR * 9.0 * (t["t"] - TURN_T)
+						# (off the site pad and down Angora Road on the real ground)
+						node.position.y = Terrain.y_game(node.position)
+						node.rotation.y = _yaw_for(ANGORA_DIR)
+					if node.position.z < -70.0:
+						t["state"] = "gone"
 	for t in trucks:
 		if t["state"] == "gone":
 			(t["node"] as Node).queue_free()

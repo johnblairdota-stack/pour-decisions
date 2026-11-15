@@ -106,7 +106,7 @@ const DECK_STATIONS := {
 	"bin": {"pos": Vector3(5.2, 0, 2.85), "label": "BIN", "color": Color("ffc72c")},
 	"hose": {"pos": Vector3(0, 0, 0), "label": "END HOSE", "color": Color("2fd3e8")},
 }
-const GROUND_STATIONS := {
+var GROUND_STATIONS := {
 	# The pump, hopper and trucks stand on one line at 45 degrees (line.gd
 	# DIR): the bay's spot is beside the trucks' rears and the panel's on the
 	# pump's street side. The ladder's behind the pipe step-over; the haul
@@ -323,6 +323,7 @@ func _ready() -> void:
 		_use_tut_frame()
 	if spire:
 		_use_spire_frame()
+	_use_street()
 	_build_environment()
 	_build_world()
 	_build_site()
@@ -1446,6 +1447,26 @@ func _use_spire_frame() -> void:
 	hoist_off = HOIST_Z - front
 	cam_yaw = SpireSite.cam_yaw()
 
+## The street set-up: Riverlight's yard, or Spire's kerbside work zone on Ann St (line.gd use_site).
+## The ground stations that belong to the pump move with it.
+func _use_street() -> void:
+	var rigs: Array[Vector2] = []
+	for i in 4:
+		rigs.append(LineScript.in_pf(GROUND_STATIONS["rig%d" % i]["pos"]))
+	LineScript.use_site(spire)
+	OpsScript.use_site(spire)
+	if not spire:
+		return
+	for i in 4:
+		GROUND_STATIONS["rig%d" % i]["pos"] = LineScript.pf(rigs[i].x, rigs[i].y)
+	GROUND_STATIONS["bay"]["pos"] = LineScript.pf(3.9, 2.3)
+	GROUND_STATIONS["panel"]["pos"] = LineScript.pf(1.2, 2.0)
+	for key in ["spares", "rack"]:
+		GROUND_STATIONS[key]["pos"] = LineScript.RACKING + Vector3(1.5, 0, 0)
+	GROUND_STATIONS["pins"]["pos"] = LineScript.RACKING + Vector3(-1.5, 0, 0)
+	GROUND_STATIONS["sling"]["pos"] = Vector3(4.6, 0, 4.2)
+	GROUND_STATIONS["van"]["pos"] = Vector3(31.5, 0, 0.9)
+
 ## Spire: where the placing boom stands (its mast in the lift core) and how high its head is while
 ## level `lvl` is poured: clear over the jump form, which leads the deck.
 func spire_head_y(lvl: int) -> float:
@@ -2258,7 +2279,7 @@ func _watch_dispatch(delta: float) -> void:
 				_tt_parked = true
 				var rear: Vector3 = (tr["node"] as Node3D).global_transform * Vector3(-5.6, 0, 0)
 				var pp = crew.crew["pump"]
-				pp.position = Vector3(17.0, 0, 6.8)     # (its old waiting spot by the panel: the stall in the logs)
+				pp.position = Vector3(17.0, 0, 6.8) if not spire else Vector3(rear.x - 1.2, 0, rear.z + 0.6)     # (its old waiting spot by the panel: the stall in the logs)
 				print("[trucktest] pump operator put behind the reversing truck's rear at %s" % str(pp.position))
 			if tr["state"] == "back" and float(tr.get("blocked_t", 0.0)) > 25.0:
 				print("[trucktest] FAIL: a truck sat 25 s behind someone and never reached the hopper")
@@ -3477,7 +3498,7 @@ func _walkable(p: Vector3, zone: String, who = null) -> bool:
 		if spire:
 			# Spire: Ann St's footpath and kerb lanes, off the podium's edge, round the hoist's
 			# mast and the crane's
-			ok = p.x >= -9.5 and p.x <= 33.5 and p.z <= 12.5 and p.z >= SpireSite.boundary_z(p.x) + 0.35
+			ok = p.x >= -9.5 and p.x <= 33.5 and p.z <= LineScript.KERB_EDGE - 0.3 and p.z >= SpireSite.boundary_z(p.x) + 0.35
 			if absf(p.x - (hoist_x - 1.25)) < 0.7 and absf(p.z - HOIST_Z) < 0.8:
 				ok = false
 			if climb != null and absf(p.x - climb.MAST.x) < 1.5 and absf(p.z - climb.MAST.z) < 1.5:
