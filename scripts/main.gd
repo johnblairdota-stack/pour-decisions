@@ -1956,7 +1956,7 @@ func wants_cold_open() -> bool:
 	return shot_dir != "" and "coldopen" in _shot_only and not _shots_taken.has("coldopen")
 
 func _menu_deck_y(fp: int) -> float:
-	return (fp + 1) * FH - 0.3
+	return level_y(fp + 1) - 0.3
 
 func _menu_sections(fp: int) -> int:
 	var n := 4
@@ -1976,10 +1976,19 @@ func _menu_build() -> void:
 	var wall := plan.slice(1)
 	wall.append(Vector2(10.7, -1.15))
 	var inset: Array = Geometry2D.offset_polygon(wall, -0.2)
-	for i: int in FLOORS:
+	for i: int in (floors() if spire else FLOORS):
 		var f := Node3D.new()
-		f.position.y = i * FH
+		f.position.y = level_y(i)
 		_menu_floors.add_child(f)
+		if spire:
+			# (Spire: the real plate, every level: the floor page shows the one picked)
+			SpireSite.floor_slab(f, FH, 0.3, FH)
+			var o3 := Node3D.new()
+			var s3 := Node3D.new()
+			f.add_child(o3)
+			f.add_child(s3)
+			_menu_storeys.append({"node": f, "open": o3, "skin": s3})
+			continue
 		f.add_child(F.box(Vector3(BW + 0.6, 0.3, BD + 0.6), grey, Vector3(SC.x, FH - 0.15, SC.z)))
 		f.add_child(F.prism(plan, FH - 0.3, 0.3, grey))
 		# (open frame for the first storeys under the deck...)
@@ -2016,6 +2025,11 @@ func _menu_build() -> void:
 	_menu_pour._make_kernel()
 	_menu_pour.set_edge_view(0.0)
 	(_menu_pour._rect_parts[1] as Node3D).visible = false
+	if spire:
+		var rel := PackedVector2Array()
+		for p in SpireSite.poly("A"):
+			rel.append(p - Vector2(SC.x, SC.z))
+		_menu_pour.set_poly(rel)
 	_menu_stream = F.cylinder(0.11, 1.0, F.color_mat(Color("6e7073")), Vector3.ZERO, 8)
 	_menu_deck.add_child(_menu_stream)
 	_menu_fall = MeshInstance3D.new()
@@ -6875,7 +6889,17 @@ func _update_camera_views(delta: float) -> void:
 		if _menu_yaw == INF:
 			_menu_yaw = cam_yaw
 		var sel_ok: bool = is_instance_valid(selector)
-		if phase == "roles" and sel_ok:
+		if phase == "roles" and sel_ok and selector.page == "tower":
+			# The tower pick: a slow turn round the site, the card over the bottom left
+			if spire:
+				focus = Vector3(SC.x - 4.0, base_y - 6.0, SC.z - 6.0)
+				dist = 210.0
+			else:
+				focus = Vector3(4, 9, 0) + Vector3(SC.x, 0, SC.z) * 0.5
+				dist = 66.0
+			cam_pitch = lerpf(cam_pitch, 0.42 if spire else 0.38, minf(1.0, delta * 1.5))   # (over Spire's neighbours)
+			cam_yaw += delta * 0.06
+		elif phase == "roles" and sel_ok:
 			# The cold open: in from high over the river, then a slow turn
 			# around the site behind the hat rack
 			var e: float = selector.open_e
