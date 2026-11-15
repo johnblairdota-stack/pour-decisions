@@ -90,6 +90,9 @@ var _rect_parts: Array = []
 ## by column (m of depth a second, smoothed).
 var open_front := false
 var front_flow := PackedFloat32Array()
+## (a slab of any outline: each column's own front cell, and where the slab's street edge is there)
+var front_row := PackedInt32Array()
+var front_edge := PackedFloat32Array()
 var _flip := false
 # The step spreads its dearer jobs over three frames (ageing, then the state
 # picture, then the finish picture), and only works the flow over the part
@@ -446,6 +449,10 @@ func set_poly(outline: PackedVector2Array, holes: Array = []) -> void:
 			var a: Vector2 = ring[j]
 			var b: Vector2 = ring[(j + 1) % n]
 			var mid := (a + b) * 0.5
+			# (open to the street: no form along the slab's +z edge, so the concrete runs off it)
+			if open_front and ring == outline and absf(b.x - a.x) > absf(b.y - a.y) * 0.5 \
+					and not Geometry2D.is_point_in_polygon(mid + Vector2(0, 0.4), outline):
+				continue
 			var form := F.box(Vector3(a.distance_to(b) + 0.06, FORM_H, 0.06), form_mat, Vector3(mid.x, FORM_H * 0.5, mid.y))
 			form.rotation.y = -atan2(b.y - a.y, b.x - a.x)
 			add_child(form)
@@ -466,6 +473,22 @@ func set_poly(outline: PackedVector2Array, holes: Array = []) -> void:
 				_bay_c0 = mini(_bay_c0, ix)
 				_bay_c1 = maxi(_bay_c1, ix + 1)
 	_bay_meshes.clear()
+	front_row.resize(NX)
+	front_edge.resize(NX)
+	for ix in NX:
+		front_row[ix] = -1
+		for iz in NZ:
+			if mask[iz * NX + ix] == 1:
+				front_row[ix] = iz
+		var x := -bw * 0.5 + (ix + 0.5) * dx
+		var best := -1e9
+		var n2: int = outline.size()
+		for j in n2:
+			var a: Vector2 = outline[j]
+			var b: Vector2 = outline[(j + 1) % n2]
+			if (a.x - x) * (b.x - x) <= 0.0 and absf(a.x - b.x) > 1e-4:
+				best = maxf(best, lerpf(a.y, b.y, (x - a.x) / (b.x - a.x)))
+		front_edge[ix] = best if best > -1e8 else bd * 0.5
 
 ## The cut-to-outline parts of a straight bar from a to b (local x/z).
 func _poly_bar(a: Vector2, b: Vector2) -> Array:
@@ -731,9 +754,15 @@ func _drain_front(dt: float) -> void:
 	var row := (NZ - 1) * NX
 	var k := minf(1.0, 5.0 * dt)
 	for ix in NX:
-		var hi := h[row + ix]
+		var ci := row + ix
+		if not poly.is_empty():
+			if front_row[ix] < 0:
+				front_flow[ix] = 0.0
+				continue
+			ci = front_row[ix] * NX + ix
+		var hi := h[ci]
 		var m := maxf(0.0, hi - 0.03) * k
-		h[row + ix] = hi - m
+		h[ci] = hi - m
 		spilled += m * dx * dx / vol_k
 		front_flow[ix] = lerpf(front_flow[ix], m / maxf(dt, 0.001), minf(1.0, 6.0 * dt))
 

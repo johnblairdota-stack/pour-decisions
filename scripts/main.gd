@@ -2285,7 +2285,8 @@ func _spire_crane(deck: float) -> void:
 	var cx := 23.0       # (west of the ladder tower: out of the way of the view in over Ann St)
 	climb.MAST = Vector3(cx, 0, SpireSite.boundary_z(cx) + 1.35)
 	climb.crane.position = climb.MAST
-	var want := deck + 34.0
+	# (well over the placing booms at full stretch: head 3 floors up, a 15 m arm standing, and clear air)
+	var want := deck + 3.0 * FH + 3.2 + 32.0
 	var n := 0
 	for c in climb.crane.get_children():
 		if c != climb.crane_slew:
@@ -2576,7 +2577,13 @@ func _menu_fall_update(delta: float) -> void:
 	var z0 := BD * 0.5
 	var lip := z0 + 0.3
 	const ROWS := 6
+	var edge: PackedFloat32Array = _menu_pour.front_edge
+	var curved: bool = not _menu_pour.poly.is_empty() and edge.size() == nx
 	for ix in range(c0, c1 + 1):
+		if curved:
+			# (Spire: the sheet follows the slab's own street edge)
+			z0 = edge[ix]
+			lip = z0 + 0.3
 		var a := maxi(ix - 1, 0)
 		var b := mini(ix + 1, nx - 1)
 		var th := maxf(0.0, (0.25 * flow[a] + 0.5 * flow[ix] + 0.25 * flow[b]) / 5.0)
@@ -4411,6 +4418,12 @@ func _process(delta: float) -> void:
 		_spire_b.update(delta, fb, phase, deck_top(), head.position.y)
 	perf.mark("climb")
 	line.update(delta, phase == "pour")
+	if spire:
+		# (Ann St climbs past the site: the trucks ride its surface, not the pump pad's level)
+		for t in line.trucks:
+			var tn := t["node"] as Node3D
+			if tn != null:
+				tn.position.y = SpireSite.road_lift(tn.position.x, tn.position.z)
 	perf.mark("line")
 	poker.update(delta)
 	screed.update(delta)
@@ -7194,6 +7207,9 @@ func _spire_views() -> Array:
 		["air_west", at + Vector3(70, 30, 25), at],
 		["street", Vector3(26, 12, 17), Vector3(10, 3, 0)],
 		["street_low", Vector3(32, 2.5, 13), Vector3(6, 6, -2)],
+		["road_e", Vector3(30, 5, 24), Vector3(62, 1, 15)],
+		["road_w", Vector3(2, 4, 12), Vector3(-34, -1, 15)],
+		["crane", at + Vector3(14, 95, 85), at + Vector3(10, 34, 0)],
 		["street_e", Vector3(-22, 6, 14), Vector3(2, 6, -1)],
 		["podium", Vector3(4, base_y * 0.5 + 4, 18), Vector3(4, base_y * 0.6, -4)],
 		["deck_a", Vector3(4, dk + 16, SpireSite.front_z(4.0) + 16), Vector3(0, dk, SpireSite.front_z(0.0) - 8)],
