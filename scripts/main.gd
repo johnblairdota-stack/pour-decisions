@@ -289,6 +289,14 @@ func _ready() -> void:
 			_shot_only = Array(arg.substr(7).split(","))
 		if arg.begins_with("--kit="):
 			want_kit = arg.substr(6)
+		if arg.begins_with("--cardcam="):
+			_card_cam = arg.substr(10).split_floats(",")
+		if arg.begins_with("--cardart="):
+			_card_art = arg.substr(10)
+		if arg == "--cardlight=day":
+			_card_day = true
+		if arg.begins_with("--cardfloor="):
+			_card_floor = int(arg.substr(12))
 		if arg.begins_with("--camtest="):
 			Settings.cam_test = clampi(int(arg.substr(10)), 0, Settings.CAM_TESTS.size() - 1)
 		if arg == "--nosplit":
@@ -741,6 +749,8 @@ var _light_now: Array = []   # the story light as last shown ([] after a dawn po
 ## shower comes and lifting after it.
 ## The pick screen and its river flight: golden hour, little haze.
 func picking() -> bool:
+	if _card_cam.size() >= 6:
+		return not _card_day
 	return (phase == "roles" or phase == "select") and is_instance_valid(selector) and (selector.page == "tower" or selector.page == "arrive")
 
 func _update_story_light(delta: float) -> void:
@@ -755,6 +765,9 @@ func _update_story_light(delta: float) -> void:
 		want = Story.mix(want, Story.LIGHTS["storm"], f)
 	if _light_now.is_empty():
 		_light_now = Story.LIGHTS["morning"]
+	if _light_snap and not picking():
+		_light_snap = false
+		_light_now = want
 	_light_now = Story.mix(_light_now, want, minf(1.0, delta * 0.6))
 	var l := _light_now
 	sky_mat.set_shader_parameter("sky_top", l[0])
@@ -2049,6 +2062,8 @@ var _menu_h := 0.0
 
 func _menu_frame_crew(delta: float) -> void:
 	var on: bool = phase == "select" and is_instance_valid(selector) and selector.floor_pick() >= 0 and crew != null and crew.crew.has("boom") and crew.crew.has("screed")
+	if on and not TowerHand.arrival.is_empty() and float(TowerHand.arrival.get("t", 0.0)) < ARRIVE_T - 4.0:
+		on = false         # (still flying in: the slide waits for the last of the arc)
 	var want := 0.0
 	if on:
 		# (measured with the view square on, then slid: the left end clear of
@@ -2076,8 +2091,12 @@ func _menu_frame_crew(delta: float) -> void:
 ## Dev: `--only=coldopen` holds the cold open for its screenshot.
 # ------------------------------------------------------------------ the pick's river flights
 
-const ARRIVE_RIVER_T := 3.4      # s low over the water
-const ARRIVE_SETTLE_T := 1.6     # s climbing off it onto the tower
+const ARRIVE_BOAT_V := 19.0      # m/s (a CityCat does about 13: a little quick, for the screen)
+const ARRIVE_RIVER_T := 3.6      # s low on the water behind the CityCat
+var ARRIVE_T := 12.0             # s all up: the river, then one arc up and round onto the floor pick (Spire's is longer)
+const ARRIVE_UI_T := 0.8         # s at the end the floor pick's page fades up over (the camera all but still by then)
+var _arrive_keys: Array = []     # [t, camera, look], game coordinates; the last one is the floor pick's own view
+var _arrive_line: Array = []     # the CityCat's run in to the site, on the water
 var _river_path: Array = []      # camera points low over the river, ending by the site (game x/z, y)
 var _pick_boat: Node3D
 var _pick_wake: MeshInstance3D
@@ -2170,15 +2189,183 @@ func _hand_camera(delta: float) -> void:
 	camera.look_at(ahead, Vector3.UP)
 	_pick_boat_at(_hand_u, 0.035)
 
-## Playing a card: low over the river to the site, then up onto the tower; the crew page after.
-func _arrive_camera(delta: float) -> void:
+## The CityCat's run in: the last few hundred metres of river before the site (game coordinates, on
+## the water). Riverlight: down Hamilton Reach from the city to the Northshore Hamilton terminal.
+## Spire: up the Town Reach past Howard Smith Wharves, the city ahead.
+func _arrive_boat_line() -> Array:
+	if not _arrive_line.is_empty():
+		return _arrive_line
+	var out: Array = []
+	if spire:
+		var y := float(SpireSite.d.get("river_ahd", 0.3)) - SpireSite.street
+		for q in [Vector2(-250, -380), Vector2(-170, -348), Vector2(-90, -346), Vector2(-60, -348)]:
+			out.append(Vector3(q.x, y, q.y))
+	else:
+		for q in [Vector2(330, -338), Vector2(250, -318), Vector2(185, -292), Vector2(140, -262), Vector2(112, -250)]:
+			out.append(-REAL_ORIGIN + Vector3(q.x, Surrounds.RIVER_Y, q.y))
+	_arrive_line = out
+	return out
+
+## [where the CityCat is, which way it's heading] t seconds into the run (it eases up at the end of the line).
+func _arrive_boat(t: float) -> Array:
+	var line := _arrive_boat_line()
+	var total := 0.0
+	for i in line.size() - 1:
+		total += (line[i] as Vector3).distance_to(line[i + 1])
+	# (the run is timed to end as the boat comes up to the end of its line, nearest the site)
+	var s := maxf(0.0, total - ARRIVE_BOAT_V * ARRIVE_RIVER_T - 35.0) + ARRIVE_BOAT_V * t
+	var ease_at := total - 45.0
+	if s > ease_at:
+		s = ease_at + 45.0 * (1.0 - exp(-(s - ease_at) / 45.0))
+	var at: Vector3 = line[0]
+	var dir: Vector3 = ((line[1] as Vector3) - at).normalized()
+	if s < 0.0:
+		return [at + dir * s, dir]
+	for i in line.size() - 1:
+		var a: Vector3 = line[i]
+		var b: Vector3 = line[i + 1]
+		var l := a.distance_to(b)
+		if s <= l or i == line.size() - 2:
+			# (the heading turns through each corner, not at it)
+			var d0: Vector3 = (b - a).normalized()
+			var d_prev: Vector3 = (a - (line[i - 1] as Vector3)).normalized() if i > 0 else d0
+			var d_next: Vector3 = ((line[i + 2] as Vector3) - b).normalized() if i < line.size() - 2 else d0
+			var u := clampf(s / l, 0.0, 1.0)
+			var h := d_prev.lerp(d0, 0.5).lerp(d0, smoothstep(0.0, 0.5, u)).lerp(d0.lerp(d_next, 0.5), smoothstep(0.5, 1.0, u))
+			return [a.lerp(b, u), h.normalized()]
+		s -= l
+	return [at, dir]
+
+func _arrive_place_boat(t: float) -> void:
+	if _pick_boat == null:
+		_pick_boat_at(0.0, 0.0)       # (builds the boat and its wake)
+	var b := _arrive_boat(t)
+	var at: Vector3 = b[0]
+	var dir: Vector3 = b[1]
+	_pick_boat.position = at
+	_pick_boat.look_at(at + dir, Vector3.UP)
+	_pick_boat.rotate_y(PI * 0.5)      # (the model runs along its x)
+	_pick_wake.position = at - dir * 38.0 + Vector3(0, 0.15, 0)
+	_pick_wake.look_at(_pick_wake.position + dir, Vector3.UP)
+
+## The flight's keys: behind the CityCat down the river, the site ahead and to one side the whole way,
+## then off the water in one arc round the end of the building to the floor pick's own view
+## (`fin`, `fin_look`: the last key, which the floor pick's camera owns).
+func _arrive_build(tower: Vector3, fin: Vector3, fin_look: Vector3) -> Array:
+	var keys: Array = []
+	var n := 4
+	for i in n + 1:
+		var t := ARRIVE_RIVER_T * i / n
+		var b := _arrive_boat(t)
+		var at: Vector3 = b[0]
+		var dir: Vector3 = b[1]
+		var side := Vector3(dir.z, 0, -dir.x)
+		if side.dot(tower - at) > 0.0:
+			side = -side                    # (the camera rides on the far side of the boat from the site)
+		var f := float(i) / n
+		var cam := at - dir * lerpf(46.0, 38.0, f) + side * 11.0 + Vector3(0, lerpf(8.0, 11.0, f), 0)
+		var look := (at + dir * 14.0 + Vector3(0, 3.0, 0)).lerp(tower, lerpf(0.3, 0.5, f))
+		keys.append([t, cam, look])
+	var r: Vector3 = keys[n][1]
+	var out_n := Vector3(fin.x - fin_look.x, 0, fin.z - fin_look.z).normalized()     # (the side the floor pick looks in from)
+	var e := Vector3(out_n.z, 0, -out_n.x)
+	var deck := fin_look.y
+	# (round the end of the building: [s, along e, along out_n, m over the deck, how far the look's gone to the deck])
+	var arc: Array = [[6.2, 84.0, -150.0, 34.0, 0.35], [8.4, 70.0, -40.0, 24.0, 0.75], [10.0, 24.0, 42.0, 10.0, 1.0]]
+	var floor_y := -1e9
+	ARRIVE_T = 12.0
+	if not spire:
+		e = -e          # (Riverlight: round the east end, the crew's own wing; the west wing stands at the other)
+		floor_y = 24.0  # (and over the street trees, however low the deck is)
+	if spire:
+		# (Spire's deck is down among taller neighbours and 330 m back from the river: up over the
+		# roofs through the gap east of the tower next door, round the cathedral end where nothing
+		# stands tall, and down onto Ann St. Checked against cuts through the city model at 40, 70
+		# and 100 m: never under 85 m until it's over the cathedral grounds.)
+		# (the third key keeps it outside the tower crane's jib until it's under it)
+		arc = [[6.6, 146.0, -189.0, 72.0, 0.35], [9.2, 84.0, -48.0, 58.0, 0.7], [10.4, 70.0, 20.0, 34.0, 0.9], [11.5, 22.0, 50.0, 20.0, 1.0]]
+		floor_y = 88.0
+		ARRIVE_T = 13.0
+	for k in arc:
+		var p := Vector3(fin_look.x, deck + float(k[3]), fin_look.z) + e * float(k[1]) + out_n * float(k[2])
+		if not spire or arc.find(k) < 2:
+			p.y = maxf(p.y, floor_y)        # (Spire's last two are already down over the cathedral grounds and Ann St)
+		keys.append([float(k[0]), p, tower.lerp(fin_look, float(k[4]))])
+	# (the first of the arc sits between the river and the site, wherever the river is)
+	var k1: Array = keys[n + 1]
+	var p1: Vector3 = r.lerp(k1[1], 0.62)
+	k1[1] = Vector3(p1.x, lerpf(r.y, maxf(deck + float(arc[0][3]), floor_y + 8.0), 0.7 if not spire else 1.0), p1.z)
+	keys.append([ARRIVE_T, fin, fin_look])
+	return keys
+
+## The flight's velocity through key i: along the line between its neighbours, but never much faster
+## than the slower of the two legs it joins (the river's 19 m/s into the arc's 100: a plain average
+## made it back off before the key and then lurch), and stopped dead on the last.
+func _arrive_tan(i: int, which: int) -> Vector3:
+	var keys := _arrive_keys
+	var n := keys.size()
+	if i >= n - 1:
+		return Vector3.ZERO
+	var p: Vector3 = keys[i][which]
+	var v_next: Vector3 = ((keys[i + 1][which] as Vector3) - p) / (float(keys[i + 1][0]) - float(keys[i][0]))
+	if i == 0:
+		return v_next
+	var v_prev: Vector3 = (p - (keys[i - 1][which] as Vector3)) / (float(keys[i][0]) - float(keys[i - 1][0]))
+	var m: Vector3 = ((keys[i + 1][which] as Vector3) - (keys[i - 1][which] as Vector3)) / (float(keys[i + 1][0]) - float(keys[i - 1][0]))
+	var cap := 1.8 * minf(v_prev.length(), v_next.length())
+	return m.limit_length(cap)
+
+## A point on the flight at t: a Hermite curve through the keys (which = 1 camera, 2 look), its
+## speed carried across each key and brought to a stop on the last.
+func _arrive_at(t: float, which: int) -> Vector3:
+	var keys := _arrive_keys
+	var n := keys.size()
+	var i := 0
+	while i < n - 2 and t > float(keys[i + 1][0]):
+		i += 1
+	var t0: float = keys[i][0]
+	var t1: float = keys[i + 1][0]
+	var p0: Vector3 = keys[i][which]
+	var p1: Vector3 = keys[i + 1][which]
+	var m0 := _arrive_tan(i, which)
+	var m1 := _arrive_tan(i + 1, which)
+	var h := t1 - t0
+	var u := clampf((t - t0) / h, 0.0, 1.0)
+	var u2 := u * u
+	var u3 := u2 * u
+	return (2.0 * u3 - 3.0 * u2 + 1.0) * p0 + (u3 - 2.0 * u2 + u) * h * m0 + (-2.0 * u3 + 3.0 * u2) * p1 + (u3 - u2) * h * m1
+
+## Playing a card: its picture dissolves onto the river, a short run behind the CityCat with the site
+## ahead, then one arc off the water and round onto the floor pick (whose page fades up as it lands).
+## `fin` is where the floor pick's own camera wants to be (it looks at cam_focus).
+func _arrive_camera(delta: float, fin: Vector3) -> void:
 	var a: Dictionary = TowerHand.arrival
-	a["t"] = float(a.get("t", 0.0)) + delta
+	if not a.has("on"):
+		# (the floor pick is set up behind the picture: its floors, the crew on the deck, its camera)
+		a["on"] = true
+		a["t"] = 0.0
+		_arrive_keys = []
+		selector.arrive_site(a["card"])
+		_light_snap = true       # (behind the picture: straight to that floor's own light, so nothing shifts on landing)
+		return
 	if _human_a and float(a["t"]) > 0.4:
-		a["t"] = maxf(float(a["t"]), ARRIVE_RIVER_T + ARRIVE_SETTLE_T)
+		a["skip"] = true                 # (A: the rest of it at six times the speed)
+	var dt := minf(delta, 0.1) * (6.0 if a.get("skip", false) else 1.0)
+	a["t"] = minf(float(a["t"]) + dt, ARRIVE_T)
 	var t: float = a["t"]
-	if t < 0.5:
-		TowerHand.uncover(t / 0.5)
+	var tower := Vector3(SC.x, cam_focus.y * 0.6 + 4.0, SC.z)
+	if spire:
+		var pc := SpireSite.centroid(SpireSite.poly("plate"))
+		tower = Vector3(pc.x, cam_focus.y, pc.y)
+	if _arrive_keys.is_empty() or t < ARRIVE_RIVER_T - 0.6:
+		# (built again while it's still on the river: the floor pick's camera takes a moment to find
+		# its deck, and the arc is measured up from that deck)
+		_arrive_keys = _arrive_build(tower, fin, cam_focus)
+	var last: Array = _arrive_keys[_arrive_keys.size() - 1]
+	last[1] = fin
+	last[2] = cam_focus
+	TowerHand.uncover(smoothstep(0.3, 1.3, t), 0.03 * t)
+	_arrive_place_boat(t)
 	if _caption == null:
 		_caption = CanvasLayer.new()
 		_caption.layer = 6
@@ -2186,48 +2373,27 @@ func _arrive_camera(delta: float) -> void:
 		var strip := UI.pill(Color(0.05, 0.06, 0.08, 0.8), Vector4(24, 8, 28, 8))
 		strip.add_child(UI.head(String(a["card"]["caption"]), 34, Color("f4f2ec")))
 		_caption.add_child(strip)
-		UI.place(strip, Vector2(0.5, 1), Vector2(0, -60))
-	var tower := Vector3(SC.x, level_y(0) + 6.0, SC.z)
-	if spire:
-		var pc := SpireSite.centroid(SpireSite.poly("plate"))
-		tower = Vector3(pc.x, level_y(0) + 6.0, pc.y)
-	var u := clampf(t / ARRIVE_RIVER_T, 0.0, 1.0)
-	var ue := ease(u, -1.4)
-	var river := _river_at(ue) + Vector3(0, 16.0, 0)       # (25 m over the water)
-	var look := _river_at(ue + 0.1) + Vector3(0, 6.0, 0)
-	_pick_boat_at(ue, 0.05)
-	var s := clampf((t - ARRIVE_RIVER_T) / ARRIVE_SETTLE_T, 0.0, 1.0)
-	if s > 0.0:
-		# climb off the water and settle on the tower and its deck
-		var e := ease(s, -2.0)
-		var back := (river - tower)
-		back.y = 0.0
-		if spire:
-			# (from the river side a tall neighbour stands in front of Spire: settle from across pour A)
-			var cy := SpireSite.cam_yaw()
-			back = Vector3(sin(cy), 0, cos(cy))
-		var end := tower + back.normalized() * 125.0 + Vector3(0, 95.0, 0)   # (over the neighbours' roofs)
-		river = river.lerp(end, e)
-		look = look.lerp(tower, e)
-	camera.position = river
-	camera.look_at(look, Vector3.UP)
+		UI.place(strip, Vector2(0, 1), Vector2(48, -56))      # (bottom left: clear of the CityCat)
+	(_caption.get_child(0) as CanvasItem).modulate.a = smoothstep(0.8, 1.6, t) * (1.0 - smoothstep(ARRIVE_T - ARRIVE_UI_T - 1.2, ARRIVE_T - ARRIVE_UI_T - 0.2, t))
+	camera.position = _arrive_at(t, 1)
+	camera.look_at(_arrive_at(t, 2), Vector3.UP)
+	if OS.get_cmdline_user_args().has("--arrivedbg"):      # (dev: the flight, frame by frame, to measure its speed)
+		print("ARR t=%.2f cam=%s look=%s fin=%s" % [t, str(camera.position.snapped(Vector3.ONE * 0.1)), str(_arrive_at(t, 2).snapped(Vector3.ONE * 0.1)), str(fin.snapped(Vector3.ONE * 0.1))])
+	selector.arrive_fade(smoothstep(ARRIVE_T - ARRIVE_UI_T, ARRIVE_T - 0.2, t))
 	if TowerHand.shots != "" and TowerHand.shots != "-":
-		if t >= 2.0 and t - delta < 2.0:
-			(func(): TowerHand.shot("order_5_flight", get_viewport())).call_deferred()
-		if t >= ARRIVE_RIVER_T + ARRIVE_SETTLE_T - 0.05 and t - delta < ARRIVE_RIVER_T + ARRIVE_SETTLE_T - 0.05:
-			TowerHand.shot("order_6_arrive", get_viewport())
-	if t >= ARRIVE_RIVER_T + ARRIVE_SETTLE_T:
+		for sh in [["order_5_flight", 3.0], ["order_6_arrive", 9.0]]:
+			if t >= float(sh[1]) and t - dt < float(sh[1]):
+				TowerHand.shot(sh[0], get_viewport())
+	if t >= ARRIVE_T:
 		TowerHand.arrival = {}
 		TowerHand.uncover(1.0)
-		if _caption != null:
-			_caption.queue_free()
-			_caption = null
+		_caption.queue_free()
+		_caption = null
 		if _pick_boat != null:
 			_pick_boat.queue_free()
 			_pick_wake.queue_free()
 			_pick_boat = null
-		cam_focus = look
-		selector.arrived(a["card"])
+		selector.arrive_done()
 
 ## The truck dispatcher must never sit idle while the slab still needs concrete: nothing in the
 ## hopper, no truck anywhere between the plant and the pump, and the slab not full. Logged (an error
@@ -7231,8 +7397,59 @@ var _tight := 0.0            # 0 whole slab .. 1 framed on the crew and the wet 
 func _update_camera(delta: float) -> void:
 	_update_camera_views(delta)
 	_pace_views()
+	if _card_cam.size() >= 6:
+		_card_shoot(delta)
 	if _spire_shots != "":
 		_spire_shoot()
+
+## Dev, for the tower cards' pictures (assets/cards): `--nopick --site=<site> --cardcam=x,y,z,lx,ly,lz[,fov]`
+## holds the camera there over the floor pick's own tower with nothing drawn over it, in the pick's
+## golden light; `--cardfloor=N` builds it to that floor (from 0); `--cardart=<file.png>` saves the view
+## cut to a card picture's shape and quits. With `--tutorial` it's the water tower, partway through its pour.
+var _card_cam := PackedFloat64Array()
+var _card_art := ""
+var _card_day := false         # `--cardlight=day`: the floor's own light, not the pick's golden hour
+var _light_snap := false
+var _card_floor := -1
+var _card_t := 0.0
+
+func _card_shoot(delta: float) -> void:
+	if not is_instance_valid(selector):
+		if not tutorial:
+			return
+	elif phase == "roles":
+		if phase_t > 0.5:
+			selector.go_site()
+			if tutorial:
+				selector.pick(2)
+			elif _card_floor >= 0:
+				selector.show_floor(_card_floor)
+		return
+	else:
+		selector.visible = false
+	for n in find_children("*", "CanvasLayer", true, false):
+		(n as CanvasLayer).visible = false          # (the HUD, the toolbox talk, anything else drawn over it)
+	for n in find_children("*", "Label3D", true, false):
+		(n as Label3D).visible = false              # (name tags and signs' floating words)
+	_card_t += delta
+	camera.h_offset = 0.0
+	camera.v_offset = 0.0
+	camera.position = Vector3(_card_cam[0], _card_cam[1], _card_cam[2])
+	camera.look_at(Vector3(_card_cam[3], _card_cam[4], _card_cam[5]), Vector3.UP)
+	if _card_cam.size() > 6:
+		camera.fov = _card_cam[6]
+	if _card_cam.size() > 7:
+		camera.far = _card_cam[7]         # (dev: a cut through the city, looking down: what stands above a height)
+	if _card_art != "" and _card_t > 9.0:
+		var img := get_viewport().get_texture().get_image()
+		var w := img.get_width()
+		var h := mini(img.get_height(), int(round(w * 176.0 / 268.0)))
+		w = int(round(h * 268.0 / 176.0))
+		img = img.get_region(Rect2i((img.get_width() - w) / 2, (img.get_height() - h) / 2, w, h))
+		img.save_png(_card_art)
+		print("[cardart] " + _card_art)
+		_card_art = ""
+		get_tree().quit()
 
 ## Dev: `--spireshots=<dir>` (with --site=spire) saves a set of views of the Spire site partway through
 ## the first pour it plays (`--spirefill=0.5` for later in the pour), then quits: for checking the
@@ -7510,8 +7727,8 @@ func _update_camera_views(delta: float) -> void:
 	if _fly_on and _shot_cam.is_empty():
 		_fly_camera()
 	if _shot_cam.is_empty() and (phase == "roles" or phase == "select") and is_instance_valid(selector):
-		if not TowerHand.arrival.is_empty() and selector.page == "arrive":
-			_arrive_camera(delta)
+		if not TowerHand.arrival.is_empty() and (selector.page == "arrive" or selector.arriving):
+			_arrive_camera(delta, want)
 		elif selector.page == "tower" or (selector.page == "crew" and selector.wants_tower_page()):
 			_hand_camera(delta)      # (the join, the jobs and the hand: up the river, no site yet)
 	# The deck view shifts up into the top part of the screen as the band opens
