@@ -168,7 +168,7 @@ func _gantry() -> void:
 				skip = true
 		if not skip:
 			var xm := x + 1.5
-			var z0: float = SpireSite.boundary_z(xm) + 0.15
+			var z0: float = SpireSite.face_z(xm) + 0.15
 			var z1 := KERB - 0.15
 			var y0 := gy(xm, 0.8)
 			var bay := Node3D.new()
@@ -234,7 +234,7 @@ func _zones() -> void:
 	_zone(Rect2(Line.HOPPER.x - 0.6, KERB + 0.1, 12.5, 2.75), "EXCLUSION ZONE · TRUCK REVERSING", Color("e23b2e"))
 	# The people on the footpath wait behind these while the gate's shut
 	for gx in [GATE.x, GATE.y]:
-		_stripe(Vector3(gx, gy(gx, 0.5), SpireSite.boundary_z(gx) + 0.3), Vector3(gx, gy(gx, 0.5), KERB - 0.2), Color("ffc72c"), 0.18)
+		_stripe(Vector3(gx, gy(gx, 0.5), SpireSite.face_z(gx) + 0.3), Vector3(gx, gy(gx, 0.5), KERB - 0.2), Color("ffc72c"), 0.18)
 
 # ------------------------------------------------------------------ the people
 
@@ -294,9 +294,10 @@ func _people() -> void:
 
 func _path_z(x: float, lane: float) -> float:
 	# (through the gate they keep to the kerb side, clear of the foot of the stairs)
-	var mid := (SpireSite.boundary_z(x) + KERB) * 0.5 + lane
+	var mid := (SpireSite.face_z(x) + KERB) * 0.5 + lane
 	var g := smoothstep(GATE.x - 3.0, GATE.x, x) * (1.0 - smoothstep(GATE.y, GATE.y + 3.0, x))
-	return lerpf(mid, KERB - 0.75 + lane * 0.6, g)
+	# (where the podium comes out to the stairs, that's in the kerb lane, between the stairs' foot and the racking)
+	return lerpf(mid, maxf(KERB - 0.75, Line.LADDER_FOOT.z + 0.75) + lane * 0.5, g)
 
 func _process(delta: float) -> void:
 	if game == null or game.line == null:

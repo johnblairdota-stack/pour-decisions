@@ -19,6 +19,9 @@ uniform bool vertex_tint = false;
 uniform vec4 panel_color : source_color = vec4(0.35, 0.37, 0.41, 1.0);
 uniform vec4 mullion_color : source_color = vec4(0.17, 0.18, 0.20, 1.0);
 uniform float panel_every = 4.0;
+// A flat roof seen from above (Spire's neighbours fill the foreground): darker membrane in paver
+// squares, with plant pads and walkway strips, so it reads as a roof and not a blank box
+uniform bool roof = false;
 
 varying vec3 wpos;
 varying vec3 wnorm;
@@ -58,6 +61,22 @@ void fragment() {
 		c = mix(c, panel_color.rgb, panel);
 		ALBEDO = mix(c, frame_color.rgb, band);
 		win = (1.0 - band) * (1.0 - panel) * (1.0 - mull) * step(0.36, f.y);
+	}
+	if (roof && wnorm.y > 0.9) {
+		vec3 base = ALBEDO * 0.66;
+		vec2 pf = fract(wpos.xz / 2.5);
+		float joint = 1.0 - step(0.035, pf.x) * step(0.035, pf.y);
+		vec2 big = wpos.xz / 8.0;
+		vec2 bf = fract(big);
+		float pick = hash(floor(big));
+		float pad = step(0.62, pick) * step(0.2, bf.x) * step(bf.x, 0.62) * step(0.25, bf.y) * step(bf.y, 0.6);
+		float fan = pad * step(length(fract(bf * vec2(4.76, 5.7)) - 0.5), 0.3);
+		float walk = step(pick, 0.25) * step(0.42, bf.x) * step(bf.x, 0.58);
+		vec3 c = mix(base, base * 0.78, joint);
+		c = mix(c, base * 1.25, walk);
+		c = mix(c, vec3(0.74, 0.76, 0.78), pad);
+		c = mix(c, vec3(0.22, 0.24, 0.27), fan);
+		ALBEDO = c;
 	}
 	EMISSION = win * lit * lit_color.rgb * glow;
 	ROUGHNESS = 0.6;

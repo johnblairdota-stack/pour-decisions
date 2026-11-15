@@ -70,6 +70,7 @@ static func setup() -> bool:
 	if scene is PackedScene:
 		var m: Node3D = scene.instantiate()
 		_read_ground(m, Transform3D(Basis(Vector3.UP, th), Vector3(off.x, -street, off.y)))
+		_read_podium(m, Transform3D(Basis(Vector3.UP, th), Vector3(off.x, -street, off.y)))
 		m.free()
 		var at0 := ground_y(PAD.x, PAD.y)
 		street += at0
@@ -262,6 +263,97 @@ static func _read_ground(model: Node3D, xf: Transform3D) -> void:
 					if y > _hm[iz * HM_NX + ix]:
 						_hm[iz * HM_NX + ix] = y
 
+## The podium's slabs come out past the boundary line in places (by the stairs, 1.9 m): their real
+## Ann St edge, read off the model every half metre of x.
+const PODIUM_SLABS := [3.8, 7.0, 10.2, 13.4, 16.6]   # game y of the podium's slabs (L1 to L5)
+const POD_X0 := -30.0
+const POD_N := 140
+static var _pod := PackedFloat32Array()
+
+static func _read_podium(model: Node3D, xf: Transform3D) -> void:
+	_pod.resize(POD_N)
+	_pod.fill(-1e9)
+	for node in model.find_children("SLAB_L0*", "MeshInstance3D", true, false):
+		var mi := node as MeshInstance3D
+		if mi.mesh == null:
+			continue
+		var f: PackedVector3Array = mi.mesh.get_faces()
+		for t in range(0, f.size(), 3):
+			var tri := [xf * f[t], xf * f[t + 1], xf * f[t + 2]]
+			for j in 3:
+				var a: Vector3 = tri[j]
+				var b: Vector3 = tri[(j + 1) % 3]
+				if absf(a.x - b.x) < 1e-4:
+					continue
+				var i0 := maxi(0, int(ceil((minf(a.x, b.x) - POD_X0) * 2.0)))
+				var i1 := mini(POD_N - 1, int(floor((maxf(a.x, b.x) - POD_X0) * 2.0)))
+				for i in range(i0, i1 + 1):
+					var x := POD_X0 + i * 0.5
+					var z := lerpf(a.z, b.z, (x - a.x) / (b.x - a.x))
+					if z < 8.0 and z > _pod[i]:
+						_pod[i] = z
+
+## Game z of the podium's real Ann St face over game x0..x1 (the boundary line where the model has none).
+static func podium_z(x0: float, x1: float) -> float:
+	var best := -1e9
+	for i in range(maxi(0, int(floor((x0 - POD_X0) * 2.0))), mini(POD_N - 1, int(ceil((x1 - POD_X0) * 2.0))) + 1):
+		if i < _pod.size():
+			best = maxf(best, _pod[i])
+	return best if best > -1e8 else maxf(boundary_z(x0), boundary_z(x1))
+
+## The podium's Ann St face as a building under way reads from the pour camera: a pale edge band on
+## every slab and the storeys between them dark and open (car park decks with nothing in them yet).
+## `brick`: the folded brick skin started from the bottom, up to that many storeys.
+static func build_podium_face(parent: Node3D, brick := 0) -> void:
+	if _pod.is_empty():
+		return
+	var bands: Array[Transform3D] = []
+	var backs: Array[Transform3D] = []
+	var skins: Array[Transform3D] = []
+	var ys: Array = [0.0] + PODIUM_SLABS
+	for i in POD_N - 1:
+		var z0 := _pod[i]
+		var z1 := _pod[i + 1]
+		if z0 < -1e8 or z1 < -1e8 or absf(z1 - z0) > 1.2:
+			continue
+		var x := POD_X0 + (i + 0.5) * 0.5
+		var z := (z0 + z1) * 0.5
+		var yaw := -atan2(z1 - z0, 0.5)
+		var len := Vector2(0.5, z1 - z0).length() + 0.02
+		for lv in range(1, ys.size()):
+			var y: float = ys[lv]
+			bands.append(Transform3D(Basis(Vector3.UP, yaw) * Basis.from_scale(Vector3(len, 0.42, 0.12)), Vector3(x, y - 0.1, z + 0.05)))
+			if lv >= 2:
+				var y0: float = ys[lv - 1]
+				if lv - 1 <= brick:
+					# (folded brickwork: the face steps in and out a brick's width every 2 m)
+					var fold := 0.12 if int(floor(x / 2.0)) % 2 == 0 else 0.0
+					skins.append(Transform3D(Basis(Vector3.UP, yaw) * Basis.from_scale(Vector3(len, y - y0 - 0.5, 0.12)), Vector3(x, (y0 + y) * 0.5 - 0.05, z - 0.02 + fold)))
+				else:
+					backs.append(Transform3D(Basis(Vector3.UP, yaw) * Basis.from_scale(Vector3(len, y - y0 - 0.4, 0.1)), Vector3(x, (y0 + y) * 0.5 - 0.1, z - 1.1)))
+	var sets := [[bands, Color("e6e8e3")], [backs, Color("343a42")], [skins, Color("a8553a")]]
+	for st in sets:
+		var xf: Array = st[0]
+		if xf.is_empty():
+			continue
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		var bm := BoxMesh.new()
+		bm.size = Vector3.ONE
+		bm.material = F.color_mat(st[1])
+		mm.mesh = bm
+		mm.instance_count = xf.size()
+		for k in xf.size():
+			mm.set_instance_transform(k, xf[k])
+		var mi := MultiMeshInstance3D.new()
+		mi.name = "PodiumFace"
+		mi.multimesh = mm
+		parent.add_child(mi)
+
+## Game z of whatever's furthest out at game x: the boundary line or the podium's own face.
+static func face_z(x: float) -> float:
+	return maxf(boundary_z(x), podium_z(x - 0.5, x + 0.5))
+
 ## The street's surface (game y) at game x/z; 0 where the model has no road or footpath.
 static func ground_y(x: float, z: float) -> float:
 	if _hm.is_empty():
@@ -377,7 +469,7 @@ static func _game_mat(mat: BaseMaterial3D) -> Material:
 		out = g2
 	elif nm == "clay_slab" or nm == "clay_slab_b" or nm == "clay_column" or nm == "clay_formwork":
 		# (the podium's own structure: the game's concrete and formply, not the model's pale clay colours)
-		out = F.color_mat(Color("c79a5e") if nm == "clay_formwork" else (Color("8f9291") if nm == "clay_column" else Color("a9abaa")))
+		out = F.color_mat(Color("c79a5e") if nm == "clay_formwork" else (Color("5f666e") if nm == "clay_column" else Color("c9ccc8")))
 	elif nm.begins_with("look_") or nm.begins_with("gen_") or nm == "clay_roof":
 		# the neighbours (glTF colours are linear: the game's are sRGB)
 		col = col.linear_to_srgb()
@@ -387,7 +479,14 @@ static func _game_mat(mat: BaseMaterial3D) -> Material:
 			var glass := col.darkened(0.45).lerp(Color(0.24, 0.32, 0.42), 0.4)
 			var wm := F.window_mat(col, 0.0, 0.0, glass)
 			wm.set_shader_parameter("cell", Vector2(2.4, 3.1))
+			wm.set_shader_parameter("roof", true)
 			out = wm
+		elif nm.ends_with("_roof"):
+			# (roofs fill the foreground from the pour camera: pavers, plant pads, walkways)
+			var rm := F.window_mat(col, 0.0, 0.0, col)
+			rm.set_shader_parameter("cell", Vector2(9999.0, 9999.0))
+			rm.set_shader_parameter("roof", true)
+			out = rm
 		else:
 			out = F.color_mat(col)
 	_mats[nm] = out
@@ -418,15 +517,75 @@ static func build_core(parent: Node3D) -> Dictionary:
 	rig.name = "JumpForm"
 	parent.add_child(rig)
 	var ring := poly("rig")
-	var screen := F.color_mat(Color("b4bac1"))
+	# (the rig's built one unit tall and stretched to its real height by set_core: heights here are
+	# shares of that)
+	var rig_h := float(d["tower_ftf_m"]) * float(d["jump_form"]["rig_levels"]) + 1.5
+	var u := 1.0 / rig_h
+	var screens := [F.color_mat(Color("d3d7da")), F.color_mat(Color("c2c7cc"))]
+	var frame := F.color_mat(Color("39414f"))
+	var rail := F.mat("yellow_dark")
+	var deck_y := 1.0 - 1.3 * u            # the top working deck: the screens stand 1.3 m over it
 	var n := ring.size()
 	for j in n:
 		var a: Vector2 = ring[j]
 		var b: Vector2 = ring[(j + 1) % n]
-		var mid := (a + b) * 0.5
-		var s := F.box(Vector3(a.distance_to(b), 1.0, 0.12), screen, Vector3(mid.x, 0.5, mid.y))
-		s.rotation.y = -atan2(b.y - a.y, b.x - a.x)
-		rig.add_child(s)
+		var len := a.distance_to(b)
+		var edge := Node3D.new()
+		edge.position = Vector3((a.x + b.x) * 0.5, 0, (a.y + b.y) * 0.5)
+		edge.rotation.y = -atan2(b.y - a.y, b.x - a.x)
+		rig.add_child(edge)
+		# Screen panels between steel posts, about 2.4 m wide
+		var cells := maxi(1, int(round(len / 2.4)))
+		var w := len / cells
+		for c in cells:
+			edge.add_child(F.box(Vector3(w - 0.08, 1.0, 0.1), screens[(c + j) % 2], Vector3(-len * 0.5 + (c + 0.5) * w, 0.5, 0)))
+		for c in cells + 1:
+			edge.add_child(F.box(Vector3(0.14, 1.0 + 1.1 * u, 0.2), frame, Vector3(-len * 0.5 + c * w, 0.5 - 0.55 * u, 0.02)))
+		# The deck edges showing through as dark bands with a yellow kick board, a handrail along the
+		# top, and the open trailing platform hung underneath
+		for dk in [deck_y, deck_y - 2.9 * u, deck_y - 5.8 * u]:
+			if dk > 0.02:
+				edge.add_child(F.box(Vector3(len + 0.2, 0.22 * u, 0.22), frame, Vector3(0, dk, 0.03)))
+				edge.add_child(F.box(Vector3(len + 0.2, 0.12 * u, 0.24), rail, Vector3(0, dk + 0.2 * u, 0.03)))
+		edge.add_child(F.box(Vector3(len + 0.2, 0.1 * u, 0.16), rail, Vector3(0, 1.0 + 0.05 * u, 0)))
+		edge.add_child(F.box(Vector3(len + 0.2, 0.16 * u, 0.9), frame, Vector3(0, -1.0 * u, -0.4)))
+		edge.add_child(F.box(Vector3(len + 0.2, 0.07 * u, 0.07), rail, Vector3(0, -0.35 * u, 0.02)))
+		edge.add_child(F.box(Vector3(len + 0.2, 0.07 * u, 0.07), rail, Vector3(0, -0.7 * u, 0.02)))
+	# The top deck (formply), and on it the things that say "jump form" from above: the wall steel
+	# standing up out of the pour, the hydraulic pack, the crew's toilet and the stair hatch
+	rig.add_child(F.prism(ring, deck_y - 0.1 * u, 0.1 * u, F.color_mat(Color("c79a5e"))))
+	var bars: Array[Transform3D] = []
+	var cn := core.size()
+	for j in cn:
+		var a: Vector2 = core[j]
+		var b: Vector2 = core[(j + 1) % cn]
+		var steps := maxi(1, int(a.distance_to(b) / 0.45))
+		for k in steps:
+			var q := a.lerp(b, (k + 0.5) / steps)
+			var inw := (centroid(core) - q).normalized() * 0.15
+			bars.append(Transform3D(Basis.from_scale(Vector3(0.05, 2.1 * u, 0.05)), Vector3(q.x + inw.x, deck_y + 1.05 * u, q.y + inw.y)))
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	var bm := BoxMesh.new()
+	bm.size = Vector3.ONE
+	bm.material = F.color_mat(Color("9a4a2c"))
+	mm.mesh = bm
+	mm.instance_count = bars.size()
+	for k in bars.size():
+		mm.set_instance_transform(k, bars[k])
+	var mi := MultiMeshInstance3D.new()
+	mi.multimesh = mm
+	rig.add_child(mi)
+	var cc := centroid(core)
+	var bbx := _box(core)
+	# (the wall pour's dark slot inside the steel, so the core reads as walls with shafts between)
+	var inner: Array = Geometry2D.offset_polygon(core, -0.45)
+	if not inner.is_empty():
+		rig.add_child(F.prism(inner[0], deck_y, 0.03 * u, F.color_mat(Color("b88a52"))))
+	rig.add_child(F.box(Vector3(1.1, 2.2 * u, 1.1), F.color_mat(Color("2f7fd0")), Vector3(bbx.position.x - 0.55, deck_y + 1.1 * u, cc.y + 0.9)))
+	rig.add_child(F.box(Vector3(1.2, 0.08 * u, 1.2), F.color_mat(Color("f4f7fa")), Vector3(bbx.position.x - 0.55, deck_y + 2.24 * u, cc.y + 0.9)))
+	rig.add_child(F.box(Vector3(1.5, 1.0 * u, 0.9), F.color_mat(Color("e0352b")), Vector3(bbx.end.x + 0.55, deck_y + 0.5 * u, cc.y - 0.8)))
+	rig.add_child(F.box(Vector3(1.0, 0.05 * u, 1.0), frame, Vector3(bbx.end.x + 0.5, deck_y + 0.03 * u, cc.y + 1.2)))
 	var lab := F.label3d("JUMP FORM", 56, Color("1d2023"))
 	lab.name = "Label"
 	rig.add_child(lab)

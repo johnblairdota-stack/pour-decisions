@@ -144,7 +144,7 @@ func _frame_work(delta: float) -> void:
 		if not seen.has(id):
 			_truck_x.erase(id)
 	_tick += 1
-	var skey := "%s|%d" % [str(size), int(st["sections"])]
+	var skey := "%s|%d|%d" % [str(size), int(st["sections"]), (st.get("floors", []) as Array).size()]
 	var tkey := skey + "|%d" % int(lift > 0.0)
 	for tr in st["trucks"]:
 		tkey += "|%d:%d:%d" % [int(_truck_x.get(tr["id"], 0.0)), int(tr["age"]), int(tr["slot"])]
@@ -352,30 +352,40 @@ func _draw_tower_static() -> void:
 func _draw_face_static() -> void:
 	var tx := _tower_x()
 	var base := _base()
-	var n: int = maxi(1, int(st["sections"]))
-	var sh := (base - TOP) / n
 	var cx := (tx.x + tx.y) * 0.5
 	var right := _w + 4.0
-	# The building: a pale face with a slab edge at each floor
+	var rx := _riser_x()
+	# The building: a pale face with a slab edge at each floor, and the riser's bracket on it
 	_c.draw_rect(Rect2(tx.x - 6.0, TOP, right - tx.x + 6.0, base - TOP), Color(0.80, 0.84, 0.89, 0.55))
-	for i in n + 1:
-		var y := TOP + i * sh
-		_c.draw_rect(Rect2(tx.x - 12.0, y - 4.0, right - tx.x + 12.0, 8.0), INK)
-		_c.draw_rect(Rect2(tx.x - 10.0, y - 2.0, right - tx.x + 10.0, 4.0), Color("f4f7fa"))
-		# (the bracket that holds the riser to the slab)
-		_c.draw_line(Vector2(_riser_x(), y), Vector2(tx.x - 10.0, y), INK, 3.5)
-		if i < n:
-			_c.draw_line(Vector2(_riser_x(), y + sh * 0.5), Vector2(tx.x - 6.0, y + sh * 0.5), INK, 3.0)
-	# Scaffold stairs: two standards and a zig-zag of flights
-	var sx0 := tx.x + 4.0
-	var sx1 := tx.y + 30.0
-	for x in [sx0, sx1]:
-		_c.draw_line(Vector2(x, TOP - 8.0), Vector2(x, base), Color(INK, 0.8), 3.0)
-	var flights := maxi(n * 2, 8)
+	var floors: Array = st.get("floors", [])
+	if floors.is_empty():
+		var n: int = maxi(1, int(st["sections"]))
+		for i in n + 1:
+			floors.append(float(i) / n)
+	var thin := floors.size() > 14
+	for f in floors:
+		var y := _tower_y(float(f))
+		_c.draw_rect(Rect2(tx.x - 12.0, y - (2.5 if thin else 4.0), right - tx.x + 12.0, 5.0 if thin else 8.0), INK)
+		_c.draw_rect(Rect2(tx.x - 10.0, y - (1.0 if thin else 2.0), right - tx.x + 10.0, 2.0 if thin else 4.0), Color("f4f7fa"))
+		_c.draw_line(Vector2(rx, y), Vector2(tx.x - 10.0, y), INK, 2.5 if thin else 3.5)
+	# Scaffold stairs: standards, a ledger and a guard rail at every landing, flights with handrails
+	var sx0 := tx.x + 6.0
+	var sx1 := tx.y + 32.0
+	var flights := clampi(int((base - TOP) / 34.0), 8, 40)
 	var fh := (base - TOP) / flights
+	var tube := Color("8d97a6")
+	for x in [sx0, sx1]:
+		_c.draw_line(Vector2(x, TOP - 10.0), Vector2(x, base), INK, 4.0)
+		_c.draw_line(Vector2(x, TOP - 10.0), Vector2(x, base), tube, 2.0)
 	var zig := PackedVector2Array()
 	for i in flights + 1:
-		zig.append(Vector2(sx0 + 3.0 if i % 2 == 0 else sx1 - 3.0, base - i * fh))
+		var y := base - i * fh
+		zig.append(Vector2(sx0 + 3.0 if i % 2 == 0 else sx1 - 3.0, y))
+		_c.draw_line(Vector2(sx0, y), Vector2(sx1, y), INK, 2.5)
+		_c.draw_line(Vector2(sx0, y - fh * 0.42), Vector2(sx1, y - fh * 0.42), Color(INK, 0.45), 1.5)
+	for i in flights:
+		# (the handrail, a hand's height over the flight)
+		_c.draw_line(zig[i] - Vector2(0, 9.0), zig[i + 1] - Vector2(0, 9.0), INK, 2.0, true)
 	_c.draw_polyline(zig, INK, 7.0, true)
 	_c.draw_polyline(zig, ORANGE, 3.5, true)
 	# The haul rope

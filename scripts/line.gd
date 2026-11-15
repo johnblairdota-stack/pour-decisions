@@ -118,6 +118,9 @@ const KERB_PASS := 7.9         # the lane a called truck pulls round the pump in
 const KERB_READY := Vector3(-2.5, 0, KERB_Z)   # the ready truck, upstream of the pump
 const KERB_IN_X := -62.0       # where trucks come into view, down Ann St
 const KERB_OUT_X := 112.0      # ...and where they're gone, up it
+const KERB_HOPPER := 8.0       # m3: the one bay means a gap at every truck change, so the hopper carries the pump through it
+const KERB_LOAD_K := 1.5       # ...and the loads are bigger, so there are fewer changes
+const KERB_TRUST_K := 1.6      # ...and the chute runs faster on trust while the slump's tested
 const KERB_CALL_M3 := 3.0      # m3 left in the truck on the hopper when the next can be called round
 
 ## Sets the site's layout. Riverlight: the yard, at 45 degrees. Spire: along the kerb.
@@ -126,6 +129,7 @@ static func use_site(kerb: bool, wall_z := 0.0, roof_y := 1.0e9, set_back := 0.0
 	STAIRS = kerb
 	STEP_Y = roof_y if kerb else 1.0e9
 	STEP_DZ = set_back if kerb else 0.0
+	HOPPER_CAP = KERB_HOPPER if kerb else 5.0
 	RISER = Vector3(12.0, 0, wall_z + 0.3) if kerb else Vector3(12.0, 0, 1.45)
 	LADDER = Vector3(13.35, 0, wall_z + 0.75) if kerb else Vector3(13.35, 0, 0.7)
 	LADDER_FOOT = Vector3(13.9, 0, wall_z + 1.9) if kerb else Vector3(13.9, 0, 1.5)
@@ -135,7 +139,7 @@ static func use_site(kerb: bool, wall_z := 0.0, roof_y := 1.0e9, set_back := 0.0
 		DIR = Vector3(1, 0, 0)
 		SIDE = Vector3(0, 0, 1)
 		PUMP_POS = Vector3(18.9, 0, KERB_Z)
-		RACKING = Vector3(12.85, 0, 4.1)
+		RACKING = Vector3(12.85, 0, maxf(4.1, wall_z + 4.2))
 		# (the ground line crosses the footpath square, at the end of the site gate, then runs along
 		# the podium's wall behind the stairs to the riser's foot)
 		PIPE_TURN = Vector3(15.4, 0, wall_z + 0.55)
@@ -178,7 +182,7 @@ var _traffic_looked := false
 # is `interval` in start_pour. On a big slab main._start_pour closes the
 # trucks up (BIG_SLAB_TRUCKS), sends bigger loads (BIG_SLAB_LOAD, so fewer
 # changeovers at the bay) and gives the concrete a longer open time.
-const HOPPER_CAP := 5.0                  # m³ (game scale)
+static var HOPPER_CAP := 5.0             # m³ (game scale; Spire's one-bay kerb set-up runs a bigger hopper: use_site)
 const TRUCK_LOAD := 8.0                  # m³, a typical agitator load
 var load_m3 := TRUCK_LOAD                # this pour's loads (bigger on a big slab: main._start_pour)
 const DISCHARGE := 1.8                   # m³/s out of the chute
@@ -395,6 +399,7 @@ var _hop_splash: CPUParticles3D = null
 var hook := {"kind": "", "node": null, "y": 0.0, "to": 0.0, "state": "down"}
 var hook_node: Node3D
 var haul_rope: MeshInstance3D
+var _haul_beam: Node3D
 var _worker = null           # whoever did the last repair step
 var _job_t := 0.0            # how long the current repair has run
 var _blocked_t := 0.0        # how long the current blockage has gone unfound
@@ -440,6 +445,8 @@ func build(owner_game, which_kit: String) -> void:
 	add_child(ladder_rungs)
 
 	_build_pump()
+	if kit == "tower":
+		_build_winch_hand()
 	_build_stores()
 
 	drips = _particles(40, 1.4, Vector3(0, -1, 0), 12.0, 0.2, 0.8, _blob(0.05, Color("8d9095")))
@@ -992,6 +999,7 @@ func _build_stairs(top: float) -> void:
 				_stairs.add_child(F.box(Vector3(0.07, y1 - y0, 0.07), tube, Vector3(sx, (y0 + y1) * 0.5, z + sz)))
 	# The flights and landings (one MultiMesh of boards)
 	var xf: Array[Transform3D] = []
+	var rails: Array[Transform3D] = []
 	var y := -0.4
 	var i := 0
 	while y < top:
@@ -1011,6 +1019,17 @@ func _build_stairs(top: float) -> void:
 				xf.append(Transform3D(b * Basis.from_scale(Vector3(d.length(), 0.07, 0.9)), mid - Vector3(0, 0.05, 0)))
 				# (a landing at the top of the flight)
 				xf.append(Transform3D(Basis.from_scale(Vector3(0.7, 0.05, 1.0)), Vector3(pb.x + 0.2 * signf(d.x), pb.y - 0.03, pb.z)))
+				# (handrail and mid rail down both sides of the flight, a guard rail round the landing's end,
+				# and the ledgers that tie the standards at each lift)
+				for sz in [-0.5, 0.5]:
+					for hy in [0.5, 1.0]:
+						rails.append(Transform3D(b * Basis.from_scale(Vector3(d.length(), 0.05, 0.05)), mid + Vector3(0, hy, sz)))
+				for hy in [0.5, 1.0]:
+					rails.append(Transform3D(Basis.from_scale(Vector3(0.05, 0.05, 1.05)), Vector3(pb.x + 0.55 * signf(d.x), pb.y + hy, pb.z)))
+				for sz in [-0.55, 0.55]:
+					rails.append(Transform3D(Basis.from_scale(Vector3(x1 - x0, 0.05, 0.05)), Vector3((x0 + x1) * 0.5, pb.y - 0.12, pb.z + sz)))
+				for sx in [x0, x1]:
+					rails.append(Transform3D(Basis.from_scale(Vector3(0.05, 0.05, 1.1)), Vector3(sx, pb.y - 0.12, pb.z)))
 		y += STAIR_RISE
 		i += 1
 	var mm := MultiMesh.new()
@@ -1025,6 +1044,18 @@ func _build_stairs(top: float) -> void:
 	var mi := MultiMeshInstance3D.new()
 	mi.multimesh = mm
 	_stairs.add_child(mi)
+	var rm := MultiMesh.new()
+	rm.transform_format = MultiMesh.TRANSFORM_3D
+	var rb := BoxMesh.new()
+	rb.size = Vector3.ONE
+	rb.material = tube
+	rm.mesh = rb
+	rm.instance_count = rails.size()
+	for k in rails.size():
+		rm.set_instance_transform(k, rails[k])
+	var ri := MultiMeshInstance3D.new()
+	ri.multimesh = rm
+	_stairs.add_child(ri)
 
 ## (Re)builds the riser to the boom head: 3 m sections with a clamp at every
 ## joint and a bracket to the tower between. Called at the start and after
@@ -1531,6 +1562,10 @@ func _block(from_bad: bool, heralded := false) -> void:
 	if force_top_block:
 		force_top_block = false
 		block_s = clamps.size() - 2        # (dev --trucktest: the plug in the top section)
+	# On a long riser the gauge and the pump's stroke put the plug within a few pipes: the ones
+	# below are chalked dull already, so it's three or four knocks to find, not thirty
+	if kit == "tower" and sections.size() > 6 and block_s >= 3:
+		_chalk(block_s - 3, true)
 	if game.autotest:
 		var ys: Array = []
 		for c in clamps:
@@ -1736,7 +1771,9 @@ func _spawn_truck(waiting: bool, top_up := false) -> void:
 		return
 	var load := load_m3 if top_up else minf(load_m3, needed_m3 * 1.12 - ordered + 0.5)
 	ordered += load
-	var r := 1.0 if quiet else randf()
+	# (Spire's one bay has no second truck stood by to swap in, so a bad load costs the pour far more
+	# there: half as many turn up)
+	var r := 1.0 if quiet else randf() * (2.0 if KERB else 1.0)
 	var slump := randf_range(SPEC_SLUMP - 17.0, SPEC_SLUMP + 17.0)
 	if force_bad > 0 and trucks.size() >= 1:
 		force_bad -= 1
@@ -1781,6 +1818,8 @@ func _set_truck(t: Dictionary, s: String) -> void:
 	var was: String = t.get("state", "")
 	t["state"] = s
 	t["t"] = 0.0
+	if game.autotest and OS.get_cmdline_user_args().has("--trucklog"):
+		print("[trucklog] %.1f truck %d %s -> %s hopper %.1f" % [game.pour_clock, (t["node"] as Node).get_instance_id() % 1000, was, s, hopper])
 	if s == "back" and not game.sfx.has_loop("truck_beeper"):
 		game.sfx.hit("beep")
 	# The air brakes go on when it's backed in and off when it pulls out,
@@ -1976,8 +2015,12 @@ func _yard_busy(except = null, leaving := false) -> bool:
 func _kerb_bay_clearing() -> bool:
 	for t in trucks:
 		var st: String = t["state"]
-		if st in ["called", "approach", "back", "bay", "check", "water", "ready", "docket"]:
+		# (while the load in the bay's being tested the next one's called round to wait past it: if
+		# this one's sent back, that one backs straight in)
+		if st in ["called", "approach", "back"]:
 			return false
+		if st in ["bay", "check", "water", "ready", "docket"]:
+			continue
 		if st == "pour" and float(t["load"]) > KERB_CALL_M3:
 			return false
 	return true
@@ -2307,7 +2350,7 @@ func _on_trust(t: Dictionary, delta: float) -> void:
 	if t["state"] != "docket" and (t["checked"] or not t.has("sl") or slump.step_of(t) == "sample"):
 		return
 	var room := TRUST_M3 - float(t.get("trust_m3", 0.0))
-	var flow := minf(TRUST_Q * delta, minf(minf(t["load"], room), HOPPER_CAP - hopper))
+	var flow := minf(TRUST_Q * (KERB_TRUST_K if KERB else 1.0) * delta, minf(minf(t["load"], room), HOPPER_CAP - hopper))
 	if flow <= 0.0:
 		return
 	_trust_feed = t
@@ -3053,6 +3096,7 @@ func update(delta: float, in_pour: bool) -> void:
 	if not burst:
 		grout_spray.emitting = false
 	_update_hook(delta)
+	_update_winch_hand(delta)
 	_update_npc(delta, in_pour)
 
 # ------------------------------------------------------------------ players
@@ -3194,10 +3238,7 @@ func send_up(p) -> void:
 	var it: Node3D = p.release_item()
 	if it == null:
 		return
-	hook["kind"] = it.get_meta("kind")
-	hook["node"] = it
-	add_child(it)
-	hook["y"] = 1.0
+	_hook_on(it)
 	if hook["kind"] == "pins":
 		# Up to the climbing frame's walkway, for the rigger
 		hook["to"] = clampf(game.climb.platform_spot().y + 1.0, 1.0, riser_top - 0.3)
@@ -3207,7 +3248,24 @@ func send_up(p) -> void:
 		p.pose_arms(Vector3(-2.7, 0, -0.2), Vector3(-2.2, 0, 0.2))
 		p.bounce()
 		return
+	_hook_up()
+	game.score.award(p, 10, "Parts run to the line", HAUL + Vector3(0, 2.0, 0))
+	p.pose_arms(Vector3(-2.7, 0, -0.2), Vector3(-2.2, 0, 0.2))
+	p.bounce()
+
+func _hook_on(it: Node3D) -> void:
+	hook["kind"] = it.get_meta("kind")
+	hook["node"] = it
+	if it.get_parent() != null:
+		it.get_parent().remove_child(it)
+	add_child(it)
+	hook["y"] = 1.0
+
+## Hauls what's on the hook up to the joint being worked (or to whoever's on the way up).
+func _hook_up() -> void:
 	var j := fix_i if fix_i >= 0 else fail_i
+	if blocked and block_found and block_s >= 0 and fix_i < 0:
+		j = block_s
 	var to := riser_top * 0.5
 	if j >= 0:
 		to = float(clamps[j]["pos"].y) - 0.2
@@ -3218,9 +3276,105 @@ func send_up(p) -> void:
 	hook["to"] = clampf(to, 1.0, riser_top - 0.8)
 	hook["state"] = "rising"
 	game.sfx.hit("clank")
-	game.score.award(p, 10, "Parts run to the line", HAUL + Vector3(0, 2.0, 0))
-	p.pose_arms(Vector3(-2.7, 0, -0.2), Vector3(-2.2, 0, 0.2))
-	p.bounce()
+
+# ------------------------------------------------------------------ the winch hand
+# A labourer (not one of the crew of six) who minds the haul rope. When the line needs a new clamp
+# or pipe and nobody's bringing one, they take it off the racking and send it up to the joint, so
+# whoever's on the riser never has to come back down for the part.
+var _winch: Node3D
+var _winch_label: Label3D
+var _winch_state := "idle"
+var _winch_item: Node3D
+var _winch_kind := ""
+var _winch_t := 0.0
+
+func _winch_home() -> Vector3:
+	return HAUL + (Vector3(1.0, 0, 0.9) if KERB else Vector3(0.2, 0, 1.9))
+
+func _build_winch_hand() -> void:
+	_winch = F.chibi(Color("ff8a1f"), Color("f4f7fa"))
+	_winch.name = "WinchHand"
+	_winch.scale = Vector3.ONE * 0.95
+	_winch.position = _winch_home()
+	add_child(_winch)
+	_winch_label = F.label3d("WINCH", 26, Color("d9c27a"))
+	_winch_label.position = Vector3(0, 2.3, 0)
+	_winch.add_child(_winch_label)
+
+## The part the line's short of that nobody has in hand or on the rope ("" if none).
+func _winch_want() -> String:
+	if game.phase != "pour" or game.bots == null:
+		return ""
+	var kind: String = game.bots.part_needed()
+	if kind == "" or part_coming(kind, null):
+		return ""
+	if hook["kind"] != "" or hook["state"] != "down":
+		return ""
+	return kind
+
+func _update_winch_hand(delta: float) -> void:
+	if _winch == null:
+		return
+	_winch.visible = kit == "tower" and game.phase in ["pour", "screed", "inspect", "deck", "columns"] and not game.climb.active
+	if not _winch.visible:
+		if _winch_item != null:
+			_winch_item.queue_free()
+			_winch_item = null
+		_winch_state = "idle"
+		_winch_kind = ""
+		return
+	var home := _winch_home()
+	var rack := RACKING + Vector3(0.9, 0, -0.2)
+	var rope := HAUL + Vector3(0.0, 0, 0.75)
+	var to := home
+	_winch_t += delta
+	match _winch_state:
+		"idle":
+			var kind := _winch_want()
+			if kind != "" and _winch_t > 0.8:
+				_winch_kind = kind
+				_winch_state = "to_rack"
+				game.pop("%s coming up the rope" % ("Pipe" if kind == "pipe" else "Clamp kit"), _winch.position + Vector3(0, 2.9, 0), Color("d9c27a"))
+			elif kind == "":
+				_winch_t = 0.0
+		"to_rack":
+			to = rack
+			if _winch.position.distance_to(rack) < 0.25:
+				_winch_item = make_item(_winch_kind)
+				_winch.add_child(_winch_item)
+				_winch_item.position = Vector3(0, 1.15, 0.45)
+				_winch_item.rotation = Vector3(0, PI * 0.5, 0) if _winch_kind == "pipe" else Vector3.ZERO
+				game.sfx.hit("clank")
+				_winch_state = "to_rope"
+		"to_rope":
+			to = rope
+			if _winch.position.distance_to(rope) < 0.25:
+				if hook["kind"] == "" and hook["state"] == "down" and game.bots.part_needed() == _winch_kind:
+					_hook_on(_winch_item)
+					_hook_up()
+				else:
+					_winch_item.queue_free()      # (not wanted after all: back on the racking)
+				_winch_item = null
+				_winch_kind = ""
+				_winch_state = "idle"
+				_winch_t = 0.0
+	var at := _winch.position
+	var step := Vector3(to.x - at.x, 0, to.z - at.z)
+	var walking := step.length() > 0.05
+	if walking:
+		var v := step.normalized() * minf(3.2 * delta, step.length())
+		_winch.position = Vector3(at.x + v.x, 0, at.z + v.z)
+		_winch.rotation.y = atan2(v.x, v.z)
+	elif _winch_state == "idle":
+		# (watching the rope)
+		var look := HAUL - _winch.position
+		_winch.rotation.y = lerp_angle(_winch.rotation.y, atan2(look.x, look.z), 6.0 * delta)
+	var sw := 0.6 * sin(_winch_t * 9.0) if walking else 0.0
+	var carrying := _winch_item != null
+	(_winch.get_node("ArmL") as Node3D).rotation.x = -1.3 if carrying else sw
+	(_winch.get_node("ArmR") as Node3D).rotation.x = -1.3 if carrying else -sw
+	(_winch.get_node("LegL") as Node3D).rotation.x = -sw
+	(_winch.get_node("LegR") as Node3D).rotation.x = sw
 
 func _take_hook(p) -> void:
 	var it: Node3D = hook["node"]
@@ -3256,7 +3410,7 @@ func _take_nearby_part(p, want: String, at: Vector3) -> bool:
 ## Is a part of this kind on its way to the line hand (by someone other than
 ## `asker`): on the rope, in someone's hands, or lying by the joint?
 func part_coming(kind: String, asker) -> bool:
-	if hook["kind"] == kind:
+	if hook["kind"] == kind or _winch_kind == kind:
 		return true
 	for q in game.players:
 		if q != asker and q.held_kind == kind:
@@ -3289,7 +3443,7 @@ func _update_hook(delta: float) -> void:
 				hook["to"] = clampf(q.position.y + 0.9, 1.0, riser_top - 0.8)
 				# Up already: it just follows them along the ladder, quietly
 				if hook["state"] == "up":
-					hook["y"] = move_toward(hook["y"], hook["to"], 4.0 * delta)
+					hook["y"] = move_toward(hook["y"], hook["to"], 4.0 * tall_k() * delta)
 	# A part left hanging that nobody needs gets lowered back down
 	if hook["state"] == "up":
 		hook["idle"] = float(hook.get("idle", 0.0)) + delta
@@ -3309,14 +3463,14 @@ func _update_hook(delta: float) -> void:
 		hook["idle"] = 0.0
 	match hook["state"]:
 		"rising":
-			hook["y"] = move_toward(hook["y"], hook["to"], 4.0 * delta)
+			hook["y"] = move_toward(hook["y"], hook["to"], 4.0 * tall_k() * delta)
 			# The gin wheel ticking over, only while it's hauling up
 			if fmod(_knock_phase, 0.4) < delta and hook["to"] - hook["y"] > 0.5:
 				game.sfx.hit("tink")
 			if absf(hook["y"] - hook["to"]) < 0.01:
 				hook["state"] = "up"
 		"lowering":
-			hook["y"] = move_toward(hook["y"], 0.3, 6.0 * delta)
+			hook["y"] = move_toward(hook["y"], 0.3, 6.0 * tall_k() * delta)
 			if hook["y"] <= 0.31:
 				hook["state"] = "down"
 		"down":
@@ -3331,6 +3485,15 @@ func _update_hook(delta: float) -> void:
 	_line(haul_rope, top, hook_node.position + Vector3(0, 0.2, 0), 0.015)
 	var wheel: Node3D = hook_node.get_meta("wheel")
 	wheel.position = top + Vector3(0, 0.12, 0)
+	if absf(STEP_DZ) > 0.5:
+		# (Spire: the tower's set back from the podium's face, so the wheel hangs off a needle beam
+		# run out from the deck, with a prop under it)
+		if _haul_beam == null:
+			_haul_beam = Node3D.new()
+			_haul_beam.add_child(F.box(Vector3(0.14, 0.18, absf(STEP_DZ) + 2.2), F.mat("yellow_dark"), Vector3(0, 0, 0)))
+			_haul_beam.add_child(F.box(Vector3(0.1, 1.6, 0.1), F.mat("steel"), Vector3(0, -0.9, STEP_DZ * 0.5 - 0.5 * signf(STEP_DZ))))
+			add_child(_haul_beam)
+		_haul_beam.position = top + Vector3(0, 0.36, STEP_DZ * 0.5 + 1.0 * signf(STEP_DZ) * 0.5)
 	if hook["state"] in ["rising", "lowering"]:
 		wheel.rotate_object_local(Vector3.UP, delta * 12.0)
 
@@ -3365,13 +3528,18 @@ func pick_up(p, e: Dictionary) -> void:
 
 const LADDER_OFF_T := 1.2   # s holding down at the foot of the ladder before you're stepped off
 
+## A tall riser's climbed (and the haul rope runs) faster, so the trip never takes much longer
+## than Riverlight's top floors do: up to 2.5 times on Spire's top levels.
+func tall_k() -> float:
+	return clampf(riser_top / 36.0, 1.0, 2.5)
+
 func _ladder(p, delta: float) -> void:
 	var v: Vector2 = p.move_input()
 	var top := maxf(0.0, riser_top - 1.6)
 	var work: float = game.work_y
 	if kit == "tower" and game.deck_open():
 		top = maxf(top, work)   # the ladder always reaches the deck
-	var sp := CLIMB_SPEED * (0.6 if p.held_kind == "pipe" else 1.0)
+	var sp := CLIMB_SPEED * tall_k() * (0.6 if p.held_kind == "pipe" else 1.0)
 	var climbing := absf(v.y) > 0.3
 	# Magnetic stops: the joint being worked (or about to be), the deck and
 	# the ground. Let go of the stick anywhere near one and you're pulled to
