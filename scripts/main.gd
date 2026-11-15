@@ -48,6 +48,7 @@ const ExploreScript := preload("res://scripts/explore.gd")
 const Look := preload("res://scripts/look.gd")
 const SpireSite := preload("res://scripts/spire_site.gd")
 const SpireB := preload("res://scripts/spire_b.gd")
+const SpireStreet := preload("res://scripts/spire_street.gd")
 const TowerHand := preload("res://scripts/tower_hand.gd")
 const LookFx := preload("res://scripts/look_fx.gd")
 
@@ -140,6 +141,7 @@ var base_y := 0.0
 var _spire_world: Node3D
 var _spire_core := {}
 var _spire_b: SpireB
+var _spire_street: SpireStreet
 var _spire_mast: Node3D      # the placing boom's tubular mast, up through the lift core
 var _spire_line: Node3D      # the concrete line from the riser's top, under the deck, to the mast and up it
 var _spire_jack := 0.0       # m the mast has still to be jacked this level (it rises as the form jumps)
@@ -2703,6 +2705,11 @@ func _apply_kit(which: String) -> void:
 		_build_boom(20.0, 20.0)
 		hud.toast(Settings.branded("Good call: that's the kit SCP ran on Riverlight."), 2.4)
 	line.build(self, kit)
+	if spire:
+		# (Ann St's kerbside work zone: barriers, the gantry, the traffic controllers and the spotter)
+		_spire_street = SpireStreet.new()
+		add_child(_spire_street)
+		_spire_street.build(self)
 	line.whip.connect(_on_whip)
 	poker = PokerScript.new()
 	add_child(poker)
@@ -7244,7 +7251,12 @@ func _spire_views() -> Array:
 		["air_west", at + Vector3(70, 30, 25), at],
 		["street", Vector3(26, 12, 17), Vector3(10, 3, 0)],
 		["street_low", Vector3(32, 2.5, 13), Vector3(6, 6, -2)],
-		["road_e", Vector3(30, 5, 24), Vector3(62, 1, 15)],
+		["zone", Vector3(16, 15, 16.5), Vector3(15, 0, 3)],
+		["taper", Vector3(-27, 8, 14), Vector3(-8, 0, 4)],
+		["bay", Vector3(30, 6, 13), Vector3(22, 1, 3)],
+		["zone_w", Vector3(-34, 7, 12), Vector3(0, 1, 4)],
+		["zone_e", Vector3(48, 8, 13), Vector3(18, 1, 3)],
+		["gate", Vector3(11, 5, 12), Vector3(11, 1.5, 1)],
 		["road_w", Vector3(2, 4, 12), Vector3(-34, -1, 15)],
 		["crane", at + Vector3(14, 95, 85), at + Vector3(10, 34, 0)],
 		["street_e", Vector3(-22, 6, 14), Vector3(2, 6, -1)],
