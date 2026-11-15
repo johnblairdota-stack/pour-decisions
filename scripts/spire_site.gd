@@ -106,6 +106,7 @@ static func build_world(parent: Node3D) -> Node3D:
 	if scene is PackedScene:
 		var m: Node3D = scene.instantiate()
 		m.rotation.y = th
+		_tint(m)
 		root.add_child(m)
 		# glTF y-up: (x, ahd, -y). A turn of th about y maps it onto the game's frame
 		root.position = Vector3(off.x, -street, off.y)
@@ -113,6 +114,32 @@ static func build_world(parent: Node3D) -> Node3D:
 		push_warning("Spire: the site model hasn't been imported yet (open the project in the editor once)")
 	parent.add_child(root)
 	return root
+
+## glTF carries only the clay colours: the bare ground reads as a grey slab. Ground goes the game's
+## park green, rock a warm sandstone, water the river's blue-green.
+static func _tint(n: Node) -> void:
+	if n is MeshInstance3D:
+		var mi := n as MeshInstance3D
+		for s in mi.mesh.get_surface_count():
+			var mat := mi.mesh.surface_get_material(s)
+			if mat is BaseMaterial3D:
+				var nm := String(mat.resource_name)
+				var col := Color(-1, 0, 0)
+				if nm == "clay_ground" or nm == "far_land":
+					col = Color("7f9a5c")
+				elif nm == "clay_rock":
+					col = Color("b49a76")
+				elif nm == "clay_water":
+					col = Color("3f6f78")
+				if col.r >= 0.0:
+					var m2 := (mat as BaseMaterial3D).duplicate() as BaseMaterial3D
+					m2.albedo_color = col
+					if nm == "clay_water":
+						m2.roughness = 0.08
+						m2.metallic_specular = 0.9
+					mi.set_surface_override_material(s, m2)
+	for c in n.get_children():
+		_tint(c)
 
 # ------------------------------------------------------------------ the tower as it climbs
 

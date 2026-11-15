@@ -22,6 +22,7 @@ const UI := preload("res://scripts/ui.gd")
 const Settings := preload("res://scripts/settings.gd")
 const QR := preload("res://scripts/qr.gd")
 const Story := preload("res://scripts/story.gd")
+const TowerHand := preload("res://scripts/tower_hand.gd")
 
 const KITS := [
 	{"id": "tower", "name": "Tower boom", "sub": "Pump on the street, boom up a lattice tower", "ok": true, "tag": "WHAT SCP RAN HERE"},
@@ -73,6 +74,7 @@ var _late := false            # the mound's going over the edge
 
 var _crew_page: Control
 var _site_page: Control
+var _tower_page          # the tower pick (tower_pick.gd), the first page
 var _hats: Dictionary = {}    # role -> {hat, tag, ptag, who, col}
 var _pdots: Array = []
 var _ring: Ring
@@ -123,6 +125,49 @@ func _ready() -> void:
 	add_child(root)
 	_build_crew_page(root)
 	_build_site_page(root)
+	_tower_page = TowerHand.new()
+	_tower_page.game = game
+	root.add_child(_tower_page)
+	_tower_page.picked.connect(_card_played)
+	if not TowerHand.arrival.is_empty():
+		_show_page("arrive")          # (a card played on the other site: main.gd flies in)
+	else:
+		_show_page("tower" if wants_tower_page() else "crew")
+
+## The card's been played: its picture fills the screen. On the other site the game comes back up
+## there behind the picture; main.gd then flies up the river to it, and arrived() opens the crew page.
+func _card_played(c: Dictionary) -> void:
+	if String(c["site"]) != String(game.site):
+		Settings.put("site", c["site"])
+		TowerHand.cover(get_tree(), c)
+		get_tree().reload_current_scene()
+		return
+	TowerHand.cover(get_tree(), c)
+	_show_page("arrive")
+
+func arrived(c: Dictionary) -> void:
+	_tower_picked(c)
+
+## The tower pick comes first, except on test runs and when the command line picks the site.
+func wants_tower_page() -> bool:
+	var args := OS.get_cmdline_user_args()
+	for a in args:
+		if a.begins_with("--site=") or a in ["--autotest", "--uitest", "--tutorial", "--nopick"]:
+			return false
+	return true
+
+## A tower's picked: the water tower is the induction (the water tower kit); the others go on to the
+## crew page and then the floor pick as before.
+func _tower_picked(c: Dictionary) -> void:
+	if c["kit"] == "tutorial":
+		index = 2
+		_floor_pick = -1
+		_induction = true
+	else:
+		index = 0
+		if _floor_pick < 0:
+			_floor_pick = 0
+	open_t = 0.0
 	_show_page("crew")
 
 # ------------------------------------------------------------------ crew page
@@ -666,7 +711,7 @@ func _build_site_page(root: Control) -> void:
 	col.add_theme_constant_override("separation", 8)
 	_site_page.add_child(col)
 	UI.place(col, Vector2(1, 1), Vector2(-44, -36))
-	var hint := UI.head("UP / DOWN · FLOOR    X · %s" % ("RIVERLIGHT" if game != null and game.spire else "SPIRE (NEW SITE)"), 24, Color("c9c6bd"), 6)
+	var hint := UI.head("UP / DOWN · FLOOR", 24, Color("c9c6bd"), 6)
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	col.add_child(hint)
 	var bar := HBoxContainer.new()
@@ -805,10 +850,6 @@ func _process_site(delta: float) -> void:
 				v = mv
 			pressed = pressed or p.action_pressed()
 			back = back or p.leave_pressed()
-			if p.alt_pressed() and _cool <= 0.0:
-				# X: the other site (Riverlight <-> Spire)
-				game.swap_site()
-				return
 	if _cool <= 0.0 and absf(v.y) > 0.5:
 		# (up a floor, as far as the next one nobody's poured; down as far
 		# as level 1, or the induction under it while that's on offer)
@@ -896,7 +937,18 @@ func _process(delta: float) -> void:
 		elif page == "site" and _ut > 2.5 and not _done:
 			print("[uitest] picking the tower")
 			pick(0)
-	if page == "crew":
+	if page == "arrive":
+		pass
+	elif page == "tower":
+		var v := Vector2.ZERO
+		var pressed := false
+		for p in game.crew.humans():
+			var mv: Vector2 = p.move_input()
+			if mv.length() > v.length():
+				v = mv
+			pressed = pressed or p.action_pressed()
+		_tower_page.step(delta, v, pressed)
+	elif page == "crew":
 		_process_crew(delta)
 	else:
 		_process_site(delta)
@@ -906,6 +958,9 @@ func _show_page(which: String) -> void:
 	page = which
 	_crew_page.visible = which == "crew"
 	_site_page.visible = which == "site"
+	if _tower_page != null:
+		_tower_page.visible = which == "tower"
+		_tower_page.process_mode = Node.PROCESS_MODE_INHERIT if which == "tower" else Node.PROCESS_MODE_DISABLED
 	# (the page coming in slides in from its side and fades up)
 	if was != which and is_inside_tree():
 		var pg: Control = _site_page if which == "site" else _crew_page

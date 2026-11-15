@@ -47,6 +47,7 @@ const WestWing := preload("res://scripts/west_wing.gd")
 const ExploreScript := preload("res://scripts/explore.gd")
 const Look := preload("res://scripts/look.gd")
 const SpireSite := preload("res://scripts/spire_site.gd")
+const TowerHand := preload("res://scripts/tower_hand.gd")
 const LookFx := preload("res://scripts/look_fx.gd")
 
 # Riverlight: 11 levels; 10 lattice sections reached a 41.4 m free-stand.
@@ -499,6 +500,9 @@ func _build_environment() -> void:
 	RenderingServer.global_shader_parameter_set("look_base", 0.22)
 	# Mist sits low over the river (thick at dawn, lifting by day)
 	env.fog_height = Surrounds.RIVER_Y + 1.6
+	if spire:
+		# (Spire's river is 21 m under the Ann St kerb: the ground mist sits on it, not up at the street)
+		env.fog_height = float(SpireSite.d.get("river_ahd", 0.3)) - SpireSite.street + 1.6
 	LookFx.vignette(self)
 	Look.cur = Look.pick(int(Settings.value("look")))
 	apply_graphics()
@@ -723,8 +727,14 @@ var _light_now: Array = []   # the story light as last shown ([] after a dawn po
 ## Every day but the dawn pour: the light for that day in the tower's story,
 ## eased in from the last one, and on the storm day the sky closing in as the
 ## shower comes and lifting after it.
+## The pick screen and its river flight: golden hour, little haze.
+func picking() -> bool:
+	return (phase == "roles" or phase == "select") and is_instance_valid(selector) and (selector.page == "tower" or selector.page == "arrive")
+
 func _update_story_light(delta: float) -> void:
 	var want: Array = Story.LIGHTS["morning"] if tutorial else Story.light(story_k(k))
+	if picking():
+		want = Story.LIGHTS["golden"]
 	if cfg.get("rain", false) and not tutorial:
 		var t0: float = cfg["rain_at"]
 		var t1: float = t0 + float(cfg["rain_len"])
@@ -741,7 +751,7 @@ func _update_story_light(delta: float) -> void:
 	_set_clouds(float(l[8]))
 	env.fog_height_density = MIST_DAY
 	env.fog_light_color = l[1]
-	env.fog_density = l[7] * _haze_k() * Look.k("haze")
+	env.fog_density = l[7] * _haze_k() * Look.k("haze") * (0.25 if picking() else 1.0)
 	env.adjustment_contrast = l[9] * Look.k("con")
 	env.adjustment_saturation = l[10] * Look.k("sat")
 	env.ambient_light_energy = l[4] * Look.k("amb")
@@ -796,7 +806,7 @@ func _update_daylight(delta: float) -> void:
 		_update_story_light(delta)
 		return
 	_light_now = []
-	env.fog_density = 0.00015 * _haze_k() * Look.k("haze")
+	env.fog_density = 0.00015 * _haze_k() * Look.k("haze") * (0.25 if picking() else 1.0)
 	# (grey before sunrise, the colour coming up with the sun)
 	env.adjustment_contrast = 1.04 * Look.k("con")
 	env.adjustment_saturation = lerpf(0.82, 1.06, smoothstep(0.2, 1.0, _day_u)) * Look.k("sat")
@@ -1937,6 +1947,162 @@ func _menu_frame_crew(delta: float) -> void:
 	camera.h_offset = _menu_h
 
 ## Dev: `--only=coldopen` holds the cold open for its screenshot.
+# ------------------------------------------------------------------ the pick's river flights
+
+const ARRIVE_RIVER_T := 3.4      # s low over the water
+const ARRIVE_SETTLE_T := 1.6     # s climbing off it onto the tower
+var _river_path: Array = []      # camera points low over the river, ending by the site (game x/z, y)
+var _pick_boat: Node3D
+var _pick_wake: MeshInstance3D
+var _caption: CanvasLayer
+var _hand_u := 0.0
+
+## The flight's path: low over the river to this site, from downstream (game coordinates).
+func _river_pts() -> Array:
+	if not _river_path.is_empty():
+		return _river_path
+	var out: Array = []
+	if spire:
+		var water_y := float(SpireSite.d.get("river_ahd", 0.3)) - SpireSite.street
+		var tc := SpireSite.centroid(SpireSite.poly("plate"))
+		var pts: Array = []
+		for p in SpireSite.d.get("river_local", []):
+			pts.append(SpireSite.g(p))
+		var near := 0
+		for i in pts.size():
+			if (pts[i] as Vector2).distance_to(tc) < (pts[near] as Vector2).distance_to(tc):
+				near = i
+		# from downstream (New Farm reach), under the Story Bridge, to the city reach by the site
+		var i0 := mini(pts.size() - 1, near + 7)
+		for i in range(i0, near - 1, -1):
+			var q: Vector2 = pts[i]
+			out.append(Vector3(q.x, water_y + 9.0, q.y))
+	else:
+		# Riverlight (and the water tower): up Hamilton Reach to the site (the top-out fly, run in)
+		for kk in FLY_KEYS.size() - 1:
+			out.append(-REAL_ORIGIN + (FLY_KEYS[kk][1] as Vector3) + Vector3(0, 3.0, 0))
+	_river_path = out
+	return out
+
+## A point u (0..1) along the river path, smoothed (Catmull-Rom).
+func _river_at(u: float) -> Vector3:
+	var pts := _river_pts()
+	if pts.size() < 2:
+		return Vector3(0, 30, 60)
+	var f := clampf(u, 0.0, 1.0) * (pts.size() - 1)
+	var i := mini(int(f), pts.size() - 2)
+	var t := f - i
+	var p0: Vector3 = pts[maxi(0, i - 1)]
+	var p1: Vector3 = pts[i]
+	var p2: Vector3 = pts[i + 1]
+	var p3: Vector3 = pts[mini(pts.size() - 1, i + 2)]
+	var t2 := t * t
+	var t3 := t2 * t
+	return 0.5 * (2.0 * p1 + (p2 - p0) * t + (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * t2 + (3.0 * p1 - p0 - 3.0 * p2 + p3) * t3)
+
+## The CityCat and its wake, on the water ahead of the camera.
+func _pick_boat_at(u: float, ahead: float) -> void:
+	if _pick_boat == null:
+		_pick_boat = preload("res://scripts/citycat.gd").boat()
+		add_child(_pick_boat)
+		_pick_wake = MeshInstance3D.new()
+		var pm := PlaneMesh.new()
+		pm.size = Vector2(7.0, 70.0)
+		_pick_wake.mesh = pm
+		var wm := StandardMaterial3D.new()
+		wm.albedo_color = Color(1, 1, 1, 0.6)
+		wm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		wm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		_pick_wake.material_override = wm
+		_pick_wake.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(_pick_wake)
+	# (about 80 m ahead of the camera along the river, 14 m to the side)
+	var cam_at := _river_at(u)
+	var ua := u
+	while ua < 1.2 and Vector2(_river_at(ua).x - cam_at.x, _river_at(ua).z - cam_at.z).length() < 80.0:
+		ua += 0.004
+	var at := _river_at(ua)
+	var nx := _river_at(ua + 0.02)
+	var side := Vector3(nx.z - at.z, 0, -(nx.x - at.x)).normalized()
+	at += side * 5.0
+	var water := at.y - 9.0 - (3.0 if not spire else 0.0)
+	_pick_boat.position = Vector3(at.x, water, at.z)
+	var dir := Vector3(nx.x - at.x, 0, nx.z - at.z).normalized()
+	if dir.length() > 0.1:
+		_pick_boat.look_at(_pick_boat.position + dir, Vector3.UP)
+		_pick_boat.rotate_y(PI * 0.5)      # (the model runs along its x)
+		_pick_wake.position = _pick_boat.position - dir * 38.0 + Vector3(0, 0.15, 0)
+		_pick_wake.look_at(_pick_wake.position + dir, Vector3.UP)
+
+## Behind the hand: a slow flight up the river, never stopping.
+func _hand_camera(delta: float) -> void:
+	_hand_u = fmod(_hand_u + delta * 0.012, 0.7)
+	var p := _river_at(_hand_u) + Vector3(0, 22.0, 0)
+	var ahead := _river_at(_hand_u + 0.18) + Vector3(0, 16.0, 0)     # (up the reach: the skyline over the water)
+	camera.position = p
+	camera.look_at(ahead, Vector3.UP)
+	_pick_boat_at(_hand_u, 0.035)
+
+## Playing a card: low over the river to the site, then up onto the tower; the crew page after.
+func _arrive_camera(delta: float) -> void:
+	var a: Dictionary = TowerHand.arrival
+	a["t"] = float(a.get("t", 0.0)) + delta
+	if _human_a and float(a["t"]) > 0.4:
+		a["t"] = maxf(float(a["t"]), ARRIVE_RIVER_T + ARRIVE_SETTLE_T)
+	var t: float = a["t"]
+	if t < 0.5:
+		TowerHand.uncover(t / 0.5)
+	if _caption == null:
+		_caption = CanvasLayer.new()
+		_caption.layer = 6
+		add_child(_caption)
+		var strip := UI.pill(Color(0.05, 0.06, 0.08, 0.8), Vector4(24, 8, 28, 8))
+		strip.add_child(UI.head(String(a["card"]["caption"]), 34, Color("f4f2ec")))
+		_caption.add_child(strip)
+		UI.place(strip, Vector2(0.5, 1), Vector2(0, -60))
+	var tower := Vector3(SC.x, level_y(0) + 6.0, SC.z)
+	if spire:
+		var pc := SpireSite.centroid(SpireSite.poly("plate"))
+		tower = Vector3(pc.x, level_y(0) + 6.0, pc.y)
+	var u := clampf(t / ARRIVE_RIVER_T, 0.0, 1.0)
+	var ue := ease(u, -1.4)
+	var river := _river_at(ue) + Vector3(0, 16.0, 0)       # (25 m over the water)
+	var look := _river_at(ue + 0.1) + Vector3(0, 6.0, 0)
+	_pick_boat_at(ue, 0.05)
+	var s := clampf((t - ARRIVE_RIVER_T) / ARRIVE_SETTLE_T, 0.0, 1.0)
+	if s > 0.0:
+		# climb off the water and settle on the tower and its deck
+		var e := ease(s, -2.0)
+		var back := (river - tower)
+		back.y = 0.0
+		if spire:
+			# (from the river side a tall neighbour stands in front of Spire: settle from across pour A)
+			var cy := SpireSite.cam_yaw()
+			back = Vector3(sin(cy), 0, cos(cy))
+		var end := tower + back.normalized() * 125.0 + Vector3(0, 95.0, 0)   # (over the neighbours' roofs)
+		river = river.lerp(end, e)
+		look = look.lerp(tower, e)
+	camera.position = river
+	camera.look_at(look, Vector3.UP)
+	if TowerHand.shots != "":
+		if t >= 2.0 and t - delta < 2.0:
+			(func(): TowerHand.shot("pick_flight", get_viewport())).call_deferred()
+		if t >= ARRIVE_RIVER_T + ARRIVE_SETTLE_T - 0.05 and t - delta < ARRIVE_RIVER_T + ARRIVE_SETTLE_T - 0.05:
+			TowerHand.shot("pick_arrive", get_viewport())
+			get_tree().quit()
+	if t >= ARRIVE_RIVER_T + ARRIVE_SETTLE_T:
+		TowerHand.arrival = {}
+		TowerHand.uncover(1.0)
+		if _caption != null:
+			_caption.queue_free()
+			_caption = null
+		if _pick_boat != null:
+			_pick_boat.queue_free()
+			_pick_wake.queue_free()
+			_pick_boat = null
+		cam_focus = look
+		selector.arrived(a["card"])
+
 ## Spire: a new level. The core's jump form jumps to stay LEAD levels ahead of the deck, the bot
 ## crew's pour B is reset, and the camera swings round to look across pour A at the core.
 func _spire_level() -> void:
@@ -1956,7 +2122,7 @@ func wants_cold_open() -> bool:
 	return shot_dir != "" and "coldopen" in _shot_only and not _shots_taken.has("coldopen")
 
 func _menu_deck_y(fp: int) -> float:
-	return (fp + 1) * FH - 0.3
+	return level_y(fp + 1) - 0.3
 
 func _menu_sections(fp: int) -> int:
 	var n := 4
@@ -1976,10 +2142,19 @@ func _menu_build() -> void:
 	var wall := plan.slice(1)
 	wall.append(Vector2(10.7, -1.15))
 	var inset: Array = Geometry2D.offset_polygon(wall, -0.2)
-	for i: int in FLOORS:
+	for i: int in (floors() if spire else FLOORS):
 		var f := Node3D.new()
-		f.position.y = i * FH
+		f.position.y = level_y(i)
 		_menu_floors.add_child(f)
+		if spire:
+			# (Spire: the real plate, every level: the floor page shows the one picked)
+			SpireSite.floor_slab(f, FH, 0.3, FH)
+			var o3 := Node3D.new()
+			var s3 := Node3D.new()
+			f.add_child(o3)
+			f.add_child(s3)
+			_menu_storeys.append({"node": f, "open": o3, "skin": s3})
+			continue
 		f.add_child(F.box(Vector3(BW + 0.6, 0.3, BD + 0.6), grey, Vector3(SC.x, FH - 0.15, SC.z)))
 		f.add_child(F.prism(plan, FH - 0.3, 0.3, grey))
 		# (open frame for the first storeys under the deck...)
@@ -2016,6 +2191,11 @@ func _menu_build() -> void:
 	_menu_pour._make_kernel()
 	_menu_pour.set_edge_view(0.0)
 	(_menu_pour._rect_parts[1] as Node3D).visible = false
+	if spire:
+		var rel := PackedVector2Array()
+		for p in SpireSite.poly("A"):
+			rel.append(p - Vector2(SC.x, SC.z))
+		_menu_pour.set_poly(rel)
 	_menu_stream = F.cylinder(0.11, 1.0, F.color_mat(Color("6e7073")), Vector3.ZERO, 8)
 	_menu_deck.add_child(_menu_stream)
 	_menu_fall = MeshInstance3D.new()
@@ -3137,6 +3317,9 @@ func _clear_trucks_of_people() -> void:
 
 ## The box a level's walkable area sits in, for the bots' route search.
 func walk_bounds(zone: String) -> Rect2:
+	if zone == "deck" and spire:
+		# (Spire: the whole of pour A's deck and its walkway, both sides of the boom tower)
+		return Rect2(SC.x - BW * 0.5 - 2.0, SC.z - BD * 0.5 - 2.0, BW + 4.0, BD + 4.0)
 	if zone == "deck":
 		var x0 := SC.x - BW * 0.5 - 2.0
 		return Rect2(x0, SC.z - BD * 0.5 - 2.0, LAT_X + 2.6 - x0, BD + 4.0)
@@ -3904,6 +4087,8 @@ func _process(delta: float) -> void:
 			else:
 				selector.pick(2 if tutorial else (0 if _auto_kit == "tower" else 1))
 				_auto_kit = ""
+		if picking():
+			_update_daylight(delta)        # (golden hour on the pick and its flight)
 		_update_camera(delta)
 		_update_see_through(delta)
 		return
@@ -4145,8 +4330,9 @@ func _process(delta: float) -> void:
 	# A hang shows up as one phase that never ends; the whole run's budget is
 	# only a backstop (a full tower runs 30 to 40 minutes, give or take the
 	# trucks)
-	if autotest and phase_t > 8.0 * 60.0:
+	if autotest and phase_t > (14.0 if spire and SpireSite.is_transfer(k) else 8.0) * 60.0:   # (the transfer slab's a long pour)
 		push_error("[autotest] stuck in phase %s at level %d (%.0fs)" % [phase, k + 1, phase_t])
+		print("[autotest]   ops stage '%s' washed %s primed %s | left %s | line live %s" % [ops.stage, ops.washed, ops.primed, str(_left), line.live])
 		for q in players:
 			print("[autotest]   %s: zone %s busy '%s' held '%s' at %s" % [q.role, q.zone, q.busy, q.held_kind, q.position])
 		if climb.active:
@@ -6875,7 +7061,28 @@ func _update_camera_views(delta: float) -> void:
 		if _menu_yaw == INF:
 			_menu_yaw = cam_yaw
 		var sel_ok: bool = is_instance_valid(selector)
-		if phase == "roles" and sel_ok:
+		if phase == "roles" and sel_ok and selector.page == "tower":
+			# The tower pick: a slow turn round the site, the card over the bottom left
+			# a 3/4 view of the tower, its whole height in the right half of the screen, beside the card
+			var tower := Vector3(SC.x, 0, SC.z)
+			var high := 14.0
+			if spire:
+				var pc := SpireSite.centroid(SpireSite.poly("plate"))
+				tower = Vector3(pc.x, 0, pc.y)
+				high = level_y(0) + 14.0      # the podium, the deck and the core with its jump form
+			dist = 60.0 + high * 1.7
+			var look_y := high * 0.5
+			var want_pitch := 0.3
+			if spire:
+				# (Spire's deck is down among taller neighbours: from above their roofs, 33 degrees down)
+				dist = 150.0
+				look_y = level_y(0)
+				want_pitch = 0.58
+			var right := Vector3(cos(cam_yaw), 0, -sin(cam_yaw))
+			focus = tower + Vector3(0, look_y, 0) - right * dist * (0.3 if spire else 0.2)
+			cam_pitch = lerpf(cam_pitch, want_pitch, minf(1.0, delta * 1.5))
+			cam_yaw += delta * 0.05
+		elif phase == "roles" and sel_ok:
 			# The cold open: in from high over the river, then a slow turn
 			# around the site behind the hat rack
 			var e: float = selector.open_e
@@ -6932,6 +7139,11 @@ func _update_camera_views(delta: float) -> void:
 	camera.look_at(cam_focus, Vector3.UP)
 	if _fly_on and _shot_cam.is_empty():
 		_fly_camera()
+	if _shot_cam.is_empty() and (phase == "roles" or phase == "select") and is_instance_valid(selector):
+		if not TowerHand.arrival.is_empty() and selector.page == "arrive":
+			_arrive_camera(delta)
+		elif selector.page == "tower":
+			_hand_camera(delta)
 	# The deck view shifts up into the top part of the screen as the band opens
 	camera.v_offset = -0.34 * split_e * camera.position.distance_to(cam_focus) * tan(deg_to_rad(camera.fov * 0.5))
 	_menu_shift = move_toward(_menu_shift, 1.0 if phase == "select" else 0.0, delta * 1.6)

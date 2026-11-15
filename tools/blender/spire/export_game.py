@@ -70,7 +70,21 @@ def site_data():
         "crane": {"xy": r2(L.CRANE["mast_xy"]), "jib_m": L.CRANE["jib_length_m"], "type": L.CRANE["type"]},
         "hoist": {"xy": r2(L.HOIST["mast_xy"]), "confidence": L.HOIST["confidence"]},
         "ann_st_frame": [list(v) for v in L.ann_st_frame()],
+        "river_local": river_local(),
+        "river_ahd": L.RIVER_LEVEL_AHD,
+        "story_bridge_local": [r2(L.to_local(-27.46171, 153.03570)), r2(L.to_local(-27.46570, 153.03580))],
     }
+
+
+def river_local():
+    """The Brisbane River's OSM centreline (scripts/site_transition.gd RIVER) in local metres: the pick
+    screen's flight path along the water."""
+    import re
+    src = open(os.path.join(REPO, "scripts", "site_transition.gd"), encoding="utf-8").read()
+    a = src.index("const RIVER := [")
+    b = src.index("]", a)
+    pts = [tuple(map(float, m)) for m in re.findall(r"Vector2\(([-\d.]+), ([-\d.]+)\)", src[a:b])]
+    return [r2(L.to_local(lat, lon)) for lat, lon in pts]
 
 
 def cut_above(ob, z_cut):
