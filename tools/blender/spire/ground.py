@@ -74,7 +74,7 @@ def build():
     ob.data.materials.append(C.material("grass"))
     mi = np.where(steep > 0, 1, np.where(gm, 2, 0)).astype("i4")
     if not st:                               # HSW round 2: the mangrove island / bank is dark mud under the trees
-        ob.data.materials.append(C.material_rgb("mangrove_mud", (0.07, 0.065, 0.045)))
+        ob.data.materials.append(C.material_rgb("mangrove_mud", (0.15, 0.13, 0.09)))   # r7: lighter mud
         mx0, my0, mx1, my1 = L.HSW["mangroves"]["box"]
         fc_ = np.stack([X[:-1, :-1], Y[:-1, :-1], sub[:-1, :-1]], -1).reshape(-1, 3)
         mud = (fc_[:, 0] > mx0) & (fc_[:, 0] < mx1) & (fc_[:, 1] > my0) & (fc_[:, 1] < my1) & (fc_[:, 2] < L.HSW["mangroves"]["z"][1] + 0.5)

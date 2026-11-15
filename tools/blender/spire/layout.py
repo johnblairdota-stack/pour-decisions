@@ -168,7 +168,7 @@ HSW.update({
                         "orange iron staining, dark wet streaks, bushy ledges, trees over the top"},
     # Mr Percival's (OSM way 679146312, ring 476-490 x 36-49): octagonal sage-green pavilion with a standing-seam
     # roof and a glazed lantern, on a timber deck on piles (photos gg_a57206f9, gg_4681e729, gg_4202cd18)
-    "percivals": {"centre_xy": (483.0, 42.5), "radius_m": 8.6, "deck_ahd": 3.7, "wall_top_ahd": 8.0,
+    "percivals": {"centre_xy": (483.0, 42.5), "radius_m": 10.5, "deck_ahd": 3.7, "wall_top_ahd": 8.0,
                   "roof_top_ahd": 12.2, "lantern_r": 3.0, "deck_size_m": (34.0, 22.0), "deck_angle_deg": -2.0,
                   "wall": (0.56, 0.74, 0.64), "roof": (0.40, 0.42, 0.43),   # r2: mint (photo p09)
                   "source": "OSM footprint (14 m across) + RESEARCH.md (20 x 30 m deck) + photos"},
@@ -191,8 +191,8 @@ HSW.update({
     ],
     # corten lift tower beside Felons up to Bowen Tce / Malt St (photo overview_aerial/gg_a5a9345f: tall
     # rust-orange shaft with dark slots, rising ~8 m over the cliff-top trees, platform + link at the top)
-    "lift_tower": {"xy": (594.0, 89.0), "size_m": (5.0, 5.0), "top_ahd": 48.0, "link_ahd": 36.4,
-                   "cliff_top_xy": (594.0, 120.0), "stairs": True,
+    "lift_tower": {"xy": (577.0, 90.0), "size_m": (5.0, 5.0), "top_ahd": 48.0, "link_ahd": 36.4,   # r7: 17 m west
+                   "cliff_top_xy": (577.0, 120.0), "stairs": True,
                    "source": "triangulated from solved photo cams p01/p02/p03 (tools/hsw/triangulate.py: x 590-600, "
                              "y 67-89, top 49-53 AHD); OSM Malt St end at Bowen Tce (x 602-616, y 122-137)"},
     # riverwalk: concrete-topped boardwalk on steel cantilevers (RESEARCH.md: ~5 m cantilevers on piles, from land)
@@ -212,7 +212,7 @@ HSW.update({
 # ---------------------------------------------------------------- HSW round 2 (critic's ranked list, 15 Nov 2026)
 HSW.update({
     # 1 cliff: warm tan-ochre Brisbane tuff, fractured near-vertical faces, mostly bare (photos p06, p10, gg_11228e1b)
-    "cliff": {"tuff": ((0.34, 0.31, 0.27), (0.50, 0.45, 0.38), (0.46, 0.34, 0.23)), "bench_m": 4.5,   # r5: grey-tan buff
+    "cliff": {"tuff": ((0.38, 0.31, 0.24), (0.56, 0.46, 0.35), (0.52, 0.34, 0.18)), "bench_m": 4.5,   # r7: warmer buff
               "shrubs": 700, "seed": 11, "slabs": 0, "rim_rocks": 0,
               "source": "photos p06/p10: tan-ochre rock with orange iron stain, dark joints, overhangs, "
                         "tufts on ledges, figs and vines hanging off the rim"},
@@ -222,7 +222,7 @@ HSW.update({
               "mix": {"fig": 30, "eucalypt": 25, "poinciana": 15, "palm": 10, "generic": 20}},
     # 3 waterline: river bank below the decks sinks under the water; dark timber pile colonnade under the
     # riverwalk and shed decks with cross bracing (photo p09); riprap boulders (photo p06, Rivershed point)
-    "waterline": {"sink_below_ahd": 2.2, "sink_to_ahd": -1.2, "pile_every_m": 2.2, "pile_w_m": 0.6,
+    "waterline": {"sink_below_ahd": 2.2, "sink_to_ahd": -1.2, "pile_every_m": 3.2, "pile_w_m": 0.75,
                   "pile_rgb": (0.17, 0.145, 0.12), "fascia_rgb": (0.10, 0.085, 0.07),
                   "riprap_box": (690.0, -60.0, 870.0, 40.0), "riprap_z": (-0.8, 2.8), "riprap_every_m": 1.6},
     # 4 ground: sand-pink decomposed granite paths through the lawns (OSM footways), warm pale paving
@@ -232,7 +232,7 @@ HSW.update({
     "sun_angle_deg": 1.6,
     "river": {"rgb": (0.10, 0.09, 0.065),   # r5: less khaki
               "rough": 0.07, "spec": 0.5, "swell_scale": 0.06, "wave_scale": 0.18,
-              "chop_scale": 0.9, "bump": 0.55, "bump_dist": 0.15},   # r4: glossy, ripples at 3 scales
+              "chop_scale": 1.6, "bump": 0.55, "bump_dist": 0.15},   # r4: glossy, ripples at 3 scales
     # 7 north main pier: arch crown 8.2 m under the pier top (photo p09: 120 px at 14.6 px/m), dark inside
     "pier_arch_crown_below_top_m": 8.2,
     # 10 lift tower: slimmer, oxide red (photo p06/p10)
@@ -250,7 +250,7 @@ HSW.update({
     "pier_render": (0.86, 0.71, 0.49),   # r4: warmer cream
     "pier_arch_back": (0.30, 0.26, 0.20),   # r5: lit back wall, not a void
     # 8 roof letters mid grey; Mr Percival's one dark roof
-    "letters_rgb": (0.33, 0.33, 0.34), "percivals_roof_r3": (0.30, 0.32, 0.34),
+    "letters_rgb": (0.14, 0.14, 0.15), "percivals_roof_r3": (0.09, 0.10, 0.11),
     # 10 lift: corten frame, teal glass shaft, enclosed teal skybridge (photo p12)
     "lift_glass": (0.10, 0.20, 0.22), "skybridge_extra_m": 22.0,
     # 12 horizon: compositor mist toward a warm haze, far ridge card, green far land
@@ -261,6 +261,9 @@ HSW.update({
     # round 6: open dining deck on piles with umbrellas between Felons and Barrel Hall (photos p12/p13), Oakwood
     "felons_east_deck": {"box": (578.0, 47.0, 606.0, 74.0), "deck_ahd": 3.7},
     "oakwood_way": 26386779,
+    # round 7: cream balconied apartment blocks on the cliff crest (Bowen Tce), photos p12/p09, refs bowen_tce_wilson_outlook
+    "crest_blocks": {"box": (380.0, 60.0, 950.0, 320.0), "min_top_ahd": 30.0, "wall": (0.62, 0.53, 0.40),
+                     "slab": (0.74, 0.67, 0.53), "rail": (0.10, 0.10, 0.11)},
 })
 # Story Bridge piers (HSW round 1): each main pier is one rendered-concrete portal in cream ACROSS the bridge:
 # a leg under each truss, a round-headed arch between them under the road centre line, plinth, string course,
@@ -872,6 +875,22 @@ def lidar_building_heights():
 
 def spire_podium_outline():
     return [tuple(p) for p in json.load(open(os.path.join(REF, "lidar", "spire_podium.json")))["outline_local"]]
+
+
+def hsw_crest_ids():
+    """HSW round 7: the cliff-crest apartment blocks that hsw_hero.crest_blocks builds itself (buildings.py skips them)."""
+    CB = HSW.get("crest_blocks")
+    if not CB:
+        return set()
+    x0, y0, x1, y1 = CB["box"]
+    out = set()
+    skip = {HSW["hotel_way"]} | {s["osm"] for s in HSW["sheds"]}
+    for b in json.load(open(os.path.join(REF, "lidar", "buildings_clean.json")))["buildings"]:
+        r = b["tiers"][0]["ring"]
+        cx, cy = sum(p[0] for p in r) / len(r), sum(p[1] for p in r) / len(r)
+        if b["osm"] not in skip and x0 <= cx <= x1 and y0 <= cy <= y1 and max(t["top_ahd"] for t in b["tiers"]) >= CB["min_top_ahd"]:
+            out.add(b["osm"])
+    return out
 
 
 def tree_points():

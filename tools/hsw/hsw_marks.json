@@ -62,7 +62,7 @@
    "note": "round 2 (Wikimedia, Kgbo CC BY-SA 4.0). Lift top (995, 372) and Felons east ridge end (1240, 607) left out: they miss by 120-150 px, so the model lift tower or Felons east end is a few metres off (check next round)"},
   {"id": "p13_kp_bank_ferry", "file": "from_kangaroo_point/cm_b2f87a7b.jpg", "title": "From the Kangaroo Point bank: north tower, pier portal, HSW shed, Mr Percival's, Felons, lift tower",
    "size": [1600, 1200], "mode": "tilt", "time_h": 12.0,
-   "guess": {"x": 620, "y": -230, "z": 3.0, "z_weight": 3.0, "xy_weight": 0.02, "heading": 320, "pitch": 4, "f35": 35},
+   "guess": {"x": 380, "y": -220, "z": 5.6, "z_weight": 3.0, "xy_weight": 0.02, "heading": 25, "pitch": 4, "f35": 40},
    "marks": [["pier_n_top_sw", 544, 561], ["pier_n_top_se", 788, 568], ["pier_n_crown_s", 665, 623],
              ["pier_n_spring_sw", 630, 658], ["pier_n_spring_se", 700, 658], ["percivals_top", 764, 726],
              ["hswshed_ridge_w", 245, 713], ["peak_n_w", 592, 126], ["peak_n_e", 757, 137]],

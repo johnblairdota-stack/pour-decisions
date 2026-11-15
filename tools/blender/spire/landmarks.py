@@ -129,8 +129,7 @@ def build():
     t = ta
     while t < tb:
         tn = min(t + 7.0, tb)
-        under.add([P(t, nc - hw - 0.2, deck(t) - 0.62), P(tn, nc - hw - 0.2, deck(tn) - 0.62),
-                   P(tn, nc + hw + 0.2, deck(tn) - 0.62), P(t, nc + hw + 0.2, deck(t) - 0.62)], [[3, 2, 1, 0]])   # dark soffit
+        pass                                                              # r7: no flat soffit plate
         for n in sl:                                                      # stringers
             under.beam(P(t, n, deck(t) - 0.9), P(tn, n, deck(tn) - 0.9), 0.25, 0.25)
         if t0 <= t <= t1:
