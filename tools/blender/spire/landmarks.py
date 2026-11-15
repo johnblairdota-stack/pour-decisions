@@ -56,6 +56,7 @@ def build():
     steel, under, conc, dk, misc = C.MeshBuf(), C.MeshBuf(), C.MeshBuf(), C.MeshBuf(), C.MeshBuf()
     ang0 = math.atan2(ay, ax)
     shade_ = C.MeshBuf()
+    behind = C.MeshBuf()
     ztop = lambda t: max(topc(t), deck(t) + 6.0)
     # ---------------------------------------------------------------- truss
     k = int(round((t1 - t0) / B["panel_m"]))
@@ -68,17 +69,18 @@ def build():
         mid = [P(t, n, (deck(t) - 0.6 + ztop(t)) / 2) for t in ts]
         for i in range(k):
             steel.beam(bot[i], bot[i + 1], 2.1, 2.6)                     # bottom chord (HSW r4: 1.5x, deeper girder)
-            steel.beam(top[i], top[i + 1], 2.0, 2.3)                     # top chord
+            steel.beam(top[i], top[i + 1], 1.4, 1.6)                     # top chord (r6: slimmer, separate from web)
+            steel.beam((top[i][0], top[i][1], top[i][2] + 1.9), (top[i + 1][0], top[i + 1][1], top[i + 1][2] + 1.9), 0.08)   # handrail
             depth = min(ztop(ts[i]), ztop(ts[i + 1])) - deck(ts[i])
             if depth > 13.0:                                              # K panel: diagonals meet mid-vertical
                 tower = tn_ if abs(ts[i] - tn_) < abs(ts[i] - ts_) else ts_
                 near, far = (i, i + 1) if abs(ts[i] - tower) < abs(ts[i + 1] - tower) else (i + 1, i)
-                steel.beam(mid[far], top[near], 1.1)
-                steel.beam(mid[far], bot[near], 1.1)
+                steel.beam(mid[far], top[near], 0.8)
+                steel.beam(mid[far], bot[near], 0.8)
                 kpanels += 1
             else:                                                         # Warren
-                steel.beam(bot[i], top[i + 1] if (i % 2 == 0) else top[i], 1.05)
-                steel.beam(top[i] if (i % 2 == 0) else bot[i], top[i + 1] if (i % 2 == 1) else bot[i + 1], 1.05)
+                steel.beam(bot[i], top[i + 1] if (i % 2 == 0) else top[i], 0.75)
+                steel.beam(top[i] if (i % 2 == 0) else bot[i], top[i + 1] if (i % 2 == 1) else bot[i + 1], 0.75)
         for i in range(k):                                                # HSW r3: lattice lacing in every panel (p13)
             if ztop(ts[i]) - deck(ts[i]) > 9.0:
                 steel.beam(bot[i], mid[i + 1], 0.2)
@@ -88,8 +90,8 @@ def build():
         for i in range(k + 1):
             heavy = min(abs(ts[i] - tn_), abs(ts[i] - ts_)) < 1.0
             steel.beam(bot[i], top[i], 2.4 if heavy else 1.35)            # verticals (tower posts heavier)
-            steel.box(bot[i][0], bot[i][1], bot[i][2] - 1.6, 3.2, 3.2, 3.2, ang0)   # r4: gusset plates at the joints
-            steel.box(top[i][0], top[i][1], top[i][2] - 1.6, 3.0, 3.0, 3.2, ang0)
+            steel.box(bot[i][0], bot[i][1], bot[i][2] - 1.5, 3.0, 0.5, 3.0, ang0)   # r6: flat gusset plates in the truss plane
+            steel.box(top[i][0], top[i][1], top[i][2] - 1.5, 2.8, 0.5, 2.8, ang0)
             if ztop(ts[i]) - deck(ts[i]) > 13.0:
                 steel.beam(mid[i], mid[min(i + 1, k)], 0.35)              # sub-strut at mid height
     for i, t in enumerate(ts):                                            # top lateral bracing + portals
@@ -112,19 +114,17 @@ def build():
             steel.beam(P(tt, nc - hw, zb), P(tt, nc + hw, zb), 0.45)
     # ---------------------------------------------------------------- deck underside steel
     ta, tb = B["deck_t"]
-    for i, t in enumerate(ts):                                            # r5: cross-girders every half panel,
-        under.beam(P(t, nc - hw, deck(t) - 1.6), P(t, nc + hw, deck(t) - 1.6), 0.45, 1.8)   # thinner and even
-        if i < k:
-            tm = (t + ts[i + 1]) / 2
-            under.beam(P(tm, nc - hw, deck(tm) - 1.4), P(tm, nc + hw, deck(tm) - 1.4), 0.35, 1.3)
+    tq = ta
+    while tq < tb:                                                        # r6: thin cross-girders every 3.5 m
+        under.beam(P(tq, nc - hw, deck(tq) - 1.2), P(tq, nc + hw, deck(tq) - 1.2), 0.3, 0.3)
+        tq += 3.5
     for i in range(k):                                                    # HSW r2: secondary hangers + sway braces
         tm = (ts[i] + ts[i + 1]) / 2
         for side in (-1, 1):
             n = nc + side * hw
             if ztop(tm) - deck(tm) > 9.0:
                 steel.beam(P(tm, n, deck(tm) - 0.6), P(tm, n, ztop(tm)), 0.4)
-        under.beam(P(ts[i], nc - hw, deck(ts[i]) - 2.6), P(ts[i + 1], nc, deck(ts[i + 1]) - 2.6), 0.22)
-        under.beam(P(ts[i], nc + hw, deck(ts[i]) - 2.6), P(ts[i + 1], nc, deck(ts[i + 1]) - 2.6), 0.22)
+
     sl = [nc - hw + 2.0 + j * (2 * hw - 4.0) / 5 for j in range(6)]
     t = ta
     while t < tb:
@@ -132,10 +132,10 @@ def build():
         under.add([P(t, nc - hw - 0.2, deck(t) - 0.62), P(tn, nc - hw - 0.2, deck(tn) - 0.62),
                    P(tn, nc + hw + 0.2, deck(tn) - 0.62), P(t, nc + hw + 0.2, deck(t) - 0.62)], [[3, 2, 1, 0]])   # dark soffit
         for n in sl:                                                      # stringers
-            under.beam(P(t, n, deck(t) - 1.1), P(tn, n, deck(tn) - 1.1), 0.45, 0.9)
+            under.beam(P(t, n, deck(t) - 0.9), P(tn, n, deck(tn) - 0.9), 0.25, 0.25)
         if t0 <= t <= t1:
-            under.beam(P(t, nc - hw, deck(t) - 2.0), P(tn, nc + hw, deck(tn) - 2.0), 0.25)
-            under.beam(P(t, nc + hw, deck(t) - 2.0), P(tn, nc - hw, deck(tn) - 2.0), 0.25)
+            under.beam(P(t, nc - hw, deck(t) - 1.5), P(tn, nc + hw, deck(tn) - 1.5), 0.12)
+            under.beam(P(t, nc + hw, deck(t) - 1.5), P(tn, nc - hw, deck(tn) - 1.5), 0.12)
         else:                                                             # approach girders (plate girders)
             for n in (nc - hw + 1.0, nc + hw - 1.0):
                 under.beam(P(t, n, deck(t) - 1.9), P(tn, n, deck(tn) - 1.9), 0.6, 2.6)
@@ -166,23 +166,30 @@ def build():
         across(arch_profile(2 * W2, zc, g, BP["arch_w_m"], spring), tt, -D2, D2)
         ap = [(-hA + 0.05, g)] + [(hA * math.cos(math.pi - math.pi * j / 16) * 0.99, g + spring + hA * math.sin(math.pi - math.pi * j / 16) * 0.99)
                                   for j in range(17)] + [(hA - 0.05, g)]
-        for d in (-D2 + 0.6,):                                            # HSW r3: one mid-dark back wall in the arch
-            k_ = len(ap)
-            vs = [P(tt + d, nc + u, z) for u, z in ap] + [P(tt + d + 0.2, nc + u, z) for u, z in ap]
-            shade_.add(vs, [list(range(k_)), list(range(2 * k_ - 1, k_ - 1, -1))])
-        for u in (-hA * 0.55, hA * 0.55):                                 # r4: things seen through the arch (p09)
-            x3, y3, _ = P(tt - D2 * 0.3, nc + u, 0)
-            misc.box(x3, y3, g, 0.4, 0.4, spring + hA * 0.4, ang)
-        x3, y3, _ = P(tt - D2 * 0.3, nc, 0)
-        misc.box(x3, y3, g + spring * 0.55, 0.5, 2 * hA * 0.9, 0.6, ang)
-        conc.box(x3, y3, g, 2.0, 2 * hA * 0.9, 1.2, ang)
+        # HSW r6: an open arch in daylight (p09): nothing inside; a glazed wall of the HSW buildings behind it
+        bx_, by_, _ = P(tt - D2 - 16.0, nc, 0)
+        behind.box(bx_, by_, g, 1.0, 2 * hA + 8.0, 12.0, ang)
+        for j in range(-4, 5):                                            # mullions on it
+            mx_, my_, _ = P(tt - D2 - 15.4, nc + j * 2.4, 0)
+            misc.box(mx_, my_, g, 0.25, 0.18, 12.0, ang)
+        for zz_ in (g + 4.0, g + 8.0, g + 12.0):
+            mx_, my_, _ = P(tt - D2 - 15.4, nc, 0)
+            misc.box(mx_, my_, zz_ - 0.2, 0.25, 2 * hA + 8.0, 0.35, ang)
         across([(-W2 - 1.5, zc - 0.3), (W2 + 1.5, zc - 0.3), (W2 + 1.5, topz), (-W2 - 1.5, topz)], tt, -D2 - 1.5, D2 + 1.5)   # cornice (r3: bolder)
         across([(-W2 - 0.5, zc - 1.6), (W2 + 0.5, zc - 1.6), (W2 + 0.5, zc - 0.9), (-W2 - 0.5, zc - 0.9)], tt, -D2 - 0.5, D2 + 0.5)
         for u0, u1 in ((-W2 - 0.8, -hA), (hA, W2 + 0.8)):                 # plinth under both legs
             across([(u0, g), (u1, g), (u1, g + 3.0), (u0, g + 3.0)], tt, -D2 - 0.8, D2 + 0.8)
         crown = g + spring + hA
-        across([(-hA - 0.9, crown - 0.2), (hA + 0.9, crown - 0.2), (hA + 0.9, crown + 1.2), (-hA - 0.9, crown + 1.2)],
-               tt, -D2 - 0.3, D2 + 0.3)                                   # keystone band over the arch
+        for d0, d1 in ((D2, D2 + 0.25), (-D2 - 0.25, -D2)):               # r6: thin archivolt ring on both faces
+            for j in range(18):
+                a0, a1 = math.pi * j / 18, math.pi * (j + 1) / 18
+                ring_ = [(hA * math.cos(a0), g + spring + hA * math.sin(a0)), (hA * math.cos(a1), g + spring + hA * math.sin(a1)),
+                         ((hA + 0.7) * math.cos(a1), g + spring + (hA + 0.7) * math.sin(a1)),
+                         ((hA + 0.7) * math.cos(a0), g + spring + (hA + 0.7) * math.sin(a0))]
+                across(ring_[::-1], tt, d0, d1)
+            for su in (-1, 1):
+                across([(su * hA, g + 3.0), (su * (hA + 0.7), g + 3.0), (su * (hA + 0.7), g + spring), (su * hA, g + spring)][::su],
+                       tt, d0, d1)
         for u in (-W2 + 0.9, -hA - 0.9, hA + 0.9, W2 - 0.9):              # pilasters on both faces
             for d in (-D2 - 0.3, D2 + 0.3):
                 x2, y2, _ = P(tt + d, nc + u, 0)
@@ -239,8 +246,11 @@ def build():
     am = C.material_rgb("story_bridge_arch_dark", L.HSW.get("pier_arch_back", (0.012, 0.012, 0.013)))
     for buf, name, mat in ((steel, "story_bridge_truss", sm), (under, "story_bridge_deck_steel", um),
                            (conc, "story_bridge_piers_footways", rm), (dk, "story_bridge_deck", None),
-                           (misc, "story_bridge_rails_lights", sm), (shade_, "story_bridge_arch_shadow", am)):
+                           (misc, "story_bridge_rails_lights", sm), (shade_, "story_bridge_arch_shadow", am),
+                           (behind, "story_bridge_arch_glazing", C.material_rgb("story_bridge_arch_glazing", (0.11, 0.13, 0.14)))):
         ob = buf.object(name, col, "deck" if mat is None else "steel")
+        if ob is None:                                                    # r6: the arch shadow panel is gone
+            continue
         if mat is not None:
             ob.data.materials[0] = mat
         objs.append(ob.name)

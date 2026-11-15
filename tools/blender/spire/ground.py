@@ -30,6 +30,10 @@ def build():
     sub = g[np.ix_(rows, cols)]
     if not st:                               # HSW round 2: tidal mud flats / pale spits go under the water
         sub = np.where((sub < 1.6) & (sub > L.RIVER_LEVEL_AHD - 2.0), np.minimum(sub, -1.2), sub)
+        for _ in range(3):                   # HSW r6: no lone spikes left standing in the river
+            wet_ = sub < 0.0
+            nb = (np.roll(wet_, 1, 0).astype(int) + np.roll(wet_, -1, 0) + np.roll(wet_, 1, 1) + np.roll(wet_, -1, 1))
+            sub = np.where((sub < 4.0) & (nb >= 3), np.minimum(sub, -1.2), sub)
     R, Cn = sub.shape
     X, Y = np.meshgrid(x0 + cols + 0.5, y1 - rows - 0.5)
     verts = np.stack([X, Y, sub], -1).reshape(-1, 3)

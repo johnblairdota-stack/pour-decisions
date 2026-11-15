@@ -120,7 +120,7 @@ def solve(photo, LM):
     mode = photo.get("mode", "tilt")
     free = [0, 1, 2, 3, 5] + ([4] if mode == "tilt" else [6])
     zprior = g.get("z", gz)
-    wz, wf = g.get("z_weight", 5.0 if "z" not in g else 0.05), 0.002   # street cams: eye height held near 1.6 m
+    wz, wf = g.get("z_weight", 5.0 if "z" not in g else 0.05), (2.0 if g.get("f35_fixed") else 0.002)   # HSW r6: f35_fixed holds the lens
 
     def resid(p):
         q, dz = project_marks(p, P, W, H)

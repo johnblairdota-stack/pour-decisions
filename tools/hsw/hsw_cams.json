@@ -87,223 +87,223 @@
    38.0
   ],
   "bridge_peak_n": [
-   490.12,
-   72.82,
+   481.21,
+   66.25,
    80.0
   ],
   "bridge_peak_s": [
-   487.79,
-   -207.17,
+   487.57,
+   -213.67,
    80.0
   ],
   "bridge_pier_n_deck": [
-   490.12,
-   72.82,
+   481.21,
+   66.25,
    34.5
   ],
   "bridge_pier_s_deck": [
-   487.79,
-   -207.17,
+   487.57,
+   -213.67,
    34.5
   ],
   "bridge_anchor_s_deck": [
-   486.63,
-   -347.17,
+   490.75,
+   -353.64,
    33.0
   ],
   "bridge_anchor_n_w": [
-   480.78,
-   212.9,
+   467.54,
+   205.98,
    42.0
   ],
   "bridge_anchor_n_e": [
-   501.78,
-   212.73,
+   488.53,
+   206.46,
    42.0
   ],
   "bridge_portal_n_w": [
-   479.62,
-   72.91,
+   470.72,
+   66.02,
    80.0
   ],
   "bridge_portal_n_e": [
-   500.62,
-   72.73,
+   491.71,
+   66.49,
    80.0
   ],
   "pier_n_w_top": [
-   479.62,
-   72.91,
+   470.72,
+   66.02,
    34.3
   ],
   "pier_n_w_base": [
-   479.62,
-   72.91,
+   470.72,
+   66.02,
    1.0
   ],
   "pier_n_e_top": [
-   500.62,
-   72.73,
+   491.71,
+   66.49,
    34.3
   ],
   "pier_n_e_base": [
-   500.62,
-   72.73,
+   491.71,
+   66.49,
    1.0
   ],
   "pier_n_top_sw": [
-   475.08,
-   67.95,
+   466.33,
+   60.92,
    34.3
   ],
   "pier_n_top_se": [
-   505.07,
-   67.7,
+   496.32,
+   61.6,
    34.3
   ],
   "pier_n_crown_s": [
-   490.08,
-   67.82,
+   481.33,
+   61.26,
    26.1
   ],
   "pier_n_spring_sw": [
-   484.08,
-   67.87,
-   20.1
+   474.83,
+   61.11,
+   19.6
   ],
   "pier_n_spring_se": [
-   496.07,
-   67.77,
-   20.1
+   487.82,
+   61.4,
+   19.6
   ],
   "pier_n_top_nw": [
-   475.16,
-   77.95,
+   466.1,
+   70.91,
    34.3
   ],
   "pier_n_top_ne": [
-   505.16,
-   77.7,
+   496.1,
+   71.59,
    34.3
   ],
   "pier_n_crown_n": [
-   490.16,
-   77.82,
+   481.1,
+   71.25,
    26.1
   ],
   "pier_n_spring_nw": [
-   484.16,
-   77.87,
-   20.1
+   474.6,
+   71.11,
+   19.6
   ],
   "pier_n_spring_ne": [
-   496.16,
-   77.77,
-   20.1
+   487.6,
+   71.4,
+   19.6
   ],
   "peak_n_w": [
-   479.62,
-   72.91,
+   470.72,
+   66.02,
    80.0
   ],
   "peak_n_e": [
-   500.62,
-   72.73,
+   491.71,
+   66.49,
    80.0
   ],
   "pier_s_w_top": [
-   477.29,
-   -207.08,
+   477.07,
+   -213.91,
    34.3
   ],
   "pier_s_w_base": [
-   477.29,
-   -207.08,
+   477.07,
+   -213.91,
    1.0
   ],
   "pier_s_e_top": [
-   498.29,
-   -207.26,
+   498.07,
+   -213.43,
    34.3
   ],
   "pier_s_e_base": [
-   498.29,
-   -207.26,
+   498.07,
+   -213.43,
    1.0
   ],
   "pier_s_top_sw": [
-   472.75,
-   -212.05,
+   472.69,
+   -219.01,
    34.3
   ],
   "pier_s_top_se": [
-   502.75,
-   -212.29,
+   502.68,
+   -218.33,
    34.3
   ],
   "pier_s_crown_s": [
-   487.75,
-   -212.17,
+   487.68,
+   -218.67,
    26.1
   ],
   "pier_s_spring_sw": [
-   481.75,
-   -212.12,
-   20.1
+   481.18,
+   -218.82,
+   19.6
   ],
   "pier_s_spring_se": [
-   493.75,
-   -212.22,
-   20.1
+   494.18,
+   -218.52,
+   19.6
   ],
   "pier_s_top_nw": [
-   472.83,
-   -202.05,
+   472.46,
+   -209.01,
    34.3
   ],
   "pier_s_top_ne": [
-   502.83,
-   -202.29,
+   502.45,
+   -208.33,
    34.3
   ],
   "pier_s_crown_n": [
-   487.83,
-   -202.17,
+   487.45,
+   -208.67,
    26.1
   ],
   "pier_s_spring_nw": [
-   481.83,
-   -202.12,
-   20.1
+   480.96,
+   -208.82,
+   19.6
   ],
   "pier_s_spring_ne": [
-   493.83,
-   -202.22,
-   20.1
+   493.95,
+   -208.53,
+   19.6
   ],
   "peak_s_w": [
-   477.29,
-   -207.08,
+   477.07,
+   -213.91,
    80.0
   ],
   "peak_s_e": [
-   498.29,
-   -207.26,
+   498.07,
+   -213.43,
    80.0
   ],
   "anchor_n_deck": [
-   491.28,
-   212.82,
+   478.03,
+   206.22,
    34.0
   ],
   "anchor_s_deck": [
-   486.63,
-   -347.17,
+   490.75,
+   -353.64,
    31.32
   ],
   "midspan_top": [
-   488.95,
-   -67.17,
+   484.39,
+   -73.71,
    49.5
   ],
   "lift_top": [
@@ -400,73 +400,73 @@
    ],
    "mode": "tilt",
    "pos": [
-    800.7,
-    -159.3,
-    73.6
+    801.6,
+    -156.1,
+    73.5
    ],
-   "eye_above_ground_m": 60.0,
-   "heading_deg": 299.0,
-   "pitch_deg": -8.07,
+   "eye_above_ground_m": 50.2,
+   "heading_deg": 297.8,
+   "pitch_deg": -8.13,
    "roll_deg": 0.0,
-   "focal_35mm": 21.4,
+   "focal_35mm": 21.1,
    "blender": {
-    "lens_mm": 21.44,
+    "lens_mm": 21.07,
     "sensor_mm": 36.0,
     "shift_y": -0.0
    },
    "marks": 9,
-   "fit_rms_px": 23.7,
-   "fit_max_px": 39.2,
+   "fit_rms_px": 21.3,
+   "fit_max_px": 45.7,
    "per_mark_px": {
-    "peak_n_e": 32.9,
-    "peak_s_e": 2.8,
-    "pier_n_e_top": 12.1,
-    "pier_s_e_top": 5.1,
-    "felons_ridge_w": 32.1,
-    "felons_ridge_e": 30.6,
-    "rivershed_ridge_w": 1.4,
-    "lift_top": 39.2,
-    "percivals_top": 17.0
+    "peak_n_e": 26.2,
+    "peak_s_e": 3.5,
+    "pier_n_e_top": 9.5,
+    "pier_s_e_top": 3.4,
+    "felons_ridge_w": 22.4,
+    "felons_ridge_e": 24.2,
+    "rivershed_ridge_w": 2.7,
+    "lift_top": 45.7,
+    "percivals_top": 9.0
    },
    "projected": {
     "peak_n_e": [
-     947.8,
-     381.7
+     931.3,
+     383.4
     ],
     "peak_s_e": [
-     44.8,
-     372.4
+     44.7,
+     374.2
     ],
     "pier_n_e_top": [
-     945.3,
-     498.7
+     929.0,
+     497.5
     ],
     "pier_s_e_top": [
      64.6,
-     553.1
+     551.4
     ],
     "felons_ridge_w": [
-     926.0,
-     555.1
+     935.7,
+     554.4
     ],
     "felons_ridge_e": [
-     1072.5,
-     588.7
+     1079.4,
+     588.3
     ],
     "rivershed_ridge_w": [
-     1297.0,
-     751.0
+     1295.4,
+     751.4
     ],
     "lift_top": [
-     1169.3,
-     480.0
+     1176.2,
+     480.7
     ],
     "percivals_top": [
-     856.2,
-     553.6
+     866.7,
+     552.7
     ]
    },
-   "holdout_rms_px": 43.5,
+   "holdout_rms_px": 69.9,
    "note": ""
   },
   {
@@ -552,73 +552,73 @@
    ],
    "mode": "tilt",
    "pos": [
-    842.6,
-    -175.2,
-    83.2
+    823.2,
+    -139.3,
+    71.6
    ],
-   "eye_above_ground_m": 56.7,
-   "heading_deg": 313.8,
-   "pitch_deg": -14.19,
+   "eye_above_ground_m": 45.9,
+   "heading_deg": 311.1,
+   "pitch_deg": -13.94,
    "roll_deg": 0.0,
-   "focal_35mm": 33.8,
+   "focal_35mm": 30.3,
    "blender": {
-    "lens_mm": 35.15,
+    "lens_mm": 31.59,
     "sensor_mm": 36.0,
     "shift_y": -0.0
    },
    "marks": 9,
-   "fit_rms_px": 28.6,
-   "fit_max_px": 49.8,
+   "fit_rms_px": 26.1,
+   "fit_max_px": 45.6,
    "per_mark_px": {
-    "peak_n_e": 37.4,
-    "pier_n_top_sw": 8.3,
-    "pier_n_crown_s": 10.3,
-    "felons_ridge_w": 15.1,
-    "felons_ridge_e": 21.4,
-    "rivershed_ridge_w": 31.8,
-    "anchor_n_deck": 38.4,
-    "lift_top": 12.2,
-    "barrel_hall_top": 49.8
+    "peak_n_e": 39.0,
+    "pier_n_top_sw": 10.9,
+    "pier_n_crown_s": 13.5,
+    "felons_ridge_w": 12.6,
+    "felons_ridge_e": 14.0,
+    "rivershed_ridge_w": 22.6,
+    "anchor_n_deck": 30.1,
+    "lift_top": 21.7,
+    "barrel_hall_top": 45.6
    },
    "projected": {
     "peak_n_e": [
-     378.9,
-     144.4
+     370.1,
+     145.1
     ],
     "pier_n_top_sw": [
-     337.5,
-     255.8
+     331.9,
+     255.7
     ],
     "pier_n_crown_s": [
-     358.6,
-     278.7
+     351.5,
+     277.7
     ],
     "felons_ridge_w": [
-     367.1,
-     315.6
+     383.5,
+     314.6
     ],
     "felons_ridge_e": [
-     498.2,
-     341.9
+     506.8,
+     340.2
     ],
     "rivershed_ridge_w": [
-     637.7,
-     463.0
+     628.6,
+     466.3
     ],
     "anchor_n_deck": [
-     597.8,
-     236.5
+     590.0,
+     240.7
     ],
     "lift_top": [
-     577.9,
-     239.6
+     587.7,
+     236.9
     ],
     "barrel_hall_top": [
-     600.2,
-     351.3
+     604.4,
+     349.5
     ]
    },
-   "holdout_rms_px": 87.0,
+   "holdout_rms_px": 111.0,
    "note": "round 2: re-read on a grid; the old rivershed_ridge_w was the far eave corner; pier corner, arch crown, lift top, Barrel Hall, Rivershed near gable added"
   },
   {
@@ -633,58 +633,58 @@
    ],
    "mode": "tilt",
    "pos": [
-    699.4,
-    -208.8,
-    121.8
+    709.0,
+    -205.2,
+    110.7
    ],
-   "eye_above_ground_m": 123.5,
-   "heading_deg": 352.8,
-   "pitch_deg": -24.17,
+   "eye_above_ground_m": 112.4,
+   "heading_deg": 350.3,
+   "pitch_deg": -22.12,
    "roll_deg": 0.0,
-   "focal_35mm": 30.4,
+   "focal_35mm": 30.2,
    "blender": {
-    "lens_mm": 28.73,
+    "lens_mm": 28.57,
     "sensor_mm": 36.0,
     "shift_y": -0.0
    },
    "marks": 6,
-   "fit_rms_px": 10.6,
-   "fit_max_px": 18.9,
+   "fit_rms_px": 6.5,
+   "fit_max_px": 8.5,
    "per_mark_px": {
-    "pier_n_e_top": 18.9,
-    "felons_ridge_w": 16.6,
-    "felons_ridge_e": 1.2,
-    "barrel_hall_top": 1.4,
-    "rivershed_ridge_w": 5.6,
-    "rivershed_ridge_e": 3.1
+    "pier_n_e_top": 7.7,
+    "felons_ridge_w": 7.5,
+    "felons_ridge_e": 7.0,
+    "barrel_hall_top": 3.5,
+    "rivershed_ridge_w": 8.5,
+    "rivershed_ridge_e": 2.1
    },
    "projected": {
     "pier_n_e_top": [
-     104.9,
-     188.5
+     83.8,
+     190.6
     ],
     "felons_ridge_w": [
-     98.4,
-     259.6
+     112.3,
+     257.5
     ],
     "felons_ridge_e": [
-     327.0,
-     268.6
+     335.0,
+     268.9
     ],
     "barrel_hall_top": [
-     513.7,
-     261.7
+     518.0,
+     263.7
     ],
     "rivershed_ridge_w": [
-     733.1,
-     401.2
+     731.1,
+     399.1
     ],
     "rivershed_ridge_e": [
-     1008.1,
-     590.5
+     1006.7,
+     591.2
     ]
    },
-   "holdout_rms_px": 31.7,
+   "holdout_rms_px": 28.6,
    "note": ""
   },
   {
@@ -699,73 +699,73 @@
    ],
    "mode": "tilt",
    "pos": [
-    285.4,
-    -216.8,
-    63.0
+    293.4,
+    -218.2,
+    64.8
    ],
-   "eye_above_ground_m": 64.7,
-   "heading_deg": 36.7,
-   "pitch_deg": -10.17,
+   "eye_above_ground_m": 66.5,
+   "heading_deg": 35.2,
+   "pitch_deg": -10.65,
    "roll_deg": 0.0,
-   "focal_35mm": 42.8,
+   "focal_35mm": 42.0,
    "blender": {
-    "lens_mm": 40.83,
+    "lens_mm": 40.09,
     "sensor_mm": 36.0,
     "shift_y": -0.0
    },
    "marks": 9,
-   "fit_rms_px": 21.3,
-   "fit_max_px": 33.4,
+   "fit_rms_px": 15.7,
+   "fit_max_px": 25.0,
    "per_mark_px": {
-    "pier_n_top_sw": 28.4,
-    "pier_n_top_se": 21.5,
-    "pier_n_crown_s": 14.9,
-    "peak_n_w": 23.3,
-    "felons_ridge_w": 27.6,
-    "felons_ridge_e": 2.6,
-    "hswshed_ridge_w": 11.0,
-    "hswshed_ridge_e": 33.4,
-    "percivals_top": 7.6
+    "pier_n_top_sw": 16.4,
+    "pier_n_top_se": 16.9,
+    "pier_n_crown_s": 7.5,
+    "peak_n_w": 16.7,
+    "felons_ridge_w": 19.1,
+    "felons_ridge_e": 9.6,
+    "hswshed_ridge_w": 8.6,
+    "hswshed_ridge_e": 25.0,
+    "percivals_top": 13.0
    },
    "projected": {
     "pier_n_top_sw": [
-     703.4,
-     279.4
+     692.2,
+     283.7
     ],
     "pier_n_top_se": [
-     830.5,
-     271.8
+     822.0,
+     275.1
     ],
     "pier_n_crown_s": [
-     768.7,
-     317.9
+     759.0,
+     322.5
     ],
     "peak_n_w": [
-     706.6,
-     32.1
+     695.0,
+     30.4
     ],
     "felons_ridge_w": [
-     803.5,
-     388.8
+     812.1,
+     386.6
     ],
     "felons_ridge_e": [
-     1081.3,
-     357.9
+     1092.6,
+     355.6
     ],
     "hswshed_ridge_w": [
-     495.8,
-     420.1
+     503.6,
+     417.9
     ],
     "hswshed_ridge_e": [
-     663.9,
-     401.6
+     672.1,
+     399.4
     ],
     "percivals_top": [
-     818.7,
-     408.3
+     824.0,
+     407.1
     ]
    },
-   "holdout_rms_px": 30.0,
+   "holdout_rms_px": 31.4,
    "note": ""
   },
   {
@@ -866,58 +866,58 @@
    ],
    "mode": "tilt",
    "pos": [
-    824.1,
-    -141.4,
-    54.2
+    794.2,
+    -103.4,
+    43.4
    ],
-   "eye_above_ground_m": 28.4,
-   "heading_deg": 307.3,
-   "pitch_deg": -10.75,
+   "eye_above_ground_m": 39.3,
+   "heading_deg": 304.4,
+   "pitch_deg": -10.49,
    "roll_deg": 0.0,
-   "focal_35mm": 29.8,
+   "focal_35mm": 25.7,
    "blender": {
-    "lens_mm": 28.46,
+    "lens_mm": 24.53,
     "sensor_mm": 36.0,
     "shift_y": -0.0
    },
    "marks": 6,
-   "fit_rms_px": 7.8,
-   "fit_max_px": 11.9,
+   "fit_rms_px": 3.9,
+   "fit_max_px": 5.1,
    "per_mark_px": {
-    "peak_n_e": 8.3,
-    "pier_n_e_top": 9.2,
-    "felons_ridge_w": 11.9,
-    "felons_ridge_e": 5.3,
-    "rivershed_ridge_w": 1.5,
-    "barrel_hall_top": 6.0
+    "peak_n_e": 3.9,
+    "pier_n_e_top": 4.8,
+    "felons_ridge_w": 2.3,
+    "felons_ridge_e": 4.3,
+    "rivershed_ridge_w": 1.6,
+    "barrel_hall_top": 5.1
    },
    "projected": {
     "peak_n_e": [
-     446.2,
-     75.7
+     437.1,
+     78.8
     ],
     "pier_n_e_top": [
-     447.4,
-     172.7
+     438.6,
+     173.4
     ],
     "felons_ridge_w": [
-     433.3,
+     444.5,
      219.2
     ],
     "felons_ridge_e": [
-     538.4,
-     235.5
+     543.2,
+     233.7
     ],
     "rivershed_ridge_w": [
-     646.2,
-     312.0
+     643.5,
+     312.4
     ],
     "barrel_hall_top": [
-     624.1,
-     239.9
+     629.0,
+     237.3
     ]
    },
-   "holdout_rms_px": 14.0,
+   "holdout_rms_px": 15.4,
    "note": ""
   },
   {
@@ -1018,58 +1018,58 @@
    ],
    "mode": "tilt",
    "pos": [
-    446.1,
-    -80.6,
+    482.0,
+    -80.0,
     3.5
    ],
    "eye_above_ground_m": 5.2,
-   "heading_deg": 16.8,
-   "pitch_deg": 5.44,
+   "heading_deg": 0.2,
+   "pitch_deg": 5.75,
    "roll_deg": 0.0,
-   "focal_35mm": 49.6,
+   "focal_35mm": 43.7,
    "blender": {
-    "lens_mm": 51.59,
+    "lens_mm": 45.46,
     "sensor_mm": 36.0,
     "shift_y": -0.0
    },
    "marks": 6,
-   "fit_rms_px": 10.3,
-   "fit_max_px": 14.6,
+   "fit_rms_px": 11.3,
+   "fit_max_px": 22.6,
    "per_mark_px": {
-    "pier_n_top_sw": 14.6,
-    "pier_n_top_se": 14.4,
-    "pier_n_crown_s": 3.2,
-    "percivals_top": 12.9,
-    "pier_n_spring_sw": 5.0,
-    "pier_n_spring_se": 3.6
+    "pier_n_top_sw": 3.2,
+    "pier_n_top_se": 10.2,
+    "pier_n_crown_s": 7.6,
+    "percivals_top": 22.6,
+    "pier_n_spring_sw": 9.2,
+    "pier_n_spring_se": 0.5
    },
    "projected": {
     "pier_n_top_sw": [
-     571.3,
-     353.8
+     570.9,
+     366.7
     ],
     "pier_n_top_se": [
-     992.7,
-     378.0
+     992.9,
+     369.1
     ],
     "pier_n_crown_s": [
-     787.6,
-     484.9
+     782.4,
+     482.0
     ],
     "percivals_top": [
-     794.7,
-     662.4
+     808.3,
+     659.4
     ],
     "pier_n_spring_sw": [
-     701.6,
-     569.8
+     689.8,
+     573.1
     ],
     "pier_n_spring_se": [
-     871.6,
-     575.1
+     874.6,
+     573.6
     ]
    },
-   "holdout_rms_px": 15.3,
+   "holdout_rms_px": 15.4,
    "note": "round 2: HSW shed east end and Felons west end dropped (they sit at the pier edges, hidden behind it); arch springing added"
   },
   {
@@ -1084,59 +1084,59 @@
    ],
    "mode": "tilt",
    "pos": [
-    465.7,
-    -103.4,
+    518.1,
+    -84.3,
     2.5
    ],
-   "eye_above_ground_m": 3.8,
-   "heading_deg": 24.9,
-   "pitch_deg": 4.39,
+   "eye_above_ground_m": 4.2,
+   "heading_deg": 5.7,
+   "pitch_deg": 4.98,
    "roll_deg": 0.0,
-   "focal_35mm": 35.9,
+   "focal_35mm": 30.2,
    "blender": {
-    "lens_mm": 37.32,
+    "lens_mm": 31.37,
     "sensor_mm": 36.0,
     "shift_y": -0.0
    },
    "marks": 6,
-   "fit_rms_px": 8.2,
-   "fit_max_px": 15.6,
+   "fit_rms_px": 7.4,
+   "fit_max_px": 13.8,
    "per_mark_px": {
-    "pier_n_top_sw": 15.6,
-    "pier_n_top_se": 10.2,
-    "pier_n_crown_s": 1.3,
-    "pier_n_spring_sw": 4.8,
-    "pier_n_spring_se": 2.9,
-    "percivals_top": 4.9
+    "pier_n_top_sw": 13.8,
+    "pier_n_top_se": 2.6,
+    "pier_n_crown_s": 3.1,
+    "pier_n_spring_sw": 10.4,
+    "pier_n_spring_se": 2.0,
+    "percivals_top": 2.3
    },
    "projected": {
     "pier_n_top_sw": [
-     146.0,
-     399.6
+     150.4,
+     407.1
     ],
     "pier_n_top_se": [
-     453.3,
-     422.9
+     452.7,
+     415.0
     ],
     "pier_n_crown_s": [
-     303.5,
-     492.2
+     301.0,
+     490.0
     ],
     "pier_n_spring_sw": [
-     239.3,
-     548.9
+     232.6,
+     552.2
     ],
     "pier_n_spring_se": [
-     363.0,
-     554.1
+     364.8,
+     554.0
     ],
     "percivals_top": [
-     258.2,
-     612.1
+     261.5,
+     611.2
     ]
    },
-   "holdout_rms_px": 23.7,
-   "note": "round 2 (Wikimedia, Kgbo CC BY-SA 4.0)"
+   "holdout_rms_px": 11.9,
+   "note": "round 2 (Wikimedia, Kgbo CC BY-SA 4.0). Lift top (995, 372) and Felons east ridge end (1240, 607) left out: they miss by 120-150 px, so the model lift tower or Felons east end is a few metres off (check next round)"
   },
   {
    "id": "p13_kp_bank_ferry",
@@ -1150,64 +1150,74 @@
    ],
    "mode": "tilt",
    "pos": [
-    344.9,
-    -140.7,
+    377.5,
+    -221.3,
     3.0
    ],
-   "eye_above_ground_m": 4.7,
-   "heading_deg": 38.6,
-   "pitch_deg": 5.82,
+   "eye_above_ground_m": -0.8,
+   "heading_deg": 22.8,
+   "pitch_deg": 4.55,
    "roll_deg": 0.0,
-   "focal_35mm": 42.1,
+   "focal_35mm": 57.0,
    "blender": {
-    "lens_mm": 43.78,
+    "lens_mm": 59.32,
     "sensor_mm": 36.0,
     "shift_y": -0.0
    },
-   "marks": 7,
-   "fit_rms_px": 18.9,
-   "fit_max_px": 33.4,
+   "marks": 9,
+   "fit_rms_px": 24.9,
+   "fit_max_px": 32.1,
    "per_mark_px": {
-    "pier_n_top_sw": 33.4,
-    "pier_n_top_se": 23.5,
-    "pier_n_crown_s": 8.2,
-    "pier_n_spring_sw": 7.7,
-    "pier_n_spring_se": 14.5,
-    "percivals_top": 19.1,
-    "hswshed_ridge_w": 11.9
+    "pier_n_top_sw": 32.1,
+    "pier_n_top_se": 28.2,
+    "pier_n_crown_s": 20.5,
+    "pier_n_spring_sw": 7.3,
+    "pier_n_spring_se": 31.8,
+    "percivals_top": 11.3,
+    "hswshed_ridge_w": 29.5,
+    "peak_n_w": 22.3,
+    "peak_n_e": 28.0
    },
    "projected": {
     "pier_n_top_sw": [
-     575.3,
-     549.5
+     554.3,
+     530.6
     ],
     "pier_n_top_se": [
-     764.5,
-     566.8
+     798.2,
+     541.7
     ],
     "pier_n_crown_s": [
-     672.9,
-     620.7
+     678.5,
+     607.6
     ],
     "pier_n_spring_sw": [
-     634.0,
-     664.5
+     624.8,
+     663.1
     ],
     "pier_n_spring_se": [
-     710.1,
-     668.4
+     730.8,
+     665.6
     ],
     "percivals_top": [
-     746.0,
-     719.6
+     752.8,
+     724.5
     ],
     "hswshed_ridge_w": [
-     233.9,
-     717.2
+     219.4,
+     727.7
+    ],
+    "peak_n_w": [
+     580.1,
+     144.9
+    ],
+    "peak_n_e": [
+     746.7,
+     163.0
     ]
    },
-   "holdout_rms_px": 48.7,
-   "note": "round 2 (Wikimedia, Kangaroo Point)"
+   "holdout_rms_px": 34.1,
+   "note": "round 2 (Wikimedia, Kangaroo Point). Weak: holdout ~49 px. Lift top (1040, 530) and Felons east ridge end (1310, 768) left out for the same reason as p12"
   }
  ]
 }

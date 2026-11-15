@@ -190,6 +190,8 @@ def water_rings():
         inner = C.offset_line(pts, -0.5 if gl < gr else 0.5)
         for i in range(len(pts) - 1):
             rings.append([inner[i], inner[i + 1], outer[i + 1], outer[i]])
+    ex0, ey0, ex1, ey1 = H["felons_east_deck"]["box"]                    # r6: dining deck east of Felons
+    rings.append([(ex0, ey0), (ex1, ey0), (ex1, ey1 - 6.0), (ex0, ey1 - 6.0)])
     P = H["percivals"]
     cx, cy = P["centre_xy"]
     dl, dw = P["deck_size_m"]
@@ -289,6 +291,7 @@ def cliff_dress(col, X, Y, sub, slope, zc, orig, riprap_zone):
     ev = H["canopy_every_m"]
     ra, rb_ = H["canopy_r_m"]
     green = (slope >= H["scrub_slope_deg"] - 6) & (zc > 3.5) & (X[:-1, :-1] < gx_max) & (X[:-1, :-1] > 380)
+    green &= ~((X[:-1, :-1] < 612.0) & (Y[:-1, :-1] < 85.0))          # r6: not on the wharf strip's bank edges
     top_band = near_top & (zc > 14.0) & (X[:-1, :-1] < gx_max) & (X[:-1, :-1] > 380)
     for r, c in zip(*np.nonzero(green | top_band)):
         if (r % ev) or (c % ev):
@@ -368,8 +371,8 @@ def blob(buf, x, y, z, r, rz, rnd, nu=7, nv=4):
 
 # ---------------------------------------------------------------- sheds
 SHED_STYLES = {   # wall, roof, glass, walls glazed fraction, deck
-    "felons":     {"wall": (0.78, 0.76, 0.70), "roof": (0.72, 0.73, 0.73), "glass": (0.03, 0.035, 0.04), "bay": 4.0, "win": 3.75, "sill": 0.03, "head": 0.95},   # r2: mostly open glass
-    "white_shed": {"wall": (0.80, 0.78, 0.72), "roof": (0.70, 0.71, 0.71), "glass": (0.03, 0.035, 0.04), "bay": 4.5, "win": 4.1, "sill": 0.04, "head": 0.93},
+    "felons":     {"wall": (0.78, 0.76, 0.70), "roof": (0.60, 0.65, 0.70), "glass": (0.03, 0.035, 0.04), "bay": 4.0, "win": 3.75, "sill": 0.03, "head": 0.95},   # r2: mostly open glass
+    "white_shed": {"wall": (0.80, 0.78, 0.72), "roof": (0.60, 0.65, 0.70), "glass": (0.03, 0.035, 0.04), "bay": 4.5, "win": 4.1, "sill": 0.04, "head": 0.93},
     "barrel_hall": {"wall": (0.20, 0.21, 0.21), "roof": (0.13, 0.14, 0.145), "glass": (0.06, 0.07, 0.075), "bay": 3.0, "win": 2.8, "sill": 0.05, "head": 0.75},
     "cream_shed": {"wall": (0.74, 0.69, 0.58), "roof": (0.48, 0.50, 0.50), "glass": (0.06, 0.07, 0.07), "bay": 3.5, "win": 2.2, "sill": 0.2, "head": 0.8},
     "glasshouse": {"wall": (0.30, 0.36, 0.34), "roof": (0.62, 0.64, 0.64), "glass": (0.12, 0.16, 0.15), "bay": 2.0, "win": 1.85, "sill": 0.04, "head": 0.95},
@@ -502,12 +505,12 @@ def sheds(col):
         if sh["osm"] in H["over_water_sheds"]:                # r3: river half on a grid of dark piles + bracing
             pg = H["pile_grid_m"]
             v1 = wd / 2 + sh.get("deck_river_m", 0.0) + 1.2
-            nu_ = max(2, int(ln / pg))
+            nu_ = max(2, int(ln / 2.2))                                     # r6: chunky piles ~2.2 m apart
             for i in range(nu_ + 1):
                 u = -ln / 2 + i * ln / nu_
-                for v in np.arange(0.0, v1 + 0.01, pg):
+                for v in np.arange(v1 % 3.0, v1 + 0.01, 3.0):
                     x, y, _ = Pt(u, rside * v, 0)
-                    pw_ = rnd_p.uniform(0.34, 0.5)                                 # r4: varied piles
+                    pw_ = rnd_p.uniform(0.55, 0.68)                                # r6: chunky, varied
                     piles.box(x + rnd_p.uniform(-0.15, 0.15), y + rnd_p.uniform(-0.15, 0.15), -2.5, pw_, pw_, base - 0.3 + 2.5,
                               rnd_p.uniform(0, 0.4))
                 xa, ya, _ = Pt(u, rside * v1, 0)
@@ -517,6 +520,8 @@ def sheds(col):
                     xc, yc, _ = Pt(u + ln / nu_, rside * v1, 0)
                     frames.beam((xa, ya, base - 0.5), (xc, yc, 0.4), 0.12)
                     frames.beam((xa, ya, 0.4), (xc, yc, base - 0.5), 0.12)
+            for zw in (1.3, base - 0.9):                                     # r6: horizontal walers on the front row
+                frames.beam(Pt(-ln / 2, rside * (v1 + 0.35), zw), Pt(ln / 2, rside * (v1 + 0.35), zw), 0.25, 0.35)
             under = [Pt(u, rside * v, base - 0.32)[:2] for u, v in ((-ln / 2, 0), (ln / 2, 0), (ln / 2, v1), (-ln / 2, v1))]
             decks.prism(under, base - 0.6, base - 0.3)                           # floor slab underside
         # deck on piles: on the river side (and a 1.5 m apron round over-water sheds)
@@ -706,9 +711,9 @@ def riverwalk(col):
             lacc += dd
             pacc += dd
             gl, gr = L.ground_z(*left[i]), L.ground_z(*right[i])
-            wet = min(gl, gr) < Wl["sink_below_ahd"] + 0.6 or (rx0_ <= pts[i][0] <= rx1_ and any(C.point_in_ring(*out, rg) for rg in wr))
             out = left[i] if gl < gr else right[i]
             inn = right[i] if gl < gr else left[i]
+            wet = min(gl, gr) < Wl["sink_below_ahd"] + 0.6 or (rx0_ <= pts[i][0] <= rx1_ and any(C.point_in_ring(*out, rg) for rg in wr))
             if wet:                                              # round 2: dark timber pile colonnade (photo p09)
                 ox, oy = out[0] * 0.92 + inn[0] * 0.08, out[1] * 0.92 + inn[1] * 0.08
                 if prev_out is not None and math.dist(prev_out[:2], out) < 4.0:
@@ -720,7 +725,8 @@ def riverwalk(col):
                     mx, my = (inn[0] + out[0]) / 2, (inn[1] + out[1]) / 2
                     pass                                                       # r5: one row only (gaps)
                     piles.beam((ox, oy, z[i] - 0.7), (mx, my, z[i] - 0.7), 0.3, 0.5)          # headstock
-                    if prev_pile and math.dist(prev_pile[:2], (ox, oy)) < 4.0:   # X bracing between piles
+                    if prev_pile and math.dist(prev_pile[:2], (ox, oy)) < 4.0:   # walers + X bracing between piles
+                        piles.beam((*prev_pile[:2], 1.3), (ox, oy, 1.3), 0.22, 0.3)
                         piles.beam((*prev_pile[:2], z[i] - 0.8), (ox, oy, 0.6), 0.14)
                         piles.beam((*prev_pile[:2], 0.6), (ox, oy, z[i] - 0.8), 0.14)
                     prev_pile = (ox, oy)
@@ -871,6 +877,7 @@ def hotel_skin(col):
     import foliage as FO
     rec = rec_by_osm()[H["hotel_way"]]
     skin, plant = C.MeshBuf(), C.MeshBuf()
+    terr = FO.Foliage(seed=78)
     for ti, t in enumerate(rec["tiers"]):
         ring = S.ccw([tuple(p) for p in t["ring"]])
         z0 = rec["base_ahd"] + 4.0 if ti == 0 else rec["tiers"][ti - 1]["top_ahd"]
@@ -888,9 +895,14 @@ def hotel_skin(col):
             skin.add(q, [[0, 1, 2, 3]], [[(acc, z0), (acc + ln, z0), (acc + ln, z1), (acc, z1)]])
             acc += ln
         plant.prism(ring, z1 + 0.3, z1 + 0.9)
+        for (ax_, ay_), (bx, by) in zip(ring, ring[1:] + ring[:1]):       # r6: terrace and rooftop planting
+            ln = math.dist((ax_, ay_), (bx, by))
+            for k in range(int(ln // 2.5)):
+                f_ = (k + 0.5) / max(1, int(ln // 2.5))
+                terr.cloud((ax_ + (bx - ax_) * f_, ay_ + (by - ay_) * f_, z1 + 1.3), (1.2, 1.2, 0.7), 40, 0.35, shell=0.3, top_bias=0.5)
     jac = FO.Foliage(seed=77)
-    cx = sum(p[0] for p in rec["tiers"][0]["ring"]) / len(rec["tiers"][0]["ring"])
-    cy = max(p[1] for p in rec["tiers"][0]["ring"]) + 4.0
+    cx, cy = min(rec["tiers"][0]["ring"], key=lambda p: p[0] + p[1])   # r6: the SW (river) corner
+    cx, cy = cx - 4.0, cy - 4.0
     g = L.ground_z(cx, cy)
     tr = C.MeshBuf()
     tr.beam((cx, cy, g), (cx, cy, g + 9.0), 0.7)
@@ -898,10 +910,68 @@ def hotel_skin(col):
     names = [obj(skin, "hsw_hotel_chevron_skin", col, rgbm("hotel_chevron", (0.45, 0.38, 0.30), "chevron")),
              obj(plant, "hsw_hotel_planters", col, C.material_rgb("hsw_hotel_planter", (0.05, 0.10, 0.035), shader="canopy")),
              obj(tr, "hsw_hotel_jacaranda_trunk", col, rgbm("palm_trunk", (0.33, 0.30, 0.26)))]
+    o_ = terr.object("hsw_hotel_terrace_planting", col, (0.05, 0.11, 0.035), (0.15, 0.25, 0.07))
+    if o_:
+        names.append(o_.name)
+    names += felons_east_deck(col) + oakwood(col)
     o_ = jac.object("hsw_hotel_jacaranda", col, (0.25, 0.15, 0.50), (0.42, 0.28, 0.70))
     if o_:
         names.append(o_.name)
     return [n for n in names if n]
+
+
+def felons_east_deck(col):
+    """Round 6: the open dining deck on piles east of Felons (photos p12/p13: umbrellas, then the green slope)."""
+    D = H["felons_east_deck"]
+    x0, y0, x1, y1 = D["box"]
+    z = D["deck_ahd"]
+    deck, piles, rail, umb, pole = (C.MeshBuf() for _ in range(5))
+    deck.prism([(x0, y0), (x1, y0), (x1, y1), (x0, y1)], z - 0.4, z)
+    for x in np.arange(x0 + 0.5, x1, 2.4):
+        for y in np.arange(y0 + 0.5, y1, 3.0):
+            piles.box(x, y, -2.5, 0.6, 0.6, z - 0.4 + 2.5)
+    for (ax_, ay_), (bx, by) in (((x0, y0), (x1, y0)), ((x1, y0), (x1, y1))):
+        rail.beam((ax_, ay_, z + 1.1), (bx, by, z + 1.1), 0.08)
+        for f_ in np.linspace(0, 1, int(math.dist((ax_, ay_), (bx, by)) // 2) + 1):
+            px_, py_ = ax_ + (bx - ax_) * f_, ay_ + (by - ay_) * f_
+            rail.beam((px_, py_, z), (px_, py_, z + 1.1), 0.06)
+    for x in np.arange(x0 + 2.5, x1 - 1, 4.2):
+        for y in np.arange(y0 + 2.5, y1 - 1, 4.2):
+            pole.beam((x, y, z), (x, y, z + 2.5), 0.06)
+            ring_ = [(x + 1.4 * math.cos(t), y + 1.4 * math.sin(t), z + 2.2) for t in np.linspace(0, 2 * math.pi, 9)[:-1]]
+            umb.add(ring_ + [(x, y, z + 2.75)], [[i, (i + 1) % 8, 8] for i in range(8)])
+    return [n for n in (obj(deck, "hsw_felons_east_deck", col, rgbm("deck_boards", (0.36, 0.27, 0.19), "boards")),
+                        obj(piles, "hsw_felons_east_piles", col, rgbm("piles", H["waterline"]["pile_rgb"], "pile")),
+                        obj(rail, "hsw_felons_east_rail", col, rgbm("frames", (0.12, 0.12, 0.12))),
+                        obj(umb, "hsw_felons_east_umbrellas", col, rgbm("umbrella", (0.86, 0.84, 0.78))),
+                        obj(pole, "hsw_felons_east_poles", col, rgbm("frames", (0.12, 0.12, 0.12)))) if n]
+
+
+def oakwood(col):
+    """Round 6: the cream Oakwood apartments above HSW: regular balcony slabs on every floor with dark recesses."""
+    rec = rec_by_osm().get(H["oakwood_way"])
+    if rec is None:
+        return []
+    slabs, rec_ = C.MeshBuf(), C.MeshBuf()
+    for ti, t in enumerate(rec["tiers"]):
+        ring = [tuple(p) for p in t["ring"]]
+        cx = sum(p[0] for p in ring) / len(ring)
+        cy = sum(p[1] for p in ring) / len(ring)
+        def grow(d):
+            out = []
+            for x, y in ring:
+                r_ = math.hypot(x - cx, y - cy) or 1.0
+                out.append((cx + (x - cx) * (r_ + d) / r_, cy + (y - cy) * (r_ + d) / r_))
+            return out
+        z0 = rec["base_ahd"] + 4.0 if ti == 0 else rec["tiers"][ti - 1]["top_ahd"]
+        z = z0
+        while z < t["top_ahd"] - 1.0:
+            slabs.prism(grow(1.6), z, z + 0.22)                               # balcony slab
+            rec_.prism(grow(0.05), z + 0.22, z + 2.4)                         # dark recess band (glass behind)
+            z += 3.0
+        slabs.prism(grow(1.6), t["top_ahd"] - 0.3, t["top_ahd"] + 0.3)
+    return [n for n in (obj(slabs, "hsw_oakwood_balconies", col, rgbm("oakwood_cream", (0.78, 0.71, 0.56))),
+                        obj(rec_, "hsw_oakwood_recess", col, rgbm("oakwood_glass", (0.06, 0.07, 0.08), "glass_green"))) if n]
 
 
 def mangroves(col):
@@ -1022,7 +1092,7 @@ def dressing(col):
             g = max(R_["deck_ahd"], L.ground_z(x, y) + 0.12)
             plant.box(x, y, g, 1.2, 1.2, 0.7)
             fo.cloud((x, y, g + 1.1), (0.8, 0.8, 0.5), 60, 0.3, shell=0.3, top_bias=0.4)
-            if nplant % 2 == 0:
+            if nplant % 2 == 0 and x > 612.0:
                 palm(fo, trunks, x, y, g + 0.7, rnd.uniform(4.0, 6.5), rnd)
                 npalm += 1
             nplant += 1
@@ -1289,8 +1359,8 @@ def shade(m, bsdf):
         links.new(c1, bsdf.inputs["Base Color"])
         bsdf.inputs["Roughness"].default_value = 0.9
     elif kind == "chevron":
-        # r5: the Vincent's zig-zag facade: diagonal bands that change direction every floor (3.2 m), in
-        # charcoal, tan and dark glass, 4.8 m repeat (photos p09, p07)
+        # r6: VERTICAL columns (2.4 m) of offset parallelogram panels in white, light grey and charcoal, every 4th
+        # column a dark glass bay (photos p09, p07, p13): reads light-to-mid
         uv = nodes.new("ShaderNodeUVMap")
         uv.uv_map = "facade"
         sep = nodes.new("ShaderNodeSeparateXYZ")
@@ -1307,20 +1377,25 @@ def shade(m, bsdf):
                 else:
                     links.new(v_, n_.inputs[i_])
             return n_.outputs[0]
-        f = m_("FRACT", m_("DIVIDE", sep.outputs["Y"], 3.2))
-        tri = m_("MULTIPLY", m_("ABSOLUTE", m_("SUBTRACT", f, 0.5)), 3.2)
-        band = m_("FRACT", m_("DIVIDE", m_("ADD", sep.outputs["X"], tri), 4.8))
+        u_, v_ = sep.outputs["X"], sep.outputs["Y"]
+        col_ = m_("FLOOR", m_("DIVIDE", u_, 2.4))
+        glass = m_("GREATER_THAN", m_("FLOORED_MODULO", col_, 4.0), 2.5)
+        par = m_("FLOORED_MODULO", col_, 2.0)                       # 0 / 1: alternate columns lean the other way
+        sgn = m_("SUBTRACT", 1.0, m_("MULTIPLY", par, 2.0))
+        vv = m_("ADD", m_("ADD", v_, m_("MULTIPLY", m_("MULTIPLY", m_("FRACT", m_("DIVIDE", u_, 2.4)), 1.3), sgn)),
+                m_("MULTIPLY", par, 1.6))
+        tone = m_("DIVIDE", m_("FLOORED_MODULO", m_("FLOOR", m_("DIVIDE", vv, 3.2)), 3.0), 3.0)
         ramp = nodes.new("ShaderNodeValToRGB")
         ramp.color_ramp.interpolation = "CONSTANT"
         el = ramp.color_ramp.elements
-        el[0].position, el[0].color = 0.0, (0.07, 0.07, 0.075, 1)
-        el[1].position, el[1].color = 0.36, (0.46, 0.39, 0.30, 1)
-        e3 = el.new(0.68)
-        e3.color = (0.025, 0.03, 0.04, 1)
-        links.new(band, ramp.inputs["Fac"])
-        links.new(ramp.outputs["Color"], bsdf.inputs["Base Color"])
+        el[0].position, el[0].color = 0.0, (0.72, 0.71, 0.68, 1)
+        el[1].position, el[1].color = 0.30, (0.42, 0.42, 0.41, 1)
+        e3 = el.new(0.6)
+        e3.color = (0.07, 0.07, 0.075, 1)
+        links.new(tone, ramp.inputs["Fac"])
+        c1 = mix_rgb(glass, ramp.outputs["Color"], (0.03, 0.035, 0.045, 1))
+        links.new(c1, bsdf.inputs["Base Color"])
         rr_ = nodes.new("ShaderNodeMapRange")
-        links.new(band, rr_.inputs["Value"])
-        rr_.inputs["From Min"].default_value, rr_.inputs["From Max"].default_value = 0.66, 0.70
-        rr_.inputs["To Min"].default_value, rr_.inputs["To Max"].default_value = 0.8, 0.1
+        links.new(glass, rr_.inputs["Value"])
+        rr_.inputs["To Min"].default_value, rr_.inputs["To Max"].default_value = 0.7, 0.08
         links.new(rr_.outputs["Result"], bsdf.inputs["Roughness"])
