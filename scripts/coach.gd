@@ -6,6 +6,7 @@ extends CanvasLayer
 
 const UI := preload("res://scripts/ui.gd")
 const Icons := preload("res://scripts/icons.gd")
+const LineScript := preload("res://scripts/line.gd")
 
 var game
 var _panel: PanelContainer
@@ -108,6 +109,7 @@ func _tip(p) -> String:
 	var g = game
 	var line = g.line
 	var climb = g.climb
+	var up := "STAIRS" if LineScript.STAIRS else "LADDER"
 	if g.phase == "climb":
 		match p.role:
 			"line":
@@ -226,9 +228,9 @@ func _tip(p) -> String:
 			if line.spike_on:
 				return "SPIKE! Press A now."
 			if line.fix_i >= 0 or (line.blocked and not line.block_found) or (line.fail_i >= 0 and line.burst):
-				return "Grab the part, fix it up the LADDER."
+				return "Grab the part, fix it up the %s." % up
 			if line.fail_i >= 0:
-				return "Grab a CLAMP KIT, swap it up the LADDER."
+				return "Grab a CLAMP KIT, swap it up the %s." % up
 			if line.tripped:
 				return "Hold A at the PUMP PANEL to restart."
 			if line.live and line.idle_t > line.SET_TIME * 0.5 and not line.line_down():

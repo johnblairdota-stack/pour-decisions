@@ -4799,8 +4799,6 @@ func _update_pour(delta: float) -> void:
 		var lh = crew.crew["pump"]
 		var pp = crew.crew["line"]
 		var hh = crew.crew["hose"]
-		var bo = crew.crew["boom"]
-		print("[dbg] boomop zone=%s pos=%s busy=%s mv=%s act=%s held=%s goal=%s" % [bo.zone, str(bo.position), bo.busy, str(bo.ai_move), bo.ai_action, bo.held_kind, str(bots._boom_goal)])
 		print("[dbg] pumpop=%s mv=%s act=%s ops=%s primed=%s step_t=%.1f hose=%s busy=%s pos=%s disch=%s tip=%s want_boom=%s" % [str(lh.position), str(lh.ai_move), lh.ai_action, ops.stage, ops.primed, ops.step_t, hh.char_name, hh.busy, str(hh.position), str(discharge()), str(tip_target), str(_boom_operator() != null)])
 		print("[dbg] t=%.0f cov=%.2f bay%d hopper=%.1f p=%.0f high=%s line=%s/%s y=%.1f held=%s pump=%s held=%s fail=%d fix=%d/%s blk=%s idle=%.0f hook=%s trucks=%s scr=%.2f" % [pour_clock, _filled_ratio(), pour.cur_bay, line.hopper, line.pressure, line.speed_high, lh.zone, lh.busy, lh.position.y, lh.held_kind, str(pp.position), pp.held_kind, line.fail_i, line.fix_i, line._step_name(), line.blocked, line.idle_t, line.hook["state"], ",".join(ts), pour.screed_share()])
 	# The incident director: what goes wrong this pour, and when (the
@@ -5840,10 +5838,10 @@ func where_to(p) -> String:
 		return ""
 	match String(g[3]):
 		"riser":
-			return "Up the LADDER to %s" % g[0]
+			return "Up the %s to %s" % ["STAIRS" if LineScript.STAIRS else "LADDER", g[0]]
 		"ground":
 			if p.zone == "deck":
-				return "Down the LADDER to the %s" % g[0]
+				return "Down the %s to the %s" % ["STAIRS" if LineScript.STAIRS else "LADDER", g[0]]
 		"deck":
 			if p.zone == "ground":
 				return "Up the LADDER, then the %s" % g[0]
