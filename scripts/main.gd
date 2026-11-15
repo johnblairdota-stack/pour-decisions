@@ -359,6 +359,7 @@ func _ready() -> void:
 				crew.crew[arg.substr(8)].set_driver(crew.human_identity(1, true))
 	else:
 		crew.crew["boom"].set_driver(crew.human_identity(1, false))
+		crew.restore_carry()       # (back from the tower pick on the other site: same people, same jobs)
 	phones = PhonesScript.new()
 	add_child(phones)
 	if not args.has("--nophones"):
@@ -2084,12 +2085,11 @@ func _arrive_camera(delta: float) -> void:
 		look = look.lerp(tower, e)
 	camera.position = river
 	camera.look_at(look, Vector3.UP)
-	if TowerHand.shots != "":
+	if TowerHand.shots != "" and TowerHand.shots != "-":
 		if t >= 2.0 and t - delta < 2.0:
-			(func(): TowerHand.shot("pick_flight", get_viewport())).call_deferred()
+			(func(): TowerHand.shot("order_5_flight", get_viewport())).call_deferred()
 		if t >= ARRIVE_RIVER_T + ARRIVE_SETTLE_T - 0.05 and t - delta < ARRIVE_RIVER_T + ARRIVE_SETTLE_T - 0.05:
-			TowerHand.shot("pick_arrive", get_viewport())
-			get_tree().quit()
+			TowerHand.shot("order_6_arrive", get_viewport())
 	if t >= ARRIVE_RIVER_T + ARRIVE_SETTLE_T:
 		TowerHand.arrival = {}
 		TowerHand.uncover(1.0)
@@ -7142,8 +7142,8 @@ func _update_camera_views(delta: float) -> void:
 	if _shot_cam.is_empty() and (phase == "roles" or phase == "select") and is_instance_valid(selector):
 		if not TowerHand.arrival.is_empty() and selector.page == "arrive":
 			_arrive_camera(delta)
-		elif selector.page == "tower":
-			_hand_camera(delta)
+		elif selector.page == "tower" or (selector.page == "crew" and selector.wants_tower_page()):
+			_hand_camera(delta)      # (the join, the jobs and the hand: up the river, no site yet)
 	# The deck view shifts up into the top part of the screen as the band opens
 	camera.v_offset = -0.34 * split_e * camera.position.distance_to(cam_focus) * tan(deg_to_rad(camera.fov * 0.5))
 	_menu_shift = move_toward(_menu_shift, 1.0 if phase == "select" else 0.0, delta * 1.6)
