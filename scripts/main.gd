@@ -2282,7 +2282,7 @@ func _watch_dispatch(delta: float) -> void:
 				_tt_parked = true
 				var rear: Vector3 = (tr["node"] as Node3D).global_transform * Vector3(-5.6, 0, 0)
 				var pp = crew.crew["pump"]
-				pp.position = Vector3(17.0, 0, 6.8) if not spire else Vector3(rear.x - 1.2, 0, rear.z + 0.6)     # (its old waiting spot by the panel: the stall in the logs)
+				pp.position = Vector3(17.0, 0, 6.8) if not spire else LineScript.PUMP_POS + LineScript.DIR * 6.6 + LineScript.SIDE * 0.5     # (its old waiting spot by the panel: the stall in the logs)
 				print("[trucktest] pump operator put behind the reversing truck's rear at %s" % str(pp.position))
 			if tr["state"] == "back" and float(tr.get("blocked_t", 0.0)) > 25.0:
 				print("[trucktest] FAIL: a truck sat 25 s behind someone and never reached the hopper")
