@@ -232,9 +232,20 @@ def setup_morning():
             nt.links.new(tone.outputs["Fac"], tmix.inputs["Factor"])
             tmix.inputs[6].default_value = (Rv["rgb"][0] * 0.8, Rv["rgb"][1] * 0.9, Rv["rgb"][2] * 0.8, 1)
             tmix.inputs[7].default_value = (Rv["rgb"][0] * 1.2, Rv["rgb"][1] * 1.1, Rv["rgb"][2] * 0.9, 1)
-            nt.links.new(tmix.outputs[2], bsdf.inputs["Base Color"])
+            fres = nt.nodes.new("ShaderNodeLayerWeight")                # r3: grazing angles pick up the sky
+            fres.inputs["Blend"].default_value = 0.2
+            fk = nt.nodes.new("ShaderNodeMath")
+            fk.operation = "MULTIPLY"
+            nt.links.new(fres.outputs["Fresnel"], fk.inputs[0])
+            fk.inputs[1].default_value = 0.45
+            fmix = nt.nodes.new("ShaderNodeMix")
+            fmix.data_type = "RGBA"
+            nt.links.new(fk.outputs[0], fmix.inputs["Factor"])
+            nt.links.new(tmix.outputs[2], fmix.inputs[6])
+            fmix.inputs[7].default_value = (0.26, 0.31, 0.36, 1)
+            nt.links.new(fmix.outputs[2], bsdf.inputs["Base Color"])
             bump = nt.nodes.new("ShaderNodeBump")
-            bump.inputs["Strength"].default_value = 0.18
+            bump.inputs["Strength"].default_value = 0.3
             rip = nt.nodes.new("ShaderNodeTexWave")                     # step 7j: wind ripples on top of the swell
             rip.wave_type = "BANDS"
             rip.inputs["Scale"].default_value = 2.2
@@ -245,7 +256,16 @@ def setup_morning():
             addh.operation = "MULTIPLY_ADD"
             nt.links.new(rip.outputs["Fac"], addh.inputs[0])
             addh.inputs[1].default_value = 0.35
-            nt.links.new(tex.outputs["Fac"], addh.inputs[2])
+            fine = nt.nodes.new("ShaderNodeTexNoise")                   # r3: second, fine ripple scale
+            fine.inputs["Scale"].default_value = 7.0
+            fine.inputs["Detail"].default_value = 4.0
+            nt.links.new(geo.outputs["Position"], fine.inputs["Vector"])
+            addf = nt.nodes.new("ShaderNodeMath")
+            addf.operation = "MULTIPLY_ADD"
+            nt.links.new(fine.outputs["Fac"], addf.inputs[0])
+            addf.inputs[1].default_value = 0.25
+            nt.links.new(tex.outputs["Fac"], addf.inputs[2])
+            nt.links.new(addf.outputs[0], addh.inputs[2])
             nt.links.new(addh.outputs[0], bump.inputs["Height"])
             nt.links.new(bump.outputs["Normal"], bsdf.inputs["Normal"])
         if m.name == "clay_road":                        # step 7d: bitumen with aggregate speckle and patches

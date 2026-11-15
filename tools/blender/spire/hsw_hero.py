@@ -88,6 +88,21 @@ def terrain(col):
     lawn_v = np.zeros(sub.shape, bool)
     lawn_v[:-1, :-1] = lawn
     sink &= ~lawn_v
+    wet = np.zeros(sub.shape, bool)                     # r3: river halves of the over-water sheds, Percival's deck
+    for ring in water_rings():
+        m_, rr_, cc_ = PL.ring_mask(ring, L.LIDAR_BOX)
+        if m_ is None:
+            continue
+        a0, a1 = max(rr_, r0), min(rr_ + m_.shape[0], r1 + 1)          # overlap of the ring box and the patch
+        b0, b1 = max(cc_, c0), min(cc_ + m_.shape[1], c1 + 1)
+        if a0 < a1 and b0 < b1:
+            wet[a0 - r0:a1 - r0, b0 - c0:b1 - c0] |= m_[a0 - rr_:a1 - rr_, b0 - cc_:b1 - cc_]
+    sink |= wet & (sub < 6.0)
+    water_n = np.zeros(sub.shape, bool)                 # r3: low strips with water just north of them are decks the
+    for k in range(1, 31):                              # LiDAR read as ground (riverwalk out over the river): sink them
+        water_n |= np.roll(sub < 0.0, k, 0)
+    water_n[:31] = False
+    sink |= (sub < 5.0) & water_n & ~lawn_v & ~riprap_zone
     verts[:, 2] = np.where(sink.ravel(), np.minimum(verts[:, 2], W_["sink_to_ahd"]), verts[:, 2])
     zz = verts[:, 2].reshape(R, Cn)
     zc2 = np.minimum.reduce([zz[:-1, :-1], zz[1:, :-1], zz[1:, 1:], zz[:-1, 1:]])   # lowest corner of each face
@@ -97,6 +112,7 @@ def terrain(col):
     mi[lawn] = 3
     mi[(slope >= H["scrub_slope_deg"]) & (slope < H["rock_slope_deg"])] = 2
     mi[slope >= H["rock_slope_deg"]] = 1
+    mi[(mi == 1) & (X[:-1, :-1] < H["green_cliff_x_max"])] = 2      # r3: green hill, no bare tuff west of Barrel Hall
     mi[(zc < 3.2) & (slope >= H["scrub_slope_deg"])] = 5            # river bank under the decks: dark mud/rock
     mi[zc2 < 2.6] = 5
     mi[zc2 < 0.0] = 5                                                # river bed
@@ -106,7 +122,7 @@ def terrain(col):
     ob.data.materials.append(rgbm("scrub_bank", (0.10, 0.10, 0.05), "dg"))
     ob.data.materials.append(C.material("grass"))
     ob.data.materials.append(rgbm("clifftop_litter", (0.085, 0.09, 0.045), "dg"))
-    ob.data.materials.append(rgbm("bank", (0.06, 0.05, 0.04)))
+    ob.data.materials.append(rgbm("bank", (0.025, 0.022, 0.02)))
     ob.data.polygons.foreach_set("material_index", mi.ravel())
     ob.data.shade_smooth()
     names = [ob.name]
@@ -115,6 +131,60 @@ def terrain(col):
     names += n2
     meta.update(m2)
     return names, meta
+
+
+def shed_frame(sh, rec):
+    """(Pt, ln, wd, rside, base) for a shed: Pt(u, v, z) in the shed frame, rside = +1/-1 the river side."""
+    cx, cy, ln, wd, ang, base, eave, ridge = shed_geometry(sh, rec)
+    c, s_ = math.cos(ang), math.sin(ang)
+    Pt = lambda u, v, z: (cx + u * c - v * s_, cy + u * s_ + v * c, z)
+    gp = L.ground_z(*Pt(0, wd / 2 + 6, 0)[:2])
+    gm = L.ground_z(*Pt(0, -wd / 2 - 6, 0)[:2])
+    return Pt, ln, wd, (1 if gp < gm else -1), base
+
+
+def water_rings():
+    """Round 3: rings that stand over the water on piles (river half of the over-water sheds + their decks,
+    Mr Percival's deck)."""
+    recs = rec_by_osm()
+    rings = []
+    for sh in H["sheds"]:
+        if sh["osm"] not in H["over_water_sheds"] or sh["osm"] not in recs:
+            continue
+        Pt, ln, wd, rs, _ = shed_frame(sh, recs[sh["osm"]])
+        v1 = wd / 2 + sh.get("deck_river_m", 0.0) + 1.6
+        v0 = -wd / 2 + 0.6                               # r3: whole footprint (the land wall closes it)
+        rings.append([Pt(u, rs * v, 0)[:2] for u, v in ((-ln / 2 - 1.6, v0), (ln / 2 + 1.6, v0), (ln / 2 + 1.6, v1), (-ln / 2 - 1.6, v1))])
+    o = L.osm()                                         # riverwalk from HSW to Barrel Hall: the river side of the
+    rx0, rx1 = H["riverwalk_piles_x"]                   # path stands on piles too (photo p09: water between the piles)
+    for w in o["ways"].values():
+        t = w.get("tags", {})
+        if t.get("highway") not in ("footway", "cycleway", "living_street", "path", "pedestrian"):
+            continue
+        pts = o["line"](w)
+        if len(pts) < 2 or not any(rx0 <= x <= rx1 and -60 <= y <= 120 for x, y in pts):
+            continue
+        if not [p for p in pts if L.ground_z(*p) < 2.5] and "Riverwalk" not in t.get("name", ""):
+            continue
+        pts = [p for p in C.densify(pts, 2.0) if rx0 <= p[0] <= rx1]
+        if len(pts) < 2:
+            continue
+        hw = H["riverwalk"]["width_m"] / 2
+        lf, rt = C.offset_line(pts, hw + 6.0), C.offset_line(pts, -(hw + 6.0))
+        gl = sum(L.ground_z(*q) for q in lf) / len(lf)
+        gr = sum(L.ground_z(*q) for q in rt) / len(rt)
+        outer = lf if gl < gr else rt
+        inner = C.offset_line(pts, -0.5 if gl < gr else 0.5)
+        for i in range(len(pts) - 1):
+            rings.append([inner[i], inner[i + 1], outer[i + 1], outer[i]])
+    P = H["percivals"]
+    cx, cy = P["centre_xy"]
+    dl, dw = P["deck_size_m"]
+    a = math.radians(P["deck_angle_deg"])
+    ca, sa = math.cos(a), math.sin(a)
+    rings.append([(cx + u * ca - v * sa, cy + u * sa + v * ca) for u, v in
+                  ((-dl / 2 - 0.5, -dw / 2 - 0.5), (dl / 2 + 0.5, -dw / 2 - 0.5), (dl / 2 + 0.5, dw / 2 + 0.5), (-dl / 2 - 0.5, dw / 2 + 0.5))])
+    return rings
 
 
 def cliff_dress(col, X, Y, sub, slope, zc, orig, riprap_zone):
@@ -128,7 +198,13 @@ def cliff_dress(col, X, Y, sub, slope, zc, orig, riprap_zone):
     gy, gx = np.gradient(sub)
     gy, gx = -gy[:-1, :-1], gx[:-1, :-1]                     # rows run south: +y uphill is -d/drow
     steep = slope >= H["rock_slope_deg"]
-    rr, cc = np.nonzero(steep & (zc > 4.0))
+    gx_max = H["green_cliff_x_max"]
+    ft_ = (slope < 22) & (zc > 14.0)
+    nt_ = np.zeros_like(ft_)
+    for dr in range(-4, 5):
+        for dc in range(-4, 5):
+            nt_ |= np.roll(np.roll(ft_, dr, 0), dc, 1)
+    rr, cc = np.nonzero(steep & (zc > 4.0) & (X[:-1, :-1] >= gx_max) & ~nt_)
     order = list(range(len(rr)))
     rnd.shuffle(order)
     nslab = 0
@@ -139,7 +215,7 @@ def cliff_dress(col, X, Y, sub, slope, zc, orig, riprap_zone):
         ux, uy = ux / ln, uy / ln
         z = float(zc[r, c])
         w, d, h = rnd.uniform(1.2, 4.0), rnd.uniform(0.6, 1.8), rnd.uniform(1.5, 4.0)
-        out = rnd.uniform(-0.3, 0.5)
+        out = rnd.uniform(-0.7, 0.15)
         rock.box(X[r, c] + ux * out, Y[r, c] + uy * out, z - h * rnd.uniform(0.2, 0.6), w, d, h,
                  math.atan2(uy, ux) + math.pi / 2 + rnd.uniform(-0.35, 0.35))
         nslab += 1
@@ -181,6 +257,7 @@ def cliff_dress(col, X, Y, sub, slope, zc, orig, riprap_zone):
     # vegetation: leaf-card tufts on the ledges only (bare faces stay bare); hanging figs and vines off the rim
     leaves = FO.Foliage(seed=Cl["seed"])
     vines = FO.Foliage(seed=Cl["seed"] + 1)
+    canopy = FO.Foliage(seed=Cl["seed"] + 2)
     ledge = (slope >= H["scrub_slope_deg"] - 4) & (slope < H["rock_slope_deg"] + 4) & (zc > 5.0) & (zc < 36.0)
     rr, cc = np.nonzero(ledge)
     order = list(range(len(rr)))
@@ -192,6 +269,22 @@ def cliff_dress(col, X, Y, sub, slope, zc, orig, riprap_zone):
         leaves.cloud((X[r, c], Y[r, c], zc[r, c] + rad * 0.4), (rad, rad, rad * 0.6), int(30 + 25 * rad * rad), 0.35,
                      shell=0.3, top_bias=0.4)
         nt += 1
+    ncan = 0
+    ev = H["canopy_every_m"]
+    ra, rb_ = H["canopy_r_m"]
+    green = (slope >= H["scrub_slope_deg"] - 6) & (zc > 3.5) & (X[:-1, :-1] < gx_max) & (X[:-1, :-1] > 380)
+    top_band = near_top & (zc > 14.0) & (X[:-1, :-1] < gx_max) & (X[:-1, :-1] > 380)
+    for r, c in zip(*np.nonzero(green | top_band)):
+        if (r % ev) or (c % ev):
+            continue
+        ux, uy = -gx[r, c], -gy[r, c]
+        ln = math.hypot(ux, uy) or 1.0
+        ux, uy = ux / ln, uy / ln
+        rad = rnd.uniform(ra, rb_)
+        lift = rnd.uniform(0.5, 2.5) if green[r, c] else rnd.uniform(4.0, 9.0)   # crowns of trees behind the rim
+        canopy.cloud((X[r, c] + ux * 1.2, Y[r, c] + uy * 1.2, zc[r, c] + lift), (rad, rad, rad * 0.8),
+                     int(9 * (18 + 4 * rad * rad)), 0.55, shell=0.25, top_bias=0.3)
+        ncan += 1
     nh = 0
     last = []
     lo, hi = T["hanging_len_m"]
@@ -214,12 +307,13 @@ def cliff_dress(col, X, Y, sub, slope, zc, orig, riprap_zone):
     names = [obj(rock, "hsw_cliff_slabs", col, rgbm("tuff", H["cliff"]["tuff"][1], "tuff")),
              obj(rip, "hsw_riprap", col, rgbm("riprap", (0.10, 0.09, 0.085), "tuff_dark"))]
     for fo, nm, a, b in ((leaves, "hsw_cliff_scrub", (0.05, 0.10, 0.035), (0.13, 0.20, 0.07)),
-                         (vines, "hsw_cliff_vines", (0.045, 0.095, 0.03), (0.11, 0.19, 0.06))):
+                         (vines, "hsw_cliff_vines", (0.045, 0.095, 0.03), (0.11, 0.19, 0.06)),
+                         (canopy, "hsw_hill_canopy", (0.05, 0.11, 0.035), (0.16, 0.26, 0.08))):
         o_ = fo.object(nm, col, a, b)
         if o_:
             names.append(o_.name)
     return [n for n in names if n], {"cliff_slabs": nslab, "rim_rocks": nrim, "riprap": nrip, "cliff_tufts": nt,
-                                     "hanging_vines": nh}
+                                     "hanging_vines": nh, "hill_canopy": ncan}
 
 
 def blob(buf, x, y, z, r, rz, rnd, nu=7, nv=4):
@@ -249,7 +343,7 @@ SHED_STYLES = {   # wall, roof, glass, walls glazed fraction, deck
     "barrel_hall": {"wall": (0.20, 0.21, 0.21), "roof": (0.13, 0.14, 0.145), "glass": (0.06, 0.07, 0.075), "bay": 3.0, "win": 2.8, "sill": 0.05, "head": 0.75},
     "cream_shed": {"wall": (0.74, 0.69, 0.58), "roof": (0.48, 0.50, 0.50), "glass": (0.06, 0.07, 0.07), "bay": 3.5, "win": 2.2, "sill": 0.2, "head": 0.8},
     "glasshouse": {"wall": (0.30, 0.36, 0.34), "roof": (0.62, 0.64, 0.64), "glass": (0.12, 0.16, 0.15), "bay": 2.0, "win": 1.85, "sill": 0.04, "head": 0.95},
-    "stanley":    {"wall": (0.76, 0.70, 0.58), "roof": (0.36, 0.38, 0.39), "glass": (0.05, 0.06, 0.07), "bay": 3.2, "win": 1.3, "sill": 0.3, "head": 0.82},
+    "stanley":    {"wall": (0.80, 0.74, 0.60), "roof": (0.42, 0.16, 0.09), "glass": (0.05, 0.06, 0.07), "bay": 3.2, "win": 1.3, "sill": 0.3, "head": 0.82},
 }
 
 
@@ -277,6 +371,7 @@ def shed_geometry(sh, rec):
 def sheds(col):
     recs = rec_by_osm()
     walls, roofs, decks, piles, frames = {}, {}, C.MeshBuf(), C.MeshBuf(), C.MeshBuf()
+    awn = C.MeshBuf()
     out, letters = [], []
     for sh in H["sheds"]:
         rec = recs.get(sh["osm"])
@@ -363,17 +458,34 @@ def sheds(col):
                 # round 2: bigger, bolder, spaced letters (photo p09: they fill ~60 % of the roof slope)
                 size = min(0.66 * math.hypot(wd / 2 + o, ridge - ze), 1.55 * (ln + 2 * o) / max(4, len(sh["letters"])))
                 tob = C.text_obj(col, "hsw_roof_letters_%d" % sh["osm"], sh["letters"], (x, y, zz),
-                                 (th, 0.0, head), size, (0.035, 0.035, 0.04))
+                                 (th, 0.0, head), size, H["letters_rgb"])
                 try:
                     import bpy
                     import os
                     fp = os.path.join(L.HERE, "..", "..", "..", "fonts", "Barlow-SemiBold.ttf")
                     tob.data.font = bpy.data.fonts.load(os.path.abspath(fp), check_existing=True)
                     tob.data.space_character = 1.35
-                    tob.data.offset = 0.02
                 except Exception as e:                       # font missing: Blender's default font
                     print("roof letters font:", e)
                 letters.append(tob.name)
+        if sh["osm"] in H["over_water_sheds"]:                # r3: river half on a grid of dark piles + bracing
+            pg = H["pile_grid_m"]
+            v1 = wd / 2 + sh.get("deck_river_m", 0.0) + 1.2
+            nu_ = max(2, int(ln / pg))
+            for i in range(nu_ + 1):
+                u = -ln / 2 + i * ln / nu_
+                for v in np.arange(0.0, v1 + 0.01, pg):
+                    x, y, _ = Pt(u, rside * v, 0)
+                    piles.box(x, y, -2.5, 0.42, 0.42, base - 0.3 + 2.5)
+                xa, ya, _ = Pt(u, rside * v1, 0)
+                xb, yb, _ = Pt(u, rside * (v1 - pg), 0)
+                frames.beam((xa, ya, base - 0.5), (xb, yb, 0.4), 0.12)            # cross bracing
+                if i < nu_:
+                    xc, yc, _ = Pt(u + ln / nu_, rside * v1, 0)
+                    frames.beam((xa, ya, base - 0.5), (xc, yc, 0.4), 0.12)
+                    frames.beam((xa, ya, 0.4), (xc, yc, base - 0.5), 0.12)
+            under = [Pt(u, rside * v, base - 0.32)[:2] for u, v in ((-ln / 2, 0), (ln / 2, 0), (ln / 2, v1), (-ln / 2, v1))]
+            decks.prism(under, base - 0.6, base - 0.3)                           # floor slab underside
         # deck on piles: on the river side (and a 1.5 m apron round over-water sheds)
         dr = sh.get("deck_river_m", 0.0)
         if dr > 0:
@@ -387,7 +499,7 @@ def sheds(col):
             while u <= ln / 2 + 1.6:
                 for v in (vo - rside * 0.2, (v0 + v1) / 2):
                     x, y, _ = Pt(u, v, 0)
-                    if L.ground_z(x, y) < dz - 1.0:
+                    if L.ground_z(x, y) < dz - 1.0 or sh["osm"] in H["over_water_sheds"]:
                         piles.box(x, y, -3.0, 0.45, 0.45, dz - 0.35 + 3.0)
                 x, y, _ = Pt(u, vo - rside * 0.1, 0)
                 frames.beam((x, y, dz), (x, y, dz + 1.1), 0.08)          # balustrade post
@@ -404,6 +516,9 @@ def sheds(col):
                      Pt(ln / 2 + 0.5, vo, eave - 0.9), Pt(-ln / 2 - 0.5, vo, eave - 0.9)]
                 rb.add(q + [(p[0], p[1], p[2] - 0.15) for p in q],
                        [[0, 1, 2, 3] if rside < 0 else [3, 2, 1, 0], [7, 6, 5, 4] if rside < 0 else [4, 5, 6, 7]])
+                aw = [Pt(-ln / 2 - 0.5, vo, eave - 0.95), Pt(ln / 2 + 0.5, vo, eave - 0.95),
+                      Pt(ln / 2 + 0.5, vo + rside * 1.5, eave - 2.1), Pt(-ln / 2 - 0.5, vo + rside * 1.5, eave - 2.1)]
+                awn.add(aw, [[0, 1, 2, 3]])                       # r3: fabric awnings along the deck edge (p12)
     for style, buf in walls.items():
         st = SHED_STYLES[style]
         win = {"bay": st["bay"], "win": st["win"], "sill": st["sill"], "head": st["head"], "glass": st["glass"],
@@ -416,6 +531,7 @@ def sheds(col):
     out.append(obj(decks, "hsw_shed_decks", col, rgbm("deck_boards", (0.36, 0.27, 0.19), "boards")))
     out.append(obj(piles, "hsw_shed_piles", col, rgbm("piles", H["waterline"]["pile_rgb"])))
     out.append(obj(frames, "hsw_shed_frames", col, rgbm("frames", (0.12, 0.12, 0.12))))
+    out.append(obj(awn, "hsw_shed_awnings", col, rgbm("awning", (0.80, 0.80, 0.77))))
     return [n for n in out + letters if n]
 
 
@@ -434,7 +550,7 @@ def percivals(col):
         for j in range(int(dw // 3.5) + 1):
             u, v = -dl / 2 + i * dl / int(dl // 3.5), -dw / 2 + j * dw / int(dw // 3.5)
             x, y = cx + u * ca - v * sa, cy + u * sa + v * ca
-            if L.ground_z(x, y) < dz - 1.0:
+            if True:                                         # r3: the deck is over water (sunk ground below)
                 pile.box(x, y, -3.5, 0.5, 0.5, dz - 0.4 + 3.5)
     corners = [(-dl / 2, -dw / 2), (dl / 2, -dw / 2), (dl / 2, dw / 2), (-dl / 2, dw / 2)]
     for k in range(4):                                               # deck balustrade
@@ -459,14 +575,9 @@ def percivals(col):
     lan.prism([p[:2] for p in inner], zl, zl + 1.2)
     top = [(cx + (rl + 0.5) * math.cos(math.pi / 8 + k * math.pi / 4), cy + (rl + 0.5) * math.sin(math.pi / 8 + k * math.pi / 4), zl + 1.2) for k in range(8)]
     roof.add(top + [(cx, cy, P["roof_top_ahd"])], [[k, (k + 1) % 8, 8] for k in range(8)] + [list(range(7, -1, -1))])
-    # front gable porch on the side facing the river (south)
-    wall.box(cx, cy - r - 1.0, dz, 4.4, 2.6, 3.4)
-    roof.add([(cx - 2.8, cy - r - 2.6, dz + 3.4), (cx + 2.8, cy - r - 2.6, dz + 3.4), (cx, cy - r - 2.6, dz + 5.2),
-              (cx - 2.8, cy - r + 0.5, dz + 3.4), (cx + 2.8, cy - r + 0.5, dz + 3.4), (cx, cy - r + 0.5, dz + 5.2)],
-             [[0, 2, 5, 3], [2, 1, 4, 5], [0, 1, 2]])
     win = {"bay": 2.9, "win": 1.5, "sill": 0.12, "head": 0.78, "glass": (0.05, 0.06, 0.06), "rough": 0.1, "floor": 5.0}
     out = [obj(wall, "mr_percivals_walls", col, rgbm("percivals_wall", P["wall"], "render", win)),
-           obj(roof, "mr_percivals_roof", col, rgbm("percivals_roof", P["roof"], "sheet")),
+           obj(roof, "mr_percivals_roof", col, rgbm("percivals_roof", H["percivals_roof_r3"], "sheet")),
            obj(lan, "mr_percivals_lantern", col, rgbm("glass_dark", (0.05, 0.065, 0.07), "glass_green")),
            obj(deck, "mr_percivals_deck", col, rgbm("deck_boards", (0.36, 0.27, 0.19), "boards")),
            obj(pile, "mr_percivals_piles", col, rgbm("piles", H["waterline"]["pile_rgb"])),
@@ -480,18 +591,22 @@ def lift_tower(col):
     x, y = T["xy"]
     sx, sy = H["lift_tower_r2"]["size_m"]
     g = L.ground_z(x, y)
-    cor, glass, steel = C.MeshBuf(), C.MeshBuf(), C.MeshBuf()
-    cor.box(x, y, g - 0.3, sx, sy, T["top_ahd"] - g)
-    for fx, fy, rot in ((0, -1, 0.0), (0, 1, 0.0), (-1, 0, math.pi / 2), (1, 0, math.pi / 2)):   # dark slots
-        for off in (-1.2, 0.0, 1.2):
-            px = x + fx * (sx / 2 + 0.03) + (off if fy else 0.0)
-            py = y + fy * (sy / 2 + 0.03) + (off if fx else 0.0)
-            glass.box(px, py, g + 1.0, 0.35 if fy else 0.08, 0.08 if fy else 0.35, T["top_ahd"] - g - 3.0)
+    cor, glass, steel, teal = C.MeshBuf(), C.MeshBuf(), C.MeshBuf(), C.MeshBuf()
+    for fx in (-1, 1):                                                   # r3: corten corner columns (p12)
+        for fy in (-1, 1):
+            cor.box(x + fx * (sx / 2 - 0.3), y + fy * (sy / 2 - 0.3), g - 0.3, 0.6, 0.6, T["top_ahd"] - g)
+    teal.box(x, y, g - 0.3, sx - 0.3, sy - 0.3, T["top_ahd"] - g)            # teal glass shaft
+    zz_ = g + 3.0
+    while zz_ < T["top_ahd"] - 1:                                        # mullion bands
+        cor.box(x, y, zz_, sx - 0.2, sy - 0.2, 0.12)
+        zz_ += 3.0
     cx, cy = T["cliff_top_xy"]
     gt = L.ground_z(cx, cy)
     zl = T["link_ahd"]
     cor.box(x, y, T["top_ahd"], sx + 1.4, sy + 1.4, 0.5)                           # cap
     steel.box(x, (y + cy) / 2 + sy / 4, zl - 0.5, 2.6, abs(cy - y) - sy / 2, 0.5)   # link bridge deck
+    teal.box(x, (y + cy) / 2 + sy / 4, zl, 2.8, abs(cy - y) - sy / 2, 2.6)          # r3: enclosed teal skybridge
+    steel.box(x, (y + cy) / 2 + sy / 4, zl + 2.6, 3.2, abs(cy - y) - sy / 2, 0.25)
     for sxx in (-1.3, 1.3):
         steel.beam((x + sxx, y + sy / 2, zl + 1.1), (x + sxx, cy, zl + 1.1), 0.08)
         steel.beam((x + sxx, y + sy / 2, zl - 0.5), (x + sxx, cy, zl - 0.5), 0.3, 0.5)
@@ -512,6 +627,7 @@ def lift_tower(col):
             steel.beam((px, py, g), (px, py, zl + 1.1), 0.18)
     return [n for n in (obj(cor, "hsw_lift_tower_corten", col, rgbm("corten_oxide", H["lift_tower_r2"]["rgb"], "corten")),
                         obj(glass, "hsw_lift_tower_slots", col, rgbm("glass_dark", (0.05, 0.065, 0.07), "glass_green")),
+                        obj(teal, "hsw_lift_tower_glass", col, rgbm("lift_teal", H["lift_glass"], "glass_green")),
                         obj(steel, "hsw_lift_tower_steel", col, rgbm("corten_dark", (0.20, 0.09, 0.05), "corten"))) if n]
 
 
@@ -523,6 +639,8 @@ def riverwalk(col):
     deck, steel, rail, lamp = C.MeshBuf(), C.MeshBuf(), C.MeshBuf(), C.MeshBuf()
     piles, fas = C.MeshBuf(), C.MeshBuf()
     walks = 0
+    wr = water_rings()
+    rx0_, rx1_ = H["riverwalk_piles_x"]
     for wid, w in o["ways"].items():
         t = w.get("tags", {})
         if t.get("highway") not in ("footway", "cycleway", "living_street", "path", "pedestrian"):
@@ -554,7 +672,7 @@ def riverwalk(col):
             lacc += dd
             pacc += dd
             gl, gr = L.ground_z(*left[i]), L.ground_z(*right[i])
-            wet = min(gl, gr) < Wl["sink_below_ahd"] + 0.6
+            wet = min(gl, gr) < Wl["sink_below_ahd"] + 0.6 or (rx0_ <= pts[i][0] <= rx1_ and any(C.point_in_ring(*out, rg) for rg in wr))
             out = left[i] if gl < gr else right[i]
             inn = right[i] if gl < gr else left[i]
             if wet:                                              # round 2: dark timber pile colonnade (photo p09)
@@ -695,18 +813,21 @@ def hotel_fins(col):
                 s1 = s0 + Ht["pitch_m"] - 0.6
                 p0 = (ax_ + ux * s0, ay_ + uy * s0)
                 p1 = (ax_ + ux * s1, ay_ + uy * s1)
-                tip = (ax_ + ux * s1 + nx * Ht["depth_m"], ay_ + uy * s1 + ny * Ht["depth_m"])
-                zz = z0                                       # r2: floor-high pieces in 3 tones -> chevrons
-                fl = 0
+                zz = z0                                       # r3: angled fins, light face + dark glass face,
+                fl = 0                                        # the tip swaps side each floor -> chevrons (p07, p09)
                 while zz < z1 - 0.5:
                     zt = min(zz + 3.2, z1)
-                    tone = (j + fl) % 3
-                    (fins, mid, alt)[tone].prism([p0, p1, tip], zz, zt - 0.08)
+                    sa_ = s1 if fl % 2 == 0 else s0
+                    tip = (ax_ + ux * sa_ + nx * Ht["depth_m"], ay_ + uy * sa_ + ny * Ht["depth_m"])
+                    za, zb = zz, zt - 0.08
+                    fins.add([(*p0, za), (*tip, za), (*tip, zb), (*p0, zb)], [[0, 1, 2, 3]])
+                    alt.add([(*tip, za), (*p1, za), (*p1, zb), (*tip, zb)], [[0, 1, 2, 3]])
+                    mid.add([(*p0, zb), (*tip, zb), (*p1, zb)], [[0, 1, 2]])
                     zz, fl = zt, fl + 1
                 k += 1
     return [n for n in (obj(fins, "hsw_hotel_fins", col, rgbm("hotel_fin", Ht["colour"])),
                         obj(mid, "hsw_hotel_fins_mid", col, rgbm("hotel_fin_mid", (0.40, 0.40, 0.40))),
-                        obj(alt, "hsw_hotel_fins_timber", col, rgbm("hotel_fin_timber", (0.13, 0.13, 0.14)))) if n]
+                        obj(alt, "hsw_hotel_fins_timber", col, rgbm("hotel_fin_glass", (0.06, 0.07, 0.08), "glass_green"))) if n]
 
 
 def mangroves(col):
@@ -721,8 +842,6 @@ def mangroves(col):
             xx, yy = x + rnd.uniform(-0.8, 0.8), y + rnd.uniform(-0.8, 0.8)
             z = L.ground_z(xx, yy)
             if not (M["z"][0] <= z <= M["z"][1]) or cls[L.lidar_cell(xx, yy)] == 6:
-                continue
-            if z > 2.6 and min(L.ground_z(xx + 7 * math.cos(a), yy + 7 * math.sin(a)) for a in (0, 1.57, 3.14, 4.71)) > 0.3:
                 continue
             r = rnd.uniform(1.2, 2.6)
             blob(buf, xx, yy, z + r * 0.55, r, r * rnd.uniform(0.6, 0.85), rnd)

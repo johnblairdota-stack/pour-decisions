@@ -78,6 +78,12 @@ def build():
             else:                                                         # Warren
                 steel.beam(bot[i], top[i + 1] if (i % 2 == 0) else top[i], 0.7)
                 steel.beam(top[i] if (i % 2 == 0) else bot[i], top[i + 1] if (i % 2 == 1) else bot[i + 1], 0.7)
+        for i in range(k):                                                # HSW r3: lattice lacing in every panel (p13)
+            if ztop(ts[i]) - deck(ts[i]) > 9.0:
+                steel.beam(bot[i], mid[i + 1], 0.3)
+                steel.beam(mid[i], bot[i + 1], 0.3)
+                steel.beam(mid[i], top[i + 1], 0.3)
+                steel.beam(top[i], mid[i + 1], 0.3)
         for i in range(k + 1):
             heavy = min(abs(ts[i] - tn_), abs(ts[i] - ts_)) < 1.0
             steel.beam(bot[i], top[i], 1.6 if heavy else 0.9)             # verticals (tower posts heavier)
@@ -150,11 +156,11 @@ def build():
         across(arch_profile(2 * W2, zc, g, BP["arch_w_m"], spring), tt, -D2, D2)
         ap = [(-hA + 0.05, g)] + [(hA * math.cos(math.pi - math.pi * j / 16) * 0.99, g + spring + hA * math.sin(math.pi - math.pi * j / 16) * 0.99)
                                   for j in range(17)] + [(hA - 0.05, g)]
-        for d in (-1.5, 1.5):                                             # dark inside the arch (photo p09)
+        for d in (-D2 + 0.6,):                                            # HSW r3: one mid-dark back wall in the arch
             k_ = len(ap)
             vs = [P(tt + d, nc + u, z) for u, z in ap] + [P(tt + d + 0.2, nc + u, z) for u, z in ap]
             shade_.add(vs, [list(range(k_)), list(range(2 * k_ - 1, k_ - 1, -1))])
-        across([(-W2 - 0.9, zc), (W2 + 0.9, zc), (W2 + 0.9, topz), (-W2 - 0.9, topz)], tt, -D2 - 0.9, D2 + 0.9)   # cornice
+        across([(-W2 - 1.5, zc - 0.3), (W2 + 1.5, zc - 0.3), (W2 + 1.5, topz), (-W2 - 1.5, topz)], tt, -D2 - 1.5, D2 + 1.5)   # cornice (r3: bolder)
         across([(-W2 - 0.5, zc - 1.6), (W2 + 0.5, zc - 1.6), (W2 + 0.5, zc - 0.9), (-W2 - 0.5, zc - 0.9)], tt, -D2 - 0.5, D2 + 0.5)
         for u0, u1 in ((-W2 - 0.8, -hA), (hA, W2 + 0.8)):                 # plinth under both legs
             across([(u0, g), (u1, g), (u1, g + 3.0), (u0, g + 3.0)], tt, -D2 - 0.8, D2 + 0.8)
@@ -166,7 +172,7 @@ def build():
                 x2, y2, _ = P(tt + d, nc + u, 0)
                 conc.box(x2, y2, g + 3.0, 0.6, 1.4, zc - 1.6 - g - 3.0, ang)
         for u0, u1 in ((-W2 - 0.3, -W2 + 5.5), (W2 - 5.5, W2 + 0.3)):     # HSW r2: broad corner pilasters (p09)
-            across([(u0, g + 3.0), (u1, g + 3.0), (u1, zc - 1.6), (u0, zc - 1.6)], tt, -D2 - 0.6, D2 + 0.6)
+            across([(u0, g + 3.0), (u1, g + 3.0), (u1, zc - 1.6), (u0, zc - 1.6)], tt, -D2 - 1.0, D2 + 1.0)
     def pier(t, w, d, cap=True):
         for side in (-1, 1):
             x, y, _ = P(t, nc + side * hw, 0)
@@ -210,11 +216,11 @@ def build():
             misc.beam(P(t, n, deck(t) + 0.25), P(t, n, deck(t) + 8.0), 0.2)
             misc.beam(P(t, n, deck(t) + 8.0), P(t, n + (1.2 if n > nc else -1.2) * -1, deck(t) + 8.0), 0.15)
         t += B["light_spacing_m"]
-    sm = C.material_rgb("story_bridge_steel", BP["steel"])
-    rm = C.material_rgb("story_bridge_render", BP["render"])
+    sm = C.material_rgb("story_bridge_steel", L.HSW.get("bridge_steel", BP["steel"]))     # r3: dark charcoal (p13)
+    rm = C.material_rgb("story_bridge_render", L.HSW.get("pier_render", BP["render"]))
     objs = []
     um = C.material_rgb("story_bridge_underside", (0.03, 0.034, 0.034))   # HSW r2: near-black in shade (p09)
-    am = C.material_rgb("story_bridge_arch_dark", (0.012, 0.012, 0.013))
+    am = C.material_rgb("story_bridge_arch_dark", L.HSW.get("pier_arch_back", (0.012, 0.012, 0.013)))
     for buf, name, mat in ((steel, "story_bridge_truss", sm), (under, "story_bridge_deck_steel", um),
                            (conc, "story_bridge_piers_footways", rm), (dk, "story_bridge_deck", None),
                            (misc, "story_bridge_rails_lights", sm), (shade_, "story_bridge_arch_shadow", am)):

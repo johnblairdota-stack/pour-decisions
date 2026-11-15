@@ -252,7 +252,7 @@ def build():
         if s == "fig":
             r = 0.42 * h
             rz = 0.25 * h
-            fig_trunk(trunks, x, y, g, h * 0.45, 0.5)
+            fig_trunk(trunks, x, y, g, h * 0.45, 0.3 if in_hsw(x, y) else 0.5)   # HSW r3: slimmer flare
             trunk(trunks, x, y, g + h * 0.4, 0.4, 0.1, 5, r * 0.45)
             cz = g + h - rz
             if near:
@@ -267,7 +267,7 @@ def build():
                 leaves[s].cloud((x, y, cz), (r, r, rz), int(9 * (120 + 5 * r * r)), 0.22, shell=0.3, top_bias=0.6)
                 blooms[s].cloud((x, y, cz + rz * 0.5), (r * 0.85, r * 0.85, rz * 0.5), int(2 * (25 + r * r)), 0.18, shell=0.9, top_bias=0.9)
             else:
-                crown(crowns, x, y, cz, r * 0.85, 0.42, 6)               # HSW round 2: less umbrella-pine
+                crown(crowns, x, y, cz, r * 0.8, 0.6, 6)                 # HSW r3: rounder, not umbrella-pine
         elif s == "eucalypt":
             r = 0.25 * h
             trunk(pale, x, y, g, 0.3, h * 0.7, 3, r * 0.7)

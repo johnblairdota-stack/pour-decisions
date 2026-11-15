@@ -42,6 +42,8 @@ def build():
         keep = ~((fc[:, 0] >= px0 + 1) & (fc[:, 0] < px1 - 1) & (fc[:, 1] >= py0 + 1) & (fc[:, 1] < py1 - 1))
         faces = faces[keep]
     ob = C.mesh_fast("ground_lidar2019_smooth", verts, faces, col, "ground")
+    if not st:
+        ob.data.materials[0] = C.material_rgb("ground_r3", (0.24, 0.23, 0.20))   # HSW r3: no white city floor
     ob.data.materials.append(C.material("rock"))
     dzx = np.abs(sub[:-1, 1:] - sub[:-1, :-1]) / STEP
     dzy = np.abs(sub[1:, :-1] - sub[:-1, :-1]) / STEP
@@ -72,7 +74,7 @@ def build():
         mx0, my0, mx1, my1 = L.HSW["mangroves"]["box"]
         fc_ = np.stack([X[:-1, :-1], Y[:-1, :-1], sub[:-1, :-1]], -1).reshape(-1, 3)
         mud = (fc_[:, 0] > mx0) & (fc_[:, 0] < mx1) & (fc_[:, 1] > my0) & (fc_[:, 1] < my1) & (fc_[:, 2] < L.HSW["mangroves"]["z"][1] + 0.5)
-        mi = np.where(mud & (steep == 0) & ~gm, 3, mi).astype("i4")
+        mi = np.where(mud & ~gm, 3, mi).astype("i4")
         hx, hy, hr = L.HSW["trees"]["centre_r"]                 # low riverside land near HSW: grass, not bare
         low = (np.hypot(fc_[:, 0] - hx, fc_[:, 1] - hy) < hr + 200) & (fc_[:, 2] < 5.0) & (fc_[:, 2] > 1.0) & (steep == 0) & ~mud
         mi = np.where(low & (mi == 0), 2, mi).astype("i4")
@@ -103,11 +105,12 @@ def build():
             a, b = r * n + i, r * n + (i + 1) % n
             ff.append((a, b, b + n, a + n))
     far = C.mesh_object("far_land", fv, ff, col, "ground")
-    far.data.materials[0] = C.material_rgb("far_land", (0.10, 0.11, 0.105))
+    far.data.materials[0] = C.material_rgb("far_land", (0.085, 0.11, 0.06))          # r3: tree green, not grey
     # far suburbs: low roofs scattered over the skirt so the city does not end in a plateau
     import random
     rnd = random.Random(7)
     fb = C.MeshBuf()
+    fbt, fbg = C.MeshBuf(), C.MeshBuf()                               # r3: terracotta roofs and tree clumps
     for _ in range(30000):
         x = rnd.uniform(x0 - 3000, x1 + 3000)
         y = rnd.uniform(y0 - 3000, y1 + 3000)
@@ -119,9 +122,19 @@ def build():
             continue                                                    # keep the near skirt clear (it slopes)
         w_, l_ = rnd.uniform(7, 16), rnd.uniform(8, 20)
         h_ = rnd.choice((4, 5, 5, 6, 7, 9)) if rnd.random() > 0.01 else rnd.uniform(15, 45)
-        fb.box(x, y, zb - 0.5, w_, l_, h_, rnd.uniform(0, 3.14))
+        kind = rnd.random()
+        if kind < 0.35:
+            fbg.box(x, y, zb - 0.5, w_ * 1.4, l_ * 1.4, rnd.uniform(6, 12), rnd.uniform(0, 3.14))
+        elif kind < 0.7:
+            fbt.box(x, y, zb - 0.5, w_, l_, h_, rnd.uniform(0, 3.14))
+        else:
+            fb.box(x, y, zb - 0.5, w_, l_, h_, rnd.uniform(0, 3.14))
     obf = fb.object("far_suburbs", col, "ground")
-    obf.data.materials[0] = C.material_rgb("far_suburbs", (0.34, 0.27, 0.23))   # HSW r2: terracotta-roof tint
+    obf.data.materials[0] = C.material_rgb("far_suburbs", (0.33, 0.32, 0.30))
+    obt = fbt.object("far_suburbs_terracotta", col, "ground")
+    obt.data.materials[0] = C.material_rgb("far_suburbs_tc", (0.36, 0.17, 0.11))
+    obg = fbg.object("far_suburbs_trees", col, "ground")
+    obg.data.materials[0] = C.material_rgb("far_suburbs_trees", (0.05, 0.08, 0.035))
     E = 6000
     w = C.mesh_object("river_water", [(x0 - E, y0 - E, L.RIVER_LEVEL_AHD), (x1 + E, y0 - E, L.RIVER_LEVEL_AHD),
                                        (x1 + E, y1 + E, L.RIVER_LEVEL_AHD), (x0 - E, y1 + E, L.RIVER_LEVEL_AHD)],

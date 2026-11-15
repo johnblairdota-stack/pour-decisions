@@ -37,6 +37,66 @@ def place(cam, pos, look, lens, shift_y=0.0):
     cam.rotation_euler = d.to_track_quat("-Z", "Y").to_euler()
 
 
+def horizon():
+    """Round 3: a hazy ridge silhouette ring far out, and a compositor mist pass that fades distance toward a
+    warm haze (a world volume blacks out Eevee). The sky itself (mist = 1) is left alone."""
+    import random
+    sc = bpy.context.scene
+    R = L.HSW["ridge"]
+    rnd = random.Random(3)
+    n = 180
+    cx, cy = 640.0, 60.0
+    hs = []
+    h = sum(R["h_m"]) / 2
+    for i in range(n):
+        h = min(max(h + rnd.uniform(-18, 18), R["h_m"][0]), R["h_m"][1])
+        hs.append(h)
+    verts, faces = [], []
+    for i in range(n):
+        a = 2 * math.pi * i / n
+        d = R["dist_m"] * (1 + 0.15 * math.sin(3 * a))
+        x, y = cx + d * math.cos(a), cy + d * math.sin(a)
+        verts += [(x, y, -5.0), (x, y, hs[i])]
+    for i in range(n):
+        j = (i + 1) % n
+        faces.append((2 * i, 2 * j, 2 * j + 1, 2 * i + 1))
+    me = bpy.data.meshes.new("hsw_far_ridge")
+    me.from_pydata(verts, [], faces)
+    ob = bpy.data.objects.new("hsw_far_ridge", me)
+    m = bpy.data.materials.new("hsw_far_ridge")
+    m.use_nodes = True
+    m.node_tree.nodes["Principled BSDF"].inputs["Base Color"].default_value = (*R["rgb"], 1)
+    ob.data.materials.append(m)
+    sc.collection.objects.link(ob)
+    M = L.HSW["mist"]
+    sc.view_layers[0].use_pass_mist = True
+    ms = sc.world.mist_settings
+    ms.start, ms.depth, ms.falloff = M["start_m"], M["depth_m"], "LINEAR"
+    sc.use_nodes = True
+    nt = sc.node_tree
+    for nd in list(nt.nodes):
+        nt.nodes.remove(nd)
+    rl = nt.nodes.new("CompositorNodeRLayers")
+    comp = nt.nodes.new("CompositorNodeComposite")
+    lt = nt.nodes.new("CompositorNodeMath")
+    lt.operation = "LESS_THAN"
+    lt.inputs[1].default_value = 0.999
+    nt.links.new(rl.outputs["Mist"], lt.inputs[0])
+    mul = nt.nodes.new("CompositorNodeMath")
+    mul.operation = "MULTIPLY"
+    nt.links.new(rl.outputs["Mist"], mul.inputs[0])
+    nt.links.new(lt.outputs[0], mul.inputs[1])
+    mul2 = nt.nodes.new("CompositorNodeMath")
+    mul2.operation = "MULTIPLY"
+    nt.links.new(mul.outputs[0], mul2.inputs[0])
+    mul2.inputs[1].default_value = M["strength"]
+    mix = nt.nodes.new("CompositorNodeMixRGB")
+    nt.links.new(mul2.outputs[0], mix.inputs[0])
+    nt.links.new(rl.outputs["Image"], mix.inputs[1])
+    mix.inputs[2].default_value = (*M["rgb"], 1)
+    nt.links.new(mix.outputs[0], comp.inputs["Image"])
+
+
 def main():
     argv = sys.argv[sys.argv.index("--") + 1:]
     out = argv[0]
@@ -48,6 +108,7 @@ def main():
     print("build %.1fs" % (time.time() - t))
     P.setup_morning()
     P.hide(["logistics"])
+    horizon()
     cam = P.camera("cam_hsw")
     if "heroes" in argv:
         for c in L.HSW_HERO_CAMERAS:
