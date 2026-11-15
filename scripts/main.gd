@@ -1331,6 +1331,7 @@ func _build_world() -> void:
 	if spire:
 		# Spire: the Blender model round the tower (streets, neighbours, the cathedral, the podium on site)
 		_spire_world = SpireSite.build_world(self)
+		SpireSite.build_podium_face(self)
 		yard = Node3D.new()
 		yard.name = "Yard"
 		add_child(yard)
@@ -1458,7 +1459,7 @@ func _use_spire_frame() -> void:
 	# across to the scaffold
 	hoist_x = HOIST_X
 	var front := SpireSite.front_z(hoist_x)
-	HOIST_Z = maxf(front + 2.4, SpireSite.boundary_z(hoist_x - 0.6) + 1.15)
+	HOIST_Z = maxf(front + 2.4, maxf(SpireSite.face_z(hoist_x - 1.2), SpireSite.face_z(hoist_x + 0.6)) + 1.15)
 	hoist_off = HOIST_Z - front
 	cam_yaw = SpireSite.cam_yaw()
 
@@ -1469,7 +1470,8 @@ func _use_street() -> void:
 	for i in 4:
 		rigs.append(LineScript.in_pf(GROUND_STATIONS["rig%d" % i]["pos"]))
 	if spire:
-		var wall := SpireSite.boundary_z(LAT_X)
+		# (the podium's real face where the riser and the stairs stand: its slabs come out past the boundary line there)
+		var wall := maxf(SpireSite.boundary_z(LAT_X), SpireSite.podium_z(LAT_X - 2.0, LAT_X + 2.4) + 0.05)
 		LineScript.use_site(true, wall, base_y, SpireSite.front_z(LAT_X) + 0.3 - (wall + 0.3))
 	else:
 		LineScript.use_site(false)
@@ -3672,7 +3674,7 @@ func _walkable(p: Vector3, zone: String, who = null) -> bool:
 		if spire:
 			# Spire: Ann St's footpath and kerb lanes, off the podium's edge, round the hoist's
 			# mast and the crane's
-			ok = p.x >= -9.5 and p.x <= 33.5 and p.z <= LineScript.KERB_EDGE - 0.3 and p.z >= SpireSite.boundary_z(p.x) + 0.35
+			ok = p.x >= -9.5 and p.x <= 33.5 and p.z <= LineScript.KERB_EDGE - 0.3 and p.z >= SpireSite.face_z(p.x) + 0.35
 			if absf(p.x - (hoist_x - 1.25)) < 0.7 and absf(p.z - HOIST_Z) < 0.8:
 				ok = false
 			if climb != null and absf(p.x - climb.MAST.x) < 1.5 and absf(p.z - climb.MAST.z) < 1.5:
@@ -3977,15 +3979,16 @@ func incident_level() -> int:
 
 ## On Normal, how many things go wrong on the line this pour. It builds
 ## with the building: one a day on the low floors while everyone's finding
-## their feet, four a day by the top, when the crew knows every job.
+## their feet, three a day by the top, when the crew knows every job.
 func _trouble_n() -> int:
+	if spire:
+		# (34 pours and a long climb to every joint: one a day, two on every third floor higher up)
+		return 2 if k > 8 and k % 3 == 0 else 1
 	if k <= 2:
 		return 1
-	if k <= 5:
+	if k <= 7:
 		return 2
-	if k <= 8:
-		return 3
-	return 4
+	return 3
 
 func _plan_incidents() -> Array:
 	var lvl := incident_level()
@@ -4050,7 +4053,7 @@ func _start_pour() -> void:
 		pour.vol_k = float(pour.get_meta("vol_k0")) / (1.7 if SpireSite.is_transfer(k) else 1.0)
 		# (and it stays workable longer: retarded mix, poured in layers)
 		pour.open_time = cfg["open"] * sqrt(float(pour.get_meta("vol_k0"))) * (1.8 if SpireSite.is_transfer(k) else 1.0)
-	line.load_m3 = line.TRUCK_LOAD * minf(BIG_SLAB_LOAD, sqrt(pour.vol_k))
+	line.load_m3 = line.TRUCK_LOAD * minf(BIG_SLAB_LOAD, sqrt(pour.vol_k)) * (LineScript.KERB_LOAD_K if LineScript.KERB else 1.0)
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--trucktest=") and int(arg.substr(12)) == k + 1:
 			line.force_bad = 2
@@ -7002,11 +7005,21 @@ func _update_hud() -> void:
 func assembly_state() -> Dictionary:
 	var in_pour := phase == "pour"
 	var tall: float = maxf(1.0, section_count * LS)
+	if spire:
+		# (no tower to count sections on: the riser's up the building's face, to just over the deck)
+		tall = maxf(1.0, work_y + 2.0)
 	var d := {"sections": maxi(1, section_count), "deck": work_y / tall,
 			"deck_tag": "" if phase == "topout" else ("DECK" if tutorial else "L%d DECK" % (k + 1)),
 			"wind": climb.wind_gust, "wind_stop": climb.WIND_STOP if climb.active else BOOM_WIND,
 			"band": line.HOP_BAND, "clamps": [], "bad": -1, "flow": false, "down": false, "alarm": false,
 			"fault": {}, "trucks": [], "hats": [], "next": _next_up()}
+	if spire:
+		var fl := []
+		for py in SpireSite.PODIUM_SLABS:
+			fl.append(py / tall)
+		for i in k + 1:
+			fl.append(level_y(i) / tall)
+		d["floors"] = fl
 	if kit == "tower":
 		for c in line.clamps:
 			(d["clamps"] as Array).append(clampf(float(c["pos"].y) / tall, 0.0, 1.0))
