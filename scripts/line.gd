@@ -858,23 +858,25 @@ func rebuild_riser() -> void:
 		(s["node"] as Node).queue_free()
 	clamps.clear()
 	sections.clear()
-	var top: float = game.head.position.y + 0.6 if kit == "tower" else 0.0
+	var top: float = game.riser_top_y() if kit == "tower" else 0.0
 	riser_top = top
+	# (Spire: the riser turns in under the deck, the ladder goes on up to the platform)
+	var ladder_top: float = top + (1.7 if game.spire else 0.0)
 	for r in ladder_rails:
 		r.visible = kit == "tower"
 	ladder_rungs.visible = kit == "tower"
 	if kit == "tower":
 		for i in ladder_rails.size():
 			var rr := ladder_rails[i]
-			rr.position = Vector3(LADDER.x + 0.15, top * 0.5, LADDER.z + (-0.28 if i == 0 else 0.28))
-			rr.scale.y = top
+			rr.position = Vector3(LADDER.x + 0.15, ladder_top * 0.5, LADDER.z + (-0.28 if i == 0 else 0.28))
+			rr.scale.y = ladder_top
 		var mm := MultiMesh.new()
 		mm.transform_format = MultiMesh.TRANSFORM_3D
 		var bm := BoxMesh.new()
 		bm.size = Vector3(0.05, 0.05, 0.56)
 		bm.material = F.mat("yellow_dark")
 		mm.mesh = bm
-		var n := int(top / 0.35)
+		var n := int(ladder_top / 0.35)
 		mm.instance_count = n
 		for i in n:
 			mm.set_instance_transform(i, Transform3D(Basis(), Vector3(LADDER.x + 0.15, 0.3 + i * 0.35, LADDER.z)))

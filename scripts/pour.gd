@@ -896,6 +896,7 @@ func show_bays(on: bool) -> void:
 
 var _bay_meshes := {}
 var walk_mid := 0.85      # m out from the slab edge to the walkway's centreline (set by the site)
+var walk_loop := PackedVector2Array()   # a slab of any outline: the walkway's centreline round it (set by the site)
 const JOINT_W := 0.1
 
 ## [the line along the walkway (x, z points), whether it's a closed loop,
@@ -903,6 +904,32 @@ const JOINT_W := 0.1
 func _outline(xb: float, whole: bool) -> Array:
 	var pts := PackedVector2Array()
 	var joint := PackedVector2Array()
+	if not walk_loop.is_empty():
+		# A slab of any outline: the line follows the walkway round its real edge
+		if whole:
+			return [walk_loop, true, joint]
+		var cut := PackedVector2Array([Vector2(-999, -999), Vector2(xb, -999), Vector2(xb, 999), Vector2(-999, 999)])
+		var best := PackedVector2Array()
+		for part in Geometry2D.intersect_polygons(walk_loop, cut):
+			if part.size() > best.size():
+				best = part
+		if best.size() < 3:
+			return [walk_loop, true, joint]
+		# (open along the cut: start just after the edge that lies on it)
+		var n := best.size()
+		var start := 0
+		for i in n:
+			if absf(best[i].x - xb) < 0.02 and absf(best[(i + 1) % n].x - xb) < 0.02:
+				start = (i + 1) % n
+		for i in n:
+			pts.append(best[(start + i) % n])
+		var longest := 0.0
+		for piece in _poly_bar(Vector2(xb, -999), Vector2(xb, 999)):
+			var ln: float = (piece[0] as Vector2).distance_to(piece[piece.size() - 1])
+			if ln > longest:
+				longest = ln
+				joint = PackedVector2Array([piece[0], piece[piece.size() - 1]])
+		return [pts, false, joint]
 	if round_r > 0.0:
 		var r := round_r + walk_mid
 		var n := 72

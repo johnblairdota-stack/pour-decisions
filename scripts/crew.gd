@@ -80,9 +80,10 @@ func place_start() -> void:
 				p.zone = "ground"
 				p.position = Vector3(16.4, 0, 7.4)
 		if game.spire and role in ["boom", "poker", "screed", "hose"]:
-			# (Spire: on pour A's deck, by the boom tower at its Ann St face)
-			var spot := {"boom": Vector3(-3.15, 0, 0.6), "poker": Vector3(3.0, 0, -2.0), "screed": Vector3(-5.0, 0, -2.0), "hose": Vector3(1.0, 0, -3.0)}
-			p.position = Vector3(game.LAT_X, wy, 0) + spot[role]
+			# (Spire: on pour A's deck, inside its Ann St edge)
+			var sx: float = {"boom": 8.85, "poker": 3.0, "screed": -4.0, "hose": 6.0}[role]
+			var inn: float = {"boom": game.WALK_MID, "poker": -2.0, "screed": -2.0, "hose": -3.0}[role]
+			p.position = Vector3(sx, wy, game.SpireSite.front_z(sx) + inn)
 
 ## The people and their jobs, kept over a reload to the other site (the tower pick): role -> identity.
 static var carry := {}

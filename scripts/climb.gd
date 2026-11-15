@@ -50,8 +50,8 @@ const SWEET_W := 0.28       # ...and here plus this
 const PODGER_TOL := 0.022   # m the holes can be out and still take the podger
 const WIND_STOP := 54.0     # km/h gust at the boom head: lifting stops
 const RUNWAY_Z := 4.0
-const MAST := Vector3(11.0, 0.0, -23.0)   # off the south side of the link, between the wings
-const CRANE_H := 66.0
+var MAST := Vector3(11.0, 0.0, -23.0)   # off the south side of the link, between the wings (Spire: on Ann St, main._spire_crane)
+var CRANE_H := 66.0
 const JIB := 52.0
 const SLING := 2.4
 const OP_DELAY := 0.35      # crane driver's reaction time to a whistle, s
@@ -662,6 +662,15 @@ func head_y() -> float:
 
 
 func _place_frame() -> void:
+	if game.spire:
+		# (Spire's boom is on a mast in the core: there's no climbing frame at the ladder tower's head)
+		for p in frame_posts:
+			p.visible = false
+		for r in rams:
+			r.visible = false
+		platform.visible = false
+		runway.visible = false
+		return
 	var gb := gap_bottom()
 	var hb := head_y()
 	var h := maxf(0.35, hb - gb + 0.3)
