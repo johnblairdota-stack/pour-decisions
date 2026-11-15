@@ -197,7 +197,7 @@ HSW.update({
                              "y 67-89, top 49-53 AHD); OSM Malt St end at Bowen Tce (x 602-616, y 122-137)"},
     # riverwalk: concrete-topped boardwalk on steel cantilevers (RESEARCH.md: ~5 m cantilevers on piles, from land)
     "riverwalk": {"width_m": 5.0, "deck_ahd": 3.6, "rail_m": 1.1, "lamp_every_m": 22.0,
-                  "colour": (0.50, 0.45, 0.40)},   # r3: warmer, darker concrete
+                  "colour": (0.40, 0.29, 0.22)},   # r4: sand-pink pavers
     # ferry terminal (OSM pier 1015736500 'Howard Smith Wharves' ferry terminal) + HSW pontoon (1015736499)
     "pontoons": {"ways": [1015736500, 1015736499], "deck_ahd": 1.2, "canopy_m": 3.6,
                  "source": "OSM + photos pontoons_ferry (white/grey canopy on a grey pontoon, gangway to the riverwalk)"},
@@ -207,13 +207,13 @@ HSW.update({
     # mangrove / scrub fringe on the low river banks (photo overview_aerial/gg_80fd9d96: dense dark green on the
     # Kangaroo Pt north tip and along the bank). Cells with ground 0.4-2.6 m AHD inside the box get bushes.
     "mangroves": {"box": (100.0, -420.0, 700.0, -50.0), "z": (0.4, 6.5), "every_m": 2.0, "seed": 5},
-    "hotel_fins": {"pitch_m": 3.2, "depth_m": 1.1, "colour": (0.72, 0.71, 0.68), "accent": (0.05, 0.055, 0.06)},
+    "hotel_fins": {"pitch_m": 4.8, "depth_m": 1.8, "colour": (0.85, 0.84, 0.80), "accent": (0.05, 0.055, 0.06)},   # r4: bigger, contrast
 })
 # ---------------------------------------------------------------- HSW round 2 (critic's ranked list, 15 Nov 2026)
 HSW.update({
     # 1 cliff: warm tan-ochre Brisbane tuff, fractured near-vertical faces, mostly bare (photos p06, p10, gg_11228e1b)
-    "cliff": {"tuff": ((0.36, 0.31, 0.26), (0.54, 0.47, 0.39), (0.50, 0.36, 0.24)), "bench_m": 4.5,
-              "shrubs": 700, "seed": 11, "slabs": 600, "rim_rocks": 0,
+    "cliff": {"tuff": ((0.40, 0.31, 0.23), (0.58, 0.46, 0.34), (0.56, 0.32, 0.15)), "bench_m": 4.5,   # r4: warmer
+              "shrubs": 700, "seed": 11, "slabs": 0, "rim_rocks": 0,
               "source": "photos p06/p10: tan-ochre rock with orange iron stain, dark joints, overhangs, "
                         "tufts on ledges, figs and vines hanging off the rim"},
     # 2 trees: leaf-card trees round HSW (same as round Spire), mixed species, set back from the rim
@@ -226,9 +226,12 @@ HSW.update({
                   "pile_rgb": (0.17, 0.145, 0.12), "fascia_rgb": (0.10, 0.085, 0.07),
                   "riprap_box": (690.0, -60.0, 870.0, 40.0), "riprap_z": (-0.8, 2.8), "riprap_every_m": 1.6},
     # 4 ground: sand-pink decomposed granite paths through the lawns (OSM footways), warm pale paving
-    "ground": {"paving": (0.47, 0.39, 0.33), "path": (0.60, 0.43, 0.36), "path_w_m": 3.2, "deck": (0.36, 0.27, 0.19)},
+    "ground": {"paving": (0.45, 0.31, 0.235), "path": (0.515, 0.33, 0.24),   # r4: sand-pink ~ sRGB 190,155,135
+               "path_w_m": 3.2, "deck": (0.36, 0.27, 0.19)},
     # 5 river: olive-brown, fine ripples, no mirror hot spot (photos p06, p01)
-    "river": {"rgb": (0.115, 0.095, 0.05), "rough": 0.5, "spec": 0.06},
+    "sun_angle_deg": 1.6,
+    "river": {"rgb": (0.115, 0.095, 0.05), "rough": 0.07, "spec": 0.5, "swell_scale": 0.06, "wave_scale": 0.18,
+              "chop_scale": 0.9, "bump": 0.55, "bump_dist": 0.15},   # r4: glossy, ripples at 3 scales
     # 7 north main pier: arch crown 8.2 m under the pier top (photo p09: 120 px at 14.6 px/m), dark inside
     "pier_arch_crown_below_top_m": 8.2,
     # 10 lift tower: slimmer, oxide red (photo p06/p10)
@@ -237,20 +240,20 @@ HSW.update({
 # ---------------------------------------------------------------- HSW round 3 (critic, round 2 over-corrected)
 HSW.update({
     # 1 the hill behind Felons, the hotel and the lift is solid canopy (photo p12); bare tuff only SE of Barrel Hall
-    "green_cliff_x_max": 655.0, "canopy_every_m": 3, "canopy_r_m": (2.6, 4.6),
+    "green_cliff_x_max": 655.0, "canopy_every_m": 5, "canopy_r_m": (3.4, 6.0),   # r4: distinct crowns
     # 2 river halves of these sheds stand on piles over water (photos p09, p12, p13)
     "over_water_sheds": [58693374, 58693380, 679146315], "pile_grid_m": 2.6, "riverwalk_piles_x": (395.0, 670.0),
     # 3 bridge steel: dark charcoal grey-green (photos p13, p09), not pale sage
     "bridge_steel": (0.105, 0.115, 0.115),
     # 7 pier: warm cream render, mid-dark arch with a lit back wall
-    "pier_render": (0.80, 0.73, 0.58), "pier_arch_back": (0.07, 0.07, 0.065),
+    "pier_render": (0.86, 0.71, 0.49),   # r4: warmer cream "pier_arch_back": (0.07, 0.07, 0.065),
     # 8 roof letters mid grey; Mr Percival's one dark roof
-    "letters_rgb": (0.20, 0.20, 0.21), "percivals_roof_r3": (0.10, 0.11, 0.12),
+    "letters_rgb": (0.33, 0.33, 0.34), "percivals_roof_r3": (0.10, 0.11, 0.12),
     # 10 lift: corten frame, teal glass shaft, enclosed teal skybridge (photo p12)
-    "lift_glass": (0.10, 0.20, 0.22),
+    "lift_glass": (0.10, 0.20, 0.22), "skybridge_extra_m": 14.0,
     # 12 horizon: compositor mist toward a warm haze, far ridge card, green far land
     "mist": {"start_m": 600.0, "depth_m": 4000.0, "strength": 0.4, "rgb": (0.62, 0.66, 0.72)},
-    "ridge": {"dist_m": 4800.0, "h_m": (60.0, 190.0), "rgb": (0.26, 0.30, 0.30)},
+    "ridge": {"dist_m": 4800.0, "h_m": (45.0, 120.0), "rgb": (0.50, 0.55, 0.61)},   # r4: haze-coloured, low
     # 13 cream two-storey house west of the HSW shed: terracotta hip roof (photo p13)
     "terracotta": (0.42, 0.16, 0.09),
 })
@@ -489,7 +492,7 @@ HSW_HERO_CAMERAS = [
      "note": "Main Lawn at eye height looking NW along the strip to the bridge"},
     {"id": "riverwalk_under_bridge", "pos": (566.0, 84.0, 5.8), "look_at": (440.0, 78.0, 16.0), "lens_mm": 20.0,
      "note": "riverwalk by Felons looking W under the bridge deck at the north pier and the hotel"},
-    {"id": "wilson_outlook", "pos": (792.0, -12.0, 40.0), "look_at": (560.0, 45.0, 8.0), "clip_m": 6.0, "lens_mm": 26.0,
+    {"id": "wilson_outlook", "pos": (784.0, -16.0, 40.0), "look_at": (560.0, 45.0, 8.0), "clip_m": 12.0, "lens_mm": 26.0,
      "note": "Wilson Outlook fence, looking W down onto the sheds, lawns and the bridge"},
     {"id": "citycat", "pos": (610.0, -95.0, 2.2), "look_at": (540.0, 60.0, 14.0), "lens_mm": 26.0,
      "note": "low on the river (CityCat deck height) off the ferry terminal, looking NW"},

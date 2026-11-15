@@ -1,0 +1,235 @@
+{
+ "pairs": [
+  {
+   "id": "p01_drone_se",
+   "title": "Drone from the south-east over the river: both towers, HSW strip, Rivershed",
+   "render_file": "p01_drone_se_render.jpg",
+   "photo_source_url": "https://www.ivvy.com.au/g/HowardSmithWharves/venue/image/display/id/c02802474604bfdcb329888884aff2bc",
+   "photo_credit": "",
+   "camera": {
+    "pos_local_m": [
+     800.7,
+     -159.3,
+     73.6
+    ],
+    "eye_above_ground_m": 60.0,
+    "heading_deg": 299.0,
+    "pitch_deg": -8.07,
+    "focal_35mm": 21.4
+   },
+   "notes": "Solved from 9 hand marks; rendered in day light.",
+   "fit_px": {
+    "rms": 23.7,
+    "max": 39.2,
+    "holdout_rms": 43.5,
+    "photo_size": [
+     1600,
+     1067
+    ]
+   }
+  },
+  {
+   "id": "p04_drone_dusk_se",
+   "title": "Drone from the south-east above Rivershed (dusk photo, rendered in day light)",
+   "render_file": "p04_drone_dusk_se_render.jpg",
+   "photo_source_url": "https://www.yourneighbourhood.com.au/wp-content/uploads/2-586.jpg",
+   "photo_credit": "",
+   "camera": {
+    "pos_local_m": [
+     842.6,
+     -175.2,
+     83.2
+    ],
+    "eye_above_ground_m": 56.7,
+    "heading_deg": 313.8,
+    "pitch_deg": -14.19,
+    "focal_35mm": 33.8
+   },
+   "notes": "round 2: re-read on a grid; the old rivershed_ridge_w was the far eave corner; pier corner, arch crown, lift top, Barrel Hall, Rivershed near gable added Solved from 9 hand marks; rendered in day light.",
+   "fit_px": {
+    "rms": 28.6,
+    "max": 49.8,
+    "holdout_rms": 87.0,
+    "photo_size": [
+     1051,
+     791
+    ]
+   }
+  },
+  {
+   "id": "p06_drone_south",
+   "title": "Drone from the river south of HSW: pier, Felons, Barrel Hall, Rivershed, cliffs",
+   "render_file": "p06_drone_south_render.jpg",
+   "photo_source_url": "https://www.hutchinsonbuilders.com.au/projects/hospitality-and-tourism/howard-smith-wharves",
+   "photo_credit": "www.hutchinsonbuilders.com.au",
+   "camera": {
+    "pos_local_m": [
+     699.4,
+     -208.8,
+     121.8
+    ],
+    "eye_above_ground_m": 123.5,
+    "heading_deg": 352.8,
+    "pitch_deg": -24.17,
+    "focal_35mm": 30.4
+   },
+   "notes": "Solved from 6 hand marks; rendered in day light.",
+   "fit_px": {
+    "rms": 10.6,
+    "max": 18.9,
+    "holdout_rms": 31.7,
+    "photo_size": [
+     1200,
+     650
+    ]
+   }
+  },
+  {
+   "id": "p07_drone_sw_citycat",
+   "title": "Drone from the river south-west: north tower, pier portal, HSW shed, Mr Percival's, Felons",
+   "render_file": "p07_drone_sw_citycat_render.jpg",
+   "photo_source_url": "https://cdn.concreteplayground.com/content/uploads/2023/03/Brisbane_Howard-Smith-Wharves_01_Reuben-Nutt_supplied.jpg?webp=false",
+   "photo_credit": "",
+   "camera": {
+    "pos_local_m": [
+     285.4,
+     -216.8,
+     63.0
+    ],
+    "eye_above_ground_m": 64.7,
+    "heading_deg": 36.7,
+    "pitch_deg": -10.17,
+    "focal_35mm": 42.8
+   },
+   "notes": "Solved from 9 hand marks; rendered in day light.",
+   "fit_px": {
+    "rms": 21.3,
+    "max": 33.4,
+    "holdout_rms": 30.0,
+    "photo_size": [
+     1600,
+     900
+    ]
+   }
+  },
+  {
+   "id": "p09_pier_face_on",
+   "title": "From the river due south: the north pier portal face-on over Mr Percival's, HSW shed and Felons",
+   "render_file": "p09_pier_face_on_render.jpg",
+   "photo_source_url": "https://commons.wikimedia.org/wiki/File:Howard_Smith_Wharves_seen_from_the_river,_November_2019,_02.jpg",
+   "photo_credit": "Kgbo (CC BY-SA 4.0)",
+   "camera": {
+    "pos_local_m": [
+     446.1,
+     -80.6,
+     3.5
+    ],
+    "eye_above_ground_m": 5.2,
+    "heading_deg": 16.8,
+    "pitch_deg": 5.44,
+    "focal_35mm": 49.6
+   },
+   "notes": "round 2: HSW shed east end and Felons west end dropped (they sit at the pier edges, hidden behind it); arch springing added Solved from 6 hand marks; rendered in day light.",
+   "fit_px": {
+    "rms": 10.3,
+    "max": 14.6,
+    "holdout_rms": 15.3,
+    "photo_size": [
+     1600,
+     1200
+    ]
+   }
+  },
+  {
+   "id": "p10_drone_lawns_se",
+   "title": "Drone over the Rivershed lawns looking north-west to the bridge and the CBD",
+   "render_file": "p10_drone_lawns_se_render.jpg",
+   "photo_source_url": "https://www.constructionadvisor.com.au/wp-content/uploads/2020/09/HSW-Precinct_WEB.jpg",
+   "photo_credit": "",
+   "camera": {
+    "pos_local_m": [
+     824.1,
+     -141.4,
+     54.2
+    ],
+    "eye_above_ground_m": 28.4,
+    "heading_deg": 307.3,
+    "pitch_deg": -10.75,
+    "focal_35mm": 29.8
+   },
+   "notes": "Solved from 6 hand marks; rendered in day light.",
+   "fit_px": {
+    "rms": 7.8,
+    "max": 11.9,
+    "holdout_rms": 14.0,
+    "photo_size": [
+     1000,
+     562
+    ]
+   }
+  },
+  {
+   "id": "p12_river_felons",
+   "title": "From the river south-east of the pier: pier portal, Mr Percival's, Felons on its piles, lift tower",
+   "render_file": "p12_river_felons_render.jpg",
+   "photo_source_url": "https://commons.wikimedia.org/wiki/File:Howard_Smith_Wharves_seen_from_the_river,_November_2019,_03.jpg",
+   "photo_credit": "Kgbo (CC BY-SA 4.0)",
+   "camera": {
+    "pos_local_m": [
+     465.7,
+     -103.4,
+     2.5
+    ],
+    "eye_above_ground_m": 3.8,
+    "heading_deg": 24.9,
+    "pitch_deg": 4.39,
+    "focal_35mm": 35.9
+   },
+   "notes": "round 2 (Wikimedia, Kgbo CC BY-SA 4.0). Lift top (995, 372) and Felons east ridge end (1240, 607) left out: they miss by 120-150 px, so the model lift tower or Felons east end is a few metres off (check next round) Solved from 6 hand marks; rendered in day light.",
+   "fit_px": {
+    "rms": 8.2,
+    "max": 15.6,
+    "holdout_rms": 23.7,
+    "photo_size": [
+     1600,
+     1200
+    ]
+   }
+  },
+  {
+   "id": "p13_kp_bank_ferry",
+   "title": "From the Kangaroo Point bank: north tower, pier portal, HSW shed, Mr Percival's, Felons, lift tower",
+   "render_file": "p13_kp_bank_ferry_render.jpg",
+   "photo_source_url": "https://commons.wikimedia.org/wiki/File:Howard_Smith_Wharves_and_the_Story_Bridge_seen_from_Kangaroo_Point,_Queensland_04.jpg",
+   "photo_credit": "Kgbo (CC BY-SA 4.0)",
+   "camera": {
+    "pos_local_m": [
+     344.9,
+     -140.7,
+     3.0
+    ],
+    "eye_above_ground_m": 4.7,
+    "heading_deg": 38.6,
+    "pitch_deg": 5.82,
+    "focal_35mm": 42.1
+   },
+   "notes": "round 2 (Wikimedia, Kangaroo Point). Weak: holdout ~49 px. Lift top (1040, 530) and Felons east ridge end (1310, 768) left out for the same reason as p12 Solved from 7 hand marks; rendered in day light.",
+   "fit_px": {
+    "rms": 18.9,
+    "max": 33.4,
+    "holdout_rms": 48.7,
+    "photo_size": [
+     1600,
+     1200
+    ]
+   }
+  }
+ ],
+ "heroes": [
+  "hero_aerial_sw.jpg",
+  "hero_citycat.jpg",
+  "hero_main_lawn.jpg",
+  "hero_riverwalk_under_bridge.jpg",
+  "hero_wilson_outlook.jpg"
+ ]
+}

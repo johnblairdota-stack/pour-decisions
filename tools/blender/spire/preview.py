@@ -219,11 +219,7 @@ def setup_morning():
             bsdf.inputs["Roughness"].default_value = Rv["rough"]
             bsdf.inputs["Specular IOR Level"].default_value = Rv["spec"]
             nt = m.node_tree
-            tex = nt.nodes.new("ShaderNodeTexNoise")
-            tex.inputs["Scale"].default_value = 0.35
-            tex.inputs["Detail"].default_value = 6.0
             geo = nt.nodes.new("ShaderNodeNewGeometry")
-            nt.links.new(geo.outputs["Position"], tex.inputs["Vector"])
             tone = nt.nodes.new("ShaderNodeTexNoise")                   # silt patches, slightly greener/browner
             tone.inputs["Scale"].default_value = 0.01
             nt.links.new(geo.outputs["Position"], tone.inputs["Vector"])
@@ -232,41 +228,44 @@ def setup_morning():
             nt.links.new(tone.outputs["Fac"], tmix.inputs["Factor"])
             tmix.inputs[6].default_value = (Rv["rgb"][0] * 0.8, Rv["rgb"][1] * 0.9, Rv["rgb"][2] * 0.8, 1)
             tmix.inputs[7].default_value = (Rv["rgb"][0] * 1.2, Rv["rgb"][1] * 1.1, Rv["rgb"][2] * 0.9, 1)
-            fres = nt.nodes.new("ShaderNodeLayerWeight")                # r3: grazing angles pick up the sky
+            fres = nt.nodes.new("ShaderNodeLayerWeight")                # slight sky tint at grazing angles
             fres.inputs["Blend"].default_value = 0.2
             fk = nt.nodes.new("ShaderNodeMath")
             fk.operation = "MULTIPLY"
             nt.links.new(fres.outputs["Fresnel"], fk.inputs[0])
-            fk.inputs[1].default_value = 0.45
+            fk.inputs[1].default_value = 0.15
             fmix = nt.nodes.new("ShaderNodeMix")
             fmix.data_type = "RGBA"
             nt.links.new(fk.outputs[0], fmix.inputs["Factor"])
             nt.links.new(tmix.outputs[2], fmix.inputs[6])
             fmix.inputs[7].default_value = (0.26, 0.31, 0.36, 1)
             nt.links.new(fmix.outputs[2], bsdf.inputs["Base Color"])
+            # HSW r4: ripples sized to read at 50-300 m: swell ~16 m, wind waves ~5 m, chop ~1 m
+            hsum = None
+            for kind, scale, weight in (("noise", Rv["swell_scale"], 1.0), ("wave", Rv["wave_scale"], 0.25), ("noise", Rv["chop_scale"], 0.3)):
+                if kind == "noise":
+                    t_ = nt.nodes.new("ShaderNodeTexNoise")
+                    t_.inputs["Detail"].default_value = 4.0
+                else:
+                    t_ = nt.nodes.new("ShaderNodeTexWave")
+                    t_.wave_type = "BANDS"
+                    t_.inputs["Distortion"].default_value = 14.0
+                    t_.inputs["Detail"].default_value = 3.0
+                t_.inputs["Scale"].default_value = scale
+                nt.links.new(geo.outputs["Position"], t_.inputs["Vector"])
+                mm = nt.nodes.new("ShaderNodeMath")
+                mm.operation = "MULTIPLY_ADD"
+                nt.links.new(t_.outputs["Fac"], mm.inputs[0])
+                mm.inputs[1].default_value = weight
+                if hsum is None:
+                    mm.inputs[2].default_value = 0.0
+                else:
+                    nt.links.new(hsum, mm.inputs[2])
+                hsum = mm.outputs[0]
             bump = nt.nodes.new("ShaderNodeBump")
-            bump.inputs["Strength"].default_value = 0.3
-            rip = nt.nodes.new("ShaderNodeTexWave")                     # step 7j: wind ripples on top of the swell
-            rip.wave_type = "BANDS"
-            rip.inputs["Scale"].default_value = 2.2
-            rip.inputs["Distortion"].default_value = 12.0
-            rip.inputs["Detail"].default_value = 4.0
-            nt.links.new(geo.outputs["Position"], rip.inputs["Vector"])
-            addh = nt.nodes.new("ShaderNodeMath")
-            addh.operation = "MULTIPLY_ADD"
-            nt.links.new(rip.outputs["Fac"], addh.inputs[0])
-            addh.inputs[1].default_value = 0.35
-            fine = nt.nodes.new("ShaderNodeTexNoise")                   # r3: second, fine ripple scale
-            fine.inputs["Scale"].default_value = 7.0
-            fine.inputs["Detail"].default_value = 4.0
-            nt.links.new(geo.outputs["Position"], fine.inputs["Vector"])
-            addf = nt.nodes.new("ShaderNodeMath")
-            addf.operation = "MULTIPLY_ADD"
-            nt.links.new(fine.outputs["Fac"], addf.inputs[0])
-            addf.inputs[1].default_value = 0.25
-            nt.links.new(tex.outputs["Fac"], addf.inputs[2])
-            nt.links.new(addf.outputs[0], addh.inputs[2])
-            nt.links.new(addh.outputs[0], bump.inputs["Height"])
+            bump.inputs["Strength"].default_value = Rv["bump"]
+            bump.inputs["Distance"].default_value = Rv["bump_dist"]
+            nt.links.new(hsum, bump.inputs["Height"])
             nt.links.new(bump.outputs["Normal"], bsdf.inputs["Normal"])
         if m.name == "clay_road":                        # step 7d: bitumen with aggregate speckle and patches
             nt = m.node_tree
@@ -468,7 +467,7 @@ def setup_morning():
                                 for k in ("bay", "win", "sill", "head", "glass", "rough", "floor") if "win_" + k in m})
         elif m.get("shader") in ("brick", "ashlar"):
             facade_material(m, None)
-        if m.get("shader") in ("tuff", "tuff_dark", "dg", "sheet", "boards", "corten", "glass_green"):   # HSW materials
+        if m.get("shader") in ("tuff", "tuff_dark", "dg", "sheet", "boards", "corten", "glass_green", "stripes", "pile", "pave"):   # HSW
             import hsw_hero
             hsw_hero.shade(m, bsdf)
         m["look_done"] = True
@@ -507,7 +506,7 @@ def apply_light(az_deg, el_deg, kind="day"):
     k = max(0.15, min(1.0, math.sin(math.radians(max(el_deg, 1.0))) * 2.2))
     sun.data.energy = mo["sun_strength"] * (0.12 if dusk else k)
     sun.data.color = (1.0, 0.62, 0.38) if dusk else mo["sun_colour"]
-    sun.data.angle = math.radians(0.53)
+    sun.data.angle = math.radians(L.HSW.get("sun_angle_deg", 0.53))      # HSW r4: softer bridge shadow edge
     try:
         sun.data.shadow_maximum_resolution = 0.012
         sc.eevee.shadow_pool_size = "512"                      # 1024 caused GPU timeouts with dense leaves

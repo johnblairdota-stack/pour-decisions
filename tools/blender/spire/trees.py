@@ -105,6 +105,9 @@ def hsw_ok(x, y, g):
     T = L.HSW["trees"]
     if g < T["min_ground_ahd"]:
         return False
+    import hsw_hero
+    if hsw_hero.sunk(x, y):                              # r4: deck strips sunk under the river: no tree there
+        return False
     for k in range(8):
         a = k * math.pi / 4
         dz = abs(L.ground_z(x + 1.5 * math.cos(a), y + 1.5 * math.sin(a)) - g)

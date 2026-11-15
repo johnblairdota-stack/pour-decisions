@@ -37,6 +37,17 @@ def obj(buf, name, col, mat):
 
 
 # ---------------------------------------------------------------- terrain patch
+SUNK = {}                                               # r4: sink mask of the 1 m patch (trees.py reads it)
+
+
+def sunk(x, y):
+    m = SUNK.get("mask")
+    if m is None:
+        return False
+    c, r = int(round(x - SUNK["x0"])), int(round(SUNK["y1"] - y))
+    return 0 <= r < m.shape[0] and 0 <= c < m.shape[1] and bool(m[r, c])
+
+
 def in_patch(x, y):
     x0, y0, x1, y1 = H["patch_box"]
     return x0 <= x <= x1 and y0 <= y <= y1
@@ -102,8 +113,9 @@ def terrain(col):
     for k in range(1, 31):                              # LiDAR read as ground (riverwalk out over the river): sink them
         water_n |= np.roll(sub < 0.0, k, 0)
     water_n[:31] = False
-    sink |= (sub < 5.0) & water_n & ~lawn_v & ~riprap_zone
+    sink |= (sub < 5.0) & water_n & ~lawn_v & ~riprap_zone & (X >= 400.0)   # r4: real land west of HSW stays
     verts[:, 2] = np.where(sink.ravel(), np.minimum(verts[:, 2], W_["sink_to_ahd"]), verts[:, 2])
+    SUNK["mask"], SUNK["x0"], SUNK["y1"] = sink, float(X[0, 0]), float(Y[0, 0])
     zz = verts[:, 2].reshape(R, Cn)
     zc2 = np.minimum.reduce([zz[:-1, :-1], zz[1:, :-1], zz[1:, 1:], zz[:-1, 1:]])   # lowest corner of each face
     mi = np.zeros(zc.shape, "i4")                                   # 0 paving (warm pale decomposed granite)
@@ -117,7 +129,7 @@ def terrain(col):
     mi[zc2 < 2.6] = 5
     mi[zc2 < 0.0] = 5                                                # river bed
     ob = C.mesh_fast("hsw_terrain_1m", verts, faces, col, "footway")
-    ob.data.materials[0] = rgbm("paving_dg", H["ground"]["paving"], "dg")
+    ob.data.materials[0] = rgbm("paving_dg", H["ground"]["paving"], "pave")   # r4: pavers with joints
     ob.data.materials.append(rgbm("tuff", H["cliff"]["tuff"][1], "tuff"))
     ob.data.materials.append(rgbm("scrub_bank", (0.10, 0.10, 0.05), "dg"))
     ob.data.materials.append(C.material("grass"))
@@ -252,12 +264,15 @@ def cliff_dress(col, X, Y, sub, slope, zc, orig, riprap_zone):
         if (r + c) % max(1, int(st)) or rnd.random() < 0.3:
             continue
         s = rnd.uniform(0.5, 1.3)
-        blob(rip, X[r, c] + rnd.uniform(-.5, .5), Y[r, c] + rnd.uniform(-.5, .5), float(orig[r, c]) + s * 0.2, s, s * 0.6, rnd, 6, 3)
+        blob(rip, X[r, c] + rnd.uniform(-.5, .5), Y[r, c] + rnd.uniform(-.5, .5), float(orig[r, c]) + s * 0.1, s, s * 0.55, rnd, 12, 7)
         nrip += 1
     # vegetation: leaf-card tufts on the ledges only (bare faces stay bare); hanging figs and vines off the rim
     leaves = FO.Foliage(seed=Cl["seed"])
     vines = FO.Foliage(seed=Cl["seed"] + 1)
     canopy = FO.Foliage(seed=Cl["seed"] + 2)
+    tops = FO.Foliage(seed=Cl["seed"] + 3)
+    jac = FO.Foliage(seed=Cl["seed"] + 4)
+    hill_trunks = C.MeshBuf()
     ledge = (slope >= H["scrub_slope_deg"] - 4) & (slope < H["rock_slope_deg"] + 4) & (zc > 5.0) & (zc < 36.0)
     rr, cc = np.nonzero(ledge)
     order = list(range(len(rr)))
@@ -281,9 +296,19 @@ def cliff_dress(col, X, Y, sub, slope, zc, orig, riprap_zone):
         ln = math.hypot(ux, uy) or 1.0
         ux, uy = ux / ln, uy / ln
         rad = rnd.uniform(ra, rb_)
-        lift = rnd.uniform(0.5, 2.5) if green[r, c] else rnd.uniform(4.0, 9.0)   # crowns of trees behind the rim
-        canopy.cloud((X[r, c] + ux * 1.2, Y[r, c] + uy * 1.2, zc[r, c] + lift), (rad, rad, rad * 0.8),
-                     int(9 * (18 + 4 * rad * rad)), 0.55, shell=0.25, top_bias=0.3)
+        lift = rnd.uniform(1.5, 4.0) if green[r, c] else rnd.uniform(5.0, 10.0)   # crowns of trees behind the rim
+        px_ = X[r, c] + ux * 1.2 + rnd.uniform(-1.5, 1.5)
+        py_ = Y[r, c] + uy * 1.2 + rnd.uniform(-1.5, 1.5)
+        pz_ = zc[r, c] + lift
+        roll = rnd.random()
+        if roll < 0.10:                                   # r4: palms among the crowns (photo p12)
+            palm(canopy, hill_trunks, px_, py_, zc[r, c], rnd.uniform(7.0, 11.0), rnd)
+        elif roll < 0.13:                                 # a jacaranda or two in flower
+            jac.cloud((px_, py_, pz_), (rad, rad, rad * 0.6), int(9 * (20 + 4 * rad * rad)), 0.5, shell=0.2, top_bias=0.5)
+        else:                                             # r4: distinct round crowns with lime-lit tops
+            canopy.cloud((px_, py_, pz_), (rad, rad, rad * 0.75), int(9 * (22 + 5 * rad * rad)), 0.55, shell=0.12, top_bias=0.2)
+            tops.cloud((px_ + 0.3, py_ - 0.3, pz_ + rad * 0.5), (rad * 0.7, rad * 0.7, rad * 0.28), int(3 * (22 + 5 * rad * rad)),
+                       0.5, shell=0.3, top_bias=0.9)
         ncan += 1
     nh = 0
     last = []
@@ -305,10 +330,13 @@ def cliff_dress(col, X, Y, sub, slope, zc, orig, riprap_zone):
                          shell=0.25, top_bias=0.2)
         nh += 1
     names = [obj(rock, "hsw_cliff_slabs", col, rgbm("tuff", H["cliff"]["tuff"][1], "tuff")),
+             obj(hill_trunks, "hsw_hill_palm_trunks", col, rgbm("palm_trunk", (0.33, 0.30, 0.26))),
              obj(rip, "hsw_riprap", col, rgbm("riprap", (0.10, 0.09, 0.085), "tuff_dark"))]
     for fo, nm, a, b in ((leaves, "hsw_cliff_scrub", (0.05, 0.10, 0.035), (0.13, 0.20, 0.07)),
                          (vines, "hsw_cliff_vines", (0.045, 0.095, 0.03), (0.11, 0.19, 0.06)),
-                         (canopy, "hsw_hill_canopy", (0.05, 0.11, 0.035), (0.16, 0.26, 0.08))):
+                         (canopy, "hsw_hill_canopy", (0.04, 0.09, 0.03), (0.12, 0.21, 0.06)),
+                         (tops, "hsw_hill_tops", (0.16, 0.26, 0.05), (0.30, 0.40, 0.08)),
+                         (jac, "hsw_jacaranda", (0.22, 0.13, 0.45), (0.38, 0.25, 0.65))):
         o_ = fo.object(nm, col, a, b)
         if o_:
             names.append(o_.name)
@@ -372,6 +400,7 @@ def sheds(col):
     recs = rec_by_osm()
     walls, roofs, decks, piles, frames = {}, {}, C.MeshBuf(), C.MeshBuf(), C.MeshBuf()
     awn = C.MeshBuf()
+    rnd_p = random.Random(17)
     out, letters = [], []
     for sh in H["sheds"]:
         rec = recs.get(sh["osm"])
@@ -476,7 +505,9 @@ def sheds(col):
                 u = -ln / 2 + i * ln / nu_
                 for v in np.arange(0.0, v1 + 0.01, pg):
                     x, y, _ = Pt(u, rside * v, 0)
-                    piles.box(x, y, -2.5, 0.42, 0.42, base - 0.3 + 2.5)
+                    pw_ = rnd_p.uniform(0.34, 0.5)                                 # r4: varied piles
+                    piles.box(x + rnd_p.uniform(-0.15, 0.15), y + rnd_p.uniform(-0.15, 0.15), -2.5, pw_, pw_, base - 0.3 + 2.5,
+                              rnd_p.uniform(0, 0.4))
                 xa, ya, _ = Pt(u, rside * v1, 0)
                 xb, yb, _ = Pt(u, rside * (v1 - pg), 0)
                 frames.beam((xa, ya, base - 0.5), (xb, yb, 0.4), 0.12)            # cross bracing
@@ -529,9 +560,9 @@ def sheds(col):
     for style, buf in roofs.items():
         out.append(obj(buf, "hsw_shed_roof_" + style, col, rgbm("shed_roof_" + style, SHED_STYLES[style]["roof"], "sheet")))
     out.append(obj(decks, "hsw_shed_decks", col, rgbm("deck_boards", (0.36, 0.27, 0.19), "boards")))
-    out.append(obj(piles, "hsw_shed_piles", col, rgbm("piles", H["waterline"]["pile_rgb"])))
+    out.append(obj(piles, "hsw_shed_piles", col, rgbm("piles", H["waterline"]["pile_rgb"], "pile")))
     out.append(obj(frames, "hsw_shed_frames", col, rgbm("frames", (0.12, 0.12, 0.12))))
-    out.append(obj(awn, "hsw_shed_awnings", col, rgbm("awning", (0.80, 0.80, 0.77))))
+    out.append(obj(awn, "hsw_shed_awnings", col, rgbm("awning", (0.80, 0.80, 0.77), "stripes")))
     return [n for n in out + letters if n]
 
 
@@ -580,7 +611,7 @@ def percivals(col):
            obj(roof, "mr_percivals_roof", col, rgbm("percivals_roof", H["percivals_roof_r3"], "sheet")),
            obj(lan, "mr_percivals_lantern", col, rgbm("glass_dark", (0.05, 0.065, 0.07), "glass_green")),
            obj(deck, "mr_percivals_deck", col, rgbm("deck_boards", (0.36, 0.27, 0.19), "boards")),
-           obj(pile, "mr_percivals_piles", col, rgbm("piles", H["waterline"]["pile_rgb"])),
+           obj(pile, "mr_percivals_piles", col, rgbm("piles", H["waterline"]["pile_rgb"], "pile")),
            obj(rail, "mr_percivals_rail", col, rgbm("frames", (0.12, 0.12, 0.12)))]
     return [n for n in out if n]
 
@@ -604,6 +635,7 @@ def lift_tower(col):
     gt = L.ground_z(cx, cy)
     zl = T["link_ahd"]
     cor.box(x, y, T["top_ahd"], sx + 1.4, sy + 1.4, 0.5)                           # cap
+    cy = cy + H["skybridge_extra_m"]                                    # r4: reach the Bowen Tce building
     steel.box(x, (y + cy) / 2 + sy / 4, zl - 0.5, 2.6, abs(cy - y) - sy / 2, 0.5)   # link bridge deck
     teal.box(x, (y + cy) / 2 + sy / 4, zl, 2.8, abs(cy - y) - sy / 2, 2.6)          # r3: enclosed teal skybridge
     steel.box(x, (y + cy) / 2 + sy / 4, zl + 2.6, 3.2, abs(cy - y) - sy / 2, 0.25)
@@ -713,7 +745,7 @@ def riverwalk(col):
            obj(steel, "hsw_riverwalk_cantilevers", col, rgbm("steel_grey", (0.18, 0.19, 0.2))),
            obj(rail, "hsw_riverwalk_balustrade", col, rgbm("frames", (0.12, 0.12, 0.12))),
            obj(lamp, "hsw_riverwalk_lamps", col, rgbm("frames", (0.12, 0.12, 0.12))),
-           obj(piles, "hsw_riverwalk_piles", col, rgbm("piles", H["waterline"]["pile_rgb"])),
+           obj(piles, "hsw_riverwalk_piles", col, rgbm("piles", H["waterline"]["pile_rgb"], "pile")),
            obj(fas, "hsw_riverwalk_fascia", col, rgbm("fascia", H["waterline"]["fascia_rgb"]))]
     return [n for n in out if n], walks
 
@@ -1161,3 +1193,54 @@ def shade(m, bsdf):
         bsdf.inputs["Base Color"].default_value = base
         bsdf.inputs["Roughness"].default_value = 0.08
         bsdf.inputs["Metallic"].default_value = 0.3
+    elif kind == "stripes":
+        # r4: striped fabric awnings (photo p12): bands across the awning, 0.6 m wide
+        sep = nodes.new("ShaderNodeSeparateXYZ")
+        links.new(geo.outputs["Position"], sep.inputs[0])
+        add = nodes.new("ShaderNodeMath")
+        add.operation = "ADD"
+        links.new(sep.outputs["X"], add.inputs[0])
+        links.new(sep.outputs["Y"], add.inputs[1])
+        pp = nodes.new("ShaderNodeMath")
+        pp.operation = "PINGPONG"
+        links.new(add.outputs[0], pp.inputs[0])
+        pp.inputs[1].default_value = 0.6
+        lt = nodes.new("ShaderNodeMath")
+        lt.operation = "LESS_THAN"
+        links.new(pp.outputs[0], lt.inputs[0])
+        lt.inputs[1].default_value = 0.3
+        c1 = mix_rgb(lt.outputs[0], base, (0.22, 0.22, 0.23, 1))
+        links.new(c1, bsdf.inputs["Base Color"])
+        bsdf.inputs["Roughness"].default_value = 0.8
+    elif kind == "pile":
+        # r4: weathered timber with a dark wet band and green slime below the tide line (~1.2 m AHD)
+        sep = nodes.new("ShaderNodeSeparateXYZ")
+        links.new(geo.outputs["Position"], sep.inputs[0])
+        mr = nodes.new("ShaderNodeMapRange")
+        links.new(sep.outputs["Z"], mr.inputs["Value"])
+        mr.inputs["From Min"].default_value, mr.inputs["From Max"].default_value = 1.0, 1.6
+        mr.inputs["To Min"].default_value, mr.inputs["To Max"].default_value = 1.0, 0.0
+        nz = nodes.new("ShaderNodeTexNoise")
+        nz.inputs["Scale"].default_value = 3.0
+        links.new(geo.outputs["Position"], nz.inputs["Vector"])
+        c0 = mix_rgb(nz.outputs["Fac"], tuple(c * 0.8 for c in base[:3]) + (1,), tuple(min(1, c * 1.2) for c in base[:3]) + (1,))
+        c1 = mix_rgb(mr.outputs["Result"], c0, (0.03, 0.04, 0.025, 1))
+        links.new(c1, bsdf.inputs["Base Color"])
+        bsdf.inputs["Roughness"].default_value = 0.9
+    elif kind == "pave":
+        # r4: sand-pink concrete pavers 0.6 x 0.3 m with darker joints and warm blotches (photo p10)
+        br = nodes.new("ShaderNodeTexBrick")
+        links.new(geo.outputs["Position"], br.inputs["Vector"])
+        br.inputs["Scale"].default_value = 1.0
+        br.inputs["Brick Width"].default_value = 0.6
+        br.inputs["Row Height"].default_value = 0.3
+        br.inputs["Mortar Size"].default_value = 0.012
+        br.inputs["Color1"].default_value = base
+        br.inputs["Color2"].default_value = tuple(c * 0.9 for c in base[:3]) + (1,)
+        br.inputs["Mortar"].default_value = tuple(c * 0.6 for c in base[:3]) + (1,)
+        nz = nodes.new("ShaderNodeTexNoise")
+        nz.inputs["Scale"].default_value = 0.1
+        links.new(geo.outputs["Position"], nz.inputs["Vector"])
+        c1 = mix_rgb(nz.outputs["Fac"], br.outputs["Color"], tuple(c * 0.85 for c in base[:3]) + (1,), "MULTIPLY")
+        links.new(c1, bsdf.inputs["Base Color"])
+        bsdf.inputs["Roughness"].default_value = 0.9

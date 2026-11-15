@@ -68,6 +68,12 @@ def horizon():
     m.node_tree.nodes["Principled BSDF"].inputs["Base Color"].default_value = (*R["rgb"], 1)
     ob.data.materials.append(m)
     sc.collection.objects.link(ob)
+    try:                                        # r4: screen-space reflections so the river mirrors the sky
+        sc.eevee.use_raytracing = True
+        sc.eevee.ray_tracing_method = "SCREEN"
+        sc.eevee.ray_tracing_options.resolution_scale = "2"
+    except (AttributeError, TypeError) as e:
+        print("raytracing:", e)
     M = L.HSW["mist"]
     sc.view_layers[0].use_pass_mist = True
     ms = sc.world.mist_settings

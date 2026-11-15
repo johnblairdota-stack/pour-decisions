@@ -54,6 +54,7 @@ def build():
     t0, t1 = B["truss_t"]
     tn_, ts_ = B["main_piers_t"]
     steel, under, conc, dk, misc = C.MeshBuf(), C.MeshBuf(), C.MeshBuf(), C.MeshBuf(), C.MeshBuf()
+    ang0 = math.atan2(ay, ax)
     shade_ = C.MeshBuf()
     ztop = lambda t: max(topc(t), deck(t) + 6.0)
     # ---------------------------------------------------------------- truss
@@ -66,18 +67,18 @@ def build():
         top = [P(t, n, ztop(t)) for t in ts]
         mid = [P(t, n, (deck(t) - 0.6 + ztop(t)) / 2) for t in ts]
         for i in range(k):
-            steel.beam(bot[i], bot[i + 1], 1.4, 1.6)                     # bottom chord
-            steel.beam(top[i], top[i + 1], 1.3, 1.5)                     # top chord
+            steel.beam(bot[i], bot[i + 1], 2.1, 2.6)                     # bottom chord (HSW r4: 1.5x, deeper girder)
+            steel.beam(top[i], top[i + 1], 2.0, 2.3)                     # top chord
             depth = min(ztop(ts[i]), ztop(ts[i + 1])) - deck(ts[i])
             if depth > 13.0:                                              # K panel: diagonals meet mid-vertical
                 tower = tn_ if abs(ts[i] - tn_) < abs(ts[i] - ts_) else ts_
                 near, far = (i, i + 1) if abs(ts[i] - tower) < abs(ts[i + 1] - tower) else (i + 1, i)
-                steel.beam(mid[far], top[near], 0.75)
-                steel.beam(mid[far], bot[near], 0.75)
+                steel.beam(mid[far], top[near], 1.1)
+                steel.beam(mid[far], bot[near], 1.1)
                 kpanels += 1
             else:                                                         # Warren
-                steel.beam(bot[i], top[i + 1] if (i % 2 == 0) else top[i], 0.7)
-                steel.beam(top[i] if (i % 2 == 0) else bot[i], top[i + 1] if (i % 2 == 1) else bot[i + 1], 0.7)
+                steel.beam(bot[i], top[i + 1] if (i % 2 == 0) else top[i], 1.05)
+                steel.beam(top[i] if (i % 2 == 0) else bot[i], top[i + 1] if (i % 2 == 1) else bot[i + 1], 1.05)
         for i in range(k):                                                # HSW r3: lattice lacing in every panel (p13)
             if ztop(ts[i]) - deck(ts[i]) > 9.0:
                 steel.beam(bot[i], mid[i + 1], 0.3)
@@ -86,7 +87,9 @@ def build():
                 steel.beam(top[i], mid[i + 1], 0.3)
         for i in range(k + 1):
             heavy = min(abs(ts[i] - tn_), abs(ts[i] - ts_)) < 1.0
-            steel.beam(bot[i], top[i], 1.6 if heavy else 0.9)             # verticals (tower posts heavier)
+            steel.beam(bot[i], top[i], 2.4 if heavy else 1.35)            # verticals (tower posts heavier)
+            steel.box(bot[i][0], bot[i][1], bot[i][2] - 1.6, 3.2, 3.2, 3.2, ang0)   # r4: gusset plates at the joints
+            steel.box(top[i][0], top[i][1], top[i][2] - 1.6, 3.0, 3.0, 3.2, ang0)
             if ztop(ts[i]) - deck(ts[i]) > 13.0:
                 steel.beam(mid[i], mid[min(i + 1, k)], 0.35)              # sub-strut at mid height
     for i, t in enumerate(ts):                                            # top lateral bracing + portals
@@ -110,7 +113,8 @@ def build():
     # ---------------------------------------------------------------- deck underside steel
     ta, tb = B["deck_t"]
     for t in ts:                                                          # deep floor beams at panel points
-        under.beam(P(t, nc - hw, deck(t) - 1.4), P(t, nc + hw, deck(t) - 1.4), 0.6, 1.6)
+        under.beam(P(t, nc - hw, deck(t) - 1.9), P(t, nc + hw, deck(t) - 1.9), 0.8, 2.6)   # r4: real cross-girders
+        under.beam(P(t, nc - hw, deck(t) - 3.0), P(t, nc + hw, deck(t) - 3.0), 0.5, 0.5)
     for i in range(k):                                                    # HSW r2: secondary hangers + sway braces
         tm = (ts[i] + ts[i + 1]) / 2
         for side in (-1, 1):
@@ -160,6 +164,12 @@ def build():
             k_ = len(ap)
             vs = [P(tt + d, nc + u, z) for u, z in ap] + [P(tt + d + 0.2, nc + u, z) for u, z in ap]
             shade_.add(vs, [list(range(k_)), list(range(2 * k_ - 1, k_ - 1, -1))])
+        for u in (-hA * 0.55, hA * 0.55):                                 # r4: things seen through the arch (p09)
+            x3, y3, _ = P(tt - D2 * 0.3, nc + u, 0)
+            misc.box(x3, y3, g, 0.4, 0.4, spring + hA * 0.4, ang)
+        x3, y3, _ = P(tt - D2 * 0.3, nc, 0)
+        misc.box(x3, y3, g + spring * 0.55, 0.5, 2 * hA * 0.9, 0.6, ang)
+        conc.box(x3, y3, g, 2.0, 2 * hA * 0.9, 1.2, ang)
         across([(-W2 - 1.5, zc - 0.3), (W2 + 1.5, zc - 0.3), (W2 + 1.5, topz), (-W2 - 1.5, topz)], tt, -D2 - 1.5, D2 + 1.5)   # cornice (r3: bolder)
         across([(-W2 - 0.5, zc - 1.6), (W2 + 0.5, zc - 1.6), (W2 + 0.5, zc - 0.9), (-W2 - 0.5, zc - 0.9)], tt, -D2 - 0.5, D2 + 0.5)
         for u0, u1 in ((-W2 - 0.8, -hA), (hA, W2 + 0.8)):                 # plinth under both legs
@@ -199,7 +209,7 @@ def build():
         for n0, n1, z_off, key in ((nc - hw + 0.8, nc + hw - 0.8, 0.0, "deck"),
                                    (nc - hw - 3.2, nc - hw - 0.6, 0.25, "pier"),
                                    (nc + hw + 0.6, nc + hw + 3.2, 0.25, "pier")):
-            buf = dk if key == "deck" else conc
+            buf = dk if key == "deck" else under                         # r4: no pale cream strip at the deck edge
             a, b = (n0, n1)
             verts = [P(t, a, deck(t) + z_off), P(tn, a, deck(tn) + z_off), P(tn, b, deck(tn) + z_off), P(t, b, deck(t) + z_off),
                      P(t, a, deck(t) - 0.6), P(tn, a, deck(tn) - 0.6), P(tn, b, deck(tn) - 0.6), P(t, b, deck(t) - 0.6)]

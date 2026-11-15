@@ -105,7 +105,7 @@ def build():
             a, b = r * n + i, r * n + (i + 1) % n
             ff.append((a, b, b + n, a + n))
     far = C.mesh_object("far_land", fv, ff, col, "ground")
-    far.data.materials[0] = C.material_rgb("far_land", (0.085, 0.11, 0.06))          # r3: tree green, not grey
+    far.data.materials[0] = C.material_rgb("far_land", (0.085, 0.11, 0.06), shader="canopy")   # r4: mottled green
     # far suburbs: low roofs scattered over the skirt so the city does not end in a plateau
     import random
     rnd = random.Random(7)
