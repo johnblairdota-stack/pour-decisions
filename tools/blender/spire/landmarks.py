@@ -81,10 +81,10 @@ def build():
                 steel.beam(top[i] if (i % 2 == 0) else bot[i], top[i + 1] if (i % 2 == 1) else bot[i + 1], 1.05)
         for i in range(k):                                                # HSW r3: lattice lacing in every panel (p13)
             if ztop(ts[i]) - deck(ts[i]) > 9.0:
-                steel.beam(bot[i], mid[i + 1], 0.3)
-                steel.beam(mid[i], bot[i + 1], 0.3)
-                steel.beam(mid[i], top[i + 1], 0.3)
-                steel.beam(top[i], mid[i + 1], 0.3)
+                steel.beam(bot[i], mid[i + 1], 0.2)
+                steel.beam(mid[i], bot[i + 1], 0.2)
+                steel.beam(mid[i], top[i + 1], 0.2)
+                steel.beam(top[i], mid[i + 1], 0.2)
         for i in range(k + 1):
             heavy = min(abs(ts[i] - tn_), abs(ts[i] - ts_)) < 1.0
             steel.beam(bot[i], top[i], 2.4 if heavy else 1.35)            # verticals (tower posts heavier)
@@ -112,9 +112,11 @@ def build():
             steel.beam(P(tt, nc - hw, zb), P(tt, nc + hw, zb), 0.45)
     # ---------------------------------------------------------------- deck underside steel
     ta, tb = B["deck_t"]
-    for t in ts:                                                          # deep floor beams at panel points
-        under.beam(P(t, nc - hw, deck(t) - 1.9), P(t, nc + hw, deck(t) - 1.9), 0.8, 2.6)   # r4: real cross-girders
-        under.beam(P(t, nc - hw, deck(t) - 3.0), P(t, nc + hw, deck(t) - 3.0), 0.5, 0.5)
+    for i, t in enumerate(ts):                                            # r5: cross-girders every half panel,
+        under.beam(P(t, nc - hw, deck(t) - 1.6), P(t, nc + hw, deck(t) - 1.6), 0.45, 1.8)   # thinner and even
+        if i < k:
+            tm = (t + ts[i + 1]) / 2
+            under.beam(P(tm, nc - hw, deck(tm) - 1.4), P(tm, nc + hw, deck(tm) - 1.4), 0.35, 1.3)
     for i in range(k):                                                    # HSW r2: secondary hangers + sway braces
         tm = (ts[i] + ts[i + 1]) / 2
         for side in (-1, 1):
@@ -148,6 +150,10 @@ def build():
         faces = [list(range(k_)), list(range(2 * k_ - 1, k_ - 1, -1))]
         faces += [[(i + 1) % k_, i, k_ + i, k_ + (i + 1) % k_] for i in range(k_)]
         conc.add(verts, faces)
+    for tt in (tn_, ts_):                                                 # r5: bearings on the pier tops
+        for side in (-1, 1):
+            xb_, yb_, _ = P(tt, nc + side * hw, 0)
+            misc.box(xb_, yb_, deck(tt) - 3.0, 2.6, 2.0, 1.6, math.atan2(ay, ax))
     for tt in (tn_, ts_):         # main piers: one portal across the bridge, round-headed arch under the road
         x, y, _ = P(tt, nc, 0)
         g = min(min(L.ground_z(*P(tt, nc + s * hw, 0)[:2]) for s in (-1, 0, 1)), 1.5) - 0.5

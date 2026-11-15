@@ -233,7 +233,7 @@ def setup_morning():
             fk = nt.nodes.new("ShaderNodeMath")
             fk.operation = "MULTIPLY"
             nt.links.new(fres.outputs["Fresnel"], fk.inputs[0])
-            fk.inputs[1].default_value = 0.15
+            fk.inputs[1].default_value = 0.35                            # r5: more sky in drone views
             fmix = nt.nodes.new("ShaderNodeMix")
             fmix.data_type = "RGBA"
             nt.links.new(fk.outputs[0], fmix.inputs["Factor"])
@@ -242,7 +242,7 @@ def setup_morning():
             nt.links.new(fmix.outputs[2], bsdf.inputs["Base Color"])
             # HSW r4: ripples sized to read at 50-300 m: swell ~16 m, wind waves ~5 m, chop ~1 m
             hsum = None
-            for kind, scale, weight in (("noise", Rv["swell_scale"], 1.0), ("wave", Rv["wave_scale"], 0.25), ("noise", Rv["chop_scale"], 0.3)):
+            for kind, scale, weight in (("noise", 0.015, 1.2), ("noise", Rv["swell_scale"], 1.0), ("wave", Rv["wave_scale"], 0.25), ("noise", Rv["chop_scale"], 0.3)):
                 if kind == "noise":
                     t_ = nt.nodes.new("ShaderNodeTexNoise")
                     t_.inputs["Detail"].default_value = 4.0
@@ -413,8 +413,8 @@ def setup_morning():
             wv.inputs["Distortion"].default_value = 0.0
             nt.links.new(geo.outputs["Position"], wv.inputs["Vector"])
             ramp = nt.nodes.new("ShaderNodeValToRGB")
-            ramp.color_ramp.elements[0].color = (0.07, 0.15, 0.035, 1)
-            ramp.color_ramp.elements[1].color = (0.17, 0.29, 0.07, 1)
+            ramp.color_ramp.elements[0].color = (0.08, 0.11, 0.035, 1)                  # r5: olive, not apple-green
+            ramp.color_ramp.elements[1].color = (0.17, 0.21, 0.07, 1)
             add = nt.nodes.new("ShaderNodeMath")
             add.operation = "MULTIPLY_ADD"
             nt.links.new(wv.outputs["Fac"], add.inputs[0])
@@ -467,7 +467,7 @@ def setup_morning():
                                 for k in ("bay", "win", "sill", "head", "glass", "rough", "floor") if "win_" + k in m})
         elif m.get("shader") in ("brick", "ashlar"):
             facade_material(m, None)
-        if m.get("shader") in ("tuff", "tuff_dark", "dg", "sheet", "boards", "corten", "glass_green", "stripes", "pile", "pave"):   # HSW
+        if m.get("shader") in ("tuff", "tuff_dark", "dg", "sheet", "boards", "corten", "glass_green", "stripes", "pile", "pave", "chevron"):   # HSW
             import hsw_hero
             hsw_hero.shade(m, bsdf)
         m["look_done"] = True

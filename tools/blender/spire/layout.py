@@ -212,7 +212,7 @@ HSW.update({
 # ---------------------------------------------------------------- HSW round 2 (critic's ranked list, 15 Nov 2026)
 HSW.update({
     # 1 cliff: warm tan-ochre Brisbane tuff, fractured near-vertical faces, mostly bare (photos p06, p10, gg_11228e1b)
-    "cliff": {"tuff": ((0.40, 0.31, 0.23), (0.58, 0.46, 0.34), (0.56, 0.32, 0.15)), "bench_m": 4.5,   # r4: warmer
+    "cliff": {"tuff": ((0.34, 0.31, 0.27), (0.50, 0.45, 0.38), (0.46, 0.34, 0.23)), "bench_m": 4.5,   # r5: grey-tan buff
               "shrubs": 700, "seed": 11, "slabs": 0, "rim_rocks": 0,
               "source": "photos p06/p10: tan-ochre rock with orange iron stain, dark joints, overhangs, "
                         "tufts on ledges, figs and vines hanging off the rim"},
@@ -222,7 +222,7 @@ HSW.update({
               "mix": {"fig": 30, "eucalypt": 25, "poinciana": 15, "palm": 10, "generic": 20}},
     # 3 waterline: river bank below the decks sinks under the water; dark timber pile colonnade under the
     # riverwalk and shed decks with cross bracing (photo p09); riprap boulders (photo p06, Rivershed point)
-    "waterline": {"sink_below_ahd": 2.2, "sink_to_ahd": -1.2, "pile_every_m": 2.6, "pile_w_m": 0.42,
+    "waterline": {"sink_below_ahd": 2.2, "sink_to_ahd": -1.2, "pile_every_m": 3.6, "pile_w_m": 0.42,
                   "pile_rgb": (0.17, 0.145, 0.12), "fascia_rgb": (0.10, 0.085, 0.07),
                   "riprap_box": (690.0, -60.0, 870.0, 40.0), "riprap_z": (-0.8, 2.8), "riprap_every_m": 1.6},
     # 4 ground: sand-pink decomposed granite paths through the lawns (OSM footways), warm pale paving
@@ -230,7 +230,8 @@ HSW.update({
                "path_w_m": 3.2, "deck": (0.36, 0.27, 0.19)},
     # 5 river: olive-brown, fine ripples, no mirror hot spot (photos p06, p01)
     "sun_angle_deg": 1.6,
-    "river": {"rgb": (0.115, 0.095, 0.05), "rough": 0.07, "spec": 0.5, "swell_scale": 0.06, "wave_scale": 0.18,
+    "river": {"rgb": (0.10, 0.09, 0.065),   # r5: less khaki
+              "rough": 0.07, "spec": 0.5, "swell_scale": 0.06, "wave_scale": 0.18,
               "chop_scale": 0.9, "bump": 0.55, "bump_dist": 0.15},   # r4: glossy, ripples at 3 scales
     # 7 north main pier: arch crown 8.2 m under the pier top (photo p09: 120 px at 14.6 px/m), dark inside
     "pier_arch_crown_below_top_m": 8.2,
@@ -244,16 +245,17 @@ HSW.update({
     # 2 river halves of these sheds stand on piles over water (photos p09, p12, p13)
     "over_water_sheds": [58693374, 58693380, 679146315], "pile_grid_m": 2.6, "riverwalk_piles_x": (395.0, 670.0),
     # 3 bridge steel: dark charcoal grey-green (photos p13, p09), not pale sage
-    "bridge_steel": (0.105, 0.115, 0.115),
+    "bridge_steel": (0.19, 0.21, 0.24),   # r5: mid steel-grey, slightly blue (photo p13)
     # 7 pier: warm cream render, mid-dark arch with a lit back wall
-    "pier_render": (0.86, 0.71, 0.49),   # r4: warmer cream "pier_arch_back": (0.07, 0.07, 0.065),
+    "pier_render": (0.86, 0.71, 0.49),   # r4: warmer cream
+    "pier_arch_back": (0.30, 0.26, 0.20),   # r5: lit back wall, not a void
     # 8 roof letters mid grey; Mr Percival's one dark roof
     "letters_rgb": (0.33, 0.33, 0.34), "percivals_roof_r3": (0.10, 0.11, 0.12),
     # 10 lift: corten frame, teal glass shaft, enclosed teal skybridge (photo p12)
-    "lift_glass": (0.10, 0.20, 0.22), "skybridge_extra_m": 14.0,
+    "lift_glass": (0.10, 0.20, 0.22), "skybridge_extra_m": 22.0,
     # 12 horizon: compositor mist toward a warm haze, far ridge card, green far land
     "mist": {"start_m": 600.0, "depth_m": 4000.0, "strength": 0.4, "rgb": (0.62, 0.66, 0.72)},
-    "ridge": {"dist_m": 4800.0, "h_m": (45.0, 120.0), "rgb": (0.50, 0.55, 0.61)},   # r4: haze-coloured, low
+    "ridge": {"dist_m": 4300.0, "h_m": (40.0, 95.0), "rgb": (0.55, 0.60, 0.66)},   # r5: smooth haze silhouette
     # 13 cream two-storey house west of the HSW shed: terracotta hip roof (photo p13)
     "terracotta": (0.42, 0.16, 0.09),
 })

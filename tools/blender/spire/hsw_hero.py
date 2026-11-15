@@ -125,6 +125,7 @@ def terrain(col):
     mi[(slope >= H["scrub_slope_deg"]) & (slope < H["rock_slope_deg"])] = 2
     mi[slope >= H["rock_slope_deg"]] = 1
     mi[(mi == 1) & (X[:-1, :-1] < H["green_cliff_x_max"])] = 2      # r3: green hill, no bare tuff west of Barrel Hall
+    mi[(mi == 0) & (X[:-1, :-1] < 400.0)] = 3                        # r5: the land west of HSW is park, not paving
     mi[(zc < 3.2) & (slope >= H["scrub_slope_deg"])] = 5            # river bank under the decks: dark mud/rock
     mi[zc2 < 2.6] = 5
     mi[zc2 < 0.0] = 5                                                # river bed
@@ -301,8 +302,9 @@ def cliff_dress(col, X, Y, sub, slope, zc, orig, riprap_zone):
         py_ = Y[r, c] + uy * 1.2 + rnd.uniform(-1.5, 1.5)
         pz_ = zc[r, c] + lift
         roll = rnd.random()
-        if roll < 0.10:                                   # r4: palms among the crowns (photo p12)
-            palm(canopy, hill_trunks, px_, py_, zc[r, c], rnd.uniform(7.0, 11.0), rnd)
+        if roll < 0.10:                                   # r5: groups of palms among the crowns (photo p12)
+            for _ in range(rnd.randint(2, 4)):
+                palm(canopy, hill_trunks, px_ + rnd.uniform(-3, 3), py_ + rnd.uniform(-3, 3), zc[r, c], rnd.uniform(7.0, 12.0), rnd)
         elif roll < 0.13:                                 # a jacaranda or two in flower
             jac.cloud((px_, py_, pz_), (rad, rad, rad * 0.6), int(9 * (20 + 4 * rad * rad)), 0.5, shell=0.2, top_bias=0.5)
         else:                                             # r4: distinct round crowns with lime-lit tops
@@ -331,11 +333,11 @@ def cliff_dress(col, X, Y, sub, slope, zc, orig, riprap_zone):
         nh += 1
     names = [obj(rock, "hsw_cliff_slabs", col, rgbm("tuff", H["cliff"]["tuff"][1], "tuff")),
              obj(hill_trunks, "hsw_hill_palm_trunks", col, rgbm("palm_trunk", (0.33, 0.30, 0.26))),
-             obj(rip, "hsw_riprap", col, rgbm("riprap", (0.10, 0.09, 0.085), "tuff_dark"))]
+             obj(rip, "hsw_riprap", col, rgbm("riprap", (0.24, 0.22, 0.19), "dg"))]
     for fo, nm, a, b in ((leaves, "hsw_cliff_scrub", (0.05, 0.10, 0.035), (0.13, 0.20, 0.07)),
                          (vines, "hsw_cliff_vines", (0.045, 0.095, 0.03), (0.11, 0.19, 0.06)),
                          (canopy, "hsw_hill_canopy", (0.04, 0.09, 0.03), (0.12, 0.21, 0.06)),
-                         (tops, "hsw_hill_tops", (0.16, 0.26, 0.05), (0.30, 0.40, 0.08)),
+                         (tops, "hsw_hill_tops", (0.22, 0.34, 0.06), (0.40, 0.52, 0.10)),
                          (jac, "hsw_jacaranda", (0.22, 0.13, 0.45), (0.38, 0.25, 0.65))):
         o_ = fo.object(nm, col, a, b)
         if o_:
@@ -485,7 +487,7 @@ def sheds(col):
                 x, y, z = Pt(0, rside * (wd / 2 + o) * 0.48, 0)
                 zz = ze + (ridge - ze) * 0.52 + 0.12
                 # round 2: bigger, bolder, spaced letters (photo p09: they fill ~60 % of the roof slope)
-                size = min(0.66 * math.hypot(wd / 2 + o, ridge - ze), 1.55 * (ln + 2 * o) / max(4, len(sh["letters"])))
+                size = min(0.66 * math.hypot(wd / 2 + o, ridge - ze), 1.75 * (ln + 2 * o) / max(4, len(sh["letters"])))
                 tob = C.text_obj(col, "hsw_roof_letters_%d" % sh["osm"], sh["letters"], (x, y, zz),
                                  (th, 0.0, head), size, H["letters_rgb"])
                 try:
@@ -493,7 +495,7 @@ def sheds(col):
                     import os
                     fp = os.path.join(L.HERE, "..", "..", "..", "fonts", "Barlow-SemiBold.ttf")
                     tob.data.font = bpy.data.fonts.load(os.path.abspath(fp), check_existing=True)
-                    tob.data.space_character = 1.35
+                    tob.data.space_character = 1.6
                 except Exception as e:                       # font missing: Blender's default font
                     print("roof letters font:", e)
                 letters.append(tob.name)
@@ -716,7 +718,7 @@ def riverwalk(col):
                     pw = Wl["pile_w_m"]
                     piles.beam((ox, oy, z[i] - 0.4), (ox, oy, -2.5), pw)
                     mx, my = (inn[0] + out[0]) / 2, (inn[1] + out[1]) / 2
-                    piles.beam((mx, my, z[i] - 0.4), (mx, my, -2.5), pw)
+                    pass                                                       # r5: one row only (gaps)
                     piles.beam((ox, oy, z[i] - 0.7), (mx, my, z[i] - 0.7), 0.3, 0.5)          # headstock
                     if prev_pile and math.dist(prev_pile[:2], (ox, oy)) < 4.0:   # X bracing between piles
                         piles.beam((*prev_pile[:2], z[i] - 0.8), (ox, oy, 0.6), 0.14)
@@ -862,9 +864,51 @@ def hotel_fins(col):
                         obj(alt, "hsw_hotel_fins_timber", col, rgbm("hotel_fin_glass", (0.06, 0.07, 0.08), "glass_green"))) if n]
 
 
+def hotel_skin(col):
+    """Round 5: the Vincent's zig-zag facade as a texture on a skin 0.15 m outside every wall of every tier
+    (charcoal, tan and dark glass chevrons at photo scale, p09/p07), green planter strips on the tier edges,
+    and one big jacaranda on the cliff side of the hotel."""
+    import foliage as FO
+    rec = rec_by_osm()[H["hotel_way"]]
+    skin, plant = C.MeshBuf(), C.MeshBuf()
+    for ti, t in enumerate(rec["tiers"]):
+        ring = S.ccw([tuple(p) for p in t["ring"]])
+        z0 = rec["base_ahd"] + 4.0 if ti == 0 else rec["tiers"][ti - 1]["top_ahd"]
+        z1 = t["top_ahd"] - 0.6
+        acc = 0.0
+        for i in range(len(ring)):
+            (ax_, ay_), (bx, by) = ring[i], ring[(i + 1) % len(ring)]
+            ln = math.dist((ax_, ay_), (bx, by))
+            if ln < 0.5:
+                continue
+            nx, ny = (by - ay_) / ln, -(bx - ax_) / ln
+            a = (ax_ + nx * 0.15, ay_ + ny * 0.15)
+            b = (bx + nx * 0.15, by + ny * 0.15)
+            q = [(*a, z0), (*b, z0), (*b, z1), (*a, z1)]
+            skin.add(q, [[0, 1, 2, 3]], [[(acc, z0), (acc + ln, z0), (acc + ln, z1), (acc, z1)]])
+            acc += ln
+        plant.prism(ring, z1 + 0.3, z1 + 0.9)
+    jac = FO.Foliage(seed=77)
+    cx = sum(p[0] for p in rec["tiers"][0]["ring"]) / len(rec["tiers"][0]["ring"])
+    cy = max(p[1] for p in rec["tiers"][0]["ring"]) + 4.0
+    g = L.ground_z(cx, cy)
+    tr = C.MeshBuf()
+    tr.beam((cx, cy, g), (cx, cy, g + 9.0), 0.7)
+    jac.cloud((cx, cy, g + 13.0), (8.0, 8.0, 4.5), 2400, 0.55, shell=0.2, top_bias=0.5)
+    names = [obj(skin, "hsw_hotel_chevron_skin", col, rgbm("hotel_chevron", (0.45, 0.38, 0.30), "chevron")),
+             obj(plant, "hsw_hotel_planters", col, C.material_rgb("hsw_hotel_planter", (0.05, 0.10, 0.035), shader="canopy")),
+             obj(tr, "hsw_hotel_jacaranda_trunk", col, rgbm("palm_trunk", (0.33, 0.30, 0.26)))]
+    o_ = jac.object("hsw_hotel_jacaranda", col, (0.25, 0.15, 0.50), (0.42, 0.28, 0.70))
+    if o_:
+        names.append(o_.name)
+    return [n for n in names if n]
+
+
 def mangroves(col):
+    import foliage as FO
     M = H["mangroves"]
     rnd = random.Random(M["seed"])
+    fo = FO.Foliage(seed=M["seed"])
     x0, y0, x1, y1 = M["box"]
     cls = L.lidar("class")
     buf = C.MeshBuf()
@@ -875,11 +919,11 @@ def mangroves(col):
             z = L.ground_z(xx, yy)
             if not (M["z"][0] <= z <= M["z"][1]) or cls[L.lidar_cell(xx, yy)] == 6:
                 continue
-            r = rnd.uniform(1.2, 2.6)
-            blob(buf, xx, yy, z + r * 0.55, r, r * rnd.uniform(0.6, 0.85), rnd)
+            r = rnd.uniform(1.4, 2.8)
+            fo.cloud((xx, yy, z + r * 0.55), (r, r, r * 0.7), int(30 + 10 * r * r), 0.5, shell=0.2, top_bias=0.4)
             n += 1
-    name = obj(buf, "hsw_mangroves", col, C.material_rgb("hsw_mangrove", (0.035, 0.065, 0.025), shader="canopy"))
-    return ([name] if name else []), n
+    ob = fo.object("hsw_mangroves", col, (0.035, 0.07, 0.025), (0.09, 0.15, 0.05))   # r5: leaf cards, not blobs
+    return ([ob.name] if ob else []), n
 
 
 # ---------------------------------------------------------------- round 2 dressing
@@ -944,7 +988,7 @@ def dressing(col):
         xs, ys = [p[0] for p in ring], [p[1] for p in ring]
         for x in np.arange(min(xs) + 2, max(xs) - 2, 5.0):
             for y in np.arange(min(ys) + 2, max(ys) - 2, 5.0):
-                if not C.point_in_ring(x, y, ring) or rnd.random() < 0.55:
+                if not C.point_in_ring(x, y, ring) or rnd.random() < 0.25:
                     continue
                 g = L.ground_z(x, y)
                 x2, y2 = x + rnd.uniform(-1, 1), y + rnd.uniform(-1, 1)
@@ -1018,7 +1062,7 @@ def dressing(col):
 
 def build(col):
     meta = {}
-    names_h = hotel_fins(col)
+    names_h = hotel_skin(col)
     mg, meta["mangroves"] = mangroves(col)
     names_h += mg
     names, m = terrain(col)
@@ -1120,7 +1164,7 @@ def shade(m, bsdf):
         wr = nodes.new("ShaderNodeMapRange")
         links.new(wet.outputs["Fac"], wr.inputs["Value"])
         wr.inputs["From Min"].default_value, wr.inputs["From Max"].default_value = 0.6, 0.75
-        wr.inputs["To Max"].default_value = 0.45
+        wr.inputs["To Max"].default_value = 0.7
         c3 = mix_rgb(wr.outputs["Result"], c2, (0.15, 0.12, 0.09, 1))
         links.new(c3, bsdf.inputs["Base Color"])
         bump = nodes.new("ShaderNodeBump")
@@ -1244,3 +1288,39 @@ def shade(m, bsdf):
         c1 = mix_rgb(nz.outputs["Fac"], br.outputs["Color"], tuple(c * 0.85 for c in base[:3]) + (1,), "MULTIPLY")
         links.new(c1, bsdf.inputs["Base Color"])
         bsdf.inputs["Roughness"].default_value = 0.9
+    elif kind == "chevron":
+        # r5: the Vincent's zig-zag facade: diagonal bands that change direction every floor (3.2 m), in
+        # charcoal, tan and dark glass, 4.8 m repeat (photos p09, p07)
+        uv = nodes.new("ShaderNodeUVMap")
+        uv.uv_map = "facade"
+        sep = nodes.new("ShaderNodeSeparateXYZ")
+        links.new(uv.outputs["UV"], sep.inputs[0])
+
+        def m_(op, a, b=None):
+            n_ = nodes.new("ShaderNodeMath")
+            n_.operation = op
+            for i_, v_ in enumerate((a, b)):
+                if v_ is None:
+                    continue
+                if isinstance(v_, (int, float)):
+                    n_.inputs[i_].default_value = v_
+                else:
+                    links.new(v_, n_.inputs[i_])
+            return n_.outputs[0]
+        f = m_("FRACT", m_("DIVIDE", sep.outputs["Y"], 3.2))
+        tri = m_("MULTIPLY", m_("ABSOLUTE", m_("SUBTRACT", f, 0.5)), 3.2)
+        band = m_("FRACT", m_("DIVIDE", m_("ADD", sep.outputs["X"], tri), 4.8))
+        ramp = nodes.new("ShaderNodeValToRGB")
+        ramp.color_ramp.interpolation = "CONSTANT"
+        el = ramp.color_ramp.elements
+        el[0].position, el[0].color = 0.0, (0.07, 0.07, 0.075, 1)
+        el[1].position, el[1].color = 0.36, (0.46, 0.39, 0.30, 1)
+        e3 = el.new(0.68)
+        e3.color = (0.025, 0.03, 0.04, 1)
+        links.new(band, ramp.inputs["Fac"])
+        links.new(ramp.outputs["Color"], bsdf.inputs["Base Color"])
+        rr_ = nodes.new("ShaderNodeMapRange")
+        links.new(band, rr_.inputs["Value"])
+        rr_.inputs["From Min"].default_value, rr_.inputs["From Max"].default_value = 0.66, 0.70
+        rr_.inputs["To Min"].default_value, rr_.inputs["To Max"].default_value = 0.8, 0.1
+        links.new(rr_.outputs["Result"], bsdf.inputs["Roughness"])

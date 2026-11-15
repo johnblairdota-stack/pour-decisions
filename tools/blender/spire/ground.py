@@ -111,7 +111,7 @@ def build():
     rnd = random.Random(7)
     fb = C.MeshBuf()
     fbt, fbg = C.MeshBuf(), C.MeshBuf()                               # r3: terracotta roofs and tree clumps
-    for _ in range(30000):
+    for _ in range(80000):                                            # r5: denser mixed suburb
         x = rnd.uniform(x0 - 3000, x1 + 3000)
         y = rnd.uniform(y0 - 3000, y1 + 3000)
         if x0 - 20 < x < x1 + 20 and y0 - 20 < y < y1 + 20:
@@ -123,7 +123,7 @@ def build():
         w_, l_ = rnd.uniform(7, 16), rnd.uniform(8, 20)
         h_ = rnd.choice((4, 5, 5, 6, 7, 9)) if rnd.random() > 0.01 else rnd.uniform(15, 45)
         kind = rnd.random()
-        if kind < 0.35:
+        if kind < 0.45:
             fbg.box(x, y, zb - 0.5, w_ * 1.4, l_ * 1.4, rnd.uniform(6, 12), rnd.uniform(0, 3.14))
         elif kind < 0.7:
             fbt.box(x, y, zb - 0.5, w_, l_, h_, rnd.uniform(0, 3.14))

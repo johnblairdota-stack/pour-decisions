@@ -44,17 +44,20 @@ def horizon():
     sc = bpy.context.scene
     R = L.HSW["ridge"]
     rnd = random.Random(3)
-    n = 180
+    n = 720
     cx, cy = 640.0, 60.0
+    lo, hi = R["h_m"]
+    ph = [rnd.uniform(0, 6.28) for _ in range(4)]
     hs = []
-    h = sum(R["h_m"]) / 2
-    for i in range(n):
-        h = min(max(h + rnd.uniform(-18, 18), R["h_m"][0]), R["h_m"][1])
-        hs.append(h)
+    for i in range(n):                          # r5: smooth sum of long sines, no random-walk shards
+        a_ = 2 * math.pi * i / n
+        v = (0.45 * math.sin(3 * a_ + ph[0]) + 0.3 * math.sin(7 * a_ + ph[1]) + 0.15 * math.sin(13 * a_ + ph[2])
+             + 0.1 * math.sin(23 * a_ + ph[3]))
+        hs.append(lo + (hi - lo) * (0.5 + 0.5 * v))
     verts, faces = [], []
     for i in range(n):
         a = 2 * math.pi * i / n
-        d = R["dist_m"] * (1 + 0.15 * math.sin(3 * a))
+        d = R["dist_m"]
         x, y = cx + d * math.cos(a), cy + d * math.sin(a)
         verts += [(x, y, -5.0), (x, y, hs[i])]
     for i in range(n):
