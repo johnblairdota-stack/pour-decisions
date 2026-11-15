@@ -55,7 +55,12 @@ var _cam: Camera3D
 var _prompts: Control
 var _title: Label
 var _play_t := -1.0           # playing the focused card
-var _zoom: TextureRect        # its picture, growing to fill the screen
+var _zoom: TextureRect        # its picture, sharp over the card's own as the view pushes into it
+var _pics: Array = []         # per card: its picture window (the face page's Panel)
+
+const PLAY_OUT_T := 0.7       # s: out of the hand, a spin, face-on
+const PLAY_PUSH_T := 1.1      # s: the view pushes in until the picture is the whole screen
+const PLAY_S := 1.6           # the played card's size
 
 signal picked(card: Dictionary)
 
@@ -265,7 +270,9 @@ func _face_viewport(c: Dictionary) -> SubViewport:
 	art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 	art.size = Vector2(268, 176) * s
+	art.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	pic.add_child(art)
+	_pics.append(pic)
 	# name, place, chips
 	var nm := UI.head(c["name"], int(40 * s), Color("1d2023"))
 	v.add_child(nm)
@@ -341,6 +348,27 @@ func _back_texture() -> Texture2D:
 
 # ------------------------------------------------------------------ the fan
 
+## The picture window of card i, in the card's own units: [centre, size].
+func _window(i: int) -> Array:
+	var pic: Control = _pics[i]
+	var r := Rect2(pic.global_position, pic.size)
+	if r.size.x < 1.0:
+		r = Rect2(Vector2(16, 44) * (FACE_PX.x / 300.0), Vector2(268, 176) * (FACE_PX.x / 300.0))
+	var c := r.get_center()
+	return [Vector2((c.x / FACE_PX.x - 0.5) * CARD_W, (0.5 - c.y / FACE_PX.y) * CARD_H),
+		Vector2(r.size.x / FACE_PX.x * CARD_W, r.size.y / FACE_PX.y * CARD_H)]
+
+## Where the played card ends up: its picture window square on the camera, as wide as the screen.
+func _push_end(i: int) -> Vector3:
+	var w: Array = _window(i)
+	var vs := Vector2(_vp.size)
+	var d: float = (w[1] as Vector2).x * PLAY_S / (2.0 * tan(deg_to_rad(_cam.fov * 0.5)) * vs.x / maxf(1.0, vs.y))
+	return Vector3(-(w[0] as Vector2).x * PLAY_S, -(w[0] as Vector2).y * PLAY_S, _cam.position.z - d)
+
+## The push into the picture, 0..1 (slow in, slow out).
+func _push_u() -> float:
+	return smoothstep(0.0, 1.0, clampf((_play_t - PLAY_OUT_T) / PLAY_PUSH_T, 0.0, 1.0))
+
 func _layout(delta: float) -> void:
 	_f = lerpf(_f, float(focus), minf(1.0, delta * 9.0)) if delta > 0.0 else _f
 	var deal := clampf(_deal_t / 1.2, 0.0, 1.0)
@@ -361,10 +389,12 @@ func _layout(delta: float) -> void:
 		var s := lerpf(1.0, 1.18, on)
 		if _play_t >= 0.0:
 			if i == focus:
-				var u := clampf(_play_t / 0.7, 0.0, 1.0)
+				var u := clampf(_play_t / PLAY_OUT_T, 0.0, 1.0)
 				p = p.lerp(Vector3(0, 0.0, 1.6), ease(u, -2.0))
 				spin += TAU * ease(u, -1.6)
-				s = lerpf(s, 1.6, u)
+				s = lerpf(s, PLAY_S, u)
+				# (then straight at the camera, until its picture window is the screen's whole width)
+				p = p.lerp(_push_end(i), _push_u())
 			else:
 				p.y -= ease(clampf(_play_t / 0.5, 0.0, 1.0), 2.0) * 4.0
 		n.position = p
@@ -385,8 +415,9 @@ func _process(delta: float) -> void:
 			game.sfx.hit("tink")       # (each card's flip)
 	if _play_t >= 0.0:
 		_play_t += delta
-		_play_step()
 	_layout(delta)
+	if _play_t >= 0.0:
+		_play_step()      # (after the layout: the sharp picture rides the card's window this same frame)
 	_title.modulate.a = 1.0 if _play_t < 0.0 else maxf(0.0, 1.0 - _play_t * 3.0)
 	_prompts.modulate.a = _title.modulate.a
 
@@ -455,20 +486,23 @@ func play() -> void:
 
 func _play_step() -> void:
 	var c: Dictionary = TOWERS[focus]
-	if _play_t >= 0.7 and not _zoom.visible:
-		# into the picture: it grows from the card's window to the whole screen
-		_zoom.texture = load(c["art"])
-		_zoom.visible = true
-		var ss := get_viewport_rect().size
-		var w := ss.y * 0.36
-		_zoom.position = ss * 0.5 - Vector2(w * 0.8, w * 0.75)
-		_zoom.size = Vector2(w * 1.6, w)
-		_zoom.modulate.a = 0.0
-		var tw := create_tween().set_parallel(true)
-		tw.tween_property(_zoom, "modulate:a", 1.0, 0.15)
-		tw.tween_property(_zoom, "position", Vector2.ZERO, 0.6).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
-		tw.tween_property(_zoom, "size", ss, 0.6).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
-	if _play_t >= 1.4 and _play_t - get_process_delta_time() < 1.4:
+	if _play_t >= PLAY_OUT_T:
+		# into the picture: the full-size art sits exactly over the card's own picture window and
+		# rides it out to the edges of the screen (one move, no second picture)
+		if not _zoom.visible:
+			_zoom.texture = load(c["art"])
+			_zoom.visible = true
+		var w: Array = _window(focus)
+		var n: Node3D = _cards[focus]["node"]
+		var half: Vector2 = (w[1] as Vector2) * 0.5
+		var ctr := Vector3((w[0] as Vector2).x, (w[0] as Vector2).y, CARD_T * 0.5)
+		var k := size / Vector2(_vp.size)
+		var tl := _cam.unproject_position(n.to_global(ctr + Vector3(-half.x, half.y, 0))) * k
+		var br := _cam.unproject_position(n.to_global(ctr + Vector3(half.x, -half.y, 0))) * k
+		_zoom.position = tl
+		_zoom.size = br - tl
+		_zoom.modulate.a = clampf((_play_t - PLAY_OUT_T) / 0.25, 0.0, 1.0)
+	if _play_t >= PLAY_OUT_T + PLAY_PUSH_T and arrival.is_empty():
 		arrival = {"card": c, "t": 0.0}
 		picked.emit(c)
 
@@ -489,15 +523,18 @@ static func cover(tree: SceneTree, c: Dictionary) -> void:
 	_cover.add_child(pic)
 	tree.root.add_child(_cover)
 
-## Fades the cover out (0 shown .. 1 gone).
-static func uncover(f: float) -> void:
+## Fades the cover out (0 shown .. 1 gone); `push` keeps the picture creeping in while it's up.
+static func uncover(f: float, push := 0.0) -> void:
 	if _cover == null or not is_instance_valid(_cover):
 		return
 	if f >= 1.0:
 		_cover.queue_free()
 		_cover = null
 		return
-	(_cover.get_child(0) as CanvasItem).modulate.a = 1.0 - f
+	var pic := _cover.get_child(0) as Control
+	pic.modulate.a = 1.0 - clampf(f, 0.0, 1.0)
+	pic.pivot_offset = pic.size * 0.5
+	pic.scale = Vector2.ONE * (1.0 + push)
 
 # ------------------------------------------------------------------ drawn bits
 

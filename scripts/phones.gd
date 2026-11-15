@@ -540,6 +540,8 @@ func screen() -> String:
 		return "pause"
 	if game.explore != null and game.explore.active:
 		return "roam"
+	if is_instance_valid(game.selector) and game.phase in ["roles", "select"] and game.selector.arriving:
+		return "tower"       # (still flying in to the tower: the floor pick isn't up yet)
 	if game.phase == "roles" and is_instance_valid(game.selector) and game.selector.page in ["tower", "arrive"]:
 		return "tower"       # (the hand of towers: the stick and A, and a banner saying what's up)
 	if game.phase == "roles":
@@ -566,7 +568,7 @@ func _send_state(c: Dictionary) -> void:
 	if scr == "tower":
 		var hand = game.selector._tower_page
 		st["tower"] = String(hand.TOWERS[hand.focus]["name"]) if hand != null else ""
-		st["flying"] = game.selector.page == "arrive"
+		st["flying"] = game.selector.page == "arrive" or game.selector.arriving
 	if scr == "sign":
 		st["left"] = int(ceil(game.ink_left()))
 		st["done"] = bool(game._ink_done.get(p, false))

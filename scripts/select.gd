@@ -98,6 +98,7 @@ var _site_ring: Ring
 var _lvl_k: Label
 var _lvl_title: Label
 var _lvl_line: Label         # the day's line from the tower's story
+var _shade: TextureRect      # the dark top and bottom behind the type
 
 func _ready() -> void:
 	layer = 5
@@ -113,6 +114,7 @@ func _ready() -> void:
 	gt.width = 4
 	gt.height = 256
 	var shade := TextureRect.new()
+	_shade = shade
 	shade.texture = gt
 	shade.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	shade.stretch_mode = TextureRect.STRETCH_SCALE
@@ -149,8 +151,25 @@ func _card_played(c: Dictionary) -> void:
 	TowerHand.cover(get_tree(), c)
 	_show_page("arrive")
 
-func arrived(c: Dictionary) -> void:
+## The flight in: the floor pick is set up as it starts (main.gd lands its camera on it), its page
+## held back, nothing pressed, no clock running, until the camera is nearly there.
+var arriving := false
+
+func arrive_site(c: Dictionary) -> void:
+	arriving = true
 	_tower_picked(c)
+	_site_page.modulate.a = 0.0
+	_shade.modulate.a = 0.0
+
+func arrive_fade(f: float) -> void:
+	_site_page.modulate.a = f
+	_shade.modulate.a = f
+
+func arrive_done() -> void:
+	arriving = false
+	arrive_fade(1.0)
+	_cool = 0.3
+	_site_t = SITE_T
 
 ## The tower pick comes first, except on test runs and when the command line picks the site.
 func wants_tower_page() -> bool:
@@ -973,7 +992,7 @@ func _pickshots(delta: float) -> void:
 			TowerHand.shot("order_2_join_jobs", get_viewport())
 			set_ready(1, true)
 			crew_done()
-	elif page == "site" and _ps_i < 9:
+	elif page == "site" and _ps_i < 9 and not arriving:
 		if _ps_i < 8:
 			_ps_i = 8
 			_ps_t = 0.0
@@ -982,10 +1001,42 @@ func _pickshots(delta: float) -> void:
 			TowerHand.shot("order_7_floors", get_viewport())
 			get_tree().quit()
 
+## Dev `--pickplay=<water|riverlight|spire>`: straight to the hand, plays that card, and quits a few
+## seconds after the flight lands (for filming the transitions: add Godot's --write-movie).
+static var _pp_id := ""
+static var _pp_played := false
+var _pp_t := 0.0
+
+func _pickplay(delta: float) -> void:
+	if _pp_id == "":
+		_pp_id = "-"
+		for a in OS.get_cmdline_user_args():
+			if a.begins_with("--pickplay="):
+				_pp_id = a.substr(11)
+	if _pp_id == "-":
+		return
+	if page == "crew" and _t > 0.5 and not _pp_played:
+		open_t = OPEN_T + 1.0
+		open_e = 1.0
+		crew_done()
+	elif page == "tower" and not _pp_played and _tower_page._deal_t > 2.6:
+		for i in TowerHand.TOWERS.size():
+			if TowerHand.TOWERS[i]["id"] == _pp_id and _tower_page.focus != i:
+				_tower_page.focus = i
+				return
+		if absf(_tower_page._f - _tower_page.focus) < 0.02:
+			_pp_played = true
+			_tower_page.play()
+	elif page == "site" and not arriving and _pp_played:
+		_pp_t += delta
+		if _pp_t > 2.5:
+			get_tree().quit()
+
 func _process(delta: float) -> void:
 	if game == null:
 		return
 	_pickshots(delta)
+	_pickplay(delta)
 	_t += delta
 	if _uitest:
 		# Dev: click through both pages the way a person would
@@ -1005,7 +1056,7 @@ func _process(delta: float) -> void:
 		elif page == "site" and _ut > 2.5 and not _done:
 			print("[uitest] picking the tower")
 			pick(0)
-	if page == "arrive":
+	if page == "arrive" or arriving:
 		pass
 	elif page == "tower":
 		# (B goes back to the crew page)
@@ -1035,7 +1086,7 @@ func _show_page(which: String) -> void:
 		_tower_page.visible = which == "tower"
 		_tower_page.process_mode = Node.PROCESS_MODE_INHERIT if which == "tower" else Node.PROCESS_MODE_DISABLED
 	# (the page coming in slides in from its side and fades up)
-	if was != which and is_inside_tree():
+	if was != which and is_inside_tree() and not arriving:
 		var pg: Control = _site_page if which == "site" else _crew_page
 		pg.modulate.a = 0.0
 		pg.position.x = 60.0 if which == "site" else -60.0
