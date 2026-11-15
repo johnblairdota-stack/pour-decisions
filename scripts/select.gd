@@ -22,7 +22,7 @@ const UI := preload("res://scripts/ui.gd")
 const Settings := preload("res://scripts/settings.gd")
 const QR := preload("res://scripts/qr.gd")
 const Story := preload("res://scripts/story.gd")
-const TowerPick := preload("res://scripts/tower_pick.gd")
+const TowerHand := preload("res://scripts/tower_hand.gd")
 
 const KITS := [
 	{"id": "tower", "name": "Tower boom", "sub": "Pump on the street, boom up a lattice tower", "ok": true, "tag": "WHAT SCP RAN HERE"},
@@ -125,11 +125,28 @@ func _ready() -> void:
 	add_child(root)
 	_build_crew_page(root)
 	_build_site_page(root)
-	_tower_page = TowerPick.new()
+	_tower_page = TowerHand.new()
 	_tower_page.game = game
 	root.add_child(_tower_page)
-	_tower_page.picked.connect(_tower_picked)
-	_show_page("tower" if wants_tower_page() else "crew")
+	_tower_page.picked.connect(_card_played)
+	if not TowerHand.arrival.is_empty():
+		_show_page("arrive")          # (a card played on the other site: main.gd flies in)
+	else:
+		_show_page("tower" if wants_tower_page() else "crew")
+
+## The card's been played: its picture fills the screen. On the other site the game comes back up
+## there behind the picture; main.gd then flies up the river to it, and arrived() opens the crew page.
+func _card_played(c: Dictionary) -> void:
+	if String(c["site"]) != String(game.site):
+		Settings.put("site", c["site"])
+		TowerHand.cover(get_tree(), c)
+		get_tree().reload_current_scene()
+		return
+	TowerHand.cover(get_tree(), c)
+	_show_page("arrive")
+
+func arrived(c: Dictionary) -> void:
+	_tower_picked(c)
 
 ## The tower pick comes first, except on test runs and when the command line picks the site.
 func wants_tower_page() -> bool:
@@ -920,7 +937,9 @@ func _process(delta: float) -> void:
 		elif page == "site" and _ut > 2.5 and not _done:
 			print("[uitest] picking the tower")
 			pick(0)
-	if page == "tower":
+	if page == "arrive":
+		pass
+	elif page == "tower":
 		var v := Vector2.ZERO
 		var pressed := false
 		for p in game.crew.humans():
@@ -941,6 +960,7 @@ func _show_page(which: String) -> void:
 	_site_page.visible = which == "site"
 	if _tower_page != null:
 		_tower_page.visible = which == "tower"
+		_tower_page.process_mode = Node.PROCESS_MODE_INHERIT if which == "tower" else Node.PROCESS_MODE_DISABLED
 	# (the page coming in slides in from its side and fades up)
 	if was != which and is_inside_tree():
 		var pg: Control = _site_page if which == "site" else _crew_page

@@ -47,6 +47,7 @@ const WestWing := preload("res://scripts/west_wing.gd")
 const ExploreScript := preload("res://scripts/explore.gd")
 const Look := preload("res://scripts/look.gd")
 const SpireSite := preload("res://scripts/spire_site.gd")
+const TowerHand := preload("res://scripts/tower_hand.gd")
 const LookFx := preload("res://scripts/look_fx.gd")
 
 # Riverlight: 11 levels; 10 lattice sections reached a 41.4 m free-stand.
@@ -1937,6 +1938,155 @@ func _menu_frame_crew(delta: float) -> void:
 	camera.h_offset = _menu_h
 
 ## Dev: `--only=coldopen` holds the cold open for its screenshot.
+# ------------------------------------------------------------------ the pick's river flights
+
+const ARRIVE_RIVER_T := 3.4      # s low over the water
+const ARRIVE_SETTLE_T := 1.6     # s climbing off it onto the tower
+var _river_path: Array = []      # camera points low over the river, ending by the site (game x/z, y)
+var _pick_boat: Node3D
+var _pick_wake: MeshInstance3D
+var _caption: CanvasLayer
+var _hand_u := 0.0
+
+## The flight's path: low over the river to this site, from downstream (game coordinates).
+func _river_pts() -> Array:
+	if not _river_path.is_empty():
+		return _river_path
+	var out: Array = []
+	if spire:
+		var water_y := float(SpireSite.d.get("river_ahd", 0.3)) - SpireSite.street
+		var tc := SpireSite.centroid(SpireSite.poly("plate"))
+		var pts: Array = []
+		for p in SpireSite.d.get("river_local", []):
+			pts.append(SpireSite.g(p))
+		var near := 0
+		for i in pts.size():
+			if (pts[i] as Vector2).distance_to(tc) < (pts[near] as Vector2).distance_to(tc):
+				near = i
+		# from downstream (New Farm reach), under the Story Bridge, to the city reach by the site
+		var i0 := mini(pts.size() - 1, near + 7)
+		for i in range(i0, near - 1, -1):
+			var q: Vector2 = pts[i]
+			out.append(Vector3(q.x, water_y + 9.0, q.y))
+	else:
+		# Riverlight (and the water tower): up Hamilton Reach to the site (the top-out fly, run in)
+		for kk in FLY_KEYS.size() - 1:
+			out.append(-REAL_ORIGIN + (FLY_KEYS[kk][1] as Vector3) + Vector3(0, 3.0, 0))
+	_river_path = out
+	return out
+
+## A point u (0..1) along the river path, smoothed (Catmull-Rom).
+func _river_at(u: float) -> Vector3:
+	var pts := _river_pts()
+	if pts.size() < 2:
+		return Vector3(0, 30, 60)
+	var f := clampf(u, 0.0, 1.0) * (pts.size() - 1)
+	var i := mini(int(f), pts.size() - 2)
+	var t := f - i
+	var p0: Vector3 = pts[maxi(0, i - 1)]
+	var p1: Vector3 = pts[i]
+	var p2: Vector3 = pts[i + 1]
+	var p3: Vector3 = pts[mini(pts.size() - 1, i + 2)]
+	var t2 := t * t
+	var t3 := t2 * t
+	return 0.5 * (2.0 * p1 + (p2 - p0) * t + (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * t2 + (3.0 * p1 - p0 - 3.0 * p2 + p3) * t3)
+
+## The CityCat and its wake, on the water ahead of the camera.
+func _pick_boat_at(u: float, ahead: float) -> void:
+	if _pick_boat == null:
+		_pick_boat = preload("res://scripts/citycat.gd").boat()
+		add_child(_pick_boat)
+		_pick_wake = MeshInstance3D.new()
+		var pm := PlaneMesh.new()
+		pm.size = Vector2(5.0, 60.0)
+		_pick_wake.mesh = pm
+		var wm := StandardMaterial3D.new()
+		wm.albedo_color = Color(1, 1, 1, 0.35)
+		wm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		wm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		_pick_wake.material_override = wm
+		_pick_wake.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(_pick_wake)
+	var at := _river_at(u + ahead)
+	var nx := _river_at(u + ahead + 0.02)
+	var water := at.y - 9.0 - (3.0 if not spire else 0.0)
+	_pick_boat.position = Vector3(at.x, water, at.z)
+	var dir := Vector3(nx.x - at.x, 0, nx.z - at.z).normalized()
+	if dir.length() > 0.1:
+		_pick_boat.look_at(_pick_boat.position + dir, Vector3.UP)
+		_pick_boat.rotate_y(PI * 0.5)      # (the model runs along its x)
+		_pick_wake.position = _pick_boat.position - dir * 32.0 + Vector3(0, 0.15, 0)
+		_pick_wake.look_at(_pick_wake.position + dir, Vector3.UP)
+
+## Behind the hand: a slow flight up the river, never stopping.
+func _hand_camera(delta: float) -> void:
+	_hand_u = fmod(_hand_u + delta * 0.012, 0.7)
+	var p := _river_at(_hand_u) + Vector3(0, 22.0, 0)
+	var ahead := _river_at(_hand_u + 0.18) + Vector3(0, 16.0, 0)     # (up the reach: the skyline over the water)
+	camera.position = p
+	camera.look_at(ahead, Vector3.UP)
+	_pick_boat_at(_hand_u, 0.035)
+
+## Playing a card: low over the river to the site, then up onto the tower; the crew page after.
+func _arrive_camera(delta: float) -> void:
+	var a: Dictionary = TowerHand.arrival
+	a["t"] = float(a.get("t", 0.0)) + delta
+	if _human_a and float(a["t"]) > 0.4:
+		a["t"] = maxf(float(a["t"]), ARRIVE_RIVER_T + ARRIVE_SETTLE_T)
+	var t: float = a["t"]
+	if t < 0.5:
+		TowerHand.uncover(t / 0.5)
+	if _caption == null:
+		_caption = CanvasLayer.new()
+		_caption.layer = 6
+		add_child(_caption)
+		var strip := UI.pill(Color(0.05, 0.06, 0.08, 0.8), Vector4(24, 8, 28, 8))
+		strip.add_child(UI.head(String(a["card"]["caption"]), 34, Color("f4f2ec")))
+		_caption.add_child(strip)
+		UI.place(strip, Vector2(0.5, 1), Vector2(0, -60))
+	var tower := Vector3(SC.x, level_y(0) + 6.0, SC.z)
+	if spire:
+		var pc := SpireSite.centroid(SpireSite.poly("plate"))
+		tower = Vector3(pc.x, level_y(0) + 6.0, pc.y)
+	var u := clampf(t / ARRIVE_RIVER_T, 0.0, 1.0)
+	var ue := ease(u, -1.4)
+	var river := _river_at(ue)
+	var look := _river_at(ue + 0.08) + Vector3(0, -2.0, 0)
+	_pick_boat_at(ue, 0.05)
+	var s := clampf((t - ARRIVE_RIVER_T) / ARRIVE_SETTLE_T, 0.0, 1.0)
+	if s > 0.0:
+		# climb off the water and settle on the tower and its deck
+		var e := ease(s, -2.0)
+		var back := (river - tower)
+		back.y = 0.0
+		if spire:
+			# (from the river side a tall neighbour stands in front of Spire: settle from across pour A)
+			var cy := SpireSite.cam_yaw()
+			back = Vector3(sin(cy), 0, cos(cy))
+		var end := tower + back.normalized() * 125.0 + Vector3(0, 95.0, 0)   # (over the neighbours' roofs)
+		river = river.lerp(end, e)
+		look = look.lerp(tower, e)
+	camera.position = river
+	camera.look_at(look, Vector3.UP)
+	if TowerHand.shots != "":
+		if t >= 2.0 and t - delta < 2.0:
+			(func(): TowerHand.shot("pick_flight", get_viewport())).call_deferred()
+		if t >= ARRIVE_RIVER_T + ARRIVE_SETTLE_T - 0.05 and t - delta < ARRIVE_RIVER_T + ARRIVE_SETTLE_T - 0.05:
+			TowerHand.shot("pick_arrive", get_viewport())
+			get_tree().quit()
+	if t >= ARRIVE_RIVER_T + ARRIVE_SETTLE_T:
+		TowerHand.arrival = {}
+		TowerHand.uncover(1.0)
+		if _caption != null:
+			_caption.queue_free()
+			_caption = null
+		if _pick_boat != null:
+			_pick_boat.queue_free()
+			_pick_wake.queue_free()
+			_pick_boat = null
+		cam_focus = look
+		selector.arrived(a["card"])
+
 ## Spire: a new level. The core's jump form jumps to stay LEAD levels ahead of the deck, the bot
 ## crew's pour B is reset, and the camera swings round to look across pour A at the core.
 func _spire_level() -> void:
@@ -4164,6 +4314,7 @@ func _process(delta: float) -> void:
 	# trucks)
 	if autotest and phase_t > (14.0 if spire and SpireSite.is_transfer(k) else 8.0) * 60.0:   # (the transfer slab's a long pour)
 		push_error("[autotest] stuck in phase %s at level %d (%.0fs)" % [phase, k + 1, phase_t])
+		print("[autotest]   ops stage '%s' washed %s primed %s | left %s | line live %s" % [ops.stage, ops.washed, ops.primed, str(_left), line.live])
 		for q in players:
 			print("[autotest]   %s: zone %s busy '%s' held '%s' at %s" % [q.role, q.zone, q.busy, q.held_kind, q.position])
 		if climb.active:
@@ -6970,6 +7121,11 @@ func _update_camera_views(delta: float) -> void:
 	camera.look_at(cam_focus, Vector3.UP)
 	if _fly_on and _shot_cam.is_empty():
 		_fly_camera()
+	if _shot_cam.is_empty() and (phase == "roles" or phase == "select") and is_instance_valid(selector):
+		if not TowerHand.arrival.is_empty() and selector.page == "arrive":
+			_arrive_camera(delta)
+		elif selector.page == "tower":
+			_hand_camera(delta)
 	# The deck view shifts up into the top part of the screen as the band opens
 	camera.v_offset = -0.34 * split_e * camera.position.distance_to(cam_focus) * tan(deg_to_rad(camera.fov * 0.5))
 	_menu_shift = move_toward(_menu_shift, 1.0 if phase == "select" else 0.0, delta * 1.6)
