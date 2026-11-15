@@ -6902,9 +6902,16 @@ func _update_camera_views(delta: float) -> void:
 				tower = Vector3(pc.x, 0, pc.y)
 				high = level_y(0) + 14.0      # the podium, the deck and the core with its jump form
 			dist = 60.0 + high * 1.7
+			var look_y := high * 0.5
+			var want_pitch := 0.3
+			if spire:
+				# (Spire's deck is down among taller neighbours: from above their roofs, 33 degrees down)
+				dist = 150.0
+				look_y = level_y(0)
+				want_pitch = 0.58
 			var right := Vector3(cos(cam_yaw), 0, -sin(cam_yaw))
-			focus = tower + Vector3(0, high * 0.5, 0) - right * dist * 0.22
-			cam_pitch = lerpf(cam_pitch, 0.3, minf(1.0, delta * 1.5))
+			focus = tower + Vector3(0, look_y, 0) - right * dist * (0.3 if spire else 0.2)
+			cam_pitch = lerpf(cam_pitch, want_pitch, minf(1.0, delta * 1.5))
 			cam_yaw += delta * 0.05
 		elif phase == "roles" and sel_ok:
 			# The cold open: in from high over the river, then a slow turn
