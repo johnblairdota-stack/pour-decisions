@@ -170,7 +170,7 @@ HSW.update({
     # roof and a glazed lantern, on a timber deck on piles (photos gg_a57206f9, gg_4681e729, gg_4202cd18)
     "percivals": {"centre_xy": (483.0, 42.5), "radius_m": 7.6, "deck_ahd": 3.7, "wall_top_ahd": 8.0,
                   "roof_top_ahd": 12.2, "lantern_r": 3.0, "deck_size_m": (34.0, 22.0), "deck_angle_deg": -2.0,
-                  "wall": (0.50, 0.58, 0.44), "roof": (0.55, 0.57, 0.58),
+                  "wall": (0.56, 0.74, 0.64), "roof": (0.40, 0.42, 0.43),   # r2: mint (photo p09)
                   "source": "OSM footprint (14 m across) + RESEARCH.md (20 x 30 m deck) + photos"},
     # Heritage sheds (OSM footprint + LiDAR gable from buildings_clean.json). style -> colours in hsw_hero.SHED_STYLES
     "sheds": [
@@ -206,8 +206,33 @@ HSW.update({
     # white and charcoal chevron panels (not the brief's 'natural tones'); photos win.
     # mangrove / scrub fringe on the low river banks (photo overview_aerial/gg_80fd9d96: dense dark green on the
     # Kangaroo Pt north tip and along the bank). Cells with ground 0.4-2.6 m AHD inside the box get bushes.
-    "mangroves": {"box": (250.0, -420.0, 700.0, -90.0), "z": (0.4, 2.6), "every_m": 2.0, "seed": 5},
+    "mangroves": {"box": (100.0, -420.0, 700.0, -50.0), "z": (0.4, 6.5), "every_m": 2.0, "seed": 5},
     "hotel_fins": {"pitch_m": 3.2, "depth_m": 1.1, "colour": (0.72, 0.71, 0.68), "accent": (0.05, 0.055, 0.06)},
+})
+# ---------------------------------------------------------------- HSW round 2 (critic's ranked list, 15 Nov 2026)
+HSW.update({
+    # 1 cliff: warm tan-ochre Brisbane tuff, fractured near-vertical faces, mostly bare (photos p06, p10, gg_11228e1b)
+    "cliff": {"tuff": ((0.42, 0.31, 0.21), (0.62, 0.47, 0.32), (0.56, 0.33, 0.16)), "bench_m": 4.5,
+              "shrubs": 700, "seed": 11, "slabs": 1100, "rim_rocks": 120,
+              "source": "photos p06/p10: tan-ochre rock with orange iron stain, dark joints, overhangs, "
+                        "tufts on ledges, figs and vines hanging off the rim"},
+    # 2 trees: leaf-card trees round HSW (same as round Spire), mixed species, set back from the rim
+    "trees": {"centre_r": (640.0, 60.0, 300.0), "rim_setback_m": 1.5, "min_ground_ahd": 2.6,
+              "max_slope_deg": 50.0, "hanging_every_m": 9.0, "hanging_len_m": (5.0, 14.0), "seed": 23,
+              "mix": {"fig": 30, "eucalypt": 25, "poinciana": 15, "palm": 10, "generic": 20}},
+    # 3 waterline: river bank below the decks sinks under the water; dark timber pile colonnade under the
+    # riverwalk and shed decks with cross bracing (photo p09); riprap boulders (photo p06, Rivershed point)
+    "waterline": {"sink_below_ahd": 2.2, "sink_to_ahd": -1.2, "pile_every_m": 2.6, "pile_w_m": 0.42,
+                  "pile_rgb": (0.075, 0.062, 0.05), "fascia_rgb": (0.10, 0.085, 0.07),
+                  "riprap_box": (690.0, -60.0, 870.0, 40.0), "riprap_z": (-0.8, 2.8), "riprap_every_m": 1.6},
+    # 4 ground: sand-pink decomposed granite paths through the lawns (OSM footways), warm pale paving
+    "ground": {"paving": (0.58, 0.50, 0.44), "path": (0.62, 0.47, 0.40), "path_w_m": 3.2, "deck": (0.36, 0.27, 0.19)},
+    # 5 river: olive-brown, fine ripples, no mirror hot spot (photos p06, p01)
+    "river": {"rgb": (0.115, 0.095, 0.05), "rough": 0.5, "spec": 0.06},
+    # 7 north main pier: arch crown 8.2 m under the pier top (photo p09: 120 px at 14.6 px/m), dark inside
+    "pier_arch_crown_below_top_m": 8.2,
+    # 10 lift tower: slimmer, oxide red (photo p06/p10)
+    "lift_tower_r2": {"size_m": (3.6, 3.6), "rgb": (0.33, 0.10, 0.05)},
 })
 # Story Bridge piers (HSW round 1): each main pier is one rendered-concrete portal in cream ACROSS the bridge:
 # a leg under each truss, a round-headed arch between them under the road centre line, plinth, string course,

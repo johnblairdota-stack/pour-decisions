@@ -42,10 +42,15 @@ def hsw_landmarks():
         BP = L.STORY_BRIDGE_PIERS                       # portal pier: corners of its faces, arch crown
         W2, D2 = BP["main_across_m"] / 2, BP["main_thick_m"] / 2
         g = min(min(L.ground_z(*P(t, nc + s * hw, 0)[:2]) for s in (-1, 0, 1)), 1.5) - 0.5
+        hA = BP["arch_w_m"] / 2                         # same arch as landmarks.py (round 2: crown from photo p09)
+        cb = L.HSW.get("pier_arch_crown_below_top_m")
+        spring = max(BP["arch_spring_m"], deck(t) - 1.2 - cb - g - hA) if cb else BP["arch_spring_m"]
         for fname, d in (("s", D2), ("n", -D2)):
             pts["pier_%s_top_%sw" % (name, fname)] = P(t + d, nc - W2, deck(t) - 1.2)
             pts["pier_%s_top_%se" % (name, fname)] = P(t + d, nc + W2, deck(t) - 1.2)
-            pts["pier_%s_crown_%s" % (name, fname)] = P(t + d, nc, g + BP["arch_spring_m"] + BP["arch_w_m"] / 2)
+            pts["pier_%s_crown_%s" % (name, fname)] = P(t + d, nc, g + spring + hA)
+            pts["pier_%s_spring_%sw" % (name, fname)] = P(t + d, nc - hA, g + spring)
+            pts["pier_%s_spring_%se" % (name, fname)] = P(t + d, nc + hA, g + spring)
         pts["peak_%s_w" % name] = P(t, nc - hw, 80.0)
         pts["peak_%s_e" % name] = P(t, nc + hw, 80.0)
     pts["anchor_n_deck"] = P(t0, nc, deck(t0))

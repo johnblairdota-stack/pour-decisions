@@ -28,6 +28,8 @@ def build():
     H, W = g.shape
     rows, cols = np.arange(0, H, STEP), np.arange(0, W, STEP)
     sub = g[np.ix_(rows, cols)]
+    if not st:                               # HSW round 2: tidal mud flats / pale spits go under the water
+        sub = np.where((sub < 1.6) & (sub > L.RIVER_LEVEL_AHD - 2.0), np.minimum(sub, -1.2), sub)
     R, Cn = sub.shape
     X, Y = np.meshgrid(x0 + cols + 0.5, y1 - rows - 0.5)
     verts = np.stack([X, Y, sub], -1).reshape(-1, 3)
@@ -65,6 +67,15 @@ def build():
     gm = mask[np.ix_(rows, cols)][:-1, :-1].ravel()
     ob.data.materials.append(C.material("grass"))
     mi = np.where(steep > 0, 1, np.where(gm, 2, 0)).astype("i4")
+    if not st:                               # HSW round 2: the mangrove island / bank is dark mud under the trees
+        ob.data.materials.append(C.material_rgb("mangrove_mud", (0.07, 0.065, 0.045)))
+        mx0, my0, mx1, my1 = L.HSW["mangroves"]["box"]
+        fc_ = np.stack([X[:-1, :-1], Y[:-1, :-1], sub[:-1, :-1]], -1).reshape(-1, 3)
+        mud = (fc_[:, 0] > mx0) & (fc_[:, 0] < mx1) & (fc_[:, 1] > my0) & (fc_[:, 1] < my1) & (fc_[:, 2] < L.HSW["mangroves"]["z"][1] + 0.5)
+        mi = np.where(mud & (steep == 0) & ~gm, 3, mi).astype("i4")
+        hx, hy, hr = L.HSW["trees"]["centre_r"]                 # low riverside land near HSW: grass, not bare
+        low = (np.hypot(fc_[:, 0] - hx, fc_[:, 1] - hy) < hr + 200) & (fc_[:, 2] < 5.0) & (fc_[:, 2] > 1.0) & (steep == 0) & ~mud
+        mi = np.where(low & (mi == 0), 2, mi).astype("i4")
     if keep is not None:
         mi = mi[keep]
     ob.data.polygons.foreach_set("material_index", mi)
@@ -110,7 +121,7 @@ def build():
         h_ = rnd.choice((4, 5, 5, 6, 7, 9)) if rnd.random() > 0.01 else rnd.uniform(15, 45)
         fb.box(x, y, zb - 0.5, w_, l_, h_, rnd.uniform(0, 3.14))
     obf = fb.object("far_suburbs", col, "ground")
-    obf.data.materials[0] = C.material_rgb("far_suburbs", (0.30, 0.29, 0.27))
+    obf.data.materials[0] = C.material_rgb("far_suburbs", (0.34, 0.27, 0.23))   # HSW r2: terracotta-roof tint
     E = 6000
     w = C.mesh_object("river_water", [(x0 - E, y0 - E, L.RIVER_LEVEL_AHD), (x1 + E, y0 - E, L.RIVER_LEVEL_AHD),
                                        (x1 + E, y1 + E, L.RIVER_LEVEL_AHD), (x0 - E, y1 + E, L.RIVER_LEVEL_AHD)],

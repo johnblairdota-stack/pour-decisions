@@ -92,7 +92,43 @@ def species(x, y, h):
     return "generic"
 
 
-HERO_CENTRES = [(0.0, 0.0, 340.0), (-80.0, -100.0, 160.0)]   # leaf-card trees round Spire and the cathedral
+HERO_CENTRES = [(0.0, 0.0, 340.0), (-80.0, -100.0, 160.0), L.HSW["trees"]["centre_r"]]   # Spire, cathedral, HSW
+
+
+def in_hsw(x, y):
+    cx, cy, r = L.HSW["trees"]["centre_r"]
+    return math.hypot(x - cx, y - cy) < r
+
+
+def hsw_ok(x, y, g):
+    """HSW round 2: no trunk on the cliff face, near the rim edge, or on low river sand/mud."""
+    T = L.HSW["trees"]
+    if g < T["min_ground_ahd"]:
+        return False
+    for k in range(8):
+        a = k * math.pi / 4
+        dz = abs(L.ground_z(x + 1.5 * math.cos(a), y + 1.5 * math.sin(a)) - g)
+        if math.degrees(math.atan2(dz, 1.5)) > T["max_slope_deg"]:          # on the face itself
+            return False
+        rs = T["rim_setback_m"]
+        if g - L.ground_z(x + rs * math.cos(a), y + rs * math.sin(a)) > 0.9 * rs * 2:   # right on the rim
+            return False
+    return True
+
+
+def hsw_species(x, y, h):
+    """HSW round 2: a mixed canopy (figs, eucalypts, poinciana, palms, scrub trees), stable per position."""
+    mix = L.HSW["trees"]["mix"]
+    k = (int(x * 3.0) * 73856093 ^ int(y * 3.0) * 19349663) % sum(mix.values())
+    for s, w in mix.items():
+        if k < w:
+            if s == "palm" and h > 16:
+                return "eucalypt"
+            if s == "fig" and h < 7:
+                return "generic"
+            return s
+        k -= w
+    return "generic"
 SPECIES_LEAF = {   # leaf colour pairs (dark, light) and trunk colour
     "fig": ((0.035, 0.09, 0.03), (0.09, 0.19, 0.06), (0.30, 0.27, 0.22)),
     "poinciana": ((0.07, 0.15, 0.04), (0.16, 0.28, 0.07), (0.28, 0.24, 0.20)),
@@ -192,7 +228,13 @@ def build():
         if fx is None:
             continue
         x, y = fx
-        s = species(x, y, h)
+        if in_hsw(x, y):
+            if not hsw_ok(x, y, g):
+                count["hsw_dropped"] = count.get("hsw_dropped", 0) + 1
+                continue
+            s = hsw_species(x, y, h)
+        else:
+            s = species(x, y, h)
         count[s] = count.get(s, 0) + 1
         near = hero(x, y)
         nhero += near
@@ -225,7 +267,7 @@ def build():
                 leaves[s].cloud((x, y, cz), (r, r, rz), int(9 * (120 + 5 * r * r)), 0.22, shell=0.3, top_bias=0.6)
                 blooms[s].cloud((x, y, cz + rz * 0.5), (r * 0.85, r * 0.85, rz * 0.5), int(2 * (25 + r * r)), 0.18, shell=0.9, top_bias=0.9)
             else:
-                crown(crowns, x, y, cz, r, 0.25, 6)
+                crown(crowns, x, y, cz, r * 0.85, 0.42, 6)               # HSW round 2: less umbrella-pine
         elif s == "eucalypt":
             r = 0.25 * h
             trunk(pale, x, y, g, 0.3, h * 0.7, 3, r * 0.7)
@@ -264,6 +306,8 @@ def build():
             h = float(np.percentile(hgt[r0:r0 + 4, c0:c0 + 4][blk], 80))
             g = float(gnd[r0 + 2, c0 + 2])
             if np.min(np.hypot(placed[:, 0] - x, placed[:, 1] - y)) < max(3.0, 0.3 * h) or not clear(x, y):
+                continue
+            if in_hsw(x, y) and (h < 3.0 or not hsw_ok(x, y, g)):   # HSW: cliff faces get hsw_hero tufts instead
                 continue
             fx = guard.fix(x, y)
             if fx is None:

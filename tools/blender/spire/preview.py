@@ -214,22 +214,32 @@ def setup_morning():
         rough = {"clay_water": 0.06, "clay_spire_glass": 0.08, "clay_spire_balustrade": 0.8, "clay_spire_soffit": 0.9, "clay_balustrade": 0.05, "clay_steel": 0.45}.get(m.name, 0.85)
         bsdf.inputs["Roughness"].default_value = rough
         if m.name == "clay_water":                       # Brisbane River: brown-green, sky reflection, small ripples
-            bsdf.inputs["Base Color"].default_value = (0.075, 0.07, 0.042, 1)   # HSW round 1: brown-green (photos)
-            bsdf.inputs["Roughness"].default_value = 0.26
-            bsdf.inputs["Specular IOR Level"].default_value = 0.2
+            Rv = L.HSW["river"]                          # HSW round 2: olive-brown, matte sheen, fine ripples
+            bsdf.inputs["Base Color"].default_value = (*Rv["rgb"], 1)
+            bsdf.inputs["Roughness"].default_value = Rv["rough"]
+            bsdf.inputs["Specular IOR Level"].default_value = Rv["spec"]
             nt = m.node_tree
             tex = nt.nodes.new("ShaderNodeTexNoise")
             tex.inputs["Scale"].default_value = 0.35
             tex.inputs["Detail"].default_value = 6.0
             geo = nt.nodes.new("ShaderNodeNewGeometry")
             nt.links.new(geo.outputs["Position"], tex.inputs["Vector"])
+            tone = nt.nodes.new("ShaderNodeTexNoise")                   # silt patches, slightly greener/browner
+            tone.inputs["Scale"].default_value = 0.01
+            nt.links.new(geo.outputs["Position"], tone.inputs["Vector"])
+            tmix = nt.nodes.new("ShaderNodeMix")
+            tmix.data_type = "RGBA"
+            nt.links.new(tone.outputs["Fac"], tmix.inputs["Factor"])
+            tmix.inputs[6].default_value = (Rv["rgb"][0] * 0.8, Rv["rgb"][1] * 0.9, Rv["rgb"][2] * 0.8, 1)
+            tmix.inputs[7].default_value = (Rv["rgb"][0] * 1.2, Rv["rgb"][1] * 1.1, Rv["rgb"][2] * 0.9, 1)
+            nt.links.new(tmix.outputs[2], bsdf.inputs["Base Color"])
             bump = nt.nodes.new("ShaderNodeBump")
-            bump.inputs["Strength"].default_value = 0.25
+            bump.inputs["Strength"].default_value = 0.18
             rip = nt.nodes.new("ShaderNodeTexWave")                     # step 7j: wind ripples on top of the swell
             rip.wave_type = "BANDS"
-            rip.inputs["Scale"].default_value = 0.9
-            rip.inputs["Distortion"].default_value = 9.0
-            rip.inputs["Detail"].default_value = 3.0
+            rip.inputs["Scale"].default_value = 2.2
+            rip.inputs["Distortion"].default_value = 12.0
+            rip.inputs["Detail"].default_value = 4.0
             nt.links.new(geo.outputs["Position"], rip.inputs["Vector"])
             addh = nt.nodes.new("ShaderNodeMath")
             addh.operation = "MULTIPLY_ADD"
@@ -438,7 +448,7 @@ def setup_morning():
                                 for k in ("bay", "win", "sill", "head", "glass", "rough", "floor") if "win_" + k in m})
         elif m.get("shader") in ("brick", "ashlar"):
             facade_material(m, None)
-        if m.get("shader") in ("tuff", "sheet", "boards", "corten", "glass_green"):   # HSW round 1 materials
+        if m.get("shader") in ("tuff", "tuff_dark", "dg", "sheet", "boards", "corten", "glass_green"):   # HSW materials
             import hsw_hero
             hsw_hero.shade(m, bsdf)
         m["look_done"] = True
