@@ -2169,6 +2169,18 @@ func _pick_boat_at(u: float, ahead: float) -> void:
 	var ua := u
 	while ua < 1.2 and Vector2(_river_at(ua).x - cam_at.x, _river_at(ua).z - cam_at.z).length() < 80.0:
 		ua += 0.004
+	# (then the exact spot between the last two steps: stopping on a step made the boat
+	# hop back and forth a few metres every time the count of steps changed)
+	if ua > u and ua < 1.2:
+		var lo := ua - 0.004
+		var hi := ua
+		for _k in 12:
+			var mid := (lo + hi) * 0.5
+			if Vector2(_river_at(mid).x - cam_at.x, _river_at(mid).z - cam_at.z).length() < 80.0:
+				lo = mid
+			else:
+				hi = mid
+		ua = (lo + hi) * 0.5
 	var at := _river_at(ua)
 	var nx := _river_at(ua + 0.02)
 	var side := Vector3(nx.z - at.z, 0, -(nx.x - at.x)).normalized()
