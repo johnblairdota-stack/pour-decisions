@@ -2069,7 +2069,7 @@ func _menu_frame_crew(delta: float) -> void:
 
 const ARRIVE_BOAT_V := 19.0      # m/s (a CityCat does about 13: a little quick, for the screen)
 const ARRIVE_RIVER_T := 3.6      # s low on the water behind the CityCat
-var ARRIVE_T := 10.6             # s all up: the river, then one arc up and round onto the floor pick (Spire's is longer)
+var ARRIVE_T := 12.0             # s all up: the river, then one arc up and round onto the floor pick (Spire's is longer)
 const ARRIVE_UI_T := 0.8         # s at the end the floor pick's page fades up over (the camera all but still by then)
 var _arrive_keys: Array = []     # [t, camera, look], game coordinates; the last one is the floor pick's own view
 var _arrive_line: Array = []     # the CityCat's run in to the site, on the water
@@ -2174,7 +2174,7 @@ func _arrive_boat_line() -> Array:
 	var out: Array = []
 	if spire:
 		var y := float(SpireSite.d.get("river_ahd", 0.3)) - SpireSite.street
-		for q in [Vector2(-250, -380), Vector2(-170, -348), Vector2(-90, -346), Vector2(0, -352), Vector2(80, -380)]:
+		for q in [Vector2(-250, -380), Vector2(-170, -348), Vector2(-90, -346), Vector2(-60, -348)]:
 			out.append(Vector3(q.x, y, q.y))
 	else:
 		for q in [Vector2(330, -338), Vector2(250, -318), Vector2(185, -292), Vector2(140, -262), Vector2(112, -250)]:
@@ -2188,7 +2188,8 @@ func _arrive_boat(t: float) -> Array:
 	var total := 0.0
 	for i in line.size() - 1:
 		total += (line[i] as Vector3).distance_to(line[i + 1])
-	var s := ARRIVE_BOAT_V * t
+	# (the run is timed to end as the boat comes up to the end of its line, nearest the site)
+	var s := maxf(0.0, total - ARRIVE_BOAT_V * ARRIVE_RIVER_T - 35.0) + ARRIVE_BOAT_V * t
 	var ease_at := total - 45.0
 	if s > ease_at:
 		s = ease_at + 45.0 * (1.0 - exp(-(s - ease_at) / 45.0))
@@ -2246,9 +2247,9 @@ func _arrive_build(tower: Vector3, fin: Vector3, fin_look: Vector3) -> Array:
 	var e := Vector3(out_n.z, 0, -out_n.x)
 	var deck := fin_look.y
 	# (round the end of the building: [s, along e, along out_n, m over the deck, how far the look's gone to the deck])
-	var arc: Array = [[5.8, 84.0, -150.0, 34.0, 0.35], [7.6, 70.0, -40.0, 24.0, 0.75], [9.1, 46.0, 36.0, 10.0, 1.0]]
+	var arc: Array = [[6.2, 84.0, -150.0, 34.0, 0.35], [8.4, 70.0, -40.0, 24.0, 0.75], [10.0, 24.0, 42.0, 10.0, 1.0]]
 	var floor_y := -1e9
-	ARRIVE_T = 10.6
+	ARRIVE_T = 12.0
 	if not spire:
 		e = -e          # (Riverlight: round the east end, the crew's own wing; the west wing stands at the other)
 		floor_y = 24.0  # (and over the street trees, however low the deck is)
@@ -2258,9 +2259,9 @@ func _arrive_build(tower: Vector3, fin: Vector3, fin_look: Vector3) -> Array:
 		# stands tall, and down onto Ann St. Checked against cuts through the city model at 40, 70
 		# and 100 m: never under 85 m until it's over the cathedral grounds.)
 		# (the third key keeps it outside the tower crane's jib until it's under it)
-		arc = [[6.4, 182.0, -187.0, 72.0, 0.35], [8.8, 84.0, -48.0, 58.0, 0.7], [10.0, 70.0, 20.0, 34.0, 0.9], [11.1, 8.0, 56.0, 20.0, 1.0]]
+		arc = [[6.6, 146.0, -189.0, 72.0, 0.35], [9.2, 84.0, -48.0, 58.0, 0.7], [10.4, 70.0, 20.0, 34.0, 0.9], [11.5, 8.0, 56.0, 20.0, 1.0]]
 		floor_y = 88.0
-		ARRIVE_T = 12.6
+		ARRIVE_T = 13.0
 	for k in arc:
 		var p := Vector3(fin_look.x, deck + float(k[3]), fin_look.z) + e * float(k[1]) + out_n * float(k[2])
 		if not spire or arc.find(k) < 2:
@@ -2272,6 +2273,23 @@ func _arrive_build(tower: Vector3, fin: Vector3, fin_look: Vector3) -> Array:
 	k1[1] = Vector3(p1.x, lerpf(r.y, maxf(deck + float(arc[0][3]), floor_y + 8.0), 0.7 if not spire else 1.0), p1.z)
 	keys.append([ARRIVE_T, fin, fin_look])
 	return keys
+
+## The flight's velocity through key i: along the line between its neighbours, but never much faster
+## than the slower of the two legs it joins (the river's 19 m/s into the arc's 100: a plain average
+## made it back off before the key and then lurch), and stopped dead on the last.
+func _arrive_tan(i: int, which: int) -> Vector3:
+	var keys := _arrive_keys
+	var n := keys.size()
+	if i >= n - 1:
+		return Vector3.ZERO
+	var p: Vector3 = keys[i][which]
+	var v_next: Vector3 = ((keys[i + 1][which] as Vector3) - p) / (float(keys[i + 1][0]) - float(keys[i][0]))
+	if i == 0:
+		return v_next
+	var v_prev: Vector3 = (p - (keys[i - 1][which] as Vector3)) / (float(keys[i][0]) - float(keys[i - 1][0]))
+	var m: Vector3 = ((keys[i + 1][which] as Vector3) - (keys[i - 1][which] as Vector3)) / (float(keys[i + 1][0]) - float(keys[i - 1][0]))
+	var cap := 1.8 * minf(v_prev.length(), v_next.length())
+	return m.limit_length(cap)
 
 ## A point on the flight at t: a Hermite curve through the keys (which = 1 camera, 2 look), its
 ## speed carried across each key and brought to a stop on the last.
@@ -2285,12 +2303,8 @@ func _arrive_at(t: float, which: int) -> Vector3:
 	var t1: float = keys[i + 1][0]
 	var p0: Vector3 = keys[i][which]
 	var p1: Vector3 = keys[i + 1][which]
-	var m0 := (p1 - p0) / (t1 - t0)
-	if i > 0:
-		m0 = (p1 - (keys[i - 1][which] as Vector3)) / (t1 - float(keys[i - 1][0]))
-	var m1 := Vector3.ZERO
-	if i + 2 < n:
-		m1 = ((keys[i + 2][which] as Vector3) - p0) / (float(keys[i + 2][0]) - t0)
+	var m0 := _arrive_tan(i, which)
+	var m1 := _arrive_tan(i + 1, which)
 	var h := t1 - t0
 	var u := clampf((t - t0) / h, 0.0, 1.0)
 	var u2 := u * u
@@ -2339,6 +2353,8 @@ func _arrive_camera(delta: float, fin: Vector3) -> void:
 	(_caption.get_child(0) as CanvasItem).modulate.a = smoothstep(0.8, 1.6, t) * (1.0 - smoothstep(ARRIVE_T - ARRIVE_UI_T - 1.2, ARRIVE_T - ARRIVE_UI_T - 0.2, t))
 	camera.position = _arrive_at(t, 1)
 	camera.look_at(_arrive_at(t, 2), Vector3.UP)
+	if OS.get_cmdline_user_args().has("--arrivedbg"):
+		print("ARR t=%.2f cam=%s look=%s fin=%s" % [t, str(camera.position.snapped(Vector3.ONE * 0.1)), str(_arrive_at(t, 2).snapped(Vector3.ONE * 0.1)), str(fin.snapped(Vector3.ONE * 0.1))])
 	selector.arrive_fade(smoothstep(ARRIVE_T - ARRIVE_UI_T, ARRIVE_T - 0.2, t))
 	if TowerHand.shots != "" and TowerHand.shots != "-":
 		for sh in [["order_5_flight", 3.0], ["order_6_arrive", 9.0]]:
