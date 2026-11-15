@@ -118,10 +118,17 @@ def from_tsv():
     """Google image results gathered in John's Chrome by the cloud thread (optional file).
     Columns: query, cat, url (cat is one of CATS when known)."""
     out = []
-    path = os.path.join(REPO, "reference", "sites", "spire_area", "google_image_urls.tsv")
-    if not os.path.exists(path):
-        print("  no google_image_urls.tsv yet", flush=True)
-        return out
+    for name in ("google_image_urls.tsv", "google_image_urls_pc.tsv"):     # _pc: gathered on John's PC (16 Nov)
+        path = os.path.join(REPO, "reference", "sites", "spire_area", name)
+        if os.path.exists(path):
+            out += _tsv_rows(path)
+        else:
+            print("  no", name, flush=True)
+    return out
+
+
+def _tsv_rows(path):
+    out = []
     with open(path, encoding="utf-8") as f:
         for row in csv.DictReader(f, delimiter="\t"):
             q = row.get("query", "")
@@ -622,6 +629,14 @@ if __name__ == "__main__":
         print("dropped", n)
     if "collect" in stages:
         collect()
+    if "tsv" in stages:     # add only the Google TSV rows to the existing candidates (no Commons re-query)
+        have = [json.loads(l) for l in open(CAND, encoding="utf-8")] if os.path.exists(CAND) else []
+        seen = {c["image_url"] for c in have}
+        new = [c for c in from_tsv() if c["image_url"] not in seen and not skip_host(c["image_url"])]
+        with open(CAND, "a", encoding="utf-8") as f:
+            for c in new:
+                f.write(json.dumps(c) + "\n")
+        print("tsv: added", len(new), "candidates")
     if "download" in stages:
         download()
     if "manifest" in stages:
