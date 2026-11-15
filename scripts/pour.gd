@@ -553,7 +553,9 @@ func cell_center(i: int) -> Vector3:
 ## Marks which cells the boom can reach. `can_reach` is Callable(Vector3 local) -> bool.
 func set_reach(can_reach: Callable) -> void:
 	for i in NX * NZ:
-		reach[i] = 1 if can_reach.call(cell_center(i)) else 0
+		# (only cells on the slab: Spire's pour A leaves much of its box off the slab, and the boom must
+		# never be sent to aim at those)
+		reach[i] = 1 if mask[i] == 1 and can_reach.call(cell_center(i)) else 0
 
 func reach_full() -> bool:
 	for r in reach:
@@ -896,6 +898,7 @@ func show_bays(on: bool) -> void:
 
 var _bay_meshes := {}
 var walk_mid := 0.85      # m out from the slab edge to the walkway's centreline (set by the site)
+var walk_loop := PackedVector2Array()   # a slab of any outline: the walkway's centreline round it (set by the site)
 const JOINT_W := 0.1
 
 ## [the line along the walkway (x, z points), whether it's a closed loop,
@@ -903,6 +906,32 @@ const JOINT_W := 0.1
 func _outline(xb: float, whole: bool) -> Array:
 	var pts := PackedVector2Array()
 	var joint := PackedVector2Array()
+	if not walk_loop.is_empty():
+		# A slab of any outline: the line follows the walkway round its real edge
+		if whole:
+			return [walk_loop, true, joint]
+		var cut := PackedVector2Array([Vector2(-999, -999), Vector2(xb, -999), Vector2(xb, 999), Vector2(-999, 999)])
+		var best := PackedVector2Array()
+		for part in Geometry2D.intersect_polygons(walk_loop, cut):
+			if part.size() > best.size():
+				best = part
+		if best.size() < 3:
+			return [walk_loop, true, joint]
+		# (open along the cut: start just after the edge that lies on it)
+		var n := best.size()
+		var start := 0
+		for i in n:
+			if absf(best[i].x - xb) < 0.02 and absf(best[(i + 1) % n].x - xb) < 0.02:
+				start = (i + 1) % n
+		for i in n:
+			pts.append(best[(start + i) % n])
+		var longest := 0.0
+		for piece in _poly_bar(Vector2(xb, -999), Vector2(xb, 999)):
+			var ln: float = (piece[0] as Vector2).distance_to(piece[piece.size() - 1])
+			if ln > longest:
+				longest = ln
+				joint = PackedVector2Array([piece[0], piece[piece.size() - 1]])
+		return [pts, false, joint]
 	if round_r > 0.0:
 		var r := round_r + walk_mid
 		var n := 72
@@ -1075,6 +1104,9 @@ func _next_face(bay: int, from: Vector3) -> Vector3:
 				# screed take it out to the forms)
 				var m := edge_cells()
 				var inner := iz >= m and iz < NZ - m and ix >= m and ix < NX - m
+				if inner and not poly.is_empty():
+					# (in from the slab's own edge, not the box's)
+					inner = mask[i - m] == 1 and mask[i + m] == 1 and mask[i - m * NX] == 1 and mask[i + m * NX] == 1
 				if inner or vol_k <= 1.0:
 					n += 1
 					if h[i] >= full:
@@ -1142,6 +1174,14 @@ func leading_strip(b: int) -> Vector2i:
 
 ## Gold for the boom operator: the hose is over concrete that's wanted now,
 ## in the leading strip of the bay being poured and not yet full.
+## Is this point (local) over the slab itself, not off its edge or in a hole cut out of it?
+func on_slab(local: Vector3) -> bool:
+	var ix := int((local.x + bw * 0.5) / dx)
+	var iz := int((local.z + bd * 0.5) / dx)
+	if ix < 0 or ix >= NX or iz < 0 or iz >= NZ:
+		return false
+	return mask[iz * NX + ix] == 1
+
 func good_pour_spot(local: Vector3) -> bool:
 	var ix := int((local.x + bw * 0.5) / dx)
 	var iz := int((local.z + bd * 0.5) / dx)

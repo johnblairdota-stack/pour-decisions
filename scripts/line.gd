@@ -858,23 +858,25 @@ func rebuild_riser() -> void:
 		(s["node"] as Node).queue_free()
 	clamps.clear()
 	sections.clear()
-	var top: float = game.head.position.y + 0.6 if kit == "tower" else 0.0
+	var top: float = game.riser_top_y() if kit == "tower" else 0.0
 	riser_top = top
+	# (Spire: the riser turns in under the deck, the ladder goes on up to the platform)
+	var ladder_top: float = top + (1.7 if game.spire else 0.0)
 	for r in ladder_rails:
 		r.visible = kit == "tower"
 	ladder_rungs.visible = kit == "tower"
 	if kit == "tower":
 		for i in ladder_rails.size():
 			var rr := ladder_rails[i]
-			rr.position = Vector3(LADDER.x + 0.15, top * 0.5, LADDER.z + (-0.28 if i == 0 else 0.28))
-			rr.scale.y = top
+			rr.position = Vector3(LADDER.x + 0.15, ladder_top * 0.5, LADDER.z + (-0.28 if i == 0 else 0.28))
+			rr.scale.y = ladder_top
 		var mm := MultiMesh.new()
 		mm.transform_format = MultiMesh.TRANSFORM_3D
 		var bm := BoxMesh.new()
 		bm.size = Vector3(0.05, 0.05, 0.56)
 		bm.material = F.mat("yellow_dark")
 		mm.mesh = bm
-		var n := int(top / 0.35)
+		var n := int(ladder_top / 0.35)
 		mm.instance_count = n
 		for i in n:
 			mm.set_instance_transform(i, Transform3D(Basis(), Vector3(LADDER.x + 0.15, 0.3 + i * 0.35, LADDER.z)))
@@ -1540,6 +1542,10 @@ func _spawn_truck(waiting: bool, top_up := false) -> void:
 	ordered += load
 	var r := 1.0 if quiet else randf()
 	var slump := randf_range(SPEC_SLUMP - 17.0, SPEC_SLUMP + 17.0)
+	if force_bad > 0 and trucks.size() >= 1:
+		force_bad -= 1
+		r = 1.0
+		slump = 170.0                          # (dev --trucktest: too wet, it goes back)
 	var age := randf_range(22.0, 45.0)
 	if r < 0.09:
 		slump = randf_range(52.0, 70.0)        # stiff: the water held back brings it up
@@ -2042,6 +2048,22 @@ func _on_trust(t: Dictionary, delta: float) -> void:
 	if _verdict(t) in ["wet", "mix"]:
 		bad_volume += flow * 0.5
 		bad_kind = "wet"
+
+## Dev `--trucktest=<level>`: on that level (1-based) the first two loads after the first are too wet
+## (sent back at the slump test) and the line blocks early: the case that used to strand a pour.
+var force_bad := 0
+
+## The dispatcher, for the log: what's ordered, what's coming, and every truck's state.
+func dispatch_debug() -> String:
+	var st: Array = []
+	for t in trucks:
+		var n: Node3D = t["node"]
+		st.append("%s:%.1f@(%.0f,%.0f)%s" % [t["state"], float(t["load"]), n.position.x, n.position.z, (" slot " + String(t["slot"])) if t.has("slot") else ""])
+	var th = game.crew.crew.get("line") if game.crew else null
+	if th != null:
+		st.append("truck hand %s busy '%s' at (%.1f, %.1f)" % [th.zone, th.busy, th.position.x, th.position.z])
+	return "needed %.1f ordered %.1f coming %.1f hopper %.1f queue %d arrive_t %.1f spawning %s live %s | %s" % [
+		needed_m3, ordered, coming(), hopper, _queue_count(), _arrive_t, _spawning, live, ", ".join(st)]
 
 ## Concrete on its way: in the hopper, at the bay and on the road.
 func coming() -> float:
