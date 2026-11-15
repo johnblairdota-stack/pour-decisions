@@ -97,8 +97,8 @@ def main():
             for zk in (0.7, 1.0, 1.4):
                 for f35 in (20, 28, 40):
                     for dxy in ((0, 0), (40, 0), (-40, 0), (0, 40), (0, -40)):
-                        if dxy != (0, 0) and (dh, zk, f35) != (0, 1.0, 28):
-                            continue
+                        if dxy != (0, 0) and ((dh, zk, f35) != (0, 1.0, 28) or g0.get("xy_weight", 0) >= 1.0):
+                            continue                         # r6: a strong position prior is not shifted
                         g = dict(g0, heading=g0["heading"] + dh, f35=f35 if "f35_fixed" not in g0 else g0["f35"],
                                  x=g0["x"] + dxy[0], y=g0["y"] + dxy[1])
                         if "z" in g0 and g0.get("z_weight", 0) < 1:

@@ -100,6 +100,19 @@ def in_hsw(x, y):
     return math.hypot(x - cx, y - cy) < r
 
 
+_HB = []
+
+
+def _hotel_box():
+    if not _HB:
+        import hsw_hero
+        r = hsw_hero.rec_by_osm()[L.HSW["hotel_way"]]
+        xs = [p[0] for t in r["tiers"] for p in t["ring"]]
+        ys = [p[1] for t in r["tiers"] for p in t["ring"]]
+        _HB.append((min(xs), min(ys), max(xs), max(ys)))
+    return _HB[0]
+
+
 def hsw_ok(x, y, g):
     """HSW round 2: no trunk on the cliff face, near the rim edge, or on low river sand/mud."""
     T = L.HSW["trees"]
@@ -107,6 +120,11 @@ def hsw_ok(x, y, g):
         return False
     import hsw_hero
     if hsw_hero.sunk(x, y):                              # r4: deck strips sunk under the river: no tree there
+        return False
+    if 400.0 <= x <= 612.0 and y < 95.0:                 # r6: open wharf strip: FELONS / HSW roofs and the hotel
+        return False                                     # front stay visible from the river (p09, p13)
+    hx0, hy0, hx1, hy1 = _hotel_box()
+    if hx0 - 14 <= x <= hx1 + 14 and hy0 - 14 <= y <= hy1 - 4:
         return False
     for k in range(8):
         a = k * math.pi / 4

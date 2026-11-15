@@ -168,7 +168,7 @@ HSW.update({
                         "orange iron staining, dark wet streaks, bushy ledges, trees over the top"},
     # Mr Percival's (OSM way 679146312, ring 476-490 x 36-49): octagonal sage-green pavilion with a standing-seam
     # roof and a glazed lantern, on a timber deck on piles (photos gg_a57206f9, gg_4681e729, gg_4202cd18)
-    "percivals": {"centre_xy": (483.0, 42.5), "radius_m": 7.6, "deck_ahd": 3.7, "wall_top_ahd": 8.0,
+    "percivals": {"centre_xy": (483.0, 42.5), "radius_m": 8.6, "deck_ahd": 3.7, "wall_top_ahd": 8.0,
                   "roof_top_ahd": 12.2, "lantern_r": 3.0, "deck_size_m": (34.0, 22.0), "deck_angle_deg": -2.0,
                   "wall": (0.56, 0.74, 0.64), "roof": (0.40, 0.42, 0.43),   # r2: mint (photo p09)
                   "source": "OSM footprint (14 m across) + RESEARCH.md (20 x 30 m deck) + photos"},
@@ -217,12 +217,12 @@ HSW.update({
               "source": "photos p06/p10: tan-ochre rock with orange iron stain, dark joints, overhangs, "
                         "tufts on ledges, figs and vines hanging off the rim"},
     # 2 trees: leaf-card trees round HSW (same as round Spire), mixed species, set back from the rim
-    "trees": {"centre_r": (640.0, 60.0, 300.0), "rim_setback_m": 1.5, "min_ground_ahd": 2.6,
+    "trees": {"centre_r": (640.0, 60.0, 380.0), "rim_setback_m": 1.5, "min_ground_ahd": 2.6,
               "max_slope_deg": 50.0, "hanging_every_m": 9.0, "hanging_len_m": (5.0, 14.0), "seed": 23,
               "mix": {"fig": 30, "eucalypt": 25, "poinciana": 15, "palm": 10, "generic": 20}},
     # 3 waterline: river bank below the decks sinks under the water; dark timber pile colonnade under the
     # riverwalk and shed decks with cross bracing (photo p09); riprap boulders (photo p06, Rivershed point)
-    "waterline": {"sink_below_ahd": 2.2, "sink_to_ahd": -1.2, "pile_every_m": 3.6, "pile_w_m": 0.42,
+    "waterline": {"sink_below_ahd": 2.2, "sink_to_ahd": -1.2, "pile_every_m": 2.2, "pile_w_m": 0.6,
                   "pile_rgb": (0.17, 0.145, 0.12), "fascia_rgb": (0.10, 0.085, 0.07),
                   "riprap_box": (690.0, -60.0, 870.0, 40.0), "riprap_z": (-0.8, 2.8), "riprap_every_m": 1.6},
     # 4 ground: sand-pink decomposed granite paths through the lawns (OSM footways), warm pale paving
@@ -250,7 +250,7 @@ HSW.update({
     "pier_render": (0.86, 0.71, 0.49),   # r4: warmer cream
     "pier_arch_back": (0.30, 0.26, 0.20),   # r5: lit back wall, not a void
     # 8 roof letters mid grey; Mr Percival's one dark roof
-    "letters_rgb": (0.33, 0.33, 0.34), "percivals_roof_r3": (0.10, 0.11, 0.12),
+    "letters_rgb": (0.33, 0.33, 0.34), "percivals_roof_r3": (0.30, 0.32, 0.34),
     # 10 lift: corten frame, teal glass shaft, enclosed teal skybridge (photo p12)
     "lift_glass": (0.10, 0.20, 0.22), "skybridge_extra_m": 22.0,
     # 12 horizon: compositor mist toward a warm haze, far ridge card, green far land
@@ -258,12 +258,15 @@ HSW.update({
     "ridge": {"dist_m": 4300.0, "h_m": (40.0, 95.0), "rgb": (0.55, 0.60, 0.66)},   # r5: smooth haze silhouette
     # 13 cream two-storey house west of the HSW shed: terracotta hip roof (photo p13)
     "terracotta": (0.42, 0.16, 0.09),
+    # round 6: open dining deck on piles with umbrellas between Felons and Barrel Hall (photos p12/p13), Oakwood
+    "felons_east_deck": {"box": (578.0, 47.0, 606.0, 74.0), "deck_ahd": 3.7},
+    "oakwood_way": 26386779,
 })
 # Story Bridge piers (HSW round 1): each main pier is one rendered-concrete portal in cream ACROSS the bridge:
 # a leg under each truss, a round-headed arch between them under the road centre line, plinth, string course,
 # cornice. Photo from_river/gg_a5335881 (Kangaroo Pt bank, looking N: portal face-on, ~29 m wide, arch ~12 m,
 # crown ~18 m over the ground) and from_river/gg_391ced7e, hotel/gg_4681e729. Thickness along the bridge assumed.
-STORY_BRIDGE_PIERS = {"main_across_m": 30.0, "main_thick_m": 10.0, "arch_w_m": 12.0, "arch_spring_m": 14.5,
+STORY_BRIDGE_PIERS = {"main_across_m": 30.0, "main_thick_m": 10.0, "arch_w_m": 13.0, "arch_spring_m": 14.5,
                       "cornice_m": 1.4, "render": (0.80, 0.77, 0.70), "steel": (0.30, 0.36, 0.34),
                       "steel_note": "grey-green paint (sRGB ~#7c8a84 in daylight photos)"}
 STAGES["2017_top"] = dict(STAGES["2016_l6"], name="2017: tower near the top, crane still up",
@@ -410,7 +413,7 @@ STAGE_CAMERAS = [
 # Story Bridge (step 5): measured from the 2019 LiDAR bridge points (bridge_hsw voxels). t = metres along
 # the axis (+ to the south / Kangaroo Point), n = metres across (+ east). Heights m AHD.
 STORY_BRIDGE = {
-    "centre_xy": (491.5, -182.2), "axis": (-0.0083, -0.99997),
+    "centre_xy": (490.5, -188.6), "axis": (0.0227, -0.99974),   # HSW r6: from the 4 tower peaks in the LiDAR DSM
     "truss_centre_n": -3.5, "truss_half_m": 10.5,
     "truss_t": (-395.0, 165.0),               # north anchor end .. south anchor end (truss length 560 m)
     "main_piers_t": (-255.0, 25.0),           # main span 280 m between the main piers (published: 282 m)

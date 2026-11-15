@@ -25,7 +25,7 @@
              ["barrel_hall_top", 515, 262], ["rivershed_ridge_w", 738, 404], ["rivershed_ridge_e", 1005, 590]]},
   {"id": "p07_drone_sw_citycat", "file": "from_river/gg_391ced7e.jpg", "title": "Drone from the river south-west: north tower, pier portal, HSW shed, Mr Percival's, Felons",
    "size": [1600, 900], "mode": "tilt", "time_h": 15.5,
-   "guess": {"x": 330, "y": -150, "z": 70, "heading": 35, "pitch": -12, "f35": 45},
+   "guess": {"x": 300, "y": -200, "z": 65, "heading": 36, "pitch": -10, "f35": 42, "f35_fixed": true},
    "marks": [["pier_n_top_sw", 678, 292], ["pier_n_top_se", 823, 292], ["pier_n_crown_s", 760, 330], ["peak_n_w", 692, 14],
              ["felons_ridge_w", 828, 376], ["felons_ridge_e", 1083, 356], ["hswshed_ridge_w", 500, 410],
              ["hswshed_ridge_e", 697, 397], ["percivals_top", 812, 412]]},
@@ -50,7 +50,7 @@
    "note": "round 2: Felons west end and HSW shed east end dropped (hidden at the pier edges); lift top and Barrel Hall dropped (not identified for sure); arch springing added"},
   {"id": "p09_pier_face_on", "file": "from_river/cm_5547d6bf.jpg", "title": "From the river due south: the north pier portal face-on over Mr Percival's, HSW shed and Felons",
    "size": [1600, 1200], "mode": "tilt", "time_h": 12.0,
-   "guess": {"x": 482, "y": -80, "z": 3.5, "z_weight": 3.0, "xy_weight": 0.3, "heading": 0, "pitch": 3, "f35": 26},
+   "guess": {"x": 482, "y": -80, "z": 3.5, "z_weight": 3.0, "xy_weight": 10.0, "heading": 0, "pitch": 3, "f35": 26},
    "marks": [["pier_n_top_sw", 568, 368], ["pier_n_top_se", 1003, 368], ["pier_n_crown_s", 787, 488],
              ["percivals_top", 787, 652], ["pier_n_spring_sw", 699, 574], ["pier_n_spring_se", 875, 574]],
    "note": "round 2: HSW shed east end and Felons west end dropped (they sit at the pier edges, hidden behind it); arch springing added"},
@@ -65,6 +65,6 @@
    "guess": {"x": 620, "y": -230, "z": 3.0, "z_weight": 3.0, "xy_weight": 0.02, "heading": 320, "pitch": 4, "f35": 35},
    "marks": [["pier_n_top_sw", 544, 561], ["pier_n_top_se", 788, 568], ["pier_n_crown_s", 665, 623],
              ["pier_n_spring_sw", 630, 658], ["pier_n_spring_se", 700, 658], ["percivals_top", 764, 726],
-             ["hswshed_ridge_w", 245, 713]],
+             ["hswshed_ridge_w", 245, 713], ["peak_n_w", 592, 126], ["peak_n_e", 757, 137]],
    "note": "round 2 (Wikimedia, Kangaroo Point). Weak: holdout ~49 px. Lift top (1040, 530) and Felons east ridge end (1310, 768) left out for the same reason as p12"}
  ]}
