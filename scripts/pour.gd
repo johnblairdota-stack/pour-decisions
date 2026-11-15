@@ -604,12 +604,24 @@ func deposit(local: Vector3, volume: float, fresh := true) -> void:
 	# (the screed's surplus is real concrete moved about, not game m³)
 	var k := vol_k if fresh else 1.0
 	var per_area := volume * k / (dx * dx)
+	if fresh and not poly.is_empty():
+		# A slab cut to an outline (Spire): what lands against a wall or a stop-end (the core, the
+		# joint, the side forms) falls back onto the deck. Only the open front lets it go over.
+		var keep := 0.0
+		for e in _kernel:
+			var c0 := _cell(ix + e[0], iz + e[1])
+			if mask[c0] == 1 or _over_front(ix + e[0], iz + e[1]):
+				keep += e[2]
+		if keep > 0.05:
+			per_area /= keep
 	for e in _kernel:
 		var c := _cell(ix + e[0], iz + e[1])
 		if not fresh and set_h[c] >= 0.0:
 			continue
 		var add: float = per_area * e[2]
 		if mask[c] == 0:
+			if fresh and not poly.is_empty() and not _over_front(ix + e[0], iz + e[1]):
+				continue
 			# Off the edge of a round slab: over the form and gone
 			if fresh:
 				spilled += add * dx * dx / k
@@ -626,6 +638,13 @@ func deposit(local: Vector3, volume: float, fresh := true) -> void:
 			scr_t[c] = -1.0
 			flt[c] = 0
 		h[c] = old + add
+
+## Is this cell past the slab's open front edge (where concrete really can go over)?
+func _over_front(cx: int, cz: int) -> bool:
+	if not open_front or front_row.size() != NX:
+		return false
+	var fr: int = front_row[clampi(cx, 0, NX - 1)]
+	return fr >= 0 and cz > fr
 
 ## One flow step: slump anything steeper than the repose slope, seep the rest.
 ## Concrete that has gone off doesn't flow any more.
@@ -1133,9 +1152,13 @@ func _next_face(bay: int, from: Vector3) -> Vector3:
 				# screed take it out to the forms)
 				var m := edge_cells()
 				var inner := iz >= m and iz < NZ - m and ix >= m and ix < NX - m
-				if inner and not poly.is_empty():
-					# (in from the slab's own edge, not the box's)
-					inner = mask[i - m] == 1 and mask[i + m] == 1 and mask[i - m * NX] == 1 and mask[i + m * NX] == 1
+				if not poly.is_empty():
+					# (in from the slab's own edge, not the box's: a full splash back from the open
+					# front, but close in to the walls and stop-ends, which throw it back onto the deck)
+					var ms := mini(m, 2)
+					var mf := m if open_front else ms
+					inner = iz >= ms and iz < NZ - mf and ix >= ms and ix < NX - ms \
+						and mask[i - ms] == 1 and mask[i + ms] == 1 and mask[i - ms * NX] == 1 and mask[i + mf * NX] == 1
 				if inner or vol_k <= 1.0:
 					n += 1
 					if h[i] >= full:

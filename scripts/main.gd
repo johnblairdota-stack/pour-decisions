@@ -1331,7 +1331,7 @@ func _build_world() -> void:
 	if spire:
 		# Spire: the Blender model round the tower (streets, neighbours, the cathedral, the podium on site)
 		_spire_world = SpireSite.build_world(self)
-		SpireSite.build_podium_face(self)
+		_podium_face(0)
 		yard = Node3D.new()
 		yard.name = "Yard"
 		add_child(yard)
@@ -2471,6 +2471,15 @@ func _watch_dispatch(delta: float) -> void:
 		print("[trucktest] PASS: the slab filled after the bad loads and the blockage")
 		_truck_test = false
 
+## Spire: the podium's brick and its scaffold as they stand at pour `at` (rebuilt only on a change).
+var _pod_stage := [-1, false]
+func _podium_face(at: int) -> void:
+	var stg: Array = SpireSite.podium_stage(at)
+	if stg == _pod_stage:
+		return
+	_pod_stage = stg
+	SpireSite.build_podium_face(self, stg[0], stg[1], [[HOIST_X - 2.0, HOIST_X + 2.0], [10.6, 16.6]])
+
 ## Spire: a new level. The core's jump form jumps to stay LEAD levels ahead of the deck, the bot
 ## crew's pour B is reset, and the camera swings round to look across pour A at the core.
 func _spire_level() -> void:
@@ -2484,6 +2493,7 @@ func _spire_level() -> void:
 		_spire_b.start_level()
 	var lead := int(SpireSite.d["jump_form"]["lead_levels"])
 	SpireSite.set_core(_spire_core, level_y(0) - 0.3, level_y(mini(k + 1 + lead, floors() + 1)), FH)
+	_podium_face(k)
 	cam_yaw = lerp_angle(cam_yaw, SpireSite.cam_yaw(), 1.0)
 	# The placing boom's mast is jacked up through the core as the form jumps (no sections to add):
 	# it's on its way up over the first seconds of the level (_process)
@@ -4054,8 +4064,8 @@ func _start_pour() -> void:
 	_fault_slack = score.fault_slack(_incidents) if kit != "truck" else 0.0
 	if spire:
 		# (Spire's riser starts 21 m up, and the transfer slab is 1250 mm deep: the medal times allow for it)
-		# (pour A is smaller than Riverlight's east wing, so a normal Spire level's times are a bit tighter)
-		_fault_slack += 0.8 * float(score.SILVER_T.get(kit, 80.0)) if SpireSite.is_transfer(k) else -16.0
+		# (pour A is half the floor, a U round the core: the boom has further to swing between its arms)
+		_fault_slack += 0.8 * float(score.SILVER_T.get(kit, 80.0)) if SpireSite.is_transfer(k) else 10.0
 	# (and the trucks come closer together and carry more, so the pump
 	# isn't kept waiting on changeovers)
 	if spire:
@@ -4594,11 +4604,14 @@ func _process(delta: float) -> void:
 				flat = flat.limit_length(lim)
 				p.position.x = flat.x
 				p.position.z = flat.y
-		if p.role == "boom" and p.zone == "deck" and p.busy == "" and on_pad(p.position):
-			# Off the pad, onto the scaffold
+		if p.role == "boom" and p.zone == "deck" and p.busy == "":
+			# Off the pad, onto the scaffold (Spire: and off the joint strip behind our U, which only
+			# leads back across the wet slab)
 			var wq := walkway_point(walkway_param(Vector2(p.position.x, p.position.z)))
-			p.position.x = wq.x
-			p.position.z = wq.y
+			var strand: bool = spire and wq.distance_to(Vector2(p.position.x, p.position.z)) > 1.6 and Geometry2D.is_point_in_polygon(Vector2(p.position.x, p.position.z), SpireSite.poly("walk"))
+			if on_pad(p.position) or strand:
+				p.position.x = wq.x
+				p.position.z = wq.y
 		_footprints(p)
 		_cover(p, delta)
 		if not p.bot and not p.covering and p.action_pressed():
@@ -5825,6 +5838,12 @@ func _boom_op_clamp(at: Vector3) -> Vector3:
 	if tutorial:
 		var flat := Vector2(at.x, at.z).limit_length(TUT_R + WALK_MID)
 		return Vector3(flat.x, 0, flat.y)
+	if spire:
+		# (our pour's a U round the core: anywhere people can walk, else back to the Ann St scaffold)
+		if Geometry2D.is_point_in_polygon(Vector2(at.x, at.z), SpireSite.poly("walk")):
+			return Vector3(at.x, 0, at.z)
+		var w := walkway_point(walkway_param(Vector2(at.x, at.z)))
+		return Vector3(w.x, 0, w.y)
 	var fx: float = BW * 0.5 + WALK_MID
 	var fz: float = BD * 0.5 + WALK_MID
 	return Vector3(clampf(at.x, SC.x - fx, SC.x + fx), 0, clampf(at.z, SC.z - fz, SC.z + fz))
