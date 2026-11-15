@@ -158,6 +158,8 @@ var arriving := false
 func arrive_site(c: Dictionary) -> void:
 	arriving = true
 	_tower_picked(c)
+	if _pp_floor >= 0 and c["kit"] != "tutorial":
+		show_floor(_pp_floor)
 	_site_page.modulate.a = 0.0
 	_shade.modulate.a = 0.0
 
@@ -1003,8 +1005,10 @@ func _pickshots(delta: float) -> void:
 
 ## Dev `--pickplay=<water|riverlight|spire>`: straight to the hand, plays that card, and quits a few
 ## seconds after the flight lands (for filming the transitions: add Godot's --write-movie).
+## `--pickfloor=N` lands it on that floor whatever's been poured.
 static var _pp_id := ""
 static var _pp_played := false
+static var _pp_floor := -1
 var _pp_t := 0.0
 
 func _pickplay(delta: float) -> void:
@@ -1013,6 +1017,8 @@ func _pickplay(delta: float) -> void:
 		for a in OS.get_cmdline_user_args():
 			if a.begins_with("--pickplay="):
 				_pp_id = a.substr(11)
+			if a.begins_with("--pickfloor="):
+				_pp_floor = int(a.substr(12))       # (as if the tower were built to that floor, from 0)
 	if _pp_id == "-":
 		return
 	if page == "crew" and _t > 0.5 and not _pp_played:

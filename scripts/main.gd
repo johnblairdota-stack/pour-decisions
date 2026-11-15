@@ -2064,7 +2064,7 @@ func _menu_frame_crew(delta: float) -> void:
 
 const ARRIVE_BOAT_V := 19.0      # m/s (a CityCat does about 13: a little quick, for the screen)
 const ARRIVE_RIVER_T := 5.0      # s low on the water behind the CityCat
-const ARRIVE_T := 12.5           # s all up: the river, then one arc up and round onto the floor pick
+var ARRIVE_T := 12.5             # s all up: the river, then one arc up and round onto the floor pick (Spire's is longer)
 const ARRIVE_UI_T := 1.3         # s at the end the floor pick's page fades up over
 var _arrive_keys: Array = []     # [t, camera, look], game coordinates; the last one is the floor pick's own view
 var _arrive_line: Array = []     # the CityCat's run in to the site, on the water
@@ -2162,14 +2162,14 @@ func _hand_camera(delta: float) -> void:
 
 ## The CityCat's run in: the last few hundred metres of river before the site (game coordinates, on
 ## the water). Riverlight: down Hamilton Reach from the city to the Northshore Hamilton terminal.
-## Spire: up the Town Reach from under the Story Bridge to Howard Smith Wharves.
+## Spire: up the Town Reach past Howard Smith Wharves, the city ahead.
 func _arrive_boat_line() -> Array:
 	if not _arrive_line.is_empty():
 		return _arrive_line
 	var out: Array = []
 	if spire:
 		var y := float(SpireSite.d.get("river_ahd", 0.3)) - SpireSite.street
-		for q in [Vector2(-352, -560), Vector2(-318, -455), Vector2(-250, -380), Vector2(-170, -348), Vector2(-90, -346), Vector2(0, -352)]:
+		for q in [Vector2(-250, -380), Vector2(-170, -348), Vector2(-90, -346), Vector2(0, -352), Vector2(80, -380)]:
 			out.append(Vector3(q.x, y, q.y))
 	else:
 		for q in [Vector2(330, -338), Vector2(250, -318), Vector2(185, -292), Vector2(140, -262), Vector2(112, -250)]:
@@ -2242,17 +2242,30 @@ func _arrive_build(tower: Vector3, fin: Vector3, fin_look: Vector3) -> Array:
 	var deck := fin_look.y
 	# (round the end of the building: [s, along e, along out_n, m over the deck, how far the look's gone to the deck])
 	var arc: Array = [[7.4, 78.0, -150.0, 34.0, 0.35], [9.3, 58.0, -34.0, 24.0, 0.75], [10.9, 40.0, 30.0, 10.0, 1.0]]
+	var floor_y := -1e9
+	ARRIVE_T = 12.5
+	if not spire:
+		e = -e          # (Riverlight: round the east end, the crew's own wing; the west wing stands at the other)
+		floor_y = 24.0  # (and over the street trees, however low the deck is)
 	if spire:
-		# (Spire's deck is down among taller neighbours: over their roofs, then down onto Ann St)
-		# (round the cathedral end, where nothing stands tall)
-		arc = [[7.4, 60.0, -170.0, 72.0, 0.35], [9.3, 76.0, -34.0, 58.0, 0.75], [10.9, 12.0, 60.0, 20.0, 1.0]]
+		# (Spire's deck is down among taller neighbours and 330 m back from the river: up over the
+		# roofs through the gap east of the tower next door, round the cathedral end where nothing
+		# stands tall, and down onto Ann St. Checked against cuts through the city model at 40, 70
+		# and 100 m: never under 85 m until it's over the cathedral grounds.)
+		arc = [[8.0, 182.0, -187.0, 72.0, 0.35], [10.6, 84.0, -48.0, 58.0, 0.75], [12.6, 12.0, 60.0, 20.0, 1.0]]
+		floor_y = 88.0
+		ARRIVE_T = 14.3
 	for k in arc:
 		var p := Vector3(fin_look.x, deck + float(k[3]), fin_look.z) + e * float(k[1]) + out_n * float(k[2])
+		if spire and k == arc[arc.size() - 1]:
+			pass            # (the last of Spire's arc is already down in Ann St)
+		else:
+			p.y = maxf(p.y, floor_y)
 		keys.append([float(k[0]), p, tower.lerp(fin_look, float(k[4]))])
 	# (the first of the arc sits between the river and the site, wherever the river is)
 	var k1: Array = keys[n + 1]
 	var p1: Vector3 = r.lerp(k1[1], 0.62)
-	k1[1] = Vector3(p1.x, lerpf(r.y, deck + float(arc[0][3]), 0.7), p1.z)
+	k1[1] = Vector3(p1.x, lerpf(r.y, maxf(deck + float(arc[0][3]), floor_y + 8.0), 0.7 if not spire else 1.0), p1.z)
 	keys.append([ARRIVE_T, fin, fin_look])
 	return keys
 
@@ -7356,6 +7369,8 @@ func _card_shoot(delta: float) -> void:
 	camera.look_at(Vector3(_card_cam[3], _card_cam[4], _card_cam[5]), Vector3.UP)
 	if _card_cam.size() > 6:
 		camera.fov = _card_cam[6]
+	if _card_cam.size() > 7:
+		camera.far = _card_cam[7]         # (dev: a cut through the city, looking down: what stands above a height)
 	if _card_art != "" and _card_t > 9.0:
 		var img := get_viewport().get_texture().get_image()
 		var w := img.get_width()
