@@ -2655,7 +2655,7 @@ func _apply_kit(which: String) -> void:
 		# Spire ran separate placing booms, one per pour area. Mast-mounted in the lift core they
 		# stand clear over the jump form: 30 m reaches both ends of pour A from there
 		_build_boom(15.0, 15.0)
-		hud.toast("Spire: your crew pours the Ann St half. The other crew's on pour B with their own boom.", 3.0)
+		hud.toast("Spire: your crew pours the Ann St side. The other crew's on pour B round the core with their own boom.", 3.0)
 	else:
 		# Long enough to reach the far corner of the east wing from the tower
 		# in the notch (an MX42 reaches about 38 m; this is a shade more)
@@ -3712,6 +3712,20 @@ func _start_inspect() -> void:
 		var dx := randf_range(-BW * 0.5 + 1.5, BW * 0.25)
 		var dz := randf_range(-BD * 0.5 + 1.5, BD * 0.5 - 1.5)
 		defect.position = SC + Vector3(dx, deck_top() + 0.5, dz)
+		if spire:
+			# (somewhere on our half of the slab itself, in from its edge: the box round it is mostly not slab)
+			var m := 4
+			for tries in 200:
+				var nx: int = pour.NX
+				var i: int = randi() % (nx * int(pour.NZ))
+				var ix: int = i % nx
+				var iz: int = i / nx
+				if ix < m or ix >= pour.NX - m or iz < m or iz >= pour.NZ - m:
+					continue
+				if pour.mask[i] == 1 and pour.mask[i - m] == 1 and pour.mask[i + m] == 1 and pour.mask[i - m * nx] == 1 and pour.mask[i + m * nx] == 1:
+					var c: Vector3 = pour.position + pour.cell_center(i)
+					defect.position = Vector3(c.x, deck_top() + 0.5, c.z)
+					break
 		defect.visible = true
 	engineer.visible = true
 	engineer.position = SC + Vector3(-6.0, work_y, -4.0)

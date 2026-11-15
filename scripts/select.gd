@@ -855,7 +855,7 @@ func _refresh_site() -> void:
 		if game != null and game.spire:
 			_lvl_k.text = "SPIRE · POUR %d OF %d%s" % [lvl, _floors(), extra]
 			_lvl_title.text = game.spire_title(lvl - 1)
-			_lvl_line.text = "Your crew pours the Ann St half. The other crew pours the far half with their own boom."
+			_lvl_line.text = "Your crew pours the Ann St side. The other crew pours round the core with their own boom."
 	# (the print of this floor's last pour)
 	var tex: Texture2D = null if tut else _floor_photo(_floor_pick)
 	_photo_pic.texture = tex

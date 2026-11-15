@@ -2,9 +2,10 @@
 ## the roof, 34 pours. Data and model come from the Blender build (tools/blender/spire/export_game.py:
 ## data/spire_site.json, assets/spire/spire_site.glb).
 ##
-## Each level has two pours split by a construction joint that runs parallel with Ann St through the
-## middle of the core. The players (bots fill any empty jobs) pour the Ann St half, pour A; at the same
-## time a bot crew pours the other half, pour B, with real concrete of their own (spire_b.gd). Both
+## Each level has two pours split by a construction joint that runs parallel with Ann St just in
+## front of the core's jump form. The players (bots fill any empty jobs) pour the Ann St side, pour A:
+## one open slab with nothing to work round. At the same time a bot crew pours the rest, pour B, round
+## the core, with real concrete of their own (spire_b.gd). Both
 ## finish, then the deck goes up a floor and the core's jump form jumps (it stays LEAD levels ahead).
 ##
 ## The placing booms stand on tubular masts up through the lift core, the way a mast-mounted boom goes
@@ -28,7 +29,7 @@ const WALK_OUT := 0.85         # main.WALK_MID
 const RIG_CLEAR := 0.7         # m people keep off the jump form's screens
 
 ## Parts of the site model the game leaves out
-const HIDE := ["placing_booms_KVM26", "line_pump_BSA2109HD", "agitator_truck", "delivery_line", "street_shrubs"]
+const HIDE := ["placing_booms_KVM26", "line_pump_BSA2109HD", "agitator_truck", "delivery_line", "street_shrubs", "PROPS_and_backprops"]
 
 static var d := {}
 static var th := 0.0           # local -> game rotation
@@ -92,12 +93,14 @@ static func _big(parts: Array) -> PackedVector2Array:
 			best = part
 	return best
 
-## The two pours: the joint runs along x through the core's middle. "A" is the Ann St half with the
-## core's notch cut out, "B" the other half; "front" is A with no notch (the scaffold's line).
+## The two pours: the joint runs along x just in front of the jump form. "A" is the Ann St strip, "B" the
+## rest with the core cut out; "front" is A's side of the plate (the scaffold's line).
 static func _cut_pours() -> void:
 	var plate := _raw("plate")
 	var core := _raw("core")
-	var zc := centroid(core).y
+	# The joint runs parallel to Ann St just in front of the jump form: our pour is the whole Ann St
+	# strip of the plate, one open slab with nothing to work round, and the other crew's wraps the core.
+	var zc := _box(core).end.y + float(d["jump_form"]["rig_out_m"]) + RIG_CLEAR + 0.6
 	var bb := _box(plate).grow(5.0)
 	var front_box := PackedVector2Array([Vector2(bb.position.x, zc), Vector2(bb.end.x, zc), Vector2(bb.end.x, bb.end.y), Vector2(bb.position.x, bb.end.y)])
 	var back_box := PackedVector2Array([Vector2(bb.position.x, bb.position.y), Vector2(bb.end.x, bb.position.y), Vector2(bb.end.x, zc), Vector2(bb.position.x, zc)])
@@ -242,6 +245,9 @@ static func _game_mat(mat: BaseMaterial3D) -> Material:
 		var g2 := mat.duplicate() as BaseMaterial3D
 		g2.albedo_color = Color("7f9a5c") if nm == "far_land" else (Color("b49a76") if nm == "clay_rock" else Color("9c9a93"))
 		out = g2
+	elif nm == "clay_slab" or nm == "clay_slab_b" or nm == "clay_column" or nm == "clay_formwork":
+		# (the podium's own structure: the game's concrete and formply, not the model's pale clay colours)
+		out = F.color_mat(Color("c79a5e") if nm == "clay_formwork" else (Color("8f9291") if nm == "clay_column" else Color("a9abaa")))
 	elif nm.begins_with("look_") or nm.begins_with("gen_") or nm == "clay_roof":
 		# the neighbours (glTF colours are linear: the game's are sRGB)
 		col = col.linear_to_srgb()
@@ -265,7 +271,7 @@ static func floor_slab(parent: Node3D, slab_y: float, thick: float, ftf: float) 
 	var plate := poly("plate")
 	var core := poly("core")
 	var parts: Array = Geometry2D.clip_polygons(plate, core)
-	var grey := F.color_mat(Color("b5b6b3"))
+	var grey := F.color_mat(Color("a9abaa"))
 	for part in parts:
 		parent.add_child(F.prism(part, slab_y - thick, thick, grey))
 	var inset: Array = Geometry2D.offset_polygon(plate, -1.2)
@@ -282,7 +288,7 @@ static func build_core(parent: Node3D) -> Dictionary:
 	rig.name = "JumpForm"
 	parent.add_child(rig)
 	var ring := poly("rig")
-	var screen := F.color_mat(Color("e6e2d4"))
+	var screen := F.color_mat(Color("b4bac1"))
 	var n := ring.size()
 	for j in n:
 		var a: Vector2 = ring[j]

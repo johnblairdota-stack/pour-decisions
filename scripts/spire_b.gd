@@ -36,11 +36,14 @@ var _pick_t := 0.0
 var _t := 0.0
 var _finish := 0.0
 var _placing := false
+var _rig := PackedVector2Array()
 
 func build(owner_game) -> void:
 	game = owner_game
 	name = "PourB"
 	plan = SpireSite.poly("B")
+	var grown: Array = Geometry2D.offset_polygon(SpireSite.poly("rig"), 0.45, Geometry2D.JOIN_MITER)
+	_rig = grown[0] if not grown.is_empty() else SpireSite.poly("rig")
 	var bb := Rect2(plan[0], Vector2.ZERO)
 	for p in plan:
 		bb = bb.expand(p)
@@ -118,6 +121,9 @@ func _inside(local: Vector3) -> Vector3:
 				best = dd
 				out = c
 	return out
+
+func _in_rig(local: Vector3) -> bool:
+	return Geometry2D.is_point_in_polygon(Vector2(local.x + centre.x, local.z + centre.z), _rig)
 
 ## `frac`: how far our own pour's got (0..1). `deck_y`: the top of the formply (main.deck_top). `head_y`: the boom
 ## head's height (it rides the jump form with ours).
@@ -217,7 +223,13 @@ func _crew(delta: float, phase: String) -> void:
 		step.y = 0.0
 		var node: Node3D = m["node"]
 		if step.length() > 0.15:
-			at += step.limit_length(WALK * (0.5 if working else 1.0) * delta)
+			var mv := step.limit_length(WALK * (0.5 if working else 1.0) * delta)
+			# (round the jump form, never through it)
+			if _in_rig(at + mv):
+				var side := Vector3(signf(mv.x) if absf(mv.x) > 0.001 else 1.0, 0, 0) * mv.length()
+				var fwd := Vector3(0, 0, signf(mv.z) if absf(mv.z) > 0.001 else 1.0) * mv.length()
+				mv = side if not _in_rig(at + side) and absf(step.x) >= absf(step.z) * 0.2 else (fwd if not _in_rig(at + fwd) else (side if not _in_rig(at + side) else Vector3.ZERO))
+			at += mv
 			node.rotation.y = lerp_angle(node.rotation.y, atan2(step.x, step.z), minf(1.0, delta * 8.0))
 		m["at"] = at
 		var wet: float = pour.height_at(at)
