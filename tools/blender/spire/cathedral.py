@@ -289,7 +289,8 @@ def build():
     fw = max(nave_w, abs(west_towers[0][1] - west_towers[1][1]) - ts)
     ub0, ub1 = sorted((uw, uw - west * front))
     K.block("stone", ub0, ub1, -fw / 2, fw / 2, -0.5, eave)
-    K.gable_roof("tile", ub0, ub1, -fw / 2 - 0.3, fw / 2 + 0.3, eave)
+    # area r1: the roof starts 0.8 m behind the front plane so the stone gable shows (was a salmon triangle)
+    K.gable_roof("tile", *(sorted((ub0 + 0.8, ub1)) if west < 0 else sorted((ub0, ub1 - 0.8))), -fw / 2 - 0.3, fw / 2 + 0.3, eave)
     K.gable_end("stone", uw, -fw / 2, fw / 2, eave, eave + math.tan(PITCH) * (fw / 2 + 0.3), west)
     for dv, w_, h_ in ((-fw * 0.3, 2.2, 4.4), (fw * 0.3, 2.2, 4.4)):                        # side portals, two orders
         for k in range(2):
@@ -319,7 +320,7 @@ def build():
     for k in range(11):                                                 # blind arcade band
         dv = -fw * 0.42 + k * fw * 0.84 / 10
         K.lancet(False, uw, dv, 0.7, 7.9, 9.0, west, frame=False, key="dress")
-    for z in (7.3, 10.2, eave - 0.4, eave + 3.5, eave + 6.0):           # string courses (+ gable stripes, photos)
+    for z in (7.3, 10.2):                  # string courses (area r1: the 3 full-width bars at the gable floated: gone)
         K.b["dress"].prism(S.ccw([K.xy(uw, -fw / 2), K.xy(uw + west * 0.4, -fw / 2), K.xy(uw + west * 0.4, fw / 2),
                                   K.xy(uw, fw / 2)]), g + z, g + z + 0.3)
     gw = min(7.0, fw * 0.6)
