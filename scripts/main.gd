@@ -4162,7 +4162,7 @@ func _process(delta: float) -> void:
 	# A hang shows up as one phase that never ends; the whole run's budget is
 	# only a backstop (a full tower runs 30 to 40 minutes, give or take the
 	# trucks)
-	if autotest and phase_t > 8.0 * 60.0:
+	if autotest and phase_t > (14.0 if spire and SpireSite.is_transfer(k) else 8.0) * 60.0:   # (the transfer slab's a long pour)
 		push_error("[autotest] stuck in phase %s at level %d (%.0fs)" % [phase, k + 1, phase_t])
 		for q in players:
 			print("[autotest]   %s: zone %s busy '%s' held '%s' at %s" % [q.role, q.zone, q.busy, q.held_kind, q.position])
