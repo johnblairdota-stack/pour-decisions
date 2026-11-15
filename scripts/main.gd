@@ -3151,6 +3151,9 @@ func _clear_trucks_of_people() -> void:
 
 ## The box a level's walkable area sits in, for the bots' route search.
 func walk_bounds(zone: String) -> Rect2:
+	if zone == "deck" and spire:
+		# (Spire: the whole of pour A's deck and its walkway, both sides of the boom tower)
+		return Rect2(SC.x - BW * 0.5 - 2.0, SC.z - BD * 0.5 - 2.0, BW + 4.0, BD + 4.0)
 	if zone == "deck":
 		var x0 := SC.x - BW * 0.5 - 2.0
 		return Rect2(x0, SC.z - BD * 0.5 - 2.0, LAT_X + 2.6 - x0, BD + 4.0)
@@ -6891,14 +6894,18 @@ func _update_camera_views(delta: float) -> void:
 		var sel_ok: bool = is_instance_valid(selector)
 		if phase == "roles" and sel_ok and selector.page == "tower":
 			# The tower pick: a slow turn round the site, the card over the bottom left
+			# a 3/4 view of the tower, its whole height in the right half of the screen, beside the card
+			var tower := Vector3(SC.x, 0, SC.z)
+			var high := 14.0
 			if spire:
-				focus = Vector3(SC.x - 4.0, base_y - 6.0, SC.z - 6.0)
-				dist = 210.0
-			else:
-				focus = Vector3(4, 9, 0) + Vector3(SC.x, 0, SC.z) * 0.5
-				dist = 66.0
-			cam_pitch = lerpf(cam_pitch, 0.42 if spire else 0.38, minf(1.0, delta * 1.5))   # (over Spire's neighbours)
-			cam_yaw += delta * 0.06
+				var pc := SpireSite.centroid(SpireSite.poly("plate"))
+				tower = Vector3(pc.x, 0, pc.y)
+				high = level_y(0) + 14.0      # the podium, the deck and the core with its jump form
+			dist = 60.0 + high * 1.7
+			var right := Vector3(cos(cam_yaw), 0, -sin(cam_yaw))
+			focus = tower + Vector3(0, high * 0.5, 0) - right * dist * 0.22
+			cam_pitch = lerpf(cam_pitch, 0.3, minf(1.0, delta * 1.5))
+			cam_yaw += delta * 0.05
 		elif phase == "roles" and sel_ok:
 			# The cold open: in from high over the river, then a slow turn
 			# around the site behind the hat rack
