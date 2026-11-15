@@ -502,8 +502,8 @@ func _hose(p, delta: float) -> void:
 		ok = false
 	if pour.bay_of_x(dl.x) > pour.cur_bay:
 		ok = false
-	if not pour.on_slab(dl):
-		ok = false        # (never call concrete onto nothing: off the edge or into the core)
+	if op == null and not pour.on_slab(dl):
+		ok = false        # (nobody on the boom and the hose off the slab: don't pump it over the edge)
 	p.ai_action = ok
 
 ## The lowest spot within the end hose's reach that the pour plan wants now.

@@ -553,7 +553,9 @@ func cell_center(i: int) -> Vector3:
 ## Marks which cells the boom can reach. `can_reach` is Callable(Vector3 local) -> bool.
 func set_reach(can_reach: Callable) -> void:
 	for i in NX * NZ:
-		reach[i] = 1 if can_reach.call(cell_center(i)) else 0
+		# (only cells on the slab: Spire's pour A leaves much of its box off the slab, and the boom must
+		# never be sent to aim at those)
+		reach[i] = 1 if mask[i] == 1 and can_reach.call(cell_center(i)) else 0
 
 func reach_full() -> bool:
 	for r in reach:
@@ -1075,6 +1077,9 @@ func _next_face(bay: int, from: Vector3) -> Vector3:
 				# screed take it out to the forms)
 				var m := edge_cells()
 				var inner := iz >= m and iz < NZ - m and ix >= m and ix < NX - m
+				if inner and not poly.is_empty():
+					# (in from the slab's own edge, not the box's)
+					inner = mask[i - m] == 1 and mask[i + m] == 1 and mask[i - m * NX] == 1 and mask[i + m * NX] == 1
 				if inner or vol_k <= 1.0:
 					n += 1
 					if h[i] >= full:
