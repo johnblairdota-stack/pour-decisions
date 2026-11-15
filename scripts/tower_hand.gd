@@ -14,8 +14,8 @@ const CARD_H := 1.4
 const CARD_T := 0.018
 const FACE_PX := Vector2i(600, 840)
 const FAN_DEG := 12.0
-const PIVOT := Vector3(0, -4.6, 0)
-const RADIUS := 3.35
+const PIVOT := Vector3(0, -5.3, 0)
+const RADIUS := 4.5
 const CREAM := Color("f6f1e6")
 const EDGE := Color("d9cfba")
 const GOLD := Color("ffd23f")
@@ -80,7 +80,7 @@ func _ready() -> void:
 	_vp.msaa_3d = Viewport.MSAA_4X
 	box.add_child(_vp)
 	_cam = Camera3D.new()
-	_cam.position = Vector3(0, 0, 6.0)
+	_cam.position = Vector3(0, 0, 4.1)
 	_cam.fov = 40.0
 	_vp.add_child(_cam)
 	var sun := DirectionalLight3D.new()
@@ -362,7 +362,7 @@ func _layout(delta: float) -> void:
 		if _play_t >= 0.0:
 			if i == focus:
 				var u := clampf(_play_t / 0.7, 0.0, 1.0)
-				p = p.lerp(Vector3(0, 0.15, 2.6), ease(u, -2.0))
+				p = p.lerp(Vector3(0, 0.0, 1.6), ease(u, -2.0))
 				spin += TAU * ease(u, -1.6)
 				s = lerpf(s, 1.6, u)
 			else:

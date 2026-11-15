@@ -500,6 +500,9 @@ func _build_environment() -> void:
 	RenderingServer.global_shader_parameter_set("look_base", 0.22)
 	# Mist sits low over the river (thick at dawn, lifting by day)
 	env.fog_height = Surrounds.RIVER_Y + 1.6
+	if spire:
+		# (Spire's river is 21 m under the Ann St kerb: the ground mist sits on it, not up at the street)
+		env.fog_height = float(SpireSite.d.get("river_ahd", 0.3)) - SpireSite.street + 1.6
 	LookFx.vignette(self)
 	Look.cur = Look.pick(int(Settings.value("look")))
 	apply_graphics()
@@ -724,8 +727,14 @@ var _light_now: Array = []   # the story light as last shown ([] after a dawn po
 ## Every day but the dawn pour: the light for that day in the tower's story,
 ## eased in from the last one, and on the storm day the sky closing in as the
 ## shower comes and lifting after it.
+## The pick screen and its river flight: golden hour, little haze.
+func picking() -> bool:
+	return (phase == "roles" or phase == "select") and is_instance_valid(selector) and (selector.page == "tower" or selector.page == "arrive")
+
 func _update_story_light(delta: float) -> void:
 	var want: Array = Story.LIGHTS["morning"] if tutorial else Story.light(story_k(k))
+	if picking():
+		want = Story.LIGHTS["golden"]
 	if cfg.get("rain", false) and not tutorial:
 		var t0: float = cfg["rain_at"]
 		var t1: float = t0 + float(cfg["rain_len"])
@@ -742,7 +751,7 @@ func _update_story_light(delta: float) -> void:
 	_set_clouds(float(l[8]))
 	env.fog_height_density = MIST_DAY
 	env.fog_light_color = l[1]
-	env.fog_density = l[7] * _haze_k() * Look.k("haze")
+	env.fog_density = l[7] * _haze_k() * Look.k("haze") * (0.25 if picking() else 1.0)
 	env.adjustment_contrast = l[9] * Look.k("con")
 	env.adjustment_saturation = l[10] * Look.k("sat")
 	env.ambient_light_energy = l[4] * Look.k("amb")
@@ -797,7 +806,7 @@ func _update_daylight(delta: float) -> void:
 		_update_story_light(delta)
 		return
 	_light_now = []
-	env.fog_density = 0.00015 * _haze_k() * Look.k("haze")
+	env.fog_density = 0.00015 * _haze_k() * Look.k("haze") * (0.25 if picking() else 1.0)
 	# (grey before sunrise, the colour coming up with the sun)
 	env.adjustment_contrast = 1.04 * Look.k("con")
 	env.adjustment_saturation = lerpf(0.82, 1.06, smoothstep(0.2, 1.0, _day_u)) * Look.k("sat")
@@ -1998,24 +2007,31 @@ func _pick_boat_at(u: float, ahead: float) -> void:
 		add_child(_pick_boat)
 		_pick_wake = MeshInstance3D.new()
 		var pm := PlaneMesh.new()
-		pm.size = Vector2(5.0, 60.0)
+		pm.size = Vector2(7.0, 70.0)
 		_pick_wake.mesh = pm
 		var wm := StandardMaterial3D.new()
-		wm.albedo_color = Color(1, 1, 1, 0.35)
+		wm.albedo_color = Color(1, 1, 1, 0.6)
 		wm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		wm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		_pick_wake.material_override = wm
 		_pick_wake.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(_pick_wake)
-	var at := _river_at(u + ahead)
-	var nx := _river_at(u + ahead + 0.02)
+	# (about 80 m ahead of the camera along the river, 14 m to the side)
+	var cam_at := _river_at(u)
+	var ua := u
+	while ua < 1.2 and Vector2(_river_at(ua).x - cam_at.x, _river_at(ua).z - cam_at.z).length() < 80.0:
+		ua += 0.004
+	var at := _river_at(ua)
+	var nx := _river_at(ua + 0.02)
+	var side := Vector3(nx.z - at.z, 0, -(nx.x - at.x)).normalized()
+	at += side * 5.0
 	var water := at.y - 9.0 - (3.0 if not spire else 0.0)
 	_pick_boat.position = Vector3(at.x, water, at.z)
 	var dir := Vector3(nx.x - at.x, 0, nx.z - at.z).normalized()
 	if dir.length() > 0.1:
 		_pick_boat.look_at(_pick_boat.position + dir, Vector3.UP)
 		_pick_boat.rotate_y(PI * 0.5)      # (the model runs along its x)
-		_pick_wake.position = _pick_boat.position - dir * 32.0 + Vector3(0, 0.15, 0)
+		_pick_wake.position = _pick_boat.position - dir * 38.0 + Vector3(0, 0.15, 0)
 		_pick_wake.look_at(_pick_wake.position + dir, Vector3.UP)
 
 ## Behind the hand: a slow flight up the river, never stopping.
@@ -2050,8 +2066,8 @@ func _arrive_camera(delta: float) -> void:
 		tower = Vector3(pc.x, level_y(0) + 6.0, pc.y)
 	var u := clampf(t / ARRIVE_RIVER_T, 0.0, 1.0)
 	var ue := ease(u, -1.4)
-	var river := _river_at(ue)
-	var look := _river_at(ue + 0.08) + Vector3(0, -2.0, 0)
+	var river := _river_at(ue) + Vector3(0, 16.0, 0)       # (25 m over the water)
+	var look := _river_at(ue + 0.1) + Vector3(0, 6.0, 0)
 	_pick_boat_at(ue, 0.05)
 	var s := clampf((t - ARRIVE_RIVER_T) / ARRIVE_SETTLE_T, 0.0, 1.0)
 	if s > 0.0:
@@ -4071,6 +4087,8 @@ func _process(delta: float) -> void:
 			else:
 				selector.pick(2 if tutorial else (0 if _auto_kit == "tower" else 1))
 				_auto_kit = ""
+		if picking():
+			_update_daylight(delta)        # (golden hour on the pick and its flight)
 		_update_camera(delta)
 		_update_see_through(delta)
 		return
