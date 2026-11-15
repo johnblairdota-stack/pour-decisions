@@ -2259,7 +2259,7 @@ func _arrive_build(tower: Vector3, fin: Vector3, fin_look: Vector3) -> Array:
 		# stands tall, and down onto Ann St. Checked against cuts through the city model at 40, 70
 		# and 100 m: never under 85 m until it's over the cathedral grounds.)
 		# (the third key keeps it outside the tower crane's jib until it's under it)
-		arc = [[6.6, 146.0, -189.0, 72.0, 0.35], [9.2, 84.0, -48.0, 58.0, 0.7], [10.4, 70.0, 20.0, 34.0, 0.9], [11.5, 8.0, 56.0, 20.0, 1.0]]
+		arc = [[6.6, 146.0, -189.0, 72.0, 0.35], [9.2, 84.0, -48.0, 58.0, 0.7], [10.4, 70.0, 20.0, 34.0, 0.9], [11.5, 22.0, 50.0, 20.0, 1.0]]
 		floor_y = 88.0
 		ARRIVE_T = 13.0
 	for k in arc:
@@ -2353,7 +2353,7 @@ func _arrive_camera(delta: float, fin: Vector3) -> void:
 	(_caption.get_child(0) as CanvasItem).modulate.a = smoothstep(0.8, 1.6, t) * (1.0 - smoothstep(ARRIVE_T - ARRIVE_UI_T - 1.2, ARRIVE_T - ARRIVE_UI_T - 0.2, t))
 	camera.position = _arrive_at(t, 1)
 	camera.look_at(_arrive_at(t, 2), Vector3.UP)
-	if OS.get_cmdline_user_args().has("--arrivedbg"):
+	if OS.get_cmdline_user_args().has("--arrivedbg"):      # (dev: the flight, frame by frame, to measure its speed)
 		print("ARR t=%.2f cam=%s look=%s fin=%s" % [t, str(camera.position.snapped(Vector3.ONE * 0.1)), str(_arrive_at(t, 2).snapped(Vector3.ONE * 0.1)), str(fin.snapped(Vector3.ONE * 0.1))])
 	selector.arrive_fade(smoothstep(ARRIVE_T - ARRIVE_UI_T, ARRIVE_T - 0.2, t))
 	if TowerHand.shots != "" and TowerHand.shots != "-":
