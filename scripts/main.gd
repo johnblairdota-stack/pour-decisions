@@ -779,7 +779,7 @@ func _update_story_light(delta: float) -> void:
 			# to one side, keeping some of the golden warmth)
 			want = Story.mix(want, Story.LIGHTS["midmorning"], 0.6)
 			want[0] = Color("2f6fd0")
-			want[1] = Color("a9c8ec")
+			want[1] = Color("d3dbdc")       # (the horizon lights the fog and the shade: blue here turns the whole city blue)
 	if cfg.get("rain", false) and not tutorial:
 		var t0: float = cfg["rain_at"]
 		var t1: float = t0 + float(cfg["rain_len"])

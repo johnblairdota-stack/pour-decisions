@@ -8,7 +8,7 @@ extends RefCounted
 const F := preload("res://scripts/factory.gd")
 
 const EYE := 1.65              # m: the camera's over the deck by this
-const POOL_DROP := 2.4         # m: the camera's over the water of Spire's pool by this
+const POOL_DROP := 1.6         # m: the camera's over the water of Spire's pool by this
 
 ## kind: "pool" (Spire), "terrace" (Riverlight), "tank" (the water tower)
 static func build(parent: Node3D, cam: Vector3, look: Vector3, kind: String) -> Node3D:
