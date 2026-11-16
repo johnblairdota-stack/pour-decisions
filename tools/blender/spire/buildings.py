@@ -185,7 +185,8 @@ def toppers(rec, bf, ring, top):
         drum = [(cx + r * 1.05 * math.cos(2 * math.pi * i / k), cy + r * 1.05 * math.sin(2 * math.pi * i / k)) for i in range(k)]
         bf.walls.prism(drum, top - 0.5, top + 4.0)
         dome(bf.accent, cx, cy, top + 4.0, r)
-        cone(bf.accent, cx, cy, top + 4.0 + r - 0.3, 0.9, top + 4.0 + r + 3.0, 6)
+        bf.accent.box(cx, cy, top + 4.0 + r - 0.4, 2.2, 2.2, 1.6)          # (a small lantern and a flagpole, not a spike)
+        cone(bf.accent, cx, cy, top + 4.0 + r + 1.2, 0.22, top + 4.0 + r + 6.5, 4)
     elif rec.get("dome"):
         r = max(2.5, 0.45 * rmin)
         bf.accent.box(cx, cy, top, 2 * r, 2 * r, 1.5)

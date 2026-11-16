@@ -206,7 +206,8 @@ def main():
 
     def _crown(buf, x, y, zc, r, flat, lobes=5):
         seed = abs(x * 31.7 + y * 17.3)
-        _lump(buf, x, y, zc, r * 1.05, r * flat, seed)
+        # (the crown hangs well down its trunk: from the river the trees read as round heads, not lollipops)
+        _lump(buf, x, y, zc - r * 0.8 * flat, r * 1.12, r * flat * 1.7, seed)
         if r >= 3.0 and int(seed) % 3 == 0:             # one big crown in three: two more lumps, a clump and not a ball
             for k in (0, 1):
                 a = seed * 2.1 + k * 2.6
