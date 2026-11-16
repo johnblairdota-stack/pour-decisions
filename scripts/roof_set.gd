@@ -8,7 +8,7 @@ extends RefCounted
 const F := preload("res://scripts/factory.gd")
 
 const EYE := 1.65              # m: the camera's over the deck by this
-const POOL_DROP := 6.5         # m: the camera's over Spire's pool deck by this
+const POOL_DROP := 1.6         # m: the camera's over the water of Spire's pool by this
 
 ## kind: "pool" (Spire), "terrace" (Riverlight), "tank" (the water tower)
 static func build(parent: Node3D, cam: Vector3, look: Vector3, kind: String) -> Node3D:
@@ -16,8 +16,7 @@ static func build(parent: Node3D, cam: Vector3, look: Vector3, kind: String) -> 
 	root.name = "RoofSet"
 	parent.add_child(root)
 	var fwd := Vector3(look.x - cam.x, 0, look.z - cam.z).normalized()
-	# (Spire: the pool deck is the level under the roof terrace the camera stands on, so the view
-	# goes out over the water to the bridge rather than into the pool's far wall)
+	# (Spire: the camera stands in the pool's shallows, its eye this far over the water)
 	root.position = Vector3(cam.x, cam.y - (POOL_DROP if kind == "pool" else EYE), cam.z)
 	root.look_at(root.position + fwd, Vector3.UP)      # (local -z: out to the view, +x: to the right)
 	match kind:
@@ -36,12 +35,12 @@ static func _mat(c: Color, rough := 0.85, metal := 0.0) -> StandardMaterial3D:
 	m.metallic = metal
 	return m
 
-static func _glass() -> StandardMaterial3D:
+static func _glass(clear := false) -> StandardMaterial3D:
 	var m := StandardMaterial3D.new()
 	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	m.albedo_color = Color(0.75, 0.88, 0.9, 0.12)
+	m.albedo_color = Color(0.75, 0.88, 0.9, 0.03 if clear else 0.12)
 	m.roughness = 0.05
-	m.metallic = 0.4
+	m.metallic = 0.0 if clear else 0.4
 	m.cull_mode = BaseMaterial3D.CULL_DISABLED
 	return m
 
@@ -67,41 +66,53 @@ static func _planter(root: Node3D, x: float, out: float, s := 1.0) -> void:
 		var sp := F.sphere(float(k[2]) * s, leaf, Vector3(x + float(k[0]) * s, (0.75 + float(k[2]) * 0.8) * s, -(out + float(k[1]) * s)))
 		root.add_child(sp)
 
-## Spire: a stone deck, the pool running out to an infinity edge, loungers down the right, planters
-## on the left. Nothing past the water's far edge but the city and the river.
+## Spire: the infinity pool, as John's photo from its edge has it. The camera stands in the shallows:
+## dark blue mosaic water runs across the whole frame to the spill edge, a low frameless glass rail
+## stands just past it, and a curve of stone coping comes in at the bottom right. Nothing else: past
+## the glass it's the bridge, the river and the suburbs out to the hills.
+const MOSAIC := """shader_type spatial;
+render_mode diffuse_toon, specular_toon;
+uniform vec4 deep : source_color = vec4(0.04, 0.22, 0.32, 1.0);
+uniform vec4 pale : source_color = vec4(0.10, 0.40, 0.50, 1.0);
+varying vec3 wp;
+float h(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+void vertex() { wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }
+void fragment() {
+	vec2 t = wp.xz * 16.0;
+	float k = h(floor(t));
+	vec2 f = fract(t);
+	float grout = 1.0 - step(0.08, f.x) * step(0.08, f.y);
+	float far = clamp(length(VERTEX) / 7.0, 0.0, 1.0);
+	vec3 c = mix(deep.rgb, pale.rgb, k * 0.25 + far * 0.55);
+	ALBEDO = mix(c, deep.rgb * 0.6, grout * (1.0 - far) * 0.6);
+	ROUGHNESS = 0.08;
+	METALLIC = 0.2;
+}"""
+
 static func _pool(root: Node3D) -> void:
-	var stone := _mat(Color("d9cfbc"), 0.9)
-	var coping := _mat(Color("f1ede4"), 0.7)
-	var water := _mat(Color("2fa6c4"), 0.04, 0.25)
-	var under := _mat(Color("1d6f86"), 0.3)
-	var near := 4.0
-	var far := 18.0
-	var hw := 4.2
-	# the deck either side and behind, flush with the top of the coping
-	_blk(root, stone, -10.0, -hw - 0.4, -6.0, far, -0.3, 0.0)
-	_blk(root, stone, hw + 0.4, 10.0, -6.0, far, -0.3, 0.0)
-	_blk(root, stone, -hw - 0.4, hw + 0.4, -6.0, near - 0.4, -0.3, 0.0)
-	# the coping round three sides; the far side's the edge the water spills over
-	_blk(root, coping, -hw - 0.4, -hw, near - 0.4, far, -0.05, 0.03)
-	_blk(root, coping, hw, hw + 0.4, near - 0.4, far, -0.05, 0.03)
-	_blk(root, coping, -hw, hw, near - 0.4, near, -0.05, 0.03)
-	# the water, brimming, and the pool's body under it
-	_blk(root, water, -hw, hw, near, far + 0.05, -0.06, -0.02)
-	_blk(root, under, -hw - 0.4, hw + 0.4, near - 0.4, far + 0.2, -1.6, -0.3)
-	# the spill channel's lip, just under the water's edge
-	_blk(root, _mat(Color("2a2d33")), -hw - 0.4, hw + 0.4, far + 0.05, far + 0.35, -0.5, -0.1)
-	var frame := _mat(Color("e8e6e1"), 0.5)
-	var pad := _mat(Color("f7f4ee"), 0.95)
-	for out in [6.0, 9.2, 12.4]:
-		_lounger(root, hw + 2.0, out, frame, pad)
-	_planter(root, -hw - 2.4, 5.0)
-	_planter(root, -hw - 2.6, 11.5, 1.2)
-	# a frameless glass rail beyond the decks either side of the pool (not across the water)
-	var glass := _glass()
-	for side in [-1.0, 1.0]:
-		var x0: float = (hw + 0.4) * side
-		var x1: float = 10.0 * side
-		_blk(root, glass, minf(x0, x1), maxf(x0, x1), far - 0.03, far + 0.03, 0.0, 1.15)
+	var sh := Shader.new()
+	sh.code = MOSAIC
+	var water := ShaderMaterial.new()
+	water.shader = sh
+	var stone := _mat(Color("969ca0"), 0.85)
+	var edge := 6.0
+	# the water, brimming right across the view, and the dark spill lip it runs over
+	_blk(root, water, -40.0, 40.0, -3.0, edge, -0.06, 0.0)
+	_blk(root, _mat(Color("16303f"), 0.3), -40.0, 40.0, edge, edge + 0.12, -0.4, -0.01)
+	# the catch trough's far wall, and the frameless glass on it with a pale top edge
+	_blk(root, _mat(Color("8f8d88"), 0.8), -40.0, 40.0, edge + 0.55, edge + 0.7, -0.6, -0.12)
+	# (clear glass: a tinted pane read as the city mirrored in a band of water)
+	_blk(root, _glass(true), -40.0, 40.0, edge + 0.6, edge + 0.63, -0.12, 0.5)
+	_blk(root, _mat(Color("aab2b6"), 0.3, 0.5), -40.0, 40.0, edge + 0.58, edge + 0.65, 0.5, 0.545)
+	# the stone coping curving round the pool's end, in at the bottom right
+	for k in 7:
+		var a := deg_to_rad(187.0 - 8.0 * k)
+		var b := F.box(Vector3(0.9, 0.22, 1.0), stone, Vector3.ZERO, false)
+		b.position = Vector3(11.4 + 6.0 * cos(a), 0.05, -(2.0 + 6.0 * sin(a)))
+		b.rotation.y = a + PI
+		root.add_child(b)
+	# (and the deck behind the coping, out to the right)
+	_blk(root, _mat(Color("7d8488"), 0.9), 10.5, 40.0, -3.0, edge, -0.06, 0.1)
 
 ## Riverlight: a timber terrace at the roof's edge, a glass rail, a table and two chairs.
 static func _terrace(root: Node3D) -> void:
