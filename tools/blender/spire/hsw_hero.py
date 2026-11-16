@@ -37,6 +37,7 @@ def obj(buf, name, col, mat):
 
 
 # ---------------------------------------------------------------- terrain patch
+DSM_TOPS = {}                                           # r10: crest block tops, clean vs DSM (for NOTES)
 SUNK = {}                                               # r4: sink mask of the 1 m patch (trees.py reads it)
 
 
@@ -321,10 +322,14 @@ def cliff_dress(col, X, Y, sub, slope, zc, orig, riprap_zone):
         elif roll < 0.18:                                 # r9: dry olive crowns (jacarandas only at the hotel)
             dry.cloud((px_, py_, pz_), (rad, rad, rad * 0.7), int(9 * (20 + 4 * rad * rad)), 0.55, shell=0.15, top_bias=0.2)
         else:                                             # r4: distinct round crowns with lime-lit tops
-            (canopy if rnd.random() < 0.62 else canopy2).cloud((px_, py_, pz_), (rad, rad, rad * 0.75), int(9 * (22 + 5 * rad * rad)),
-                                                               0.55, shell=0.12, top_bias=0.2)
-            tops.cloud((px_ + 0.3, py_ - 0.3, pz_ + rad * 0.5), (rad * 0.7, rad * 0.7, rad * 0.28), int(3 * (22 + 5 * rad * rad)),
-                       0.5, shell=0.3, top_bias=0.9)
+            fo_ = canopy if rnd.random() < 0.6 else canopy2
+            for lb in range(3):                                         # r10: lumpy, overlapping lobes
+                a_ = rnd.uniform(0, 2 * math.pi)
+                rl = rad * rnd.uniform(0.55, 0.75)
+                fo_.cloud((px_ + math.cos(a_) * rad * 0.45, py_ + math.sin(a_) * rad * 0.45, pz_ + rnd.uniform(-1, 1.5)),
+                          (rl, rl, rl * 0.8), int(9 * (14 + 1.4 * rl * rl)), 1.1, shell=0.15, top_bias=0.3)
+            tops.cloud((px_ + 0.3, py_ - 0.3, pz_ + rad * 0.45), (rad * 0.6, rad * 0.6, rad * 0.25), int(3 * (14 + 1.4 * rad * rad)),
+                       1.0, shell=0.3, top_bias=0.9)
         ncan += 1
     lastp = []                                                         # r8: palms along the crest
     for x, y, z, ux, uy in rim_pts:
@@ -361,7 +366,7 @@ def cliff_dress(col, X, Y, sub, slope, zc, orig, riprap_zone):
              obj(rip, "hsw_riprap", col, rgbm("riprap", (0.24, 0.22, 0.19), "dg"))]
     for fo, nm, a, b in ((leaves, "hsw_cliff_scrub", (0.05, 0.10, 0.035), (0.13, 0.20, 0.07)),
                          (vines, "hsw_cliff_vines", (0.045, 0.095, 0.03), (0.11, 0.19, 0.06)),
-                         (canopy, "hsw_hill_canopy", (0.06, 0.10, 0.03), (0.17, 0.24, 0.07)),
+                         (canopy, "hsw_hill_canopy", (0.10, 0.17, 0.04), (0.25, 0.35, 0.09)),   # r10: brighter mid-green
                          (canopy2, "hsw_hill_canopy_olive", (0.20, 0.33, 0.04), (0.38, 0.48, 0.07)),   # r9: ~#8fb43a-#b5c94a
                          (dry, "hsw_hill_canopy_dry", (0.17, 0.16, 0.07), (0.30, 0.28, 0.12)),
                          (tops, "hsw_hill_tops", (0.22, 0.34, 0.06), (0.40, 0.52, 0.10)),
@@ -395,8 +400,8 @@ def blob(buf, x, y, z, r, rz, rnd, nu=7, nv=4):
 
 # ---------------------------------------------------------------- sheds
 SHED_STYLES = {   # wall, roof, glass, walls glazed fraction, deck
-    "felons":     {"wall": (0.78, 0.76, 0.70), "roof": (0.60, 0.65, 0.70), "glass": (0.03, 0.035, 0.04), "bay": 4.0, "win": 3.75, "sill": 0.03, "head": 0.95},   # r2: mostly open glass
-    "white_shed": {"wall": (0.80, 0.78, 0.72), "roof": (0.60, 0.65, 0.70), "glass": (0.03, 0.035, 0.04), "bay": 4.5, "win": 4.1, "sill": 0.04, "head": 0.93},
+    "felons":     {"wall": (0.78, 0.76, 0.70), "roof": (0.55, 0.57, 0.58), "glass": (0.03, 0.035, 0.04), "bay": 4.0, "win": 3.75, "sill": 0.03, "head": 0.95},   # r2: mostly open glass
+    "white_shed": {"wall": (0.80, 0.78, 0.72), "roof": (0.55, 0.57, 0.58), "glass": (0.03, 0.035, 0.04), "bay": 4.5, "win": 4.1, "sill": 0.04, "head": 0.93},
     "barrel_hall": {"wall": (0.20, 0.21, 0.21), "roof": (0.13, 0.14, 0.145), "glass": (0.06, 0.07, 0.075), "bay": 3.0, "win": 2.8, "sill": 0.05, "head": 0.75},
     "rivershed":  {"wall": (0.70, 0.69, 0.64), "roof": (0.45, 0.50, 0.56), "glass": (0.04, 0.05, 0.06), "bay": 4.0, "win": 3.0, "sill": 0.35, "head": 0.7},
     "cream_shed": {"wall": (0.74, 0.69, 0.58), "roof": (0.48, 0.50, 0.50), "glass": (0.06, 0.07, 0.07), "bay": 3.5, "win": 2.2, "sill": 0.2, "head": 0.8},
@@ -972,6 +977,7 @@ def hotel_skin(col):
     if o_:
         names.append(o_.name)
     cb_, ncb_ = crest_blocks(col)
+    cb_ += lidar_blocks(col)
     names += felons_east_deck(col) + cb_
     o_ = jac.object("hsw_hotel_jacaranda", col, (0.25, 0.15, 0.50), (0.42, 0.28, 0.70))
     if o_:
@@ -1016,6 +1022,7 @@ def crest_blocks(col):
     walls, slabs, rails, alt_walls = C.MeshBuf(), C.MeshBuf(), C.MeshBuf(), C.MeshBuf()
     n = 0
     skip = {H["hotel_way"]} | {s["osm"] for s in H["sheds"]}
+    dsm_ = L.lidar("dsm")
     for b in json.load(open(os.path.join(L.REF, "lidar", "buildings_clean.json")))["buildings"]:
         if b["osm"] in skip:
             continue
@@ -1025,7 +1032,17 @@ def crest_blocks(col):
         cy = sum(p[1] for p in ring0) / len(ring0)
         if not (x0 <= cx <= x1 and y0 <= cy <= y1) or top < CB["min_top_ahd"] or b["base_ahd"] < CB.get("min_base_ahd", -99):
             continue
-        for ti, t in enumerate(b["tiers"]):
+        # r10: one block per building, footprint = largest tier, top = 90th percentile of the 2019 LiDAR surface (DSM)
+        # inside the footprint (buildings_clean tops ran 10-20 m low here; see round_10/NOTES.md)
+        big = max(b["tiers"], key=lambda t: abs(S.area([tuple(p) for p in t["ring"]])))
+        import prep_lidar as PL
+        m_, rr_, cc_ = PL.ring_mask([tuple(p) for p in big["ring"]], L.LIDAR_BOX)
+        dtop = top
+        if m_ is not None and m_.sum() > 4:
+            vals = dsm_[rr_:rr_ + m_.shape[0], cc_:cc_ + m_.shape[1]][m_]
+            dtop = max(top, float(np.percentile(vals, 90)))
+        DSM_TOPS[b["osm"]] = (round(top, 1), round(dtop, 1))
+        for ti, t in enumerate([dict(big, top_ahd=dtop)]):
             ring = [tuple(p) for p in t["ring"]]
             tx = sum(p[0] for p in ring) / len(ring)
             ty = sum(p[1] for p in ring) / len(ring)
@@ -1036,7 +1053,7 @@ def crest_blocks(col):
                     r_ = math.hypot(x - tx, y - ty) or 1.0
                     out.append((tx + (x - tx) * (r_ + d) / r_, ty + (y - ty) * (r_ + d) / r_))
                 return out
-            z0 = b["base_ahd"] if ti == 0 else b["tiers"][ti - 1]["top_ahd"]
+            z0 = b["base_ahd"]
             (alt_walls if b["osm"] in CB.get("override", {}) else walls).prism(grow(0.08), z0, t["top_ahd"])
             z = z0 + 3.0
             while z < t["top_ahd"] - 1.0:
@@ -1051,6 +1068,95 @@ def crest_blocks(col):
                                                                              dict(win, glass=(0.02, 0.02, 0.025)))),
                         obj(slabs, "hsw_crest_balconies", col, rgbm("crest_slab", CB["slab"])),
                         obj(rails, "hsw_crest_rails", col, rgbm("crest_rail", CB["rail"]))) if m], n
+
+
+def lidar_blocks(col):
+    """Round 10: the cream apartment blocks on the crest that no footprint covers (layout.HSW["lidar_blocks"]):
+    4 m tiles of LiDAR building cells, each to its own 90th-percentile DSM height, cream walls with window bands,
+    a balcony slab and a dark rail every 3 m on the outside faces."""
+    import json
+    import os
+    import prep_lidar as PL
+    LB = H["lidar_blocks"]
+    dsm, gr, cls = L.lidar("dsm"), L.lidar("ground"), L.lidar("class")
+    X0, Y0, X1, Y1 = L.LIDAR_BOX
+    bx0, by0, bx1, by1 = LB["box"]
+    c0, c1 = int(bx0 - X0), int(bx1 - X0)
+    r0, r1 = int(Y1 - by1), int(Y1 - by0)
+    bld = (cls[r0:r1, c0:c1] == 3) & ((dsm - gr)[r0:r1, c0:c1] > LB["min_h_m"])
+    cover = np.zeros(dsm.shape, bool)
+    for b in json.load(open(os.path.join(L.REF, "lidar", "buildings_clean.json")))["buildings"]:
+        for t in b["tiers"]:
+            m_, rr, cc = PL.ring_mask([tuple(p) for p in t["ring"]], L.LIDAR_BOX)
+            if m_ is not None:
+                cover[rr:rr + m_.shape[0], cc:cc + m_.shape[1]] |= m_
+    o = L.osm()
+    for w in o["ways"].values():
+        if "building" in w.get("tags", {}):
+            r_ = o["line"](w)
+            if len(r_) > 2:
+                m_, rr, cc = PL.ring_mask(r_, L.LIDAR_BOX)
+                if m_ is not None:
+                    cover[rr:rr + m_.shape[0], cc:cc + m_.shape[1]] |= m_
+    free = bld & ~cover[r0:r1, c0:c1]
+    lab = np.zeros(free.shape, int)
+    keep = np.zeros(free.shape, bool)
+    k = 0
+    for (i, j) in zip(*np.nonzero(free)):                  # connected components, keep the big ones
+        if lab[i, j]:
+            continue
+        k += 1
+        st, cells = [(i, j)], []
+        lab[i, j] = k
+        while st:
+            a, b_ = st.pop()
+            cells.append((a, b_))
+            for da, db in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                p_, q_ = a + da, b_ + db
+                if 0 <= p_ < free.shape[0] and 0 <= q_ < free.shape[1] and free[p_, q_] and not lab[p_, q_]:
+                    lab[p_, q_] = k
+                    st.append((p_, q_))
+        if len(cells) >= LB["min_cells"]:
+            for a, b_ in cells:
+                keep[a, b_] = True
+    T = LB["tile_m"]
+    walls, slabs, rails = C.MeshBuf(), C.MeshBuf(), C.MeshBuf()
+    ntile = 0
+    tops = []
+    H_, W_ = keep.shape
+    tile_top = {}
+    for ti in range(0, H_, T):
+        for tj in range(0, W_, T):
+            blk = keep[ti:ti + T, tj:tj + T]
+            if blk.sum() < T * T * 0.5:
+                continue
+            ds = dsm[r0 + ti:r0 + ti + T, c0 + tj:c0 + tj + T][blk]
+            gg = gr[r0 + ti:r0 + ti + T, c0 + tj:c0 + tj + T][blk]
+            tile_top[(ti, tj)] = (float(np.percentile(ds, 90)), float(gg.min()))
+    for (ti, tj), (top, base) in tile_top.items():
+        x = X0 + c0 + tj + T / 2
+        y = Y1 - (r0 + ti) - T / 2
+        walls.box(x, y, base - 0.5, T, T, top - base + 0.5)
+        tops.append(top)
+        ntile += 1
+        for (di, dj), (ox, oy, sx, sy) in (((-T, 0), (0, T / 2 + 0.6, T, 1.2)), ((T, 0), (0, -T / 2 - 0.6, T, 1.2)),
+                                           ((0, -T), (-T / 2 - 0.6, 0, 1.2, T)), ((0, T), (T / 2 + 0.6, 0, 1.2, T))):
+            if (ti + di, tj + dj) in tile_top:
+                continue                                    # inner face: no balcony
+            z = base + 3.0
+            while z < top - 1.0:
+                slabs.box(x + ox, y + oy, z, sx, sy, 0.22)
+                rails.box(x + ox * 1.9 if ox else x, y + oy * 1.9 if oy else y, z + 0.95, sx if sx > 2 else 0.08,
+                          sy if sy > 2 else 0.08, 0.1)
+                z += 3.0
+    win = {"bay": 3.6, "win": 2.6, "sill": 0.3, "head": 0.85, "glass": (0.05, 0.06, 0.07), "rough": 0.2, "floor": 3.0}
+    LIDAR_BLOCKS_META.update({"tiles": ntile, "top_max": round(max(tops), 1) if tops else None})
+    return [m for m in (obj(walls, "hsw_lidar_blocks", col, rgbm("lidar_block_wall", LB["wall"], "render", win)),
+                        obj(slabs, "hsw_lidar_balconies", col, rgbm("lidar_block_slab", LB["slab"])),
+                        obj(rails, "hsw_lidar_rails", col, rgbm("crest_rail", LB["rail"]))) if m]
+
+
+LIDAR_BLOCKS_META = {}
 
 
 def oakwood(col):
@@ -1299,7 +1405,7 @@ def shade(m, bsdf):
         sc_ = nodes.new("ShaderNodeVectorMath")                   # blocks taller than wide (vertical joints)
         sc_.operation = "MULTIPLY"
         links.new(wv.outputs[0], sc_.inputs[0])
-        sc_.inputs[1].default_value = (1.0, 1.0, 0.3)
+        sc_.inputs[1].default_value = (0.7, 0.7, 0.07)              # r10: tall cells = vertical fractures
         vo = nodes.new("ShaderNodeTexVoronoi")
         vo.inputs["Scale"].default_value = 0.26
         links.new(sc_.outputs[0], vo.inputs["Vector"])
@@ -1323,6 +1429,18 @@ def shade(m, bsdf):
         sm.inputs["From Min"].default_value, sm.inputs["From Max"].default_value = 0.52, 0.68
         sm.inputs["To Max"].default_value = 0.7
         c1 = mix_rgb(sm.outputs["Result"], c0, (*T[2], 1))
+        stv = nodes.new("ShaderNodeTexWave")                        # r10: large horizontal strata and ledges
+        stv.wave_type = "BANDS"
+        stv.bands_direction = "Z"
+        stv.inputs["Scale"].default_value = 0.035
+        stv.inputs["Distortion"].default_value = 3.0
+        stv.inputs["Detail"].default_value = 2.0
+        links.new(geo.outputs["Position"], stv.inputs["Vector"])
+        smr = nodes.new("ShaderNodeMapRange")
+        links.new(stv.outputs["Fac"], smr.inputs["Value"])
+        smr.inputs["From Min"].default_value, smr.inputs["From Max"].default_value = 0.0, 0.25
+        smr.inputs["To Min"].default_value, smr.inputs["To Max"].default_value = 0.65, 0.0
+        c1 = mix_rgb(smr.outputs["Result"], c1, (0.13, 0.11, 0.09, 1))
         ed = nodes.new("ShaderNodeTexVoronoi")                     # thin dark joints between the blocks
         ed.feature = "DISTANCE_TO_EDGE"
         ed.inputs["Scale"].default_value = 0.26

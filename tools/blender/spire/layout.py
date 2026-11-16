@@ -219,7 +219,7 @@ HSW.update({
     # 2 trees: leaf-card trees round HSW (same as round Spire), mixed species, set back from the rim
     "trees": {"centre_r": (640.0, 60.0, 380.0), "rim_setback_m": 1.5, "min_ground_ahd": 2.6,
               "max_slope_deg": 50.0, "hanging_every_m": 9.0, "hanging_len_m": (5.0, 14.0), "seed": 23,
-              "mix": {"fig": 30, "eucalypt": 25, "poinciana": 15, "palm": 10, "generic": 20}},
+              "mix": {"fig": 45, "eucalypt": 6, "poinciana": 25, "palm": 9, "generic": 15}},   # r10: fewer pale trunks
     # 3 waterline: river bank below the decks sinks under the water; dark timber pile colonnade under the
     # riverwalk and shed decks with cross bracing (photo p09); riprap boulders (photo p06, Rivershed point)
     "waterline": {"sink_below_ahd": 2.2, "sink_to_ahd": -1.2, "pile_every_m": 3.2, "pile_w_m": 0.75,
@@ -231,7 +231,7 @@ HSW.update({
                "path_w_m": 3.2, "deck": (0.36, 0.27, 0.19)},
     # 5 river: olive-brown, fine ripples, no mirror hot spot (photos p06, p01)
     "sun_angle_deg": 1.6,
-    "river": {"rgb": (0.12, 0.10, 0.055),   # r9: olive-brown, less mirror
+    "river": {"rgb": (0.13, 0.12, 0.06),   # r10: olive-yellow-green near field
               "rough": 0.16, "spec": 0.25, "swell_scale": 0.06, "wave_scale": 0.18,
               "chop_scale": 1.6, "bump": 0.55, "bump_dist": 0.15},   # r4: glossy, ripples at 3 scales
     # 7 north main pier: arch crown 8.2 m under the pier top (photo p09: 120 px at 14.6 px/m), dark inside
@@ -242,11 +242,11 @@ HSW.update({
 # ---------------------------------------------------------------- HSW round 3 (critic, round 2 over-corrected)
 HSW.update({
     # 1 the hill behind Felons, the hotel and the lift is solid canopy (photo p12); bare tuff only SE of Barrel Hall
-    "green_cliff_x_max": 655.0, "canopy_every_m": 6, "canopy_r_m": (4.5, 7.5),   # r8: larger rounded crowns
+    "green_cliff_x_max": 655.0, "canopy_every_m": 10, "canopy_r_m": (8.0, 13.0),   # r10: fewer, 2x larger lumpy crowns (p12)
     # 2 river halves of these sheds stand on piles over water (photos p09, p12, p13)
     "over_water_sheds": [58693374, 58693380, 679146315], "pile_grid_m": 2.6, "riverwalk_piles_x": (395.0, 670.0),
     # 3 bridge steel: dark charcoal grey-green (photos p13, p09), not pale sage
-    "bridge_steel": (0.19, 0.21, 0.24),   # r5: mid steel-grey, slightly blue (photo p13)
+    "bridge_steel": (0.135, 0.145, 0.14),   # r10: one step (~30 %) darker, slight green-grey (p13)
     # 7 pier: warm cream render, mid-dark arch with a lit back wall
     "pier_render": (0.84, 0.78, 0.72),   # r8: near-white, faint warm pink
     "pier_arch_back": (0.30, 0.26, 0.20),   # r5: lit back wall, not a void
@@ -255,6 +255,11 @@ HSW.update({
     # 10 lift: corten frame, teal glass shaft, enclosed teal skybridge (photo p12)
     "lift_glass": (0.10, 0.20, 0.22), "skybridge_extra_m": 22.0,
     "fiume": {"box": (535.0, 100.0, 560.0, 112.0)},          # r9: Fiume terrace on the crest above Felons (p12)
+    # r10: crest apartments the footprint data misses. Source: 2019 LiDAR class-3 cells (DSM - ground > 8 m) in
+    # this box that no OSM / buildings_clean footprint covers; components > 120 m2. Largest: x 516-656, y 162-228,
+    # roof 65 m AHD (90th pct DSM) - the cream apartment row above Felons in photo p12. Built on a 4 m tile grid.
+    "lidar_blocks": {"box": (430.0, 95.0, 800.0, 340.0), "min_h_m": 8.0, "min_cells": 120, "tile_m": 4,
+                     "wall": (0.74, 0.66, 0.48), "slab": (0.80, 0.74, 0.60), "rail": (0.10, 0.10, 0.11)},
     "umbrella_cluster_xy": (735.0, -20.0),                    # r9: Rivershed Lawn, 12 taupe umbrellas
     # 12 horizon: compositor mist toward a warm haze, far ridge card, green far land
     "mist": {"start_m": 350.0, "depth_m": 2600.0, "strength": 0.5, "rgb": (0.62, 0.66, 0.72)},
