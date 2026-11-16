@@ -443,8 +443,13 @@ def clear_trees(rings, guard):
     """Remove whole trees whose trunk is inside the rings: every tree face within the crown radius of such a
     trunk, plus any tree face whose centre is inside the rings (canopy-fill trees, grown 2 m for trunks)."""
     import numpy as np
-    cyl = [(x, y, 0.5 * h + 1.0) for x, y, h, g in L.tree_points()
-           if any(S.point_in(x, y, r) for r in rings)]
+    pts = [(x, y, h) for x, y, h, g in L.tree_points() if 3.0 <= h <= 40.0]
+    gone_ids = {i for i, (x, y, h) in enumerate(pts) if any(S.point_in(x, y, r) for r in rings)}
+    # r3: a neighbour whose crown centre sits inside a removed crown would be left as a bare fork: it goes too
+    for i, (x, y, h) in enumerate(pts):
+        if i not in gone_ids and any(math.hypot(x - pts[j][0], y - pts[j][1]) < 0.3 * pts[j][2] for j in list(gone_ids)):
+            gone_ids.add(i)
+    cyl = [(pts[i][0], pts[i][1], 0.42 * pts[i][2] + 0.5) for i in gone_ids]
     grown = []
     for r in rings:
         cx = sum(p[0] for p in r) / len(r)
@@ -686,7 +691,7 @@ def roads(col, guard, objs, report):
                     mx, my = ax + ux * (s0 + s1) / 2 + nx * sd * (hw - 0.18), ay + uy * (s0 + s1) / 2 + ny * sd * (hw - 0.18)
                     if math.hypot(mx, my) < 330 and not guard.keepout(mx, my, 1.0):
                         road_rect(gutter, mx, my, s1 - s0, 0.36, e, crown, 0.01, 2, 1)
-    put(patch, "road_patches", col, mat("road_patch", (0.075, 0.074, 0.073), asphalt=True), objs)
+    put(patch, "road_patches", col, mat("road_patch", (0.085, 0.084, 0.082), asphalt=True), objs)
     put(crack, "road_crack_seal", col, mat("crack_seal", (0.025, 0.025, 0.026)), objs)
     put(manhole, "road_manholes", col, mat("manhole", (0.06, 0.055, 0.05), metal=True), objs)
     put(pit, "road_side_pits", col, mat("pit_grate", (0.03, 0.03, 0.03)), objs)
@@ -764,9 +769,62 @@ NEIGHBOUR_WALLS = {        # critic round 0 (photos): own albedo per building, s
     26386571: "E6DCC6", 26386543: "E6DCC6",   # Admiralty I / II: white with tan spandrels
     224320345: "D9AE88",   # Macrossan: Petrie Bight peach
 }
-CATHEDRAL_LOOK = {"ashlar": ["C9A777", "8A7A86", "B9976E", "A08E8C", "D2B488"], "dressing": "DCCDA6",
+CATHEDRAL_LOOK = {"ashlar": ["C9A777", "B9976E", "D2B488", "BFA07A", "AE8E68"], "dressing": "DCCDA6",   # r3: buff tuff only, no lilac
                   "tile": "A8452C", "spire": "2A2624", "slate": "6A6866"}
 HALL_OSM = 1210526673      # brick block in the forecourt view: LiDAR top includes trees; photo shows a low gabled hall
+
+
+def flush_onto(ob, ring, gap):
+    """Pull every vertex of ob standing more than `gap` off the footprint ring back to `gap` off it."""
+    if ob is None or ob.type != "MESH":
+        return 0
+    import numpy as np
+    me = ob.data
+    co = np.empty(len(me.vertices) * 3, "f4")
+    me.vertices.foreach_get("co", co)
+    co = co.reshape(-1, 3)
+    A = np.array(ring, "f8")
+    B = np.roll(A, -1, axis=0)
+    D = B - A
+    L2 = np.maximum((D ** 2).sum(1), 1e-9)
+    P = co[:, None, :2] - A[None]
+    t = np.clip((P * D[None]).sum(2) / L2[None], 0, 1)
+    Q = A[None] + t[..., None] * D[None]
+    dist = np.linalg.norm(co[:, None, :2] - Q, axis=2)
+    k = dist.argmin(1)
+    near = Q[np.arange(len(co)), k]
+    d = dist[np.arange(len(co)), k]
+    inside = in_rings_np(co[:, 0], co[:, 1], [ring])
+    far = (d > gap) & ~inside
+    v = co[far, :2] - near[far]
+    v /= np.maximum(np.linalg.norm(v, axis=1, keepdims=True), 1e-9)
+    co[far, :2] = near[far] + v * gap
+    me.vertices.foreach_set("co", co.ravel())
+    me.update()
+    return int(far.sum())
+
+
+def mantra_slabs(col, recs, objs, report):
+    """r3 (critic): Mantra's tower has a balcony slab at every floor with a deep shadow under it."""
+    import buildings as B
+    b = recs.get(189779738) or recs.get(568836537)
+    if not b:
+        return
+    slabs = C.MeshBuf()
+    n = 0
+    for t in b["tiers"]:
+        if t["top_ahd"] - b["base_ahd"] < 30:
+            continue
+        ring = S.ccw([tuple(p) for p in t["ring"]])
+        out = B.offset(ring, 0.95)
+        z = b["base_ahd"] + 12.0
+        while z < t["top_ahd"] - 2.0:
+            slabs.prism(out, z - 0.22, z)
+            n += 1
+            z += 3.1
+    put(slabs, "mantra_balcony_slabs", col, mat("mantra_slab", hx("EDE4D0")), objs)
+    note(5.0, 87.0, "building")
+    report.append("Mantra: %d balcony slabs" % n)
 
 
 def neighbours(col, guard, objs, report):
@@ -798,7 +856,7 @@ def neighbours(col, guard, objs, report):
             m.diffuse_color = (*hx(CATHEDRAL_LOOK[key]), 1)
     # r2 (critic): roof read orange (#c8553a) -> photo #7f4535..#8a4a38; dressings read sage -> warm sandstone
     for name, rgb in (("cathedral_terracotta", P("cath_tile_lin", (0.20, 0.085, 0.036))),
-                      ("cathedral_sandstone", P("cath_dress_lin", (0.50, 0.40, 0.25)))):
+                      ("cathedral_sandstone", P("cath_dress_lin", (0.60, 0.47, 0.26)))):
         m = bpy.data.materials.get(name)
         if m:
             m.diffuse_color = (*rgb, 1)
@@ -809,14 +867,16 @@ def neighbours(col, guard, objs, report):
         uv = np.empty(len(lay) * 2, "f4")
         lay.foreach_get("uv", uv)
         lay.foreach_set("uv", uv * P("ashlar_uv_scale", 0.5))
-    # r2 (critic): Mantra, Willahra, Admiralty are concrete with punched windows and deep balconies, not glass stripes
+    # r3 (critic): r2 overshot to white boxes with dot grids. Cream #e4d8bf render, balcony doors full storey
+    # height between slabs (Willahra / Admiralty keep their own balcony bands; Mantra gets slabs below)
     for osm in (568836537, 189779738, 26253098, 26386571, 26386543):   # 189779738: OSM "Hotel Mantra" carries the tower tiers
         m = bpy.data.materials.get("look_%d_wall" % osm)
         if m:
             m["shader"] = "render"
-            for k, v in (("bay", 3.0), ("win", 1.15), ("sill", 0.3), ("head", 0.78), ("floor", 3.1), ("rough", 0.35)):
+            m.diffuse_color = (*hx("E4D8BF"), 1)
+            for k, v in (("bay", 3.0), ("win", 2.3), ("sill", 0.06), ("head", 0.86), ("floor", 3.1), ("rough", 0.25)):
                 m["win_" + k] = v
-            m["win_glass"] = [0.028, 0.034, 0.042]
+            m["win_glass"] = [0.035, 0.042, 0.05]
     # Soleil (Meriton): white diagonals, not a red stripe
     for nm in ("look_224320346_accent",):
         m = bpy.data.materials.get(nm)
@@ -825,7 +885,7 @@ def neighbours(col, guard, objs, report):
     m = bpy.data.materials.get("look_224320346_wall")
     if m:
         m["diag"] = True
-    # Mantra: no roof spike; the blue fin hugs the facade (drop pieces standing > 0.8 m off the footprint)
+    # Mantra (r3): the roof spike goes; the blue fin and crest STAY (3 photos) and are pulled flush onto the facade
     recs = {b["osm"]: b for b in json.load(open(os.path.join(L.REF, "lidar", "buildings_clean.json")))["buildings"]}
     b = recs.get(568836537)
     if b:
@@ -833,13 +893,21 @@ def neighbours(col, guard, objs, report):
         rings = [S.ccw([tuple(p) for p in t["ring"]]) for t in b["tiers"]]
         grown = [[(x + (x - sum(p[0] for p in r) / len(r)) * 0.04, y + (y - sum(p[1] for p in r) / len(r)) * 0.04) for x, y in r]
                  for r in rings]
-        gone = 0
-        gone += drop_where(bpy.data.objects.get("bldg_spires_masts"), lambda X, Y, Z: in_rings_np(X, Y, grown))
-        for ob in list(bpy.data.objects):
-            if ob.name.startswith("bldg_look_568836537_") and ob.type == "MESH":
-                gone += drop_where(ob, lambda X, Y, Z: (Z > top + 1.5) & in_rings_np(X, Y, grown) |
-                                   (~in_rings_np(X, Y, grown) & (Z > b["base_ahd"] + 12)))
-        report.append("Mantra: %d spike / detached fin faces dropped" % gone)
+        gone = drop_where(bpy.data.objects.get("bldg_look_568836537_roof"),
+                          lambda X, Y, Z: (Z > top + 1.5) & in_rings_np(X, Y, grown))
+        moved = flush_onto(bpy.data.objects.get("bldg_look_568836537_accent"), rings[0], 0.25)
+        report.append("Mantra: spike dropped (%d faces); fin + crest kept, %d fin vertices pulled flush" % (gone, moved))
+    mantra_slabs(col, recs, objs, report)
+    # the Deanery (r3): verandahed sandstone house, not a concrete frame: warm sandstone walls, cream verandah posts
+    for nm, rgb in (("look_106225770_wall", hx("C49A6C")), ("look_106225770_ground", hx("B78D62")),
+                    ("look_106225770_band", (0.62, 0.60, 0.52)), ("look_106225770_roof", (0.16, 0.17, 0.17))):
+        m = bpy.data.materials.get(nm)
+        if m:
+            m.diffuse_color = (*rgb, 1)
+    m = bpy.data.materials.get("look_106225770_wall")
+    if m:
+        m["shader"] = "ashlar"
+        m["palette"] = [c for h in ("C49A6C", "B58C60", "CFA878") for c in hx(h)]
     # the low brick hall: drop the tall block's faces, build walls + a steep gable roof on its footprint
     o = L.osm()
     w = o["ways"].get(HALL_OSM)
@@ -910,6 +978,9 @@ def roof_plant(col, guard, objs, report):
             corners = [(px + ux * a * sx / 2 + vx * c * sy / 2, py + uy * a * sx / 2 + vy * c * sy / 2) for a in (-1, 1) for c in (-1, 1)]
             if not all(S.point_in(x, y, ring) for x, y in corners):
                 continue
+            hits = [roof_hit(x, y, top) for x, y in corners + [(px, py)]]   # r3: only on a roof that is drawn there
+            if any(hz is None or abs(hz - top) > 1.5 for hz in hits):
+                continue
             rooms.box(px, py, top - 0.9, sx, sy, rnd.uniform(2.4, 3.6), ang)
             for k in range(rnd.randint(2, 5)):                         # AC units beside it
                 ax_ = px + ux * (sx / 2 + 1.2 + 1.4 * (k // 2)) * (1 if k % 2 else -1)
@@ -923,6 +994,130 @@ def roof_plant(col, guard, objs, report):
     put(rooms, "roof_plant_rooms", col, mat("plant_room", (0.42, 0.42, 0.41)), objs)
     put(units, "roof_ac_units", col, mat("ac_units", (0.55, 0.56, 0.56)), objs)
     report.append("roof plant on %d buildings" % n)
+
+
+def roof_hit(x, y, z_top):
+    """Height of the first building surface straight below (x, y) from z_top + 6, or None."""
+    from mathutils import Vector
+    dg = bpy.context.evaluated_depsgraph_get()
+    hit, loc, _n, _i, ob, _m = bpy.context.scene.ray_cast(dg, Vector((x, y, z_top + 6.0)), Vector((0, 0, -1)), distance=40.0)
+    if hit and ob is not None and ob.name.startswith("bldg_"):
+        return loc.z
+    return None
+
+
+def floating_masts(report):
+    """r3 (critic): mast cones from the LiDAR (buildings.py bldg_spires_masts) that stand on nothing (the tower's
+    roof is drawn lower than the LiDAR top): drop the cone if nothing is under its base within 3 m."""
+    import numpy as np
+    ob = bpy.data.objects.get("bldg_spires_masts")
+    if ob is None or not ob.data.polygons:
+        return
+    me = ob.data
+    cen = np.empty(len(me.polygons) * 3, "f4")
+    me.polygons.foreach_get("center", cen)
+    cen = cen.reshape(-1, 3)
+    keys = {}
+    for i, (x, y, z) in enumerate(cen):
+        keys.setdefault((round(x / 3.0), round(y / 3.0)), []).append(i)
+    bad = set()
+    from mathutils import Vector
+    dg = bpy.context.evaluated_depsgraph_get()
+    for k, idx in keys.items():
+        x, y = float(cen[idx, 0].mean()), float(cen[idx, 1].mean())
+        zb = float(cen[idx, 2].min())
+        hit, loc, _n, _i, hob, _m = bpy.context.scene.ray_cast(dg, Vector((x, y, zb - 0.3)), Vector((0, 0, -1)), distance=200.0)
+        if not hit or zb - loc.z > 3.0:
+            bad.add(k)
+    gone = drop_where(ob, lambda X, Y, Z: np.array([(round(a / 3.0), round(b / 3.0)) in bad for a, b in zip(X, Y)]))
+    report.append("floating mast cones dropped: %d groups, %d faces" % (len(bad), gone))
+
+
+def smooth_ground(report):
+    """r3 (critic): white shard spikes in the LiDAR ground at the Deanery cliff and the Customs House bank:
+    replace heights that stick out > 1 m from their 5 x 5 median, then soften twice, in those two boxes."""
+    import numpy as np
+    gcol = bpy.data.collections.get("ground")
+    meshes = [o for o in gcol.objects if o.type == "MESH"] if gcol else []
+    ob = max(meshes, key=lambda o: len(o.data.vertices)) if meshes else None
+    if ob is None:
+        return
+    me = ob.data
+    co = np.empty(len(me.vertices) * 3, "f4")
+    me.vertices.foreach_get("co", co)
+    co = co.reshape(-1, 3)
+    xs, ys = np.unique(np.round(co[:, 0], 2)), np.unique(np.round(co[:, 1], 2))
+    if len(xs) * len(ys) != len(co):
+        report.append("ground smoothing skipped (not a plain grid)")
+        return
+    ix = np.searchsorted(xs, np.round(co[:, 0], 2))
+    iy = np.searchsorted(ys, np.round(co[:, 1], 2))
+    Z = np.full((len(ys), len(xs)), np.nan)
+    Z[iy, ix] = co[:, 2]
+    n = 0
+    for x0, y0, x1, y1 in P("ground_smooth_boxes", [(-75, -145, 5, -95), (10, -335, 110, -245)]):
+        cx = (xs >= x0) & (xs <= x1)
+        cy = (ys >= y0) & (ys <= y1)
+        r0, r1 = np.nonzero(cy)[0][[0, -1]]
+        c0, c1 = np.nonzero(cx)[0][[0, -1]]
+        sub = Z[max(0, r0 - 2):r1 + 3, max(0, c0 - 2):c1 + 3].copy()
+        pad = np.pad(sub, 2, mode="edge")
+        stack = np.stack([pad[i:i + sub.shape[0], j:j + sub.shape[1]] for i in range(5) for j in range(5)])
+        med = np.median(stack, axis=0)
+        spike = np.abs(sub - med) > 0.6
+        sub[spike] = med[spike]
+        n += int(spike.sum())
+        for _ in range(P("ground_smooth_passes", 7)):
+            pad = np.pad(sub, 1, mode="edge")
+            sub = sum(pad[i:i + sub.shape[0], j:j + sub.shape[1]] for i in range(3) for j in range(3)) / 9.0
+        Z[max(0, r0 - 2):r1 + 3, max(0, c0 - 2):c1 + 3][2:-2, 2:-2] = sub[2:-2, 2:-2]
+    co[:, 2] = Z[iy, ix]
+    me.vertices.foreach_set("co", co.ravel())
+    me.update()
+    report.append("ground: %d spike heights replaced at the Deanery cliff and the Customs House bank" % n)
+
+
+def round_poles(col, guard, objs, report):
+    """r3 (critic): street light / sign poles were square slabs: every tall thin box in street_poles becomes a
+    round tapered galvanised pole at the same spot (outside the Spire keep-out zone)."""
+    import numpy as np
+    import trees as T
+    ob = bpy.data.objects.get("street_poles")
+    if ob is None or len(ob.data.vertices) % 8:
+        return
+    me = ob.data
+    co = np.empty(len(me.vertices) * 3, "f4")
+    me.vertices.foreach_get("co", co)
+    co = co.reshape(-1, 8, 3)
+    lo, hi = co.min(1), co.max(1)
+    w = np.maximum(hi[:, 0] - lo[:, 0], hi[:, 1] - lo[:, 1])
+    h = hi[:, 2] - lo[:, 2]
+    cx, cy = (lo[:, 0] + hi[:, 0]) / 2, (lo[:, 1] + hi[:, 1]) / 2
+    pick = (h > 3.0) & (w < 0.6) & np.array([not guard.keepout(x, y, 1.0) for x, y in zip(cx, cy)])
+    if not pick.any():
+        return
+    tubes = C.MeshBuf()
+    for i in np.nonzero(pick)[0]:
+        r = max(0.06, min(0.16, w[i] * 0.55))
+        T.tube(tubes, (float(cx[i]), float(cy[i]), float(lo[i, 2])), (float(cx[i]), float(cy[i]), float(hi[i, 2])), r, r * 0.6, 12)
+    keep = ~pick
+    newv = co[keep].reshape(-1, 3)
+    nb = int(keep.sum())
+    faces = []
+    for k in range(nb):
+        o = 8 * k
+        faces += [[o + 3, o + 2, o + 1, o + 0], [o + 4, o + 5, o + 6, o + 7]] + [[o + i, o + (i + 1) % 4, o + 4 + (i + 1) % 4, o + 4 + i] for i in range(4)]
+    m0 = me.materials[0] if me.materials else None
+    me.clear_geometry()
+    me.from_pydata([tuple(v) for v in newv], [], faces)
+    me.update()
+    ob2 = tubes.object("area_street_poles_round", col, "pole")
+    if ob2 and m0:
+        ob2.data.materials[0] = m0
+        for p in ob2.data.polygons:
+            p.use_smooth = True
+        objs.append(ob2.name)
+    report.append("street poles: %d square poles replaced by round tapered ones" % int(pick.sum()))
 
 
 CUSTOMS_OSM = 26253545
@@ -1010,16 +1205,22 @@ def build():
         if ob.name.startswith("busonly") and not guard.keepout(ob.location.x, ob.location.y):
             ob.location.z += 0.035                    # r2: flat paint decal (no extrusion), just above the crown
             ob.rotation_euler.y = 0.0
+            ob.rotation_euler.z += math.pi            # r3: Ann St is one-way south-west (OSM): letters face that traffic
+            ob.rotation_euler.x = -ob.rotation_euler.x
             if ob.type == "FONT":
                 ob.data.extrude = 0.0
             nb += 1
-    report.append("BUS ONLY words lifted: %d" % nb)
+    report.append("BUS ONLY words lifted and turned to face the traffic: %d" % nb)
     carparks(col, guard, objs, report)
     forecourt(col, guard, objs, report)
     roads(col, guard, objs, report)
     signs(col, guard, objs, report)
-    roof_plant(col, guard, objs, report)
     customs_house(col, guard, objs, report)
+    smooth_ground(report)
+    round_poles(col, guard, objs, report)
+    bpy.context.view_layer.update()
+    roof_plant(col, guard, objs, report)
+    floating_masts(report)
     self_check(guard, report)
     for r in report:
         print("  area_hero:", r)
@@ -1057,6 +1258,26 @@ def restyle():
             for n in nt.nodes:
                 if n.bl_idname == "ShaderNodeTexVoronoi":
                     n.inputs["Scale"].default_value = P("leaf_cells", 7.0)
+                if n.bl_idname == "ShaderNodeMix" and n.data_type == "RGBA":   # r3: warmer greens, less teal
+                    for k_ in (6, 7):
+                        if not n.inputs[k_].is_linked:
+                            c_ = n.inputs[k_].default_value
+                            if n.blend_type == "MULTIPLY":
+                                n.inputs[k_].default_value = (0.52, 0.47, 0.33, 1)
+                            else:
+                                n.inputs[k_].default_value = (c_[0] * 1.25 + 0.01, c_[1] * 1.05, c_[2] * 0.65, 1)
+        if m.get("shader") == "canopy":                                  # far crowns: warmer olive
+            for n in nt.nodes:
+                if n.bl_idname == "ShaderNodeValToRGB":
+                    for e_ in n.color_ramp.elements:
+                        c_ = e_.color
+                        e_.color = (c_[0] * 1.3 + 0.005, c_[1] * 1.05, c_[2] * 0.6, 1)
+        if m.name == "street_red":                                       # r3: bus lane #A8433A with wear
+            wear(nt, bsdf, lin("A8433A"), 0.22)
+        if m.name == "area_carpark_lines":
+            bsdf.inputs["Base Color"].default_value = (*lin("D8D6C8"), 1)
+        if m.name == "cathedral_leadlight":
+            leading(nt, bsdf)
         if m.name in ("tree_trunks", "area_bark") or m.name.startswith("tree_trunks"):
             if m.name != "tree_trunks_eucalypt":
                 bsdf.inputs["Base Color"].default_value = (*P("bark_rgb", (0.105, 0.069, 0.045)), 1)
@@ -1102,6 +1323,45 @@ def restyle():
     _STATE["dusk"] = dusk_nodes
 
 
+def wear(nt, bsdf, rgb, amount):
+    """Base colour with worn patches (lighter, greyer where tyres run) on world position."""
+    geo = nt.nodes.new("ShaderNodeNewGeometry")
+    nz = nt.nodes.new("ShaderNodeTexNoise")
+    nz.inputs["Scale"].default_value = 0.45
+    nz.inputs["Detail"].default_value = 5.0
+    nt.links.new(geo.outputs["Position"], nz.inputs["Vector"])
+    ramp = nt.nodes.new("ShaderNodeValToRGB")
+    ramp.color_ramp.elements[0].color = (*rgb, 1)
+    ramp.color_ramp.elements[0].position = 0.45
+    g = sum(rgb) / 3
+    ramp.color_ramp.elements[1].color = (rgb[0] * (1 - amount) + g * amount + 0.03, rgb[1] * (1 - amount) + g * amount + 0.03,
+                                         rgb[2] * (1 - amount) + g * amount + 0.03, 1)
+    nt.links.new(nz.outputs["Fac"], ramp.inputs["Fac"])
+    nt.links.new(ramp.outputs["Color"], bsdf.inputs["Base Color"])
+    bsdf.inputs["Roughness"].default_value = 0.85
+
+
+def leading(nt, bsdf):
+    """r3: cathedral windows: dark leaded glass (lead cames on a 0.3 x 0.45 m grid, panes in deep tones)."""
+    geo = nt.nodes.new("ShaderNodeNewGeometry")
+    br = nt.nodes.new("ShaderNodeTexBrick")
+    nt.links.new(geo.outputs["Position"], br.inputs["Vector"])
+    br.inputs["Scale"].default_value = 1.0
+    br.inputs["Brick Width"].default_value = 0.3
+    br.inputs["Row Height"].default_value = 0.45
+    br.inputs["Mortar Size"].default_value = 0.025
+    br.offset = 0.0
+    br.inputs["Color1"].default_value = (0.035, 0.04, 0.06, 1)
+    br.inputs["Color2"].default_value = (0.06, 0.035, 0.03, 1)
+    br.inputs["Mortar"].default_value = (0.012, 0.012, 0.012, 1)
+    nt.links.new(br.outputs["Color"], bsdf.inputs["Base Color"])
+    bsdf.inputs["Roughness"].default_value = 0.18
+    bump = nt.nodes.new("ShaderNodeBump")
+    bump.inputs["Strength"].default_value = 0.4
+    nt.links.new(br.outputs["Fac"], bump.inputs["Height"])
+    nt.links.new(bump.outputs["Normal"], bsdf.inputs["Normal"])
+
+
 def soft_edges(m, nt, bsdf):
     """r2: road patches fade out over their outer 20 % (UV 0..1), so they read as worn repairs, not tiles."""
     uv = nt.nodes.new("ShaderNodeUVMap")
@@ -1129,8 +1389,8 @@ def soft_edges(m, nt, bsdf):
     mr = nt.nodes.new("ShaderNodeMapRange")
     nt.links.new(edge, mr.inputs["Value"])
     mr.inputs["From Min"].default_value = 0.0
-    mr.inputs["From Max"].default_value = 0.2
-    mr.inputs["To Max"].default_value = 0.85
+    mr.inputs["From Max"].default_value = 0.4                     # r3: wider fade
+    mr.inputs["To Max"].default_value = 0.6
     nt.links.new(mr.outputs["Result"], bsdf.inputs["Alpha"])
     try:
         m.surface_render_method = "DITHERED"
@@ -1176,13 +1436,13 @@ def roof_tones(nt, bsdf):
     """r2: flat roofs in mixed membrane tones (pale, mid and warm grey patches ~40 m across) with fine grime."""
     geo = nt.nodes.new("ShaderNodeNewGeometry")
     big = nt.nodes.new("ShaderNodeTexNoise")
-    big.inputs["Scale"].default_value = 0.025
+    big.inputs["Scale"].default_value = 0.045
     big.inputs["Detail"].default_value = 1.0
     nt.links.new(geo.outputs["Position"], big.inputs["Vector"])
     ramp = nt.nodes.new("ShaderNodeValToRGB")
     el = ramp.color_ramp.elements
-    el[0].position, el[0].color = 0.35, (0.20, 0.205, 0.21, 1)
-    el[1].position, el[1].color = 0.65, (0.36, 0.35, 0.33, 1)
+    el[0].position, el[0].color = 0.3, (0.15, 0.155, 0.16, 1)        # r3: wider spread of greys
+    el[1].position, el[1].color = 0.7, (0.44, 0.43, 0.40, 1)
     e3 = el.new(0.5)
     e3.color = (0.27, 0.25, 0.22, 1)
     nt.links.new(big.outputs["Fac"], ramp.inputs["Fac"])
@@ -1300,7 +1560,7 @@ def lit_windows(m, nt, bsdf):
                 nt.links.new(v, n.inputs[k])
         return n.outputs[0]
     # r2: lit windows come in floor runs (a flat = 3-6 windows on one floor), ~15 % lit, 3 colour temperatures
-    run = op("FLOOR", op("DIVIDE", op("DIVIDE", sep.outputs["X"], bay), P("window_run", 4.0)), None)
+    run = op("FLOOR", op("DIVIDE", op("DIVIDE", sep.outputs["X"], bay), P("window_run", 1.6)), None)
     cv = op("FLOOR", op("DIVIDE", sep.outputs["Y"], flo), None)
     comb = nt.nodes.new("ShaderNodeCombineXYZ")
     nt.links.new(run, comb.inputs[0])
@@ -1314,10 +1574,10 @@ def lit_windows(m, nt, bsdf):
     ramp = nt.nodes.new("ShaderNodeValToRGB")
     ramp.color_ramp.interpolation = "CONSTANT"
     el = ramp.color_ramp.elements
-    el[0].position, el[0].color = 0.0, (1.0, 0.62, 0.32, 1)            # warm incandescent
+    el[0].position, el[0].color = 0.0, (1.0, 0.66, 0.36, 1)            # warm incandescent
     el[1].position, el[1].color = 0.45, (1.0, 0.86, 0.66, 1)           # warm white
     e3 = el.new(0.8)
-    e3.color = (0.78, 0.88, 1.0, 1)                                     # cool LED / TV
+    e3.color = (1.0, 0.78, 0.52, 1)                                     # r3: warm only (no cold white blocks)
     nt.links.new(sepc.outputs[0], ramp.inputs["Fac"])
     v = nt.nodes.new("ShaderNodeValue")
     v.name = "AREA_DUSK"
@@ -1330,7 +1590,7 @@ def lit_windows(m, nt, bsdf):
     return v
 
 
-SKY_DAY = [(0.0, "C4D8EA"), (0.22, "8FB5DE"), (1.0, "2F6FC0")]          # horizon -> zenith (critic r1 target)
+SKY_DAY = [(0.0, "DCE6EE"), (0.07, "C4D8EA"), (0.25, "8FB5DE"), (1.0, "2F6FC0")]   # r3: pale horizon band
 SKY_DUSK = [(0.0, "E9B58F"), (0.12, "C8A3B6"), (0.45, "7E7FAE"), (1.0, "4E5C8E")]   # peach, lilac, soft blue
 
 
@@ -1375,7 +1635,9 @@ def sky(dusk):
             nt.links.new(mz.outputs[0], cz.inputs[i])
         nt.links.new(cz.outputs[0], dv.inputs[1])
         nz = nt.nodes.new("ShaderNodeTexNoise")
-        nz.inputs["Scale"].default_value = P("cloud_scale", 1.6)
+        nz.name = "AREA_CLOUD_NOISE"
+        nz.noise_dimensions = "4D"                                      # r3: W changes per view (no repeated puff)
+        nz.inputs["Scale"].default_value = P("cloud_scale", 0.85)
         nz.inputs["Detail"].default_value = 6.0
         nz.inputs["Roughness"].default_value = 0.55
         nt.links.new(dv.outputs[0], nz.inputs["Vector"])
@@ -1407,6 +1669,16 @@ def sky(dusk):
         nt.links.new(bg.outputs[0], ms.inputs[1])
         nt.links.new(cbg.outputs[0], ms.inputs[2])
         nt.links.new(ms.outputs[0], out.inputs["Surface"])
+        # r3: shadows read navy (car park, street canyons): the light from the Nishita sky is desaturated
+        skyt = nt.nodes.get("SKY_morning")
+        if skyt is not None:
+            hs = nt.nodes.new("ShaderNodeHueSaturation")
+            hs.name = "AREA_FILL_DESAT"
+            hs.inputs["Saturation"].default_value = P("fill_saturation", 0.45)
+            nt.links.new(skyt.outputs["Color"], hs.inputs["Color"])
+            nt.links.new(hs.outputs["Color"], bg.inputs["Color"])
+    _STATE["view"] = _STATE.get("view", 0) + 1
+    nt.nodes["AREA_CLOUD_NOISE"].inputs["W"].default_value = 3.7 * _STATE["view"]
     ramp = nt.nodes["AREA_SKY_RAMP"].color_ramp
     stops = SKY_DUSK if dusk else SKY_DAY
     el = ramp.elements
@@ -1467,9 +1739,9 @@ def light(az, el, dusk, kind):
         if sun:
             sun.data.color = P("sun_rgb", (1.0, 0.945, 0.863))
             sun.data.angle = math.radians(0.5)
-            sun.data.energy = sun.data.energy * P("sun_gain", 1.3)
+            sun.data.energy = sun.data.energy * P("sun_gain", 1.6)
         if bg:
-            bg.inputs["Strength"].default_value *= P("sky_fill_gain", 0.55)
+            bg.inputs["Strength"].default_value *= P("sky_fill_gain", 0.42)
         sc.view_settings.exposure += P("exposure_add_day", 0.7)          # r2: +0.6 EV on round 1
     else:
         if bg:
@@ -1482,5 +1754,5 @@ def light(az, el, dusk, kind):
         v.outputs[0].default_value = 1.0 if dusk else 0.0
     sky(dusk)
     # r2: blue-grey haze (#8fa3b8 at display), not khaki; dusk a lilac-grey
-    mist(kind == "aerial", strength=0.32 if dusk else P("haze_k", 0.5),
-         rgb=P("haze_dusk", (0.30, 0.27, 0.36)) if dusk else P("haze_day", (0.36, 0.48, 0.64)))
+    mist(kind == "aerial", strength=P("haze_k_dusk", 0.8) if dusk else P("haze_k", 0.62),
+         rgb=P("haze_dusk", (0.62, 0.46, 0.50)) if dusk else P("haze_day", (0.42, 0.55, 0.76)))

@@ -265,7 +265,7 @@ def build():
     ts = 7.5
     for tu, tv, top in west_towers:
         sq_top = ridge_m + 2.0
-        oct_top = sq_top + 6.0                      # step 7b (photos): short belfry, tall slim spire
+        oct_top = sq_top + 2.5                      # area r3: shorter belfry -> the slate spire is ~30 % longer (top = LiDAR)
         K.block("stone", tu - ts / 2, tu + ts / 2, tv - ts / 2, tv + ts / 2, -0.5, sq_top)
         for du in (-1, 1):                                              # angle buttresses stepping in
             for dv in (-1, 1):
@@ -274,15 +274,15 @@ def build():
         K.octagon("stone", tu, tv, ts * 0.52, sq_top, oct_top)
         for s in (-1, 1):                                               # tall paired belfry lancets
             for d in (-0.7, 0.7):
-                K.lancet(True, tv + s * ts * 0.48, tu + d, 0.9, sq_top + 1.2, oct_top - 2.5, s)
-                K.lancet(False, tu + s * ts * 0.48, tv + d, 0.9, sq_top + 1.2, oct_top - 2.5, s)
+                K.lancet(True, tv + s * ts * 0.48, tu + d, 0.9, sq_top - 4.5, sq_top - 1.4, s)   # area r3: on the square stage
+                K.lancet(False, tu + s * ts * 0.48, tv + d, 0.9, sq_top - 4.5, sq_top - 1.4, s)
         for du in (-1, 1):                                              # step 7b: round corner turrets with cone caps
             for dv in (-1, 1):
                 K.octagon("stone", tu + du * ts * 0.48, tv + dv * ts * 0.48, 1.25, sq_top - 4.0, oct_top + 1.0)
                 x_, y_, _ = K.P(tu + du * ts * 0.48, tv + dv * ts * 0.48, 0)
                 ring_ = [(x_ + 1.35 * math.cos(k * math.pi / 4), y_ + 1.35 * math.sin(k * math.pi / 4), g + oct_top + 1.0) for k in range(8)]
-                K.b["dress"].add(ring_ + [(x_, y_, g + oct_top + 6.0)], [[k, (k + 1) % 8, 8] for k in range(8)])
-        K.spire(tu, tv, ts * 0.36, oct_top, top)
+                K.b["dress"].add(ring_ + [(x_, y_, g + oct_top + 3.0)], [[k, (k + 1) % 8, 8] for k in range(8)])
+        K.spire(tu, tv, ts * 0.45, oct_top, top)                       # area r3: broader slate base
         tower_meta.append({"uv": [round(tu, 1), round(tv, 1)], "spire_top_m": round(top, 1), "octagon_from_m": round(sq_top, 1)})
     # ------------------------------------------------------------ west front between the towers
     uw = west * (hl - 0.05)

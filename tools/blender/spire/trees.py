@@ -277,7 +277,7 @@ def build():
                 fig_trunk(trunks, x, y, g, h * 0.45, 0.3)                       # HSW r3: slimmer flare
             else:                                                               # area r2: round tapered trunk, no bell
                 tube(trunks, (x, y, g - 0.2), (x, y, g + h * 0.45), 0.5, 0.34, 10)
-            trunk(trunks, x, y, g + h * 0.4, 0.4, 0.1, 5, r * 0.45)
+            trunk(trunks, x, y, g + h * 0.4, 0.4 if in_hsw(x, y) else 0.26, 0.1, 5, r * 0.45)   # area r3: no cuff ring
             cz = g + h - rz
             if near:
                 leaves["fig"].cloud((x, y, cz), (r, r, rz), int(9 * (150 + 6 * r * r)), 0.6, shell=0.2, top_bias=0.3)
