@@ -589,7 +589,7 @@ static func road_lift(x: float, z: float) -> float:
 ## picture styles reach them too), no brighter than a sunlit render wall, and their walls the game's
 ## window grid, the way Riverlight's neighbours have. Bare ground goes paving grey, the land beyond
 ## the model the game's park green, rock a warm sandstone, water the river's blue-green.
-const RIVER_COL := Color("474c2e")      # (the Brisbane River: dark green-brown. The sun and sky brighten it a lot.)
+const RIVER_COL := Color("454628")      # (the Brisbane River: dark green-brown. The sun and sky brighten it a lot.)
 const WALL_MAX := 0.66       # brightest a wall's colour may be (its value, 0..1)
 ## The pick flight's warm light turns blue glass mint green and cream walls yellow. The real skyline from
 ## the river is grey-white concrete, sand and blue-black glass, so the neighbours carry less colour of
@@ -645,9 +645,10 @@ static func _game_mat(mat: BaseMaterial3D) -> Material:
 		w.shader = rsh
 		w.set_shader_parameter("water", RIVER_COL)
 		w.set_shader_parameter("gloss", 0.06)
-		w.set_shader_parameter("smear", 0.14)
+		w.set_shader_parameter("smear", 0.26)
+		w.set_shader_parameter("patch", 0.16)
 		w.set_shader_parameter("far_mix", 0.35)
-		w.set_shader_parameter("far_tint", Color("4f6a62"))
+		w.set_shader_parameter("far_tint", Color("6f7a5c"))
 		w.set_shader_parameter("shade_dark", 0.5)
 		var bm := g([487.9, -73.6])           # (the Story Bridge's main span: its shadow on the water)
 		w.set_shader_parameter("shade_line", Vector4(bm.x, bm.y, 0.63, -0.78))
@@ -667,15 +668,20 @@ static func _game_mat(mat: BaseMaterial3D) -> Material:
 		# (the Story Bridge from the river: mid grey steel that goes near black underneath, on weathered
 		# concrete piers. The model's own colours come out pale steel on white blocks.)
 		var b2 := mat.duplicate() as BaseMaterial3D
-		b2.albedo_color = Color("474c52") if nm == "story_bridge_steel" else (Color("1c2c24") if nm == "story_bridge_underside" else Color("84837e"))
+		b2.albedo_color = Color("474c52") if nm == "story_bridge_steel" else (Color("1c2c24") if nm == "story_bridge_underside" else Color("595c57"))
 		b2.metallic = 0.0
 		b2.roughness = 0.9
 		out = b2
 	elif nm == "tree_crowns_far":
 		# (the crowns a leafier green: the model's is near black-olive in the warm light)
-		var t2 := mat.duplicate() as BaseMaterial3D
-		t2.albedo_color = Color("4f6e36")
+		var t2 := ShaderMaterial.new()
+		t2.shader = preload("res://shaders/spire_crown.gdshader")
 		out = t2
+	elif nm == "hsw_shed_roof_white_shed" or nm == "hsw_shed_roof_felons" or nm == "hsw_shed_roof_cream_shed":
+		# (Howard Smith Wharves' big sheds: pale corrugated roofs, the brightest thing on that bank)
+		var s2 := mat.duplicate() as BaseMaterial3D
+		s2.albedo_color = Color("b4b8ba")
+		out = s2
 	elif nm.begins_with("hsw_") and nm.ends_with("_leaf"):
 		# (the far cliff's canopy: the trees' green, not lime in the warm light)
 		var l2 := mat.duplicate() as BaseMaterial3D

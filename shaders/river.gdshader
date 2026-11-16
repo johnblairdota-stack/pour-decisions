@@ -17,6 +17,7 @@ uniform float smear = 0.0;
 uniform vec4 shade_line = vec4(0.0);      // (a point on the bridge's centre line xz, its direction xz)
 uniform vec4 far_tint : source_color = vec4(0.42, 0.52, 0.60, 1.0);
 uniform float far_mix = 0.0;
+uniform float patch = 0.0;            // (broad lighter and darker reaches across the water, 0 = none)
 uniform float shade_dark = 0.38;
 uniform float shade_half = 0.0;           // (half the shadow's width, m: 0 = none)
 
@@ -50,6 +51,11 @@ void fragment() {
 	NORMAL = normalize((VIEW_MATRIX * vec4(n, 0.0)).xyz);
 	// (the sky's reflection does the rest: glossy, as the river always was)
 	ALBEDO = mix(water.rgb, sky.rgb, clamp(-g.x * 1.5, 0.0, 0.06) * near);
+	if (patch > 0.0) {
+		float n1 = sin(p.x * 0.011 + sin(p.y * 0.006) * 2.2) * sin(p.y * 0.009 + 1.3);
+		float n2 = sin(p.x * 0.031 + p.y * 0.017 + 0.8) * 0.5;
+		ALBEDO *= 1.0 + patch * (n1 + n2 * 0.6);
+	}
 	if (smear > 0.0) {
 		vec3 cam = (INV_VIEW_MATRIX * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
 		vec2 to = p - cam.xz;
