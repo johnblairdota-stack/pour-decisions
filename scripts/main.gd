@@ -305,6 +305,8 @@ func _ready() -> void:
 			_roof_cam = arg.substr(10).split_floats(",")
 		if arg == "--cardlight=day":
 			_card_day = true
+		if arg.begins_with("--cardview="):
+			_card_view = arg.substr(11)
 		if arg.begins_with("--cardfloor="):
 			_card_floor = int(arg.substr(12))
 		if arg.begins_with("--camtest="):
@@ -7571,6 +7573,7 @@ var _card_day := false         # `--cardlight=day`: the floor's own light, not t
 var _light_snap := false
 var _card_floor := -1
 var _card_t := 0.0
+var _card_view := ""           # `--cardview=<file.jpg>`: saves the whole view from --cardcam (not a card's cut) and quits
 
 func _card_shoot(delta: float) -> void:
 	if not is_instance_valid(selector):
@@ -7601,6 +7604,14 @@ func _card_shoot(delta: float) -> void:
 		camera.far = _card_cam[7]         # (dev: a cut through the city, looking down: what stands above a height)
 	if _roof_file != "":
 		_roof_shoot()
+		return
+	if _card_view != "" and _card_t > 9.0:
+		var vimg := get_viewport().get_texture().get_image()
+		vimg.convert(Image.FORMAT_RGB8)
+		vimg.save_jpg(_card_view, 0.9)
+		print("[cardview] " + _card_view)
+		_card_view = ""
+		get_tree().quit()
 		return
 	if _card_art != "" and _card_t > 9.0:
 		var img := get_viewport().get_texture().get_image()
