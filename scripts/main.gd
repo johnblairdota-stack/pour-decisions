@@ -4851,6 +4851,8 @@ func _process(delta: float) -> void:
 		tip_target = tip_target.lerp(Vector3(5.0, 0, 0), minf(1.0, delta * 0.8))
 	perf.mark("phase")
 	tip_pos = tip_pos.lerp(tip_target, minf(1.0, delta * 4.0))
+	if spire and not _spire_core.is_empty():
+		_rig_bump(delta)
 	tip_kick = tip_kick.lerp(Vector3.ZERO, minf(1.0, delta * 3.0))
 	_update_whip(delta)
 	_update_boom()
@@ -6778,7 +6780,8 @@ func _update_npcs(delta: float) -> void:
 			poker.npc_idle(n)
 			continue
 		if not on:
-			n.position = Vector3(-4.0 + i * 3.0, work_y, 3.5)
+			# (standing by at the Ann St edge of the deck; on Spire that edge is further back)
+			n.position = Vector3(-4.0 + i * 3.0, work_y, SpireSite.front_z(-4.0 + i * 3.0) - 2.5 if spire else 3.5)
 			poker.npc_idle(n)
 			continue
 		var goal: Vector3 = n.get_meta("goal")
@@ -6859,6 +6862,98 @@ const PARK_A1 := 1.15        # rad (about 66 degrees)
 const PARK_A2 := -(PI - 0.1)
 var _park_s := 0.0
 var _park_f := 0.0
+
+# ------------------------------------------------------------------ Spire: the jump form is solid
+# The boom's head stands over the jump form on its mast, and the arms come out over the form's top
+# edge and down to the deck. Neither arm, nor the tip, may pass through the form: the tip can only
+# come in so close, and the hose hand takes the end hose in under the form's edge from there.
+const RIG_PAD := 0.45          # m the arms keep off the form (they're 0.3 m thick)
+var _rig_hit_t := 0.0
+
+## The helpers below take the boom's head (world, the slewing ring) and its two arm lengths, so the
+## other crew's boom (spire_b.gd) can use them too.
+
+## How far out from the head (m, on plan) the form's edge is, looking along `dir`.
+func rig_edge(hd: Vector3, dir: Vector2) -> float:
+	var hp := Vector2(hd.x, hd.z)
+	var ring: PackedVector2Array = SpireSite.poly("rig")
+	var far := 0.0
+	for da in [-0.07, 0.0, 0.07]:
+		var dd: Vector2 = dir.rotated(da)
+		for i in ring.size():
+			var hit = Geometry2D.segment_intersects_segment(hp, hp + dd * 60.0, ring[i], ring[(i + 1) % ring.size()])
+			if hit != null:
+				far = maxf(far, hp.distance_to(hit))
+	return far + RIG_PAD
+
+## With the tip `d` m out from the head, do both arms clear the form (its edge `r` m out)?
+func rig_arms_clear(hd: Vector3, la: float, lb: float, d: float, r: float) -> bool:
+	if d < r:
+		return false
+	var hy := hd.y + SHOULDER
+	var rig: Node3D = _spire_core["rig"]
+	var top := rig.global_position.y + rig.scale.y + RIG_PAD - hy     # (the form's top, from the shoulder)
+	var ty := deck_top() + 1.3 + HOSE - hy
+	var dist := clampf(sqrt(d * d + ty * ty), 1.0, la + lb - 0.05)
+	var phi := atan2(ty, d)
+	var a := acos(clampf((la * la + dist * dist - lb * lb) / (2.0 * la * dist), -1.0, 1.0))
+	var el := Vector2(cos(phi + a), sin(phi + a)) * la
+	var tp := Vector2(d, ty)
+	for i in 13:
+		var f := i / 12.0
+		var q1 := el * f
+		var q2 := el.lerp(tp, f)
+		if (q1.x > 0.6 and q1.x < r and q1.y < top) or (q2.x < r and q2.y < top):
+			return false
+	return true
+
+## The nearest the tip may come to the head along `dir` (m, on plan).
+func rig_dmin(hd: Vector3, la: float, lb: float, dir: Vector2) -> float:
+	var r := rig_edge(hd, dir)
+	if r <= RIG_PAD or rig_arms_clear(hd, la, lb, r, r):
+		return r
+	var lo := r
+	var hi := la + lb - 0.5
+	for i in 12:
+		var mid := (lo + hi) * 0.5
+		if rig_arms_clear(hd, la, lb, mid, r):
+			hi = mid
+		else:
+			lo = mid
+	return hi
+
+## `at` (world), pushed out from the head until the boom clears the form. [point, was it pushed?]
+func rig_clear(at: Vector3, hd: Vector3, la: float, lb: float) -> Array:
+	if _spire_core.is_empty():
+		return [at, false]
+	var hp := Vector2(hd.x, hd.z)
+	var to := Vector2(at.x, at.z) - hp
+	if to.length() < 0.01:
+		to = Vector2(0, 1)
+	var need := rig_dmin(hd, la, lb, to.normalized())
+	if to.length() >= need:
+		return [at, false]
+	var out := hp + to.normalized() * need
+	return [Vector3(out.x, at.y, out.y), true]
+
+## The boom comes up against the form and bumps off it.
+func _rig_bump(delta: float) -> void:
+	_rig_hit_t = maxf(0.0, _rig_hit_t - delta)
+	var was := tip_target
+	var res := rig_clear(tip_target, head.global_position, l1, l2)
+	tip_target = res[0]
+	if res[1] and phase == "pour" and was.distance_to(tip_target) > 0.04 and _rig_hit_t <= 0.0:
+		# (a knock, and it springs back a touch)
+		_rig_hit_t = 0.7
+		var hp := head.global_position
+		var away := Vector3(tip_target.x - hp.x, 0, tip_target.z - hp.z).normalized()
+		tip_target += away * 0.35
+		tip_kick = away * 0.5
+		sfx.hit("clank")
+		var op = _boom_operator()
+		if op != null and not op.bot and not op.covering:
+			op.say("jump form!")
+	tip_pos = rig_clear(tip_pos, head.global_position, l1, l2)[0]
 
 func _update_boom() -> void:
 	if arm1 == null:
