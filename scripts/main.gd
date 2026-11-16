@@ -778,6 +778,8 @@ func _update_story_light(delta: float) -> void:
 			# (Spire's river views are judged against clear-day photos: a blue sky and a higher sun off
 			# to one side, keeping some of the golden warmth)
 			want = Story.mix(want, Story.LIGHTS["midmorning"], 0.6)
+			want[0] = Color("2f6fd0")
+			want[1] = Color("a9c8ec")
 	if cfg.get("rain", false) and not tutorial:
 		var t0: float = cfg["rain_at"]
 		var t1: float = t0 + float(cfg["rain_len"])

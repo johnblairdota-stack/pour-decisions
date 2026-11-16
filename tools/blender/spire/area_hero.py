@@ -1555,7 +1555,7 @@ def customs_house(col, guard, objs, report):
         T.tube(bark, (fx, fy, fg - 0.3), (fx, fy, fg + 9.0), 1.3, 0.8, 7)
         for dx, dy, dz, r in ((0, 0, 15.0, 8.5), (5.5, 1.5, 12.5, 6.5), (-5.0, 2.5, 13.0, 6.5), (1.0, -5.5, 12.0, 6.0),
                               (-1.5, 5.0, 16.5, 6.0), (4.0, -3.5, 17.0, 5.5), (-4.5, -3.0, 17.5, 5.0)):
-            T.blob(leaf, fx + ux * dx * 0.8 + nx * dy * 0.8, fy + uy * dx * 0.8 + ny * dy * 0.8, fg + dz * 0.8, r * 0.62, r * 0.56)
+            T.blob(leaf, fx + ux * dx * 0.8 + nx * dy * 0.8, fy + uy * dx * 0.8 + ny * dy * 0.8, fg + dz * 0.72, r * 0.5, r * 0.46)
         put(bark, "customs_fig_bark", col, mat("customs_fig_bark", (0.35, 0.29, 0.23)), objs)
         fo = leaf.object("tree_crowns_far_customs_fig", col, "tree")       # (a tree to the game: the crowns' own material)
         if fo:
@@ -1567,7 +1567,7 @@ def customs_house(col, guard, objs, report):
             objs.append(fo.name)
         # the river front as the photos have it: a second gabled bay, a dark stone river wall and a railed
         # boardwalk along the water
-        wallm = mat("customs_riverwall", (0.27, 0.28, 0.29))
+        wallm = mat("customs_riverwall", (0.30, 0.25, 0.20))
         railm = mat("customs_boardwalk", (0.62, 0.62, 0.60))
         rw, bw = C.MeshBuf(), C.MeshBuf()
         for k in (-1, 1):
