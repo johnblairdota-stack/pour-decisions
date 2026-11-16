@@ -2,6 +2,7 @@
 shader_type spatial;
 render_mode diffuse_toon, specular_toon;
 #include "res://shaders/look.gdshaderinc"
+#include "res://shaders/cutaway.gdshaderinc"
 
 uniform vec4 frame_color : source_color = vec4(0.12, 0.17, 0.29, 1.0);
 uniform vec4 glass_color : source_color = vec4(0.20, 0.30, 0.46, 1.0);
@@ -22,6 +23,9 @@ uniform float panel_every = 4.0;
 // A flat roof seen from above (Spire's neighbours fill the foreground): darker membrane in paver
 // squares, with plant pads and walkway strips, so it reads as a roof and not a blank box
 uniform bool roof = false;
+// Spire's neighbours: cut away in a circle where they stand between the camera and someone at
+// work down on the street (main._update_see_through sets cut_n / cut_p)
+uniform bool cut = false;
 
 varying vec3 wpos;
 varying vec3 wnorm;
@@ -36,6 +40,9 @@ float hash(vec2 p) {
 }
 
 void fragment() {
+	if (cut && cut_hidden(VERTEX, VIEW_MATRIX, FRAGCOORD.xy)) {
+		discard;
+	}
 	lk_rim = 0.0;
 	float h = abs(wnorm.x) > abs(wnorm.z) ? wpos.z : wpos.x;
 	vec2 uv = vec2(h, wpos.y) / cell;

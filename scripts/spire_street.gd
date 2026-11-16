@@ -34,6 +34,7 @@ var _walkers: Array = []   # people on the footpath: {node, x, dir, phase}
 var _board: Array = []     # the arrow board's lamps
 var _bar_root: Node3D      # the barriers
 var _t := 0.0
+var barriers: Array = []  # the barrier nodes (the game cuts them away round anyone working behind them)
 var _hold_traffic := false
 var _hold_gate := false
 var _called_seen := false
@@ -74,6 +75,7 @@ func _barriers() -> void:
 	_bar_root.name = "Barriers"
 	_bar_root.set_meta("nobake", true)
 	add_child(_bar_root)
+	barriers = [_bar_root]
 	var i := 0
 	for run: Vector2 in [Vector2(ZONE_X0, OUT_GAP.x), Vector2(OUT_GAP.y, IN_GAP.x)]:
 		var x := run.x + 1.0

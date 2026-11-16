@@ -403,6 +403,14 @@ func _boom(p, delta: float) -> void:
 	# or while it's still swinging over to the face
 	var dl: Vector3 = g._pour_local(g.discharge())
 	var under: float = pour.height_at(dl)
+	if not pour.poly.is_empty() and pour.aim_margin > 0.8:
+		# (a slab cut round a core has dead ends a heap can't slump away into: judge the heap by
+		# the deepest of what the splash is landing on, not only the middle of it. Not on the last
+		# pass along the forms, where the low spots sit right beside full deck)
+		for a8 in 8:
+			var off: Vector3 = Vector3(cos(a8 * TAU / 8.0), 0, sin(a8 * TAU / 8.0)) * pour.splash_r * 0.8
+			if pour.on_slab(dl + off):
+				under = maxf(under, pour.height_at(dl + off))
 	if to.length() > 2.5 and under > pour.SLAB * 1.3:
 		ok = false
 		why = "pile"
