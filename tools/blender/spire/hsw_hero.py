@@ -1636,12 +1636,12 @@ def shade(m, bsdf):
         ramp = nodes.new("ShaderNodeValToRGB")
         ramp.color_ramp.interpolation = "CONSTANT"
         el = ramp.color_ramp.elements
-        el[0].position, el[0].color = 0.0, (0.72, 0.71, 0.68, 1)
-        el[1].position, el[1].color = 0.22, (0.62, 0.53, 0.40, 1)        # r7: cream panels
+        el[0].position, el[0].color = 0.0, (0.69, 0.60, 0.46, 1)        # r13: cream #D8CBB5
+        el[1].position, el[1].color = 0.22, (0.26, 0.21, 0.17, 1)        # r13: taupe #8B7F73
         e3 = el.new(0.47)
-        e3.color = (0.42, 0.42, 0.41, 1)
+        e3.color = (0.55, 0.48, 0.37, 1)                                 # r13: warm cream-grey
         e4 = el.new(0.72)
-        e4.color = (0.07, 0.07, 0.075, 1)
+        e4.color = (0.043, 0.041, 0.045, 1)                              # r13: charcoal #3B3A3C
         links.new(tone, ramp.inputs["Fac"])
         c1 = mix_rgb(glass, ramp.outputs["Color"], (0.03, 0.035, 0.045, 1))
         links.new(c1, bsdf.inputs["Base Color"])

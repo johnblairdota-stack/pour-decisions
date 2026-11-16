@@ -1010,8 +1010,8 @@
    "id": "p09_pier_face_on",
    "file": "from_river/cm_5547d6bf.jpg",
    "title": "From the river due south: the north pier portal face-on over Mr Percival's, HSW shed and Felons",
-   "date": "",
-   "time_h": 12.0,
+   "date": "2019-11-20",
+   "time_h": 11.0,
    "size": [
     1600,
     1200
@@ -1070,14 +1070,15 @@
     ]
    },
    "holdout_rms_px": 15.4,
-   "note": "round 2: HSW shed east end and Felons west end dropped (they sit at the pier edges, hidden behind it); arch springing added"
+   "note": "round 2: HSW shed east end and Felons west end dropped (they sit at the pier edges, hidden behind it); arch springing added",
+   "date_note": "r13: Wikimedia photos Nov 2019 (jacaranda bloom); high sun lights the south faces"
   },
   {
    "id": "p12_river_felons",
    "file": "from_river/cm_18074505.jpg",
    "title": "From the river south-east of the pier: pier portal, Mr Percival's, Felons on its piles, lift tower",
-   "date": "",
-   "time_h": 12.0,
+   "date": "2019-11-20",
+   "time_h": 11.0,
    "size": [
     1600,
     1200
@@ -1141,14 +1142,15 @@
     ]
    },
    "holdout_rms_px": 20.0,
-   "note": "round 2 (Wikimedia, Kgbo CC BY-SA 4.0). Lift top (995, 372) and Felons east ridge end (1240, 607) left out: they miss by 120-150 px, so the model lift tower or Felons east end is a few metres off (check next round)"
+   "note": "round 2 (Wikimedia, Kgbo CC BY-SA 4.0). Lift top (995, 372) and Felons east ridge end (1240, 607) left out: they miss by 120-150 px, so the model lift tower or Felons east end is a few metres off (check next round)",
+   "date_note": "r13: Wikimedia photos Nov 2019 (jacaranda bloom); high sun lights the south faces"
   },
   {
    "id": "p13_kp_bank_ferry",
    "file": "from_kangaroo_point/cm_b2f87a7b.jpg",
    "title": "From the Kangaroo Point bank: north tower, pier portal, HSW shed, Mr Percival's, Felons, lift tower",
-   "date": "",
-   "time_h": 12.0,
+   "date": "2019-11-20",
+   "time_h": 11.0,
    "size": [
     1600,
     1200
@@ -1227,7 +1229,8 @@
     ]
    },
    "holdout_rms_px": 45.0,
-   "note": "round 2 (Wikimedia, Kangaroo Point). Weak: holdout ~49 px. Lift top (1040, 530) and Felons east ridge end (1310, 768) left out for the same reason as p12"
+   "note": "round 2 (Wikimedia, Kangaroo Point). Weak: holdout ~49 px. Lift top (1040, 530) and Felons east ridge end (1310, 768) left out for the same reason as p12",
+   "date_note": "r13: Wikimedia photos Nov 2019 (jacaranda bloom); high sun lights the south faces"
   }
  ]
 }
