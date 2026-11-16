@@ -612,7 +612,7 @@ static func _game_mat(mat: BaseMaterial3D) -> Material:
 	var col := mat.albedo_color
 	if nm == "clay_water":
 		var w := mat.duplicate() as BaseMaterial3D
-		w.albedo_color = Color("5f6857")       # (the Brisbane River is brown-green, as the render has it: not teal)
+		w.albedo_color = Color("3f6f78")       # (teal: the render's brown-green river read as sand in golden light, with no ripples to say water)
 		w.roughness = 0.08
 		w.metallic_specular = 0.9
 		out = w
