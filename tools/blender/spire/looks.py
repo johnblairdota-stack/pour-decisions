@@ -11,6 +11,7 @@ A recipe:
            ground (ground-floor band colour), pilasters, cornice, awning, verandah
 """
 import hashlib
+import layout as L
 
 
 def hx(s):
@@ -117,6 +118,32 @@ GENERIC = {
 }
 
 
+# The game's skyline (export_game): one office recipe and one apartment recipe made every unnamed tower
+# the same pale blue. From the river the real CBD is a mix of dark glass, bronze, white grids and
+# charcoal, so the game's unnamed towers are dealt one of these by their OSM id.
+OFFICE_MIX = [
+    {"wall": hx("b9c2c8"), "glass": hx("1f3a52"), "spandrel": hx("16242f")},      # deep blue curtain wall
+    {"wall": hx("8f9aa2"), "glass": hx("0f1c28"), "spandrel": hx("0c141c")},      # near-black glass, steel mullions
+    {"wall": hx("e6e2d6"), "glass": hx("2b3a44"), "spandrel": hx("d8d2c2"), "pattern": "strip"},    # white precast grid
+    {"wall": hx("a98f6a"), "glass": hx("3a2c1c"), "spandrel": hx("5a452c")},      # bronze glass
+    {"wall": hx("7fa0a2"), "glass": hx("1c4a4c"), "spandrel": hx("17393b")},      # teal glass
+    {"wall": hx("4a4f56"), "glass": hx("1a2028"), "spandrel": hx("2a2f36"), "pattern": "strip"},    # charcoal strip windows
+]
+RES_MIX = [
+    {"wall": hx("f0f0ee"), "glass": hx("3f5566"), "band": hx("f2f2f0")},          # white, grey-blue glass
+    {"wall": hx("e3d6b8"), "glass": hx("3a4a44"), "band": hx("efe6d0")},          # cream render
+    {"wall": hx("c9a67c"), "glass": hx("3a3026"), "band": hx("ddc29a")},          # sandy brown
+    {"wall": hx("8d949a"), "glass": hx("202a34"), "band": hx("dfe2e4")},          # grey with white slab edges
+]
+
+
+def _mixed(kind, mix, osm):
+    i = stable(osm, len(mix))
+    rec = dict(GENERIC[kind])
+    rec.update(mix[i])
+    return "gen_%s_%d" % (kind, i), rec
+
+
 def stable(osm, k=100):
     return int(hashlib.md5(str(osm).encode()).hexdigest(), 16) % k
 
@@ -135,9 +162,9 @@ def look_for(osm, tags, height_m, family):
         k = "lowrise_brick" if stable(osm) < 55 else "lowrise_render"
         return "gen_" + k, GENERIC[k]
     if b in ("office", "commercial", "government", "public") or (height_m > 45 and b == "yes" and stable(osm) < 60):
-        return "gen_office", GENERIC["office"]
+        return _mixed("office", OFFICE_MIX, osm) if L.GAME_EXPORT else ("gen_office", GENERIC["office"])
     if height_m > 45:
-        return "gen_modern_res", GENERIC["modern_res"]
+        return _mixed("modern_res", RES_MIX, osm) if L.GAME_EXPORT else ("gen_modern_res", GENERIC["modern_res"])
     return "gen_precast_80s", GENERIC["precast_80s"]
 
 

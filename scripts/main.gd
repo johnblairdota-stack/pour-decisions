@@ -765,6 +765,11 @@ func picking() -> bool:
 		return not _card_day
 	return (phase == "roles" or phase == "select") and is_instance_valid(selector) and (selector.page == "tower" or selector.page == "arrive")
 
+## The river flight to the floor pick: the city is the picture, so it gets the pick's light haze (not
+## the deck's, which pales everything beyond the fence).
+func _flying_in() -> bool:
+	return is_instance_valid(selector) and selector.arriving
+
 func _update_story_light(delta: float) -> void:
 	var want: Array = Story.LIGHTS["morning"] if tutorial else Story.light(story_k(k))
 	if picking():
@@ -795,7 +800,7 @@ func _update_story_light(delta: float) -> void:
 	_set_clouds(float(l[8]))
 	env.fog_height_density = MIST_DAY
 	env.fog_light_color = l[1]
-	env.fog_density = l[7] * _haze_k() * Look.k("haze") * (0.25 if picking() else 1.0)
+	env.fog_density = l[7] * _haze_k() * Look.k("haze") * (0.25 if picking() or _flying_in() else 1.0)
 	env.adjustment_contrast = l[9] * Look.k("con")
 	env.adjustment_saturation = l[10] * Look.k("sat")
 	env.ambient_light_energy = l[4] * Look.k("amb")

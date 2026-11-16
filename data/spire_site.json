@@ -966,7 +966,7 @@
    "floor": 3.6,
    "diag": false
   },
-  "gen_modern_res_wall": {
+  "gen_modern_res_0_wall": {
    "glass": [
     0.2471,
     0.3333,
@@ -979,17 +979,121 @@
    "floor": 3.1,
    "diag": false
   },
-  "gen_office_wall": {
+  "gen_modern_res_1_wall": {
    "glass": [
-    0.2392,
-    0.3765,
-    0.4706
+    0.2275,
+    0.2902,
+    0.2667
+   ],
+   "bay": 3.0,
+   "win": 2.6,
+   "sill": 0.02,
+   "head": 0.86,
+   "floor": 3.1,
+   "diag": false
+  },
+  "gen_modern_res_2_wall": {
+   "glass": [
+    0.2275,
+    0.1882,
+    0.149
+   ],
+   "bay": 3.0,
+   "win": 2.6,
+   "sill": 0.02,
+   "head": 0.86,
+   "floor": 3.1,
+   "diag": false
+  },
+  "gen_modern_res_3_wall": {
+   "glass": [
+    0.1255,
+    0.1647,
+    0.2039
+   ],
+   "bay": 3.0,
+   "win": 2.6,
+   "sill": 0.02,
+   "head": 0.86,
+   "floor": 3.1,
+   "diag": false
+  },
+  "gen_office_0_wall": {
+   "glass": [
+    0.1216,
+    0.2275,
+    0.3216
    ],
    "bay": 1.5,
    "win": 1.38,
    "sill": 0.3,
    "head": 0.97,
    "floor": 3.7,
+   "diag": false
+  },
+  "gen_office_1_wall": {
+   "glass": [
+    0.0588,
+    0.1098,
+    0.1569
+   ],
+   "bay": 1.5,
+   "win": 1.38,
+   "sill": 0.3,
+   "head": 0.97,
+   "floor": 3.7,
+   "diag": false
+  },
+  "gen_office_2_wall": {
+   "glass": [
+    0.1686,
+    0.2275,
+    0.2667
+   ],
+   "bay": 1.5,
+   "win": 1.45,
+   "sill": 0.35,
+   "head": 0.85,
+   "floor": 3.1,
+   "diag": false
+  },
+  "gen_office_3_wall": {
+   "glass": [
+    0.2275,
+    0.1725,
+    0.1098
+   ],
+   "bay": 1.5,
+   "win": 1.38,
+   "sill": 0.3,
+   "head": 0.97,
+   "floor": 3.7,
+   "diag": false
+  },
+  "gen_office_4_wall": {
+   "glass": [
+    0.1098,
+    0.2902,
+    0.298
+   ],
+   "bay": 1.5,
+   "win": 1.38,
+   "sill": 0.3,
+   "head": 0.97,
+   "floor": 3.7,
+   "diag": false
+  },
+  "gen_office_5_wall": {
+   "glass": [
+    0.102,
+    0.1255,
+    0.1569
+   ],
+   "bay": 1.5,
+   "win": 1.45,
+   "sill": 0.35,
+   "head": 0.85,
+   "floor": 3.1,
    "diag": false
   },
   "gen_precast_80s_wall": {
