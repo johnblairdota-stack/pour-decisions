@@ -546,11 +546,15 @@ def apply_light(az_deg, el_deg, kind="day"):
     sc.view_settings.exposure = mo["exposure"] + (0.5 if dusk else 0.0)
     if k5 != 1.0:                                   # Blender 5 (cloud): match the PC 4.5 look
         sc.view_settings.exposure += 0.5
+        # r14: AgX on Blender 5 greys the sky out (mid-sky 130,161,188 vs photo 106,163,246 in p12). Standard view,
+        # no look, no white balance and a thin aerosol layer matched the photo's sky and canopy on p12.
+        sc.view_settings.view_transform = "Standard"
+        sc.view_settings.look = "None"
         try:
-            sc.view_settings.use_white_balance = True
-            sc.view_settings.white_balance_temperature = 7000.0   # slightly warmer: cloud renders read cold/blue
+            sc.view_settings.use_white_balance = False
         except AttributeError:
             pass
+        sky.aerosol_density = float(os.environ.get("SKY5_AEROSOL", mo.get("sky5_aerosol", 0.1)))
     try:
         sc.view_settings.look = "AgX - Medium High Contrast"
     except TypeError:
