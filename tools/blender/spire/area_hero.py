@@ -1498,7 +1498,7 @@ def customs_house(col, guard, objs, report):
     w = o["ways"].get(CUSTOMS_OSM)
     m = bpy.data.materials.get("look_%d_accent" % CUSTOMS_OSM)
     if m:
-        m.diffuse_color = (0.56, 0.76, 0.65, 1) if L.GAME_EXPORT else (0.09, 0.20, 0.15, 1)     # (game: pale verdigris, 8fc3a6)
+        m.diffuse_color = (0.50, 0.80, 0.66, 1) if L.GAME_EXPORT else (0.09, 0.20, 0.15, 1)     # (game: pale verdigris, 8fc3a6)
     if not w:
         return
     ring = S.ccw(C.clean_ring(o["line"](w)))
@@ -1543,8 +1543,9 @@ def customs_house(col, guard, objs, report):
     note(mx + nx * 2.2, my + ny * 2.2, "building")
     wall = bpy.data.materials.get("look_%d_wall" % CUSTOMS_OSM)
     ston = mat("customs_sandstone", tuple(wall.diffuse_color)[:3] if wall else (0.62, 0.52, 0.36))
-    put(cols_, "customs_columns", col, ston, objs)
-    put(stone, "customs_portico", col, ston, objs)
+    if not L.GAME_EXPORT:
+        put(cols_, "customs_columns", col, ston, objs)
+        put(stone, "customs_portico", col, ston, objs)
     report.append("Customs House: 6-column portico + pediment on the river front, copper dome green")
     if L.GAME_EXPORT:
         # the big fig beside it (from the river, the second thing you see): a trunk and a clump of round crowns
@@ -1556,10 +1557,42 @@ def customs_house(col, guard, objs, report):
                               (-1.5, 5.0, 16.5, 6.0), (4.0, -3.5, 17.0, 5.5), (-4.5, -3.0, 17.5, 5.0)):
             T.blob(leaf, fx + ux * dx + nx * dy, fy + uy * dx + ny * dy, fg + dz, r, r * 0.85)
         put(bark, "customs_fig_bark", col, mat("customs_fig_bark", (0.35, 0.29, 0.23)), objs)
-        fo = put(leaf, "customs_fig_leaf", col, mat("customs_fig_leaf", (0.22, 0.40, 0.17)), objs)
+        fo = leaf.object("tree_crowns_far_customs_fig", col, "tree")       # (a tree to the game: the crowns' own material)
         if fo:
+            cm = bpy.data.materials.get("tree_crowns_far")
+            if cm:
+                fo.data.materials[0] = cm
             for pl in fo.data.polygons:
                 pl.use_smooth = True
+            objs.append(fo.name)
+        # the river front as the photos have it: a second gabled bay, a dark stone river wall and a railed
+        # boardwalk along the water
+        wallm = mat("customs_riverwall", (0.36, 0.33, 0.30))
+        railm = mat("customs_boardwalk", (0.62, 0.62, 0.60))
+        rw, bw = C.MeshBuf(), C.MeshBuf()
+        for k in (-1, 1):
+            bx, by = mx + ux * k * (ln * 0.36) + nx * 0.8, my + uy * k * (ln * 0.36) + ny * 0.8
+            stone.box(bx, by, g + 1.0, 7.0, 1.6, H + 1.6, e)
+            l3 = 3.5
+            t2 = [(bx - ux * l3 + nx * 0.8, by - uy * l3 + ny * 0.8, zp), (bx + ux * l3 + nx * 0.8, by + uy * l3 + ny * 0.8, zp),
+                  (bx + nx * 0.8, by + ny * 0.8, zp + 2.0),
+                  (bx - ux * l3 - nx * 0.8, by - uy * l3 - ny * 0.8, zp), (bx + ux * l3 - nx * 0.8, by + uy * l3 - ny * 0.8, zp),
+                  (bx - nx * 0.8, by - ny * 0.8, zp + 2.0)]
+            stone.add(t2, [[0, 1, 2], [5, 4, 3], [0, 2, 5, 3], [1, 4, 5, 2], [0, 3, 4, 1]])
+        wl = ln + 46.0
+        wx, wy = mx + ux * 6.0 + nx * 13.0, my + uy * 6.0 + ny * 13.0
+        rw.box(wx, wy, L.RIVER_LEVEL_AHD - 0.5, wl, 1.2, g - L.RIVER_LEVEL_AHD + 0.6, e)
+        bx2, by2 = wx + nx * 3.2, wy + ny * 3.2
+        bw.box(bx2, by2, L.RIVER_LEVEL_AHD + 1.1, wl, 4.0, 0.3, e)                      # boardwalk deck
+        bw.box(bx2 + nx * 1.9, by2 + ny * 1.9, L.RIVER_LEVEL_AHD + 2.35, wl, 0.1, 0.1, e)  # top rail
+        bw.box(bx2 + nx * 1.9, by2 + ny * 1.9, L.RIVER_LEVEL_AHD + 1.9, wl, 0.06, 0.06, e)
+        for i in range(int(wl / 3.0) + 1):
+            u = -wl / 2 + i * 3.0
+            bw.box(bx2 + ux * u + nx * 1.9, by2 + uy * u + ny * 1.9, L.RIVER_LEVEL_AHD - 1.5, 0.3, 0.3, 3.9, e)   # piles and posts
+        put(cols_, "customs_columns", col, ston, objs)
+        put(stone, "customs_portico", col, ston, objs)
+        put(rw, "customs_riverwall", col, wallm, objs)
+        put(bw, "customs_boardwalk", col, railm, objs)
 
 
 # ---------------------------------------------------------------------------------------------- self-check

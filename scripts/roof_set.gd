@@ -8,7 +8,7 @@ extends RefCounted
 const F := preload("res://scripts/factory.gd")
 
 const EYE := 1.65              # m: the camera's over the deck by this
-const POOL_DROP := 1.7         # m: the camera's over the water of Spire's pool by this
+const POOL_DROP := 2.4         # m: the camera's over the water of Spire's pool by this
 
 ## kind: "pool" (Spire), "terrace" (Riverlight), "tank" (the water tower)
 static func build(parent: Node3D, cam: Vector3, look: Vector3, kind: String) -> Node3D:
@@ -94,7 +94,7 @@ static func _pool(root: Node3D) -> void:
 	sh.code = MOSAIC
 	var water := ShaderMaterial.new()
 	water.shader = sh
-	var stone := _mat(Color("b9b3a8"), 0.85)
+	var stone := _mat(Color("969ca0"), 0.85)
 	var edge := 6.0
 	# the water, brimming right across the view, and the dark spill lip it runs over
 	_blk(root, water, -40.0, 40.0, -3.0, edge, -0.06, 0.0)
