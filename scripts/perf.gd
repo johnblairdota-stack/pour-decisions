@@ -147,7 +147,7 @@ func mark(part: String) -> void:
 
 ## Hitches: frames over HITCH ms, each with what its scripts spent the time on (or "drawing", when
 ## they didn't), so a stutter can be traced. In the bench's summary and in the minute's log line.
-const HITCH := 50.0
+static var HITCH := 50.0 if OS.get_environment("PD_HITCH") == "" else float(OS.get_environment("PD_HITCH"))
 static var _fparts := {}           # this frame's parts, usec
 var _hitches: Array = []           # [ms, what]
 
@@ -220,6 +220,13 @@ func _apply_off() -> void:
 	if "views" in _off:
 		for v in root.find_children("*", "SubViewport", true, false):
 			(v as SubViewport).render_target_update_mode = SubViewport.UPDATE_DISABLED
+	if "people" in _off:
+		for n in root.find_children("Chibi*", "Node3D", true, false):
+			(n as Node3D).visible = false
+	if "spiresite" in _off:
+		var ss := root.find_child("SpireSite", true, false) as Node3D
+		if ss != null:
+			ss.visible = false
 	if "world" in _off:
 		for n in root.find_children("*", "Node", true, false):
 			var sc = n.get_script()
@@ -380,6 +387,9 @@ func _dump() -> void:
 		var t := _tris(g)
 		tris[key] = tris.get(key, 0) + t
 		big.append([t, "/".join(names), casts > 0])
+		if OS.get_environment("PD_MESHNAMES") != "" and g is MeshInstance3D:
+			var rn := "%s %s" % [key, (g as MeshInstance3D).mesh.resource_name]
+			ex[" " + rn] = int(ex.get(" " + rn, 0)) + pieces
 		if not ex.has(key):
 			var mname := ""
 			if g is MeshInstance3D:
@@ -395,6 +405,10 @@ func _dump() -> void:
 	for i in mini(40, keys.size()):
 		var v: Vector3i = groups[keys[i]]
 		print("[bench]   %s: %d meshes, %d pieces, %d cast, %dk tris  e.g. %s" % [keys[i], v.x, v.y, v.z, tris.get(keys[i], 0) / 1000, ex.get(keys[i], "")])
+	if OS.get_environment("PD_MESHNAMES") != "":
+		for k in ex:
+			if String(k).begins_with(" ") and int(ex[k]) >= 6:
+				print("[bench] mesh %s: %d pieces" % [k, ex[k]])
 	big.sort_custom(func(a, b): return a[0] > b[0])
 	var sum := 0
 	for b in big:

@@ -445,6 +445,7 @@ static func bake(root: Node3D) -> int:
 		if not shadows.has(cast):
 			var mi := MeshInstance3D.new()
 			mi.name = "Baked"
+			mi.set_meta("baked", true)
 			mi.mesh = ArrayMesh.new()
 			mi.cast_shadow = cast
 			root.add_child(mi)
@@ -454,8 +455,11 @@ static func bake(root: Node3D) -> int:
 		st.commit(am)
 		am.surface_set_material(am.get_surface_count() - 1, g["mat"])
 	for mi in parts:
-		(mi as MeshInstance3D).mesh = null
-		(mi as MeshInstance3D).material_override = null
+		if (mi as Node).has_meta("baked") and (mi as Node).get_child_count() == 0:
+			(mi as Node).queue_free()   # (an earlier bake's, merged again into this one)
+		else:
+			(mi as MeshInstance3D).mesh = null
+			(mi as MeshInstance3D).material_override = null
 	return parts.size()
 
 static func _bake_walk(n: Node, root: Node3D, xf: Transform3D, groups: Dictionary, order: Array, parts: Array) -> void:

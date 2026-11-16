@@ -73,12 +73,53 @@ static func read(text: String) -> Dictionary:
 # ------------------------------------------------------------------ the pictures
 
 static var _cache := {}
+static var _ready := {}             # pictures drawn ahead on a worker thread (warm()), key -> Image
+static var _lock := Mutex.new()
+static var _task := -1
+
+## Draws every sign's picture on a worker thread while the game loads: each one is drawn pixel by
+## pixel in script, and the first of each mid-pour cost a 20 to 70 ms stutter.
+static func warm() -> void:
+	var keys: Array = []
+	for l in LINES.values():
+		if l[1] != "" and not keys.has([l[1], l[0]]):
+			keys.append([l[1], l[0]])
+	for k in [["star", "gold"], ["arrow", "call"]]:
+		if not keys.has(k):
+			keys.append(k)
+	if _task >= 0:
+		return
+	_task = WorkerThreadPool.add_task(func() -> void:
+		for k in keys:
+			var img := _draw(k[0], k[1])
+			_lock.lock()
+			_ready[k[0] + "|" + k[1]] = img
+			_lock.unlock()
+	)
+
+## The worker's done with (a task has to be waited on before the game quits).
+static func finish() -> void:
+	if _task >= 0:
+		WorkerThreadPool.wait_for_task_completion(_task)
+		_task = -1
 
 ## The round picture on the left of a sign: a disc with a glyph on it.
 static func icon(name: String, kind: String) -> ImageTexture:
 	var key := name + "|" + kind
 	if _cache.has(key):
 		return _cache[key]
+	if _task >= 0 and WorkerThreadPool.is_task_completed(_task):
+		finish()
+	_lock.lock()
+	var img: Image = _ready.get(key)
+	_lock.unlock()
+	if img == null:
+		img = _draw(name, kind)
+	var tex := ImageTexture.create_from_image(img)
+	_cache[key] = tex
+	return tex
+
+static func _draw(name: String, kind: String) -> Image:
 	var n := 96
 	var st: Dictionary = KINDS[kind]
 	var disc: Color = st["disc"]
@@ -97,9 +138,7 @@ static func icon(name: String, kind: String) -> ImageTexture:
 			var col := disc.lerp(glyph, a_gl)
 			col.a = a_disc
 			img.set_pixel(x, y, col)
-	var tex := ImageTexture.create_from_image(img)
-	_cache[key] = tex
-	return tex
+	return img
 
 static func _seg(p: Vector2, a: Vector2, b: Vector2, r: float) -> float:
 	var pa := p - a

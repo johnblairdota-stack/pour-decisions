@@ -276,6 +276,9 @@ var _pitch_before := 0.62
 # ------------------------------------------------------------------ setup
 
 func _ready() -> void:
+	# (the crew's hand-sign pictures are drawn on a worker thread now, not mid-pour)
+	preload("res://scripts/hand_signs.gd").warm()
+	get_tree().create_timer(4.0, true).timeout.connect(preload("res://scripts/hand_signs.gd").finish)
 	# (a pause never carries over a restart: the crew page has to run)
 	get_tree().paused = false
 	UI.install_fonts()
@@ -2507,13 +2510,20 @@ func _spire_crane(deck: float) -> void:
 	var want := deck + 3.0 * FH + 3.2 + 32.0
 	var n := 0
 	for c in climb.crane.get_children():
-		if c != climb.crane_slew:
+		if c != climb.crane_slew and not c.has_meta("baked"):
 			n += 1
+	var added := false
 	while n * LS < want:
 		var sec := F.lattice_section(LS, 2.2)
 		sec.position.y = n * LS
 		climb.crane.add_child(sec)
 		n += 1
+		added = true
+	if added:
+		# (the mast's sections never move: one mesh a material for the lot, made again as it grows; the
+		# slewing part on top turns, so it's left out)
+		climb.crane_slew.set_meta("nobake", true)
+		F.bake(climb.crane)
 	climb.CRANE_H = n * LS
 	climb.crane_slew.position.y = climb.CRANE_H
 
