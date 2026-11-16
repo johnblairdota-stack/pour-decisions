@@ -770,12 +770,12 @@ NEIGHBOUR_WALLS = {        # critic round 0 (photos): own albedo per building, s
     236155564: "8C969E",   # Skyline (Meriton): dark glass tower, grey frame
     236155562: "8C969E",
     26253098: "E6DCC4",    # Willahra: off-white (r4, photo; r7 critics: cream)
-    186586595: "D6B488",   # r9: critics read r8 yellow-green; warm tan. Orient Hotel: ochre render (r7, orient_front photo; exception "orient")
+    186586595: "CFAE8E",   # r10: still too yellow: warm tan, less yellow. Orient Hotel: ochre render (r7, orient_front photo; exception "orient")
     26386571: "E2B9A0", 26386543: "E2B9A0",   # Admiralty I / II: r9 critics: peach-pink #e2b9a0
     224320345: "D9AE88",   # Macrossan: Petrie Bight peach
 }
-CATHEDRAL_LOOK = {"ashlar": ["978888", "A48E78", "B09E8D", "9E8A76", "AA9482", "7D7380", "7D7380", "8A8090", "A08A68", "BCA996"], "dressing": "C4AE86",   # r9: wider spread, ~30 % grey-violet;   # r8: + a dark and a light block (+/-12 %), same mean;   # r5: r4 + half the step to the 2010 photo wall average #AE9378
-                  "tile": "A8452C", "spire": "2A2624", "slate": "6A6866"}
+CATHEDRAL_LOOK = {"ashlar": ["9A8A72", "A3927A", "8F7F68", "B09C80", "6F6458", "7A6E60", "A89070", "C0A88A", "948470", "6F6458"], "dressing": "C9A46A",   # r10: warm golden-tan, grey-brown darks (r9 violet read lilac);   # r8: + a dark and a light block (+/-12 %), same mean;   # r5: r4 + half the step to the 2010 photo wall average #AE9378
+                  "tile": "A8452C", "spire": "2E2E33", "slate": "6A6866"}
 HALL_OSM = 1210526673      # brick block in the forecourt view: LiDAR top includes trees; photo shows a low gabled hall
 
 
@@ -852,23 +852,29 @@ def mantra_fin(col, b, rings, stripe_xy, objs, report):
             # r9 (3 critics + fly_by_east / spire_ann_st_2018 photos): a CHUNKY wedge attached to the roof corner, not
             # a blade above it: the corner line widens from 0.9 m 26 m below the roof (8-9 floors) to ~5.5 m (3-4
             # bays) at the roof line, its corner edge fixed, leaning out only 1.2 m; nothing above the roof
+            # r10 (3 critics, fly_by_east zoom): over the top ~4 floors the wing also flares OUT sideways ~5.5 m,
+            # curved like a fin (out ~ f^2.2 of the height); still nothing above the roof line
             w0 = st.get("w", W)
             wt = P("mantra_crest_w", 5.5)
-            for i in range(9):
-                f0, f1 = i / 9, (i + 1) / 9
+            fl = P("mantra_crest_flare", 5.5)
+            for i in range(12):
+                f0, f1 = i / 12, (i + 1) / 12
                 wa, wb = w0 + (wt - w0) * f0 ** 1.3, w0 + (wt - w0) * f1 ** 1.3
-                ca, cb = (wa - w0) / 2, (wb - w0) / 2                # shift the centre so the corner edge stays put
-                for (za, zb, wa_, wb_, oa, ob_, c_) in ((top - 26.0 * (1 - f0), top - 26.0 * (1 - f1), wa, wb, O + 1.2 * f0, O + 1.2 * f1, (ca + cb) / 2),):
-                    slab(px + ux * c_, py + uy * c_, ux, uy, nx, ny, za, zb, oa, ob_, wa_, wb_)
+                c_ = ((wa - w0) / 2 + (wb - w0) / 2) / 2              # shift the centre so the corner edge stays put
+                za, zb = top - 26.0 * (1 - f0), top - 26.0 * (1 - f1)
+                g0, g1 = max(0.0, (za - (top - 12.0)) / 12.0), max(0.0, (zb - (top - 12.0)) / 12.0)
+                slab(px + ux * c_, py + uy * c_, ux, uy, nx, ny, za, zb, O + 1.2 * f0 + fl * g0 ** 2.2,
+                     O + 1.2 * f1 + fl * g1 ** 2.2, wa, wb)
     # r9 (critics: "manya": balcony slabs and rails cut through the letters): one clean white "mantra" on a flat
     # blue panel standing 2.6 m out from the NE face, clear of the balcony slabs, top floor
+    # r10 (critics + fly_by_east photo): DARK BLUE lowercase "mantra" (#1b5fa8) on the cream top-floor wall, no panel;
+    # the top-floor balcony slabs / rails within 8 m of the sign go so they cannot cut through the letters
     sx, sy, snx, sny = P("mantra_sign", (11.85, 93.2, 0.506, 0.861))
-    sux, suy = -sny, snx
-    slab(sx, sy, sux, suy, snx, sny, top - 3.4, top - 0.2, O + 2.3, O + 2.3, 12.5, 12.5)
     put(fin, "mantra_blue_fin", col, mat("mantra_blue", lin("1E8FD0")), objs)
-    ob = C.text_obj(col, "area_mantra_sign", "mantra", (sx + snx * (O + 2.3 + D + 0.03), sy + sny * (O + 2.3 + D + 0.03), top - 1.8),
-                    (math.pi / 2, 0, math.atan2(snx, -sny)), 2.4, (0.95, 0.95, 0.95))
+    ob = C.text_obj(col, "area_mantra_sign", "mantra", (sx + snx * (O + 1.2), sy + sny * (O + 1.2), top - 1.6),
+                    (math.pi / 2, 0, math.atan2(snx, -sny)), 2.4, lin("1B5FA8"))
     ob.data.extrude = 0.0
+    _STATE["mantra_sign"] = (sx, sy, top)
     report.append("Mantra: 2 azure stripes (SE corner + north face) %.0f m, wedge crest, horizontal sign" % (top - base))
 
 
@@ -891,8 +897,13 @@ def mantra_slabs(col, recs, objs, report):
             B.loop_wall(rails, B.offset(ring, 0.9), z, z + 1.0)        # r4: white balcony rails
             n += 1
             z += 3.1
+    import numpy as np
+    sg = _STATE.get("mantra_sign")
     put(slabs, "mantra_balcony_slabs", col, mat("mantra_slab", hx("EDE4D0")), objs)
     put(rails, "mantra_balcony_rails", col, mat("mantra_rails", (0.80, 0.80, 0.78)), objs)
+    if sg:
+        for nm in ("mantra_balcony_slabs", "mantra_balcony_rails"):
+            drop_where(bpy.data.objects.get(nm), lambda X, Y, Z: ((X - sg[0]) ** 2 + (Y - sg[1]) ** 2 < 64.0) & (Z > sg[2] - 4.0))
     note(5.0, 87.0, "building")
     report.append("Mantra: %d balcony slabs" % n)
 
@@ -926,7 +937,7 @@ def neighbours(col, guard, objs, report):
             m.diffuse_color = (*hx(CATHEDRAL_LOOK[key]), 1)
     # r2 (critic): roof read orange (#c8553a) -> photo #7f4535..#8a4a38; dressings read sage -> warm sandstone
     for name, rgb in (("cathedral_terracotta", P("cath_tile_lin", (0.20, 0.085, 0.036))),
-                      ("cathedral_sandstone", P("cath_dress_lin", tuple(c * 0.9 for c in hx("C4AE86"))))):
+                      ("cathedral_sandstone", P("cath_dress_lin", tuple(c * 0.9 for c in hx("C9A46A"))))):
         m = bpy.data.materials.get(name)
         if m:
             m.diffuse_color = (*rgb, 1)
@@ -936,7 +947,7 @@ def neighbours(col, guard, objs, report):
         lay = st.data.uv_layers["facade"].data
         uv = np.empty(len(lay) * 2, "f4")
         lay.foreach_get("uv", uv)
-        lay.foreach_set("uv", uv * P("ashlar_uv_scale", 0.5))
+        lay.foreach_set("uv", uv * P("ashlar_uv_scale", 0.72))
     # r3 (critic): r2 overshot to white boxes with dot grids. Cream #e4d8bf render, balcony doors full storey
     # height between slabs (Willahra / Admiralty keep their own balcony bands; Mantra gets slabs below)
     for osm in (568836537, 189779738, 26253098, 26386571, 26386543):   # 189779738: OSM "Hotel Mantra" = tower tiers
@@ -944,7 +955,7 @@ def neighbours(col, guard, objs, report):
         if m:
             m["shader"] = "render"
             if osm in (568836537, 189779738):
-                m.diffuse_color = (*hx(P("mantra_cream", "F0DCB2")), 1)     # r8: critics read grey-white; a step warmer (#E9DFC8 target) (Willahra / Admiralty: NEIGHBOUR_WALLS)
+                m.diffuse_color = (*hx(P("mantra_cream", "F2DBAE")), 1)     # r8: critics read grey-white; a step warmer (#E9DFC8 target) (Willahra / Admiralty: NEIGHBOUR_WALLS)
             for k, v in (("bay", 3.0), ("win", 2.3), ("sill", 0.06), ("head", 0.86), ("floor", 3.1), ("rough", 0.18)):
                 m["win_" + k] = v
             m["win_glass"] = [0.10, 0.14, 0.19]          # r4: blue-grey glass, not charcoal
@@ -1529,6 +1540,11 @@ def pixel_kill(guard, report):
         # own check of the r9 test render: leaf dots left in cathedral_ann_st_2012, the V at the end of carpark_eye
         ("cathedral_ann_st_2012", 1200, 1600, 50, 375, 90, 110), ("cathedral_ann_st_2012", 1200, 1600, 1040, 105, 150, 95),
         ("cathedral_ann_st_2012", 1200, 1600, 905, 505, 190, 95), ("carpark_eye", 1600, 1000, 1010, 180, 70, 370),
+        # r10 list
+        ("cathedral_ann_st_2012", 1200, 1600, 1035, 105, 165, 90), ("cathedral_ann_st_2012", 1200, 1600, 735, 430, 140, 120),
+        ("cathedral_ann_st_2012", 1200, 1600, 930, 865, 200, 90), ("carpark_eye", 1600, 1000, 370, 80, 260, 110),
+        ("customs_house", 1600, 1000, 1205, 480, 150, 100), ("customs_house_river", 1600, 1000, 275, 715, 85, 115),
+        ("orient_hotel", 1600, 1000, 890, 520, 210, 90),
     ])
     here = os.path.join(os.path.dirname(L.HERE), "..", "spire_area")
     src = open(os.path.join(here, "render_area.py"), encoding="utf-8").read().replace("\nmain()\n", "\n")
@@ -1982,8 +1998,8 @@ def orient(col, guard, objs, report):
         cor, hip = C.MeshBuf(), C.MeshBuf()
         out_r = B.offset(ring, 0.55)
         cor.prism(out_r, zt - 0.45, zt)
-        inner = B.offset(ring, -P("orient_hip_in", 2.6))          # r9: ~25 deg, not a spike
-        zr = zt + P("orient_hip_rise", 1.25)
+        inner = B.offset(ring, -P("orient_hip_in", 3.0))          # r10: r9 read as a thin visor: ~32 deg
+        zr = zt + P("orient_hip_rise", 1.9)
         nr = len(out_r)
         if len(inner) == nr:
             vs = [(x, y, zt) for x, y in out_r] + [(x, y, zr) for x, y in inner]
@@ -2085,6 +2101,10 @@ def build():
     smooth_surfaces(report)
     orient(col, guard, objs, report)
     annqueen_poles(col, guard, objs, report)
+    pb = bpy.data.objects.get("street_banners_p")                  # r10 (critics): the pink banners are invented
+    if pb is not None:
+        bpy.data.objects.remove(pb)
+        report.append("pink street banners removed")
     tb = bpy.data.materials.get("street_target_boards")           # r7: photos (orient_front, ann_queen_corner): black
     if tb is not None:                                              # lantern backs, no yellow boards; heads read smaller
         tb.diffuse_color = (*hx("1E1F21"), 1)
@@ -2112,6 +2132,12 @@ def restyle():
         bsdf = nt.nodes.get("Principled BSDF")
         if bsdf is None:
             continue
+        if m.name == "clay_grass":                                  # r10 (critics: lawns near-black): #4f7a35-#6b8f45
+            lk = next((l for l in nt.links if l.to_socket == bsdf.inputs["Base Color"]), None)
+            if lk is not None and lk.from_node.bl_idname == "ShaderNodeValToRGB":
+                el = lk.from_node.color_ramp.elements
+                el[0].color = (*lin(P("lawn_lo", "4F7A35")), 1)
+                el[-1].color = (*lin(P("lawn_hi", "6B8F45")), 1)
         if m.get("asphalt") or m.name in ("clay_road",):
             asphalt(m, bsdf)
         if m.name in ("clay_road", "street_red") or m.get("asphalt"):
@@ -2527,9 +2553,9 @@ def lit_windows(m, nt, bsdf):
 
 SKY_DAY = [(0.0, "DCE6EE"), (0.07, "C4D8EA"), (0.25, "8FB5DE"), (1.0, "2F6FC0")]   # r3: pale horizon band
 SKY_MODE = None    # r8: per view (area_cams.json "sky"): "deep" clear blue or "pale" grey-white, matched to its photo
-SKY_DEEP = [(0.0, "B4CCE8"), (0.06, "7FA9DE"), (0.22, "4C86D2"), (1.0, "1F5BB8")]
-SKY_NAVY = [(0.0, "9DB8DC"), (0.06, "5F8FD0"), (0.25, "2F69C0"), (1.0, "143F96")]
-SKY_PALEBLUE = [(0.0, "E8ECEF"), (0.12, "D2DEEA"), (0.40, "B2C6DC"), (1.0, "86A6CC")]
+SKY_DEEP = [(0.0, "B6D0EC"), (0.12, "8FB8E0"), (0.42, "4F86C8"), (1.0, "1F5FB0")]   # r10: a real gradient
+SKY_NAVY = [(0.0, "A4C0E2"), (0.12, "7AA2D6"), (0.42, "3466B4"), (1.0, "1A3F8F")]
+SKY_PALEBLUE = [(0.0, "EEF1F3"), (0.15, "D8E2EC"), (0.45, "B4C8DE"), (1.0, "8AA8CE")]
 SKY_PALE = [(0.0, "E2E5E8"), (0.10, "D3DAE2"), (0.35, "B9C6D4"), (1.0, "8FA8C8")]
 SKY_DUSK = [(0.0, "E8A890"), (0.16, "E8A890"), (0.30, "9C7CA8"), (0.62, "6E73A0"), (1.0, "4E5C8E")]   # r5 PINNED: peach band #e8a890 under lilac #9c7ca8
 
@@ -2638,7 +2664,7 @@ def sky(dusk):
         nt.links.new(sh.outputs["Color"], cm_.inputs[7])
     sh = nt.nodes["AREA_CLOUD_SHADE"].color_ramp.elements
     sh[1].color = (1.0, 0.86, 0.80, 1) if dusk else (1.0, 1.0, 1.0, 1)
-    nt.nodes["AREA_CLOUD"].inputs["To Max"].default_value = 0.55 if dusk else {"deep": 0.45, "pale": 0.25, "navy": 0.35, "paleblue": 0.7}.get(SKY_MODE, P("cloud_cover", 0.97))
+    nt.nodes["AREA_CLOUD"].inputs["To Max"].default_value = 0.55 if dusk else {"deep": 0.85, "pale": 0.25, "navy": 0.4, "paleblue": 0.95}.get(SKY_MODE, P("cloud_cover", 0.97))
     nt.nodes["AREA_SKY_BG"].inputs["Strength"].default_value = P("sky_cam_dusk", 1.3) if dusk else P("sky_cam_day", 1.55)
 
 
