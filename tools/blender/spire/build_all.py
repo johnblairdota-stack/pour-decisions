@@ -16,6 +16,7 @@ import layout as L  # noqa: E402
 import ground, streets, buildings, spire, core, landmarks, cathedral, hsw, trees, logistics, site_plant, streetscape  # noqa: E402,E401
 
 MODULES = [ground, streets, buildings, spire, core, landmarks, cathedral, hsw, trees, logistics, site_plant, streetscape]
+MODULES.append(__import__("area_hero"))   # Spire-area thread: everything around the site, built last
 
 
 def clear():

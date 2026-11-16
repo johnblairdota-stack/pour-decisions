@@ -1,0 +1,1233 @@
+{
+ "note": "HSW photo cameras solved from hand marks (hsw_fit.py). Photos are not in git.",
+ "landmarks": {
+  "spire_top": [
+   0.42,
+   4.98,
+   139.21
+  ],
+  "spire_plant": [
+   0.0,
+   4.6,
+   147.7
+  ],
+  "spire_tower_base": [
+   0.0,
+   4.6,
+   42.31
+  ],
+  "mantra_top": [
+   4.93,
+   85.52,
+   109.73
+  ],
+  "willahra_top": [
+   13.77,
+   -28.83,
+   96.46
+  ],
+  "marriott_top": [
+   92.6,
+   -50.8,
+   123.55
+  ],
+  "admiralty2_top": [
+   118.1,
+   -102.25,
+   128.82
+  ],
+  "admiralty1_top": [
+   171.16,
+   -29.0,
+   91.44
+  ],
+  "soleil_top": [
+   168.57,
+   73.12,
+   249.83
+  ],
+  "aurora_top": [
+   -43.73,
+   -249.4,
+   214.88
+  ],
+  "macrossan_top": [
+   153.01,
+   45.18,
+   136.47
+  ],
+  "orient_top": [
+   19.51,
+   39.8,
+   31.0
+  ],
+  "webber_top": [
+   -35.65,
+   -17.47,
+   37.08
+  ],
+  "cath_spire_n": [
+   -93.3,
+   -74.3,
+   75.9
+  ],
+  "cath_spire_s": [
+   -104.2,
+   -83.9,
+   75.9
+  ],
+  "ann_queen_corner": [
+   31.0,
+   38.0,
+   17.86
+  ],
+  "customs_dome": [
+   31.0,
+   -263.0,
+   38.0
+  ],
+  "bridge_peak_n": [
+   481.21,
+   66.25,
+   80.0
+  ],
+  "bridge_peak_s": [
+   487.57,
+   -213.67,
+   80.0
+  ],
+  "bridge_pier_n_deck": [
+   481.21,
+   66.25,
+   34.5
+  ],
+  "bridge_pier_s_deck": [
+   487.57,
+   -213.67,
+   34.5
+  ],
+  "bridge_anchor_s_deck": [
+   490.75,
+   -353.64,
+   33.0
+  ],
+  "bridge_anchor_n_w": [
+   467.54,
+   205.98,
+   42.0
+  ],
+  "bridge_anchor_n_e": [
+   488.53,
+   206.46,
+   42.0
+  ],
+  "bridge_portal_n_w": [
+   470.72,
+   66.02,
+   80.0
+  ],
+  "bridge_portal_n_e": [
+   491.71,
+   66.49,
+   80.0
+  ],
+  "pier_n_w_top": [
+   470.72,
+   66.02,
+   34.3
+  ],
+  "pier_n_w_base": [
+   470.72,
+   66.02,
+   1.0
+  ],
+  "pier_n_e_top": [
+   491.71,
+   66.49,
+   34.3
+  ],
+  "pier_n_e_base": [
+   491.71,
+   66.49,
+   1.0
+  ],
+  "pier_n_top_sw": [
+   466.33,
+   60.92,
+   34.3
+  ],
+  "pier_n_top_se": [
+   496.32,
+   61.6,
+   34.3
+  ],
+  "pier_n_crown_s": [
+   481.33,
+   61.26,
+   26.1
+  ],
+  "pier_n_spring_sw": [
+   474.83,
+   61.11,
+   19.6
+  ],
+  "pier_n_spring_se": [
+   487.82,
+   61.4,
+   19.6
+  ],
+  "pier_n_top_nw": [
+   466.1,
+   70.91,
+   34.3
+  ],
+  "pier_n_top_ne": [
+   496.1,
+   71.59,
+   34.3
+  ],
+  "pier_n_crown_n": [
+   481.1,
+   71.25,
+   26.1
+  ],
+  "pier_n_spring_nw": [
+   474.6,
+   71.11,
+   19.6
+  ],
+  "pier_n_spring_ne": [
+   487.6,
+   71.4,
+   19.6
+  ],
+  "peak_n_w": [
+   470.72,
+   66.02,
+   80.0
+  ],
+  "peak_n_e": [
+   491.71,
+   66.49,
+   80.0
+  ],
+  "pier_s_w_top": [
+   477.07,
+   -213.91,
+   34.3
+  ],
+  "pier_s_w_base": [
+   477.07,
+   -213.91,
+   1.0
+  ],
+  "pier_s_e_top": [
+   498.07,
+   -213.43,
+   34.3
+  ],
+  "pier_s_e_base": [
+   498.07,
+   -213.43,
+   1.0
+  ],
+  "pier_s_top_sw": [
+   472.69,
+   -219.01,
+   34.3
+  ],
+  "pier_s_top_se": [
+   502.68,
+   -218.33,
+   34.3
+  ],
+  "pier_s_crown_s": [
+   487.68,
+   -218.67,
+   26.1
+  ],
+  "pier_s_spring_sw": [
+   481.18,
+   -218.82,
+   19.6
+  ],
+  "pier_s_spring_se": [
+   494.18,
+   -218.52,
+   19.6
+  ],
+  "pier_s_top_nw": [
+   472.46,
+   -209.01,
+   34.3
+  ],
+  "pier_s_top_ne": [
+   502.45,
+   -208.33,
+   34.3
+  ],
+  "pier_s_crown_n": [
+   487.45,
+   -208.67,
+   26.1
+  ],
+  "pier_s_spring_nw": [
+   480.96,
+   -208.82,
+   19.6
+  ],
+  "pier_s_spring_ne": [
+   493.95,
+   -208.53,
+   19.6
+  ],
+  "peak_s_w": [
+   477.07,
+   -213.91,
+   80.0
+  ],
+  "peak_s_e": [
+   498.07,
+   -213.43,
+   80.0
+  ],
+  "anchor_n_deck": [
+   478.03,
+   206.22,
+   34.0
+  ],
+  "anchor_s_deck": [
+   490.75,
+   -353.64,
+   31.32
+  ],
+  "midspan_top": [
+   484.39,
+   -73.71,
+   49.5
+  ],
+  "lift_top": [
+   563.0,
+   90.0,
+   48.0
+  ],
+  "lift_base": [
+   563.0,
+   90.0,
+   4.27
+  ],
+  "percivals_top": [
+   483.0,
+   42.5,
+   12.2
+  ],
+  "felons_ridge_w": [
+   497.35,
+   66.26,
+   11.79
+  ],
+  "felons_ridge_e": [
+   575.65,
+   67.62,
+   11.79
+  ],
+  "hswshed_ridge_w": [
+   430.49,
+   67.05,
+   11.93
+  ],
+  "hswshed_ridge_e": [
+   465.77,
+   67.67,
+   11.93
+  ],
+  "rivershed_ridge_w": [
+   705.65,
+   -9.78,
+   14.07
+  ],
+  "rivershed_ridge_e": [
+   751.95,
+   -71.2,
+   14.07
+  ],
+  "greenhouse_ridge_w": [
+   769.27,
+   -27.11,
+   11.14
+  ],
+  "greenhouse_ridge_e": [
+   788.21,
+   -44.17,
+   11.14
+  ],
+  "hotel_top": [
+   449.3,
+   101.96,
+   27.97
+  ],
+  "bowen_tower_top": [
+   775.94,
+   39.45,
+   55.6
+  ],
+  "bowen_tower2_top": [
+   758.2,
+   61.61,
+   55.25
+  ],
+  "barrel_hall_top": [
+   643.33,
+   48.09,
+   14.33
+  ],
+  "bowen_spire_top": [
+   741.28,
+   66.86,
+   65.22
+  ]
+ },
+ "cams": [
+  {
+   "id": "p01_drone_se",
+   "file": "overview_aerial/gg_80fd9d96.jpg",
+   "title": "Drone from the south-east over the river: both towers, HSW strip, Rivershed",
+   "date": "",
+   "time_h": 15.5,
+   "size": [
+    1600,
+    1067
+   ],
+   "mode": "tilt",
+   "pos": [
+    823.3,
+    -172.8,
+    78.7
+   ],
+   "eye_above_ground_m": 54.3,
+   "heading_deg": 298.2,
+   "pitch_deg": -8.21,
+   "roll_deg": 0.0,
+   "focal_35mm": 23.8,
+   "blender": {
+    "lens_mm": 23.85,
+    "sensor_mm": 36.0,
+    "shift_y": -0.0
+   },
+   "marks": 9,
+   "fit_rms_px": 12.3,
+   "fit_max_px": 26.9,
+   "per_mark_px": {
+    "peak_n_e": 26.9,
+    "peak_s_e": 3.3,
+    "pier_n_e_top": 10.2,
+    "pier_s_e_top": 9.4,
+    "felons_ridge_w": 10.2,
+    "felons_ridge_e": 5.8,
+    "rivershed_ridge_w": 3.5,
+    "lift_top": 15.6,
+    "percivals_top": 6.0
+   },
+   "projected": {
+    "peak_n_e": [
+     944.0,
+     377.1
+    ],
+    "peak_s_e": [
+     41.7,
+     375.3
+    ],
+    "pier_n_e_top": [
+     941.7,
+     497.3
+    ],
+    "pier_s_e_top": [
+     60.0,
+     555.9
+    ],
+    "felons_ridge_w": [
+     948.7,
+     557.2
+    ],
+    "felons_ridge_e": [
+     1098.2,
+     592.6
+    ],
+    "rivershed_ridge_w": [
+     1297.2,
+     748.6
+    ],
+    "lift_top": [
+     1125.6,
+     473.4
+    ],
+    "percivals_top": [
+     876.0,
+     555.6
+    ]
+   },
+   "holdout_rms_px": 27.5,
+   "note": ""
+  },
+  {
+   "id": "p02_pier_from_sw",
+   "file": "hotel/gg_4681e729.jpg",
+   "title": "North main pier, Mr Percival's and Felons from above the river, south-west of the pier",
+   "date": "",
+   "time_h": 15.5,
+   "size": [
+    1600,
+    1066
+   ],
+   "mode": "tilt",
+   "pos": [
+    494.1,
+    22.5,
+    16.1
+   ],
+   "eye_above_ground_m": 13.0,
+   "heading_deg": 354.3,
+   "pitch_deg": -12.49,
+   "roll_deg": 0.0,
+   "focal_35mm": 7.6,
+   "blender": {
+    "lens_mm": 7.58,
+    "sensor_mm": 36.0,
+    "shift_y": -0.0
+   },
+   "marks": 7,
+   "fit_rms_px": 21.9,
+   "fit_max_px": 47.0,
+   "per_mark_px": {
+    "pier_n_top_sw": 17.6,
+    "pier_n_top_se": 13.4,
+    "pier_n_crown_s": 15.6,
+    "felons_ridge_w": 47.0,
+    "hswshed_ridge_w": 18.5,
+    "percivals_top": 2.8,
+    "lift_top": 8.1
+   },
+   "projected": {
+    "pier_n_top_sw": [
+     684.5,
+     309.3
+    ],
+    "pier_n_top_se": [
+     933.3,
+     297.3
+    ],
+    "pier_n_crown_s": [
+     803.9,
+     376.9
+    ],
+    "felons_ridge_w": [
+     859.1,
+     493.0
+    ],
+    "hswshed_ridge_w": [
+     406.0,
+     487.1
+    ],
+    "percivals_top": [
+     657.2,
+     521.7
+    ],
+    "lift_top": [
+     1542.8,
+     229.6
+    ]
+   },
+   "holdout_rms_px": 132.2,
+   "note": ""
+  },
+  {
+   "id": "p04_drone_dusk_se",
+   "file": "overview_aerial/gg_11228e1b.jpg",
+   "title": "Drone from the south-east above Rivershed (dusk photo, rendered in day light)",
+   "date": "",
+   "time_h": 15.5,
+   "size": [
+    1051,
+    791
+   ],
+   "mode": "tilt",
+   "pos": [
+    848.2,
+    -160.6,
+    76.8
+   ],
+   "eye_above_ground_m": 50.4,
+   "heading_deg": 310.5,
+   "pitch_deg": -13.16,
+   "roll_deg": 0.0,
+   "focal_35mm": 34.6,
+   "blender": {
+    "lens_mm": 35.99,
+    "sensor_mm": 36.0,
+    "shift_y": -0.0
+   },
+   "marks": 9,
+   "fit_rms_px": 26.5,
+   "fit_max_px": 44.5,
+   "per_mark_px": {
+    "peak_n_e": 34.5,
+    "pier_n_top_sw": 10.5,
+    "pier_n_crown_s": 11.6,
+    "felons_ridge_w": 12.1,
+    "felons_ridge_e": 4.3,
+    "rivershed_ridge_w": 27.8,
+    "anchor_n_deck": 44.5,
+    "lift_top": 25.7,
+    "barrel_hall_top": 36.3
+   },
+   "projected": {
+    "peak_n_e": [
+     373.9,
+     141.2
+    ],
+    "pier_n_top_sw": [
+     332.6,
+     255.8
+    ],
+    "pier_n_crown_s": [
+     353.2,
+     278.9
+    ],
+    "felons_ridge_w": [
+     386.7,
+     317.5
+    ],
+    "felons_ridge_e": [
+     515.8,
+     344.1
+    ],
+    "rivershed_ridge_w": [
+     633.8,
+     464.3
+    ],
+    "anchor_n_deck": [
+     604.4,
+     239.3
+    ],
+    "lift_top": [
+     540.8,
+     232.3
+    ],
+    "barrel_hall_top": [
+     614.0,
+     353.6
+    ]
+   },
+   "holdout_rms_px": 64.4,
+   "note": "round 2: re-read on a grid; the old rivershed_ridge_w was the far eave corner; pier corner, arch crown, lift top, Barrel Hall, Rivershed near gable added"
+  },
+  {
+   "id": "p06_drone_south",
+   "file": "overview_aerial/pg_58687c6e.jpg",
+   "title": "Drone from the river south of HSW: pier, Felons, Barrel Hall, Rivershed, cliffs",
+   "date": "",
+   "time_h": 10.0,
+   "size": [
+    1200,
+    650
+   ],
+   "mode": "tilt",
+   "pos": [
+    709.0,
+    -205.2,
+    110.7
+   ],
+   "eye_above_ground_m": 112.4,
+   "heading_deg": 350.3,
+   "pitch_deg": -22.12,
+   "roll_deg": 0.0,
+   "focal_35mm": 30.2,
+   "blender": {
+    "lens_mm": 28.57,
+    "sensor_mm": 36.0,
+    "shift_y": -0.0
+   },
+   "marks": 6,
+   "fit_rms_px": 6.5,
+   "fit_max_px": 8.5,
+   "per_mark_px": {
+    "pier_n_e_top": 7.7,
+    "felons_ridge_w": 7.5,
+    "felons_ridge_e": 7.0,
+    "barrel_hall_top": 3.5,
+    "rivershed_ridge_w": 8.5,
+    "rivershed_ridge_e": 2.1
+   },
+   "projected": {
+    "pier_n_e_top": [
+     83.8,
+     190.6
+    ],
+    "felons_ridge_w": [
+     112.3,
+     257.5
+    ],
+    "felons_ridge_e": [
+     335.0,
+     268.9
+    ],
+    "barrel_hall_top": [
+     518.0,
+     263.7
+    ],
+    "rivershed_ridge_w": [
+     731.1,
+     399.1
+    ],
+    "rivershed_ridge_e": [
+     1006.7,
+     591.2
+    ]
+   },
+   "holdout_rms_px": 28.6,
+   "note": ""
+  },
+  {
+   "id": "p07_drone_sw_citycat",
+   "file": "from_river/gg_391ced7e.jpg",
+   "title": "Drone from the river south-west: north tower, pier portal, HSW shed, Mr Percival's, Felons",
+   "date": "",
+   "time_h": 15.5,
+   "size": [
+    1600,
+    900
+   ],
+   "mode": "tilt",
+   "pos": [
+    293.4,
+    -218.2,
+    64.8
+   ],
+   "eye_above_ground_m": 66.5,
+   "heading_deg": 35.2,
+   "pitch_deg": -10.65,
+   "roll_deg": 0.0,
+   "focal_35mm": 42.0,
+   "blender": {
+    "lens_mm": 40.09,
+    "sensor_mm": 36.0,
+    "shift_y": -0.0
+   },
+   "marks": 9,
+   "fit_rms_px": 15.7,
+   "fit_max_px": 25.0,
+   "per_mark_px": {
+    "pier_n_top_sw": 16.4,
+    "pier_n_top_se": 16.9,
+    "pier_n_crown_s": 7.5,
+    "peak_n_w": 16.7,
+    "felons_ridge_w": 19.1,
+    "felons_ridge_e": 9.6,
+    "hswshed_ridge_w": 8.6,
+    "hswshed_ridge_e": 25.0,
+    "percivals_top": 13.0
+   },
+   "projected": {
+    "pier_n_top_sw": [
+     692.2,
+     283.7
+    ],
+    "pier_n_top_se": [
+     822.0,
+     275.1
+    ],
+    "pier_n_crown_s": [
+     759.0,
+     322.5
+    ],
+    "peak_n_w": [
+     695.0,
+     30.4
+    ],
+    "felons_ridge_w": [
+     812.1,
+     386.6
+    ],
+    "felons_ridge_e": [
+     1092.6,
+     355.6
+    ],
+    "hswshed_ridge_w": [
+     503.6,
+     417.9
+    ],
+    "hswshed_ridge_e": [
+     672.1,
+     399.4
+    ],
+    "percivals_top": [
+     824.0,
+     407.1
+    ]
+   },
+   "holdout_rms_px": 31.4,
+   "note": ""
+  },
+  {
+   "id": "p08_from_kangaroo_pt",
+   "file": "from_river/gg_a5335881.jpg",
+   "title": "From the Kangaroo Point bank under the bridge, looking north at the pier portal and the strip",
+   "date": "",
+   "time_h": 10.5,
+   "size": [
+    1600,
+    900
+   ],
+   "mode": "tilt",
+   "pos": [
+    388.8,
+    -321.3,
+    6.0
+   ],
+   "eye_above_ground_m": 1.5,
+   "heading_deg": 22.4,
+   "pitch_deg": 6.51,
+   "roll_deg": 0.0,
+   "focal_35mm": 50.4,
+   "blender": {
+    "lens_mm": 48.15,
+    "sensor_mm": 36.0,
+    "shift_y": -0.0
+   },
+   "marks": 10,
+   "fit_rms_px": 16.6,
+   "fit_max_px": 33.8,
+   "per_mark_px": {
+    "pier_n_top_sw": 17.0,
+    "pier_n_top_se": 14.6,
+    "pier_n_crown_s": 11.0,
+    "peak_n_w": 13.5,
+    "peak_n_e": 18.6,
+    "felons_ridge_e": 13.1,
+    "hswshed_ridge_w": 33.8,
+    "percivals_top": 8.9,
+    "pier_n_spring_sw": 8.0,
+    "pier_n_spring_se": 11.5
+   },
+   "projected": {
+    "pier_n_top_sw": [
+     426.8,
+     539.4
+    ],
+    "pier_n_top_se": [
+     584.3,
+     543.7
+    ],
+    "pier_n_crown_s": [
+     506.0,
+     585.6
+    ],
+    "peak_n_w": [
+     449.6,
+     300.7
+    ],
+    "peak_n_e": [
+     557.2,
+     308.2
+    ],
+    "felons_ridge_e": [
+     922.3,
+     665.2
+    ],
+    "hswshed_ridge_w": [
+     172.2,
+     660.1
+    ],
+    "percivals_top": [
+     502.1,
+     658.3
+    ],
+    "pier_n_spring_sw": [
+     473.7,
+     617.5
+    ],
+    "pier_n_spring_se": [
+     536.9,
+     618.3
+    ]
+   },
+   "holdout_rms_px": 27.4,
+   "note": "the rust-coloured post at x 790 is not the lift tower top (left unmarked). Round 2: Felons west end and HSW shed east end dropped (hidden at the pier edges); arch springing added; Percival's apex re-read"
+  },
+  {
+   "id": "p10_drone_lawns_se",
+   "file": "overview_aerial/gg_413020c0.jpg",
+   "title": "Drone over the Rivershed lawns looking north-west to the bridge and the CBD",
+   "date": "",
+   "time_h": 15.5,
+   "size": [
+    1000,
+    562
+   ],
+   "mode": "tilt",
+   "pos": [
+    794.2,
+    -103.4,
+    43.4
+   ],
+   "eye_above_ground_m": 39.3,
+   "heading_deg": 304.4,
+   "pitch_deg": -10.49,
+   "roll_deg": 0.0,
+   "focal_35mm": 25.7,
+   "blender": {
+    "lens_mm": 24.53,
+    "sensor_mm": 36.0,
+    "shift_y": -0.0
+   },
+   "marks": 6,
+   "fit_rms_px": 3.9,
+   "fit_max_px": 5.1,
+   "per_mark_px": {
+    "peak_n_e": 3.9,
+    "pier_n_e_top": 4.8,
+    "felons_ridge_w": 2.3,
+    "felons_ridge_e": 4.3,
+    "rivershed_ridge_w": 1.6,
+    "barrel_hall_top": 5.1
+   },
+   "projected": {
+    "peak_n_e": [
+     437.1,
+     78.8
+    ],
+    "pier_n_e_top": [
+     438.6,
+     173.4
+    ],
+    "felons_ridge_w": [
+     444.5,
+     219.2
+    ],
+    "felons_ridge_e": [
+     543.2,
+     233.7
+    ],
+    "rivershed_ridge_w": [
+     643.5,
+     312.4
+    ],
+    "barrel_hall_top": [
+     629.0,
+     237.3
+    ]
+   },
+   "holdout_rms_px": 15.4,
+   "note": ""
+  },
+  {
+   "id": "p11_kp_beach",
+   "file": "from_kangaroo_point/cm_2fb0cc30.jpg",
+   "title": "From the Kangaroo Point beach looking north-west: tower, pier portal, HSW strip, lift tower, Barrel Hall",
+   "date": "",
+   "time_h": 12.0,
+   "size": [
+    1600,
+    1200
+   ],
+   "mode": "tilt",
+   "pos": [
+    379.7,
+    -261.3,
+    2.5
+   ],
+   "eye_above_ground_m": -1.5,
+   "heading_deg": 27.0,
+   "pitch_deg": 4.7,
+   "roll_deg": 0.0,
+   "focal_35mm": 42.9,
+   "blender": {
+    "lens_mm": 44.65,
+    "sensor_mm": 36.0,
+    "shift_y": -0.0
+   },
+   "marks": 10,
+   "fit_rms_px": 32.5,
+   "fit_max_px": 53.0,
+   "per_mark_px": {
+    "peak_n_w": 37.4,
+    "peak_n_e": 37.2,
+    "pier_n_top_sw": 29.2,
+    "pier_n_top_se": 23.4,
+    "pier_n_crown_s": 18.0,
+    "percivals_top": 53.0,
+    "pier_n_spring_sw": 9.7,
+    "pier_n_spring_se": 17.6,
+    "felons_ridge_e": 7.7,
+    "hswshed_ridge_w": 52.7
+   },
+   "projected": {
+    "peak_n_w": [
+     443.6,
+     320.5
+    ],
+    "peak_n_e": [
+     557.2,
+     332.0
+    ],
+    "pier_n_top_sw": [
+     422.3,
+     576.2
+    ],
+    "pier_n_top_se": [
+     588.2,
+     583.3
+    ],
+    "pier_n_crown_s": [
+     506.3,
+     626.9
+    ],
+    "percivals_top": [
+     513.9,
+     702.5
+    ],
+    "pier_n_spring_sw": [
+     472.3,
+     660.6
+    ],
+    "pier_n_spring_se": [
+     538.9,
+     662.2
+    ],
+    "felons_ridge_e": [
+     932.2,
+     714.9
+    ],
+    "hswshed_ridge_w": [
+     147.6,
+     703.9
+    ]
+   },
+   "holdout_rms_px": 38.3,
+   "note": "round 2: Felons west end and HSW shed east end dropped (hidden at the pier edges); lift top and Barrel Hall dropped (not identified for sure); arch springing added"
+  },
+  {
+   "id": "p09_pier_face_on",
+   "file": "from_river/cm_5547d6bf.jpg",
+   "title": "From the river due south: the north pier portal face-on over Mr Percival's, HSW shed and Felons",
+   "date": "",
+   "time_h": 12.0,
+   "size": [
+    1600,
+    1200
+   ],
+   "mode": "tilt",
+   "pos": [
+    482.0,
+    -80.0,
+    3.5
+   ],
+   "eye_above_ground_m": 5.2,
+   "heading_deg": 0.2,
+   "pitch_deg": 5.75,
+   "roll_deg": 0.0,
+   "focal_35mm": 43.7,
+   "blender": {
+    "lens_mm": 45.46,
+    "sensor_mm": 36.0,
+    "shift_y": -0.0
+   },
+   "marks": 6,
+   "fit_rms_px": 11.3,
+   "fit_max_px": 22.6,
+   "per_mark_px": {
+    "pier_n_top_sw": 3.2,
+    "pier_n_top_se": 10.2,
+    "pier_n_crown_s": 7.6,
+    "percivals_top": 22.6,
+    "pier_n_spring_sw": 9.2,
+    "pier_n_spring_se": 0.5
+   },
+   "projected": {
+    "pier_n_top_sw": [
+     570.9,
+     366.7
+    ],
+    "pier_n_top_se": [
+     992.9,
+     369.1
+    ],
+    "pier_n_crown_s": [
+     782.4,
+     482.0
+    ],
+    "percivals_top": [
+     808.3,
+     659.4
+    ],
+    "pier_n_spring_sw": [
+     689.8,
+     573.1
+    ],
+    "pier_n_spring_se": [
+     874.6,
+     573.6
+    ]
+   },
+   "holdout_rms_px": 15.4,
+   "note": "round 2: HSW shed east end and Felons west end dropped (they sit at the pier edges, hidden behind it); arch springing added"
+  },
+  {
+   "id": "p12_river_felons",
+   "file": "from_river/cm_18074505.jpg",
+   "title": "From the river south-east of the pier: pier portal, Mr Percival's, Felons on its piles, lift tower",
+   "date": "",
+   "time_h": 12.0,
+   "size": [
+    1600,
+    1200
+   ],
+   "mode": "tilt",
+   "pos": [
+    516.4,
+    -84.0,
+    2.5
+   ],
+   "eye_above_ground_m": 4.2,
+   "heading_deg": 6.6,
+   "pitch_deg": 4.95,
+   "roll_deg": 0.0,
+   "focal_35mm": 29.6,
+   "blender": {
+    "lens_mm": 30.83,
+    "sensor_mm": 36.0,
+    "shift_y": -0.0
+   },
+   "marks": 7,
+   "fit_rms_px": 7.0,
+   "fit_max_px": 13.8,
+   "per_mark_px": {
+    "pier_n_top_sw": 13.8,
+    "pier_n_top_se": 3.2,
+    "pier_n_crown_s": 3.8,
+    "pier_n_spring_sw": 10.7,
+    "pier_n_spring_se": 1.9,
+    "percivals_top": 1.5,
+    "lift_top": 2.9
+   },
+   "projected": {
+    "pier_n_top_sw": [
+     150.6,
+     407.3
+    ],
+    "pier_n_top_se": [
+     450.8,
+     416.2
+    ],
+    "pier_n_crown_s": [
+     300.4,
+     489.8
+    ],
+    "pier_n_spring_sw": [
+     232.3,
+     551.2
+    ],
+    "pier_n_spring_se": [
+     363.6,
+     553.3
+    ],
+    "percivals_top": [
+     263.3,
+     609.6
+    ],
+    "lift_top": [
+     997.1,
+     374.0
+    ]
+   },
+   "holdout_rms_px": 20.0,
+   "note": "round 2 (Wikimedia, Kgbo CC BY-SA 4.0). Lift top (995, 372) and Felons east ridge end (1240, 607) left out: they miss by 120-150 px, so the model lift tower or Felons east end is a few metres off (check next round)"
+  },
+  {
+   "id": "p13_kp_bank_ferry",
+   "file": "from_kangaroo_point/cm_b2f87a7b.jpg",
+   "title": "From the Kangaroo Point bank: north tower, pier portal, HSW shed, Mr Percival's, Felons, lift tower",
+   "date": "",
+   "time_h": 12.0,
+   "size": [
+    1600,
+    1200
+   ],
+   "mode": "tilt",
+   "pos": [
+    340.2,
+    -160.5,
+    5.6
+   ],
+   "eye_above_ground_m": 7.3,
+   "heading_deg": 35.6,
+   "pitch_deg": 4.76,
+   "roll_deg": 0.0,
+   "focal_35mm": 50.1,
+   "blender": {
+    "lens_mm": 52.06,
+    "sensor_mm": 36.0,
+    "shift_y": -0.0
+   },
+   "marks": 10,
+   "fit_rms_px": 26.8,
+   "fit_max_px": 45.3,
+   "per_mark_px": {
+    "pier_n_top_sw": 35.4,
+    "pier_n_top_se": 21.1,
+    "pier_n_crown_s": 15.6,
+    "pier_n_spring_sw": 9.1,
+    "pier_n_spring_se": 25.2,
+    "percivals_top": 18.7,
+    "hswshed_ridge_w": 25.8,
+    "peak_n_w": 21.5,
+    "peak_n_e": 45.3,
+    "lift_top": 31.4
+   },
+   "projected": {
+    "pier_n_top_sw": [
+     562.4,
+     530.8
+    ],
+    "pier_n_top_se": [
+     781.5,
+     548.0
+    ],
+    "pier_n_crown_s": [
+     675.3,
+     611.3
+    ],
+    "pier_n_spring_sw": [
+     626.7,
+     666.5
+    ],
+    "pier_n_spring_se": [
+     722.0,
+     670.2
+    ],
+    "percivals_top": [
+     782.2,
+     730.3
+    ],
+    "hswshed_ridge_w": [
+     225.7,
+     730.1
+    ],
+    "peak_n_w": [
+     577.0,
+     141.4
+    ],
+    "peak_n_e": [
+     726.9,
+     170.8
+    ],
+    "lift_top": [
+     1044.8,
+     499.0
+    ]
+   },
+   "holdout_rms_px": 45.0,
+   "note": "round 2 (Wikimedia, Kangaroo Point). Weak: holdout ~49 px. Lift top (1040, 530) and Felons east ridge end (1310, 768) left out for the same reason as p12"
+  }
+ ]
+}

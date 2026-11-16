@@ -21,7 +21,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.normpath(os.path.join(HERE, "..", "..", ".."))
 GLB = os.path.join(REPO, "assets", "spire", "spire_site.glb")
 CLEAR_M = 9.5            # m out from the lot (footpath 3.5 m, the kerb lane, and a tree's lean)
-PREFIXES = ("tree_", "palm_", "street_", "bus_stop", "bus_shelter")
+PREFIXES = ("tree_", "palm_", "street_", "bus_stop", "bus_shelter", "area_")
 KEEP = ("street_art",)   # (painted walls, not footpath furniture)
 LOT_FROM = "hoarding"    # the site's hoarding runs round the lot
 # Ann St in front of the site, both footpaths: the street crew's camera looks in from over the road,
@@ -85,6 +85,8 @@ def main():
         nm = nd.get("name", "")
         if "mesh" not in nd or not nm.startswith(PREFIXES) or nm.startswith(KEEP):
             continue
+        if nm.startswith("area_") and ("translation" in nd or "rotation" in nd or "matrix" in nd):
+            continue         # (the Spire area's sign texts: area_hero.py's self-check keeps them out of the zone)
         assert "translation" not in nd and "rotation" not in nd and "matrix" not in nd
         for prim in js["meshes"][nd["mesh"]]["primitives"]:
             pos, _ = arr(prim["attributes"]["POSITION"], "<f4", 3)
