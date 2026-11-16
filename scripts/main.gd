@@ -2229,9 +2229,9 @@ func _arrive_boat_line() -> Array:
 	if spire:
 		var y := float(SpireSite.d.get("river_ahd", 0.3)) - SpireSite.street
 		# (the site's own metres, as the Blender scene has them: up the Town Reach with Howard Smith
-		# Wharves on the right, under the middle of the Story Bridge's main span (layout.STORY_BRIDGE),
-		# and on towards the city. The run starts a boat's length short of the bridge.)
-		for q in [[600.0, -100.0], [488.0, -80.0], [400.0, -92.0], [374.7, -98.0]]:
+		# Wharves on the right, under the Story Bridge's main span 60 m north of its middle, 80 m off the wharves (layout.STORY_BRIDGE),
+		# and on towards the city. The run starts 45 m short of the bridge.)
+		for q in [[600.0, -35.0], [488.0, -15.0], [400.0, -60.0], [385.4, -66.0]]:
 			var gq := SpireSite.g(q)
 			out.append(Vector3(gq.x, y, gq.y))
 	else:
@@ -2299,6 +2299,12 @@ func _arrive_build(tower: Vector3, fin: Vector3, fin_look: Vector3) -> Array:
 		var f := float(i) / n
 		var cam := at - dir * lerpf(46.0, 38.0, f) + side * 11.0 + Vector3(0, lerpf(8.0, 11.0, f), 0)
 		var look := (at + dir * 14.0 + Vector3(0, 3.0, 0)).lerp(tower, lerpf(0.3, 0.5, f))
+		if spire:
+			# (from well back, the whole Story Bridge across the frame and the CityCat going under it,
+			# Howard Smith Wharves along the right bank; then closing on the boat and under the deck
+			# itself, low: the steel's 33 m over the water. It ends 20 m clear of the truss upstream.)
+			cam = at - dir * lerpf(190.0, 38.0, f) + side * lerpf(30.0, 11.0, f) + Vector3(0, lerpf(30.0, 14.0, smoothstep(0.0, 0.75, f)), 0)     # (the curve dips about 4 m under this as it gathers itself for the climb)
+			look = (at + dir * 14.0 + Vector3(0, lerpf(26.0, 3.0, f), 0)).lerp(tower, lerpf(0.1, 0.5, f * f))
 		keys.append([t, cam, look])
 	var r: Vector3 = keys[n][1]
 	var out_n := Vector3(fin.x - fin_look.x, 0, fin.z - fin_look.z).normalized()     # (the side the floor pick looks in from)
@@ -2319,9 +2325,9 @@ func _arrive_build(tower: Vector3, fin: Vector3, fin_look: Vector3) -> Array:
 		# (the third key keeps it outside the tower crane's jib until it's under it)
 		# (it leaves the water 40 m upstream of the Story Bridge, the camera clear of the truss, and
 		# swings up over the cliff in one sweep: 480 m to the site)
-		arc = [[8.6, 146.0, -189.0, 72.0, 0.35], [11.2, 84.0, -48.0, 58.0, 0.7], [12.4, 70.0, 20.0, 34.0, 0.9], [13.5, 22.0, 50.0, 20.0, 1.0]]
+		arc = [[9.6, 146.0, -189.0, 72.0, 0.35], [12.2, 84.0, -48.0, 58.0, 0.7], [13.4, 70.0, 20.0, 34.0, 0.9], [14.5, 22.0, 50.0, 20.0, 1.0]]
 		floor_y = 88.0
-		ARRIVE_T = 15.0
+		ARRIVE_T = 16.0
 	for k in arc:
 		var p := Vector3(fin_look.x, deck + float(k[3]), fin_look.z) + e * float(k[1]) + out_n * float(k[2])
 		if not spire or arc.find(k) < 2:
@@ -2382,7 +2388,7 @@ func _arrive_camera(delta: float, fin: Vector3) -> void:
 		a["t"] = 0.0
 		_arrive_keys = []
 		_arrive_line = []
-		ARRIVE_RIVER_T = 5.0 if spire else 3.6
+		ARRIVE_RIVER_T = 6.0 if spire else 3.6
 		selector.arrive_site(a["card"])
 		_light_snap = true       # (behind the picture: straight to that floor's own light, so nothing shifts on landing)
 		return
