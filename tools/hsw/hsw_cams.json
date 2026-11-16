@@ -625,8 +625,8 @@
    "id": "p06_drone_south",
    "file": "overview_aerial/pg_58687c6e.jpg",
    "title": "Drone from the river south of HSW: pier, Felons, Barrel Hall, Rivershed, cliffs",
-   "date": "",
-   "time_h": 10.0,
+   "date": "2019-11-20",
+   "time_h": 9.0,
    "size": [
     1200,
     650
@@ -685,7 +685,8 @@
     ]
    },
    "holdout_rms_px": 28.6,
-   "note": ""
+   "note": "",
+   "date_note": "r15: east sun, lattice shadow on the left water (photo p06)"
   },
   {
    "id": "p07_drone_sw_citycat",
@@ -1078,7 +1079,7 @@
    "file": "from_river/cm_18074505.jpg",
    "title": "From the river south-east of the pier: pier portal, Mr Percival's, Felons on its piles, lift tower",
    "date": "2019-11-20",
-   "time_h": 9.5,
+   "time_h": 8.5,
    "size": [
     1600,
     1200
@@ -1143,14 +1144,14 @@
    },
    "holdout_rms_px": 20.0,
    "note": "round 2 (Wikimedia, Kgbo CC BY-SA 4.0). Lift top (995, 372) and Felons east ridge end (1240, 607) left out: they miss by 120-150 px, so the model lift tower or Felons east end is a few metres off (check next round)",
-   "date_note": "r14: Nov 2019; 9:30 puts the sun east so the bridge shadow falls camera-left on the p09 water (photo)"
+   "date_note": "r15: lower east sun, longer bridge shadow on the left water"
   },
   {
    "id": "p13_kp_bank_ferry",
    "file": "from_kangaroo_point/cm_b2f87a7b.jpg",
    "title": "From the Kangaroo Point bank: north tower, pier portal, HSW shed, Mr Percival's, Felons, lift tower",
    "date": "2019-11-20",
-   "time_h": 9.5,
+   "time_h": 14.5,
    "size": [
     1600,
     1200
@@ -1230,7 +1231,7 @@
    },
    "holdout_rms_px": 45.0,
    "note": "round 2 (Wikimedia, Kangaroo Point). Weak: holdout ~49 px. Lift top (1040, 530) and Felons east ridge end (1310, 768) left out for the same reason as p12",
-   "date_note": "r14: Nov 2019; 9:30 puts the sun east so the bridge shadow falls camera-left on the p09 water (photo)"
+   "date_note": "r15: afternoon west sun lights the camera-facing truss (photo p13)"
   }
  ]
 }

@@ -545,7 +545,7 @@ def apply_light(az_deg, el_deg, kind="day"):
     bg.inputs["Strength"].default_value = mo["sky_strength"] * (6.0 if dusk else 1.0) * k5
     sc.view_settings.exposure = mo["exposure"] + (0.5 if dusk else 0.0)
     if k5 != 1.0:                                   # Blender 5 (cloud): match the PC 4.5 look
-        sc.view_settings.exposure += 0.5
+        sc.view_settings.exposure += float(os.environ.get("SKY5_EXPOSURE", mo.get("sky5_exposure", 0.9)))   # r15: +0.4 EV (critic r14 luminance)
         # r14: AgX on Blender 5 greys the sky out (mid-sky 130,161,188 vs photo 106,163,246 in p12). Standard view,
         # no look, no white balance and a thin aerosol layer matched the photo's sky and canopy on p12.
         sc.view_settings.view_transform = "Standard"
