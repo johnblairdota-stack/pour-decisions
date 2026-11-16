@@ -99,9 +99,14 @@ def cut_above(ob, z_cut):
     bm.free()
 
 
+HERO_TOWERS = (140808831, 134816032, 134816030, 134816031, 138278498, 138278768, 140804995)
+
+
 def far(ob):
     """True when every vertex of the object is further than KEEP_R from Spire (and it is not ground)."""
     if ob.type != "MESH" or ob.name.startswith(("ground", "far_", "river")):
+        return False
+    if any(("bldg_look_%d_" % osm) in ob.name for osm in HERO_TOWERS):     # (the river skyline's landmarks stay)
         return False
     vs = ob.data.vertices
     xs = [vs[i].co for i in range(0, len(vs), max(1, len(vs) // 200))]
@@ -183,6 +188,23 @@ def main():
     import build_all
     import trees
     trees.hero = lambda x, y: False                 # simple crowns everywhere (game budget)
+    # (the river skyline's landmark towers get a recipe of their own, so the game can colour each by name and
+    # buildings.toppers can give each its real top; game only, the renders keep their generic recipes)
+    import looks as LK
+    import buildings as BD
+    hx = LK.hx
+    for osm, nm, wall, glass, pat, top in (
+            (140808831, "Riparian Plaza", "c9c7c0", "2a3036", "strip", "mast"),
+            (134816032, "One One One Eagle St", "3a66a8", "2a528e", "curtain", "crown"),
+            (134816030, "One One One Eagle St", "3a66a8", "2a528e", "curtain", "crown"),
+            (134816031, "Riverside Centre", "c2bca8", "23282c", "strip", "flat"),
+            (138278498, "Central Plaza One", "e6e6e2", "56687a", "curtain", "wedge"),
+            (138278768, "Central Plaza One", "e6e6e2", "56687a", "curtain", "wedge"),
+            (140804995, "Waterfront Place", "3f7f7a", "1f4a4a", "curtain", "steps")):
+        if osm not in LK.LOOKS:
+            LK.LOOKS[osm] = {"name": nm, "src": "river photos (game only)", "shader": "glass", "wall": hx(wall),
+                             "glass": hx(glass), "roof": hx("9a9c9c"), "pattern": pat, "band": hx(wall), "game_top": top}
+    LK.LOOKS[224320346] = dict(LK.LOOKS[224320346], game_top="slope")
     trees.HERO_CENTRES = []
     # 20-face crowns. (They were 8-face octahedra: from the river they read as flat diamonds on sticks.)
     t = (1 + 5 ** 0.5) / 2
@@ -204,7 +226,22 @@ def main():
             vs.append((x + a * rx, y + b * rx, z + c * rz))
         buf.add(vs, [list(f) for f in ico20[1]])
 
+    def _customs_front(x, y):
+        # (the Customs House forecourt: the river photos show the whole front, with only the one fig at its right end)
+        du, dn = x - 18.7, y + 289.7
+        u, v = du * 0.754 + dn * 0.657, du * 0.657 - dn * 0.754
+        return -16.0 < u < 44.0 and -1.0 < v < 26.0
+
+    _trunk0 = trees.trunk
+
+    def _trunk(buf, x, y, g, r, h, branches=0, spread=1.0):
+        if not _customs_front(x, y):
+            _trunk0(buf, x, y, g, r, h, branches, spread)
+    trees.trunk = _trunk
+
     def _crown(buf, x, y, zc, r, flat, lobes=5):
+        if _customs_front(x, y):
+            return
         seed = abs(x * 31.7 + y * 17.3)
         # (the crown hangs well down its trunk: from the river the trees read as round heads, not lollipops)
         _lump(buf, x, y, zc - r * 0.8 * flat, r * 1.12, r * flat * 1.7, seed)
