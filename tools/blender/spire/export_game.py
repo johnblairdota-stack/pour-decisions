@@ -234,6 +234,14 @@ def main():
     # ground mesh: drop the far half of its faces' detail (decimate)
     for ob in bpy.data.objects:
         if ob.type == "MESH" and ob.name.startswith("ground_lidar"):
+            # (the river bed goes first: decimated, its faces became long shards from the banks out to
+            # mid-river that rose through the water as flat grey shelves. The water plane hides the hole.)
+            bm = bmesh.new()
+            bm.from_mesh(ob.data)
+            wet = [f for f in bm.faces if all(v.co.z < L.RIVER_LEVEL_AHD - 0.5 for v in f.verts)]
+            bmesh.ops.delete(bm, geom=wet, context="FACES")
+            bm.to_mesh(ob.data)
+            bm.free()
             mod = ob.modifiers.new("dec", "DECIMATE")
             mod.ratio = 0.12
             bpy.context.view_layer.objects.active = ob
