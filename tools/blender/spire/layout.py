@@ -261,7 +261,7 @@ HSW.update({
     "lidar_blocks": {"box": (430.0, 95.0, 800.0, 340.0), "min_h_m": 8.0, "min_cells": 120, "tile_m": 4,
                      # r11: clean slabs (critic r10): <= max_slabs per block, top = DSM percentile + raise
                      "max_slabs": 4, "slab_len_m": 35.0, "gap_m": 3.0, "top_pct": 95, "raise_m": 1.0,
-                     "wall": (0.82, 0.75, 0.55), "slab": (0.92, 0.91, 0.86), "rail": (0.10, 0.10, 0.11)},
+                     "wall": (0.85, 0.78, 0.60), "slab": (0.86, 0.82, 0.70), "rail": (0.10, 0.10, 0.11)},
     "umbrella_cluster_xy": (735.0, -20.0),                    # r9: Rivershed Lawn, 12 taupe umbrellas
     # 12 horizon: compositor mist toward a warm haze, far ridge card, green far land
     "mist": {"start_m": 350.0, "depth_m": 2600.0, "strength": 0.5, "rgb": (0.62, 0.66, 0.72)},
