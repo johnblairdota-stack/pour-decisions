@@ -72,8 +72,8 @@ static func _planter(root: Node3D, x: float, out: float, s := 1.0) -> void:
 ## the glass it's the bridge, the river and the suburbs out to the hills.
 const MOSAIC := """shader_type spatial;
 render_mode diffuse_toon, specular_toon;
-uniform vec4 deep : source_color = vec4(0.04, 0.17, 0.32, 1.0);
-uniform vec4 pale : source_color = vec4(0.09, 0.33, 0.52, 1.0);
+uniform vec4 deep : source_color = vec4(0.04, 0.22, 0.32, 1.0);
+uniform vec4 pale : source_color = vec4(0.10, 0.40, 0.50, 1.0);
 varying vec3 wp;
 float h(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
 void vertex() { wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }
@@ -83,7 +83,7 @@ void fragment() {
 	vec2 f = fract(t);
 	float grout = 1.0 - step(0.08, f.x) * step(0.08, f.y);
 	float far = clamp(length(VERTEX) / 7.0, 0.0, 1.0);
-	vec3 c = mix(deep.rgb, pale.rgb, k * 0.45 + far * 0.4);
+	vec3 c = mix(deep.rgb, pale.rgb, k * 0.25 + far * 0.55);
 	ALBEDO = mix(c, deep.rgb * 0.6, grout * (1.0 - far) * 0.6);
 	ROUGHNESS = 0.08;
 	METALLIC = 0.2;
@@ -106,12 +106,12 @@ static func _pool(root: Node3D) -> void:
 	# the stone coping curving round the pool's end, in at the bottom right
 	for k in 7:
 		var a := deg_to_rad(187.0 - 8.0 * k)
-		var b := F.box(Vector3(1.6, 0.22, 1.0), stone, Vector3.ZERO, false)
-		b.position = Vector3(9.6 + 6.0 * cos(a), 0.05, -(2.0 + 6.0 * sin(a)))
+		var b := F.box(Vector3(0.9, 0.22, 1.0), stone, Vector3.ZERO, false)
+		b.position = Vector3(11.4 + 6.0 * cos(a), 0.05, -(2.0 + 6.0 * sin(a)))
 		b.rotation.y = a + PI
 		root.add_child(b)
 	# (and the deck behind the coping, out to the right)
-	_blk(root, stone, 6.8, 40.0, -3.0, edge, -0.06, 0.12)
+	_blk(root, _mat(Color("7d8488"), 0.9), 10.5, 40.0, -3.0, edge, -0.06, 0.1)
 
 ## Riverlight: a timber terrace at the roof's edge, a glass rail, a table and two chairs.
 static func _terrace(root: Node3D) -> void:

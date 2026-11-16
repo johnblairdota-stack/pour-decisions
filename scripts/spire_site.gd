@@ -573,11 +573,11 @@ static func road_lift(x: float, z: float) -> float:
 ## window grid, the way Riverlight's neighbours have. Bare ground goes paving grey, the land beyond
 ## the model the game's park green, rock a warm sandstone, water the river's blue-green.
 const RIVER_COL := Color("55683f")      # (the Brisbane River: olive brown, green enough to stay water in warm light)
-const WALL_MAX := 0.74       # brightest a wall's colour may be (its value, 0..1)
+const WALL_MAX := 0.66       # brightest a wall's colour may be (its value, 0..1)
 ## The pick flight's warm light turns blue glass mint green and cream walls yellow. The real skyline from
 ## the river is grey-white concrete, sand and blue-black glass, so the neighbours carry less colour of
 ## their own than the Blender looks do.
-const WALL_SAT := 0.6
+const WALL_SAT := 0.45
 const GLASS_SAT := 0.75
 static var _mats := {}
 
@@ -622,7 +622,11 @@ static func _game_mat(mat: BaseMaterial3D) -> Material:
 		var w := ShaderMaterial.new()
 		w.shader = preload("res://shaders/river.gdshader")
 		w.set_shader_parameter("water", RIVER_COL)
-		w.set_shader_parameter("gloss", 0.22)
+		w.set_shader_parameter("gloss", 0.14)
+		w.set_shader_parameter("smear", 0.22)
+		var bm := g([487.9, -73.6])           # (the Story Bridge's main span: its shadow on the water)
+		w.set_shader_parameter("shade_line", Vector4(bm.x, bm.y, 0.63, -0.78))
+		w.set_shader_parameter("shade_half", 15.0)
 		w.set_shader_parameter("rough", 0.3)
 		out = w
 	elif mat.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED or col.a < 0.99 or mat.albedo_texture != null \
@@ -636,7 +640,12 @@ static func _game_mat(mat: BaseMaterial3D) -> Material:
 		b2.metallic = 0.0
 		b2.roughness = 0.9
 		out = b2
-	elif nm.begins_with("hsw_") and nm.ends_with("_leaf") and not nm.contains("jacaranda"):
+	elif nm == "tree_crowns_far":
+		# (the crowns a leafier green: the model's is near black-olive in the warm light)
+		var t2 := mat.duplicate() as BaseMaterial3D
+		t2.albedo_color = Color("3a5a2e")
+		out = t2
+	elif nm.begins_with("hsw_") and nm.ends_with("_leaf"):
 		# (the far cliff's canopy: the trees' green, not lime in the warm light)
 		var l2 := mat.duplicate() as BaseMaterial3D
 		l2.albedo_color = Color("3f6a34") if nm.contains("olive") or nm.contains("tops") else Color("35592f")
@@ -668,7 +677,7 @@ static func _game_mat(mat: BaseMaterial3D) -> Material:
 		if col.v > WALL_MAX:
 			col.v = WALL_MAX
 		if not nm.ends_with("_accent"):       # (accents keep their colour: Customs House's copper dome)
-			col.s *= WALL_SAT
+			col.s *= WALL_SAT * (0.6 if nm.contains("26253545") else 1.0)      # (Customs House: pale sandstone, not yellow)
 		var looks: Dictionary = d.get("looks", {})
 		if looks.has(nm):
 			# (the building's own facade recipe from the Blender scene: its glass, and its window grid as
@@ -678,12 +687,19 @@ static func _game_mat(mat: BaseMaterial3D) -> Material:
 			var glass := Color(float(gl[0]), float(gl[1]), float(gl[2])).lightened(0.1)     # (dark against the pale walls, as the render's glass reads)
 			glass.s *= GLASS_SAT
 			glass.v *= 0.6
+			if bool(lk.get("diag", false)):       # (Soleil / the tall diagonal tower: black-blue glass, not brown)
+				col = Color("2a3140")
 			var wm := F.window_mat(col, 0.0, 0.0, glass)
 			var bay := float(lk["bay"])
 			var side := clampf(0.5 - 0.5 * float(lk["win"]) / bay, 0.03, 0.45)
 			wm.set_shader_parameter("cell", Vector2(bay, float(lk["floor"])))
 			wm.set_shader_parameter("win_rect", Vector4(side, 1.0 - side, float(lk["sill"]), float(lk["head"])))
 			wm.set_shader_parameter("diag", bool(lk.get("diag", false)))
+			# (a little of the sky's blue in every pane, whatever the sun's colour: the warm pick light
+			# alone turns dark glass bottle green)
+			wm.set_shader_parameter("lit_color", Color(0.10, 0.17, 0.32))
+			wm.set_shader_parameter("lit_ratio", 1.0)
+			wm.set_shader_parameter("glow", 0.45)
 			wm.set_shader_parameter("roof", true)
 			out = wm
 		elif not looks.is_empty() and nm.ends_with("_band"):

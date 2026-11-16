@@ -11,6 +11,11 @@ uniform float ripple = 1.0;
 uniform float glint = 1.0;
 uniform float gloss = 0.8;        // (how much sky it mirrors: Spire's muddy river takes less)
 uniform float rough = 0.12;
+// Spire's river from the bridge and the CityCat: the Story Bridge's shadow lying across the water, and
+// soft darker smears running towards the camera off the far bank, as the towers' reflections do.
+uniform float smear = 0.0;
+uniform vec4 shade_line = vec4(0.0);      // (a point on the bridge's centre line xz, its direction xz)
+uniform float shade_half = 0.0;           // (half the shadow's width, m: 0 = none)
 
 varying vec3 wpos;
 
@@ -42,6 +47,19 @@ void fragment() {
 	NORMAL = normalize((VIEW_MATRIX * vec4(n, 0.0)).xyz);
 	// (the sky's reflection does the rest: glossy, as the river always was)
 	ALBEDO = mix(water.rgb, sky.rgb, clamp(-g.x * 1.5, 0.0, 0.06) * near);
+	if (smear > 0.0) {
+		vec3 cam = (INV_VIEW_MATRIX * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+		vec2 to = p - cam.xz;
+		float ang = atan(to.y, to.x);
+		float k = sin(ang * 61.0) * 0.5 + sin(ang * 143.0 + 1.7) * 0.3 + sin(ang * 23.0 + 0.6) * 0.4;
+		float far = smoothstep(120.0, 420.0, dist);
+		ALBEDO *= 1.0 - smear * far * smoothstep(0.1, 0.7, k);
+	}
+	if (shade_half > 0.0) {
+		vec2 rel = p - shade_line.xy;
+		float off = abs(rel.x * shade_line.w - rel.y * shade_line.z);
+		ALBEDO *= 1.0 - 0.38 * (1.0 - smoothstep(shade_half * 0.75, shade_half, off));
+	}
 	ROUGHNESS = rough;
 	SPECULAR = gloss;
 	// Glints: the steepest ripple crests, now and then

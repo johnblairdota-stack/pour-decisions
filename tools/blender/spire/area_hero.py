@@ -1498,7 +1498,7 @@ def customs_house(col, guard, objs, report):
     w = o["ways"].get(CUSTOMS_OSM)
     m = bpy.data.materials.get("look_%d_accent" % CUSTOMS_OSM)
     if m:
-        m.diffuse_color = (0.50, 0.80, 0.66, 1) if L.GAME_EXPORT else (0.09, 0.20, 0.15, 1)     # (game: pale verdigris, 8fc3a6)
+        m.diffuse_color = (0.36, 0.66, 0.54, 1) if L.GAME_EXPORT else (0.09, 0.20, 0.15, 1)     # (game: pale verdigris, 8fc3a6)
     if not w:
         return
     ring = S.ccw(C.clean_ring(o["line"](w)))
@@ -1519,7 +1519,7 @@ def customs_house(col, guard, objs, report):
     g = min(gz(*a), gz(*b))
     cols_, stone = C.MeshBuf(), C.MeshBuf()
     span = min(ln * 0.55, 16.0)
-    H, R = 9.5, 0.45
+    H, R = 9.5, (0.7 if L.GAME_EXPORT else 0.45)
     for i in range(6):
         u = -span / 2 + span * i / 5
         px, py = mx + ux * u + nx * 2.2, my + uy * u + ny * 2.2
@@ -1549,13 +1549,13 @@ def customs_house(col, guard, objs, report):
     report.append("Customs House: 6-column portico + pediment on the river front, copper dome green")
     if L.GAME_EXPORT:
         # the big fig beside it (from the river, the second thing you see): a trunk and a clump of round crowns
-        fx, fy = mx + ux * (ln / 2 + 9.0) + nx * 3.0, my + uy * (ln / 2 + 9.0) + ny * 3.0
+        fx, fy = mx + ux * (ln / 2 + 15.0) + nx * 3.0, my + uy * (ln / 2 + 15.0) + ny * 3.0
         fg = gz(fx, fy)
         bark, leaf = C.MeshBuf(), C.MeshBuf()
         T.tube(bark, (fx, fy, fg - 0.3), (fx, fy, fg + 9.0), 1.3, 0.8, 7)
         for dx, dy, dz, r in ((0, 0, 15.0, 8.5), (5.5, 1.5, 12.5, 6.5), (-5.0, 2.5, 13.0, 6.5), (1.0, -5.5, 12.0, 6.0),
                               (-1.5, 5.0, 16.5, 6.0), (4.0, -3.5, 17.0, 5.5), (-4.5, -3.0, 17.5, 5.0)):
-            T.blob(leaf, fx + ux * dx + nx * dy, fy + uy * dx + ny * dy, fg + dz, r, r * 0.85)
+            T.blob(leaf, fx + ux * dx * 0.8 + nx * dy * 0.8, fy + uy * dx * 0.8 + ny * dy * 0.8, fg + dz * 0.85, r * 0.8, r * 0.7)
         put(bark, "customs_fig_bark", col, mat("customs_fig_bark", (0.35, 0.29, 0.23)), objs)
         fo = leaf.object("tree_crowns_far_customs_fig", col, "tree")       # (a tree to the game: the crowns' own material)
         if fo:
@@ -1567,7 +1567,7 @@ def customs_house(col, guard, objs, report):
             objs.append(fo.name)
         # the river front as the photos have it: a second gabled bay, a dark stone river wall and a railed
         # boardwalk along the water
-        wallm = mat("customs_riverwall", (0.36, 0.33, 0.30))
+        wallm = mat("customs_riverwall", (0.27, 0.28, 0.29))
         railm = mat("customs_boardwalk", (0.62, 0.62, 0.60))
         rw, bw = C.MeshBuf(), C.MeshBuf()
         for k in (-1, 1):
@@ -1589,8 +1589,16 @@ def customs_house(col, guard, objs, report):
         for i in range(int(wl / 3.0) + 1):
             u = -wl / 2 + i * 3.0
             bw.box(bx2 + ux * u + nx * 1.9, by2 + uy * u + ny * 1.9, L.RIVER_LEVEL_AHD - 1.5, 0.3, 0.3, 3.9, e)   # piles and posts
-        put(cols_, "customs_columns", col, ston, objs)
-        put(stone, "customs_portico", col, ston, objs)
+        # (the colonnade has to read from mid river: pale columns standing in front of a shadowed porch)
+        rec = C.MeshBuf()
+        rec.box(mx + nx * 0.5, my + ny * 0.5, g + 1.0, span + 1.0, 1.4, H, e)
+        for i in range(8):                                   # a pilaster rhythm along the rest of the river front
+            u = -ln * 0.46 + ln * 0.92 * i / 7
+            if abs(u) > span / 2 + 2.0:
+                cols_.box(mx + ux * u + nx * 0.45, my + uy * u + ny * 0.45, g + 1.0, 0.9, 0.5, H, e)
+        put(rec, "customs_porch_shadow", col, mat("customs_porch_shadow", (0.30, 0.26, 0.22)), objs)
+        put(cols_, "customs_columns", col, mat("customs_columns_pale", (0.95, 0.93, 0.86)), objs)
+        put(stone, "customs_portico", col, mat("customs_portico_pale", (0.90, 0.87, 0.78)), objs)
         put(rw, "customs_riverwall", col, wallm, objs)
         put(bw, "customs_boardwalk", col, railm, objs)
 
