@@ -32,6 +32,7 @@ var _spotter: Node3D
 var _spot_label: Label3D
 var _walkers: Array = []   # people on the footpath: {node, x, dir, phase}
 var _board: Array = []     # the arrow board's lamps
+var _bar_root: Node3D      # the barriers
 var _t := 0.0
 var barriers: Array = []  # the barrier nodes (the game cuts them away round anyone working behind them)
 var _hold_traffic := false
@@ -49,6 +50,9 @@ func build(owner_game) -> void:
 	_signs()
 	_gantry()
 	_zones()
+	# (the barriers, cones, signs, gantry and lines never move: a few meshes for the lot)
+	F.bake(self)
+	F.bake(_bar_root)
 	_people()
 
 # ------------------------------------------------------------------ the work zone
@@ -62,10 +66,16 @@ func _barrier(x: float, z: float, i: int, yaw := 0.0) -> void:
 	n.add_child(F.box(Vector3(0.5, 0.06, 0.2), F.color_mat(Color("23272e")), Vector3(0, 0.9, 0), false))
 	n.position = Vector3(x, gy(x, z), z)
 	n.rotation.y = yaw
-	add_child(n)
-	barriers.append(n)
+	_bar_root.add_child(n)
 
 func _barriers() -> void:
+	# (all the barriers in one node, merged into a mesh of their own: kept apart from the rest of the
+	# street kit so the game can cut them away round anyone working behind them)
+	_bar_root = Node3D.new()
+	_bar_root.name = "Barriers"
+	_bar_root.set_meta("nobake", true)
+	add_child(_bar_root)
+	barriers = [_bar_root]
 	var i := 0
 	for run: Vector2 in [Vector2(ZONE_X0, OUT_GAP.x), Vector2(OUT_GAP.y, IN_GAP.x)]:
 		var x := run.x + 1.0
@@ -145,6 +155,7 @@ func _signs() -> void:
 		Vector2(0.5, 0.35), Vector2(0.5, -0.35), Vector2(0.15, 0.2), Vector2(0.15, -0.2)]
 	for lp: Vector2 in lamps:
 		var m := F.box(Vector3(0.03, 0.16, 0.16), F.flat_mat(Color("ffcf33")), Vector3(-0.07, 2.6 + lp.y, lp.x), false)
+		m.set_meta("nobake", true)
 		ab.add_child(m)
 		_board.append(m)
 	ab.position = Vector3(-21.5, gy(-21.5, 3.6), 3.6)

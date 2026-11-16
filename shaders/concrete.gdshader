@@ -152,8 +152,10 @@ void fragment() {
 	// Work overlays: soft pulsing tints over what still needs doing
 	float todo_v = (1.0 - smoothstep(0.6, 0.84, vib)) * step(0.1, vh) * (1.0 - step(0.999, st.r)) * poker_view;
 	float hurry = smoothstep(0.45, 0.8, st.r);
-	vec3 vcol = mix(vec3(0.62, 0.42, 0.98), vec3(1.0, 0.3, 0.45), hurry);
-	float vp = (0.38 + 0.14 * sin(TIME * 4.0 + nuv.x * 20.0)) * todo_v;
+	// (a strong, saturated violet: it has to read as PURPLE on a TV across
+	// the room, not as grey concrete with a lilac tinge)
+	vec3 vcol = mix(vec3(0.6, 0.14, 1.0), vec3(1.0, 0.22, 0.4), hurry);
+	float vp = (0.66 + 0.1 * sin(TIME * 4.0 + nuv.x * 20.0)) * todo_v;
 	// (and the vibrated concrete beside it goes a touch darker,
 	// so the edge between done and not done reads in any light)
 	col = mix(col, col * 0.84, (1.0 - todo_v) * step(0.1, vh) * poker_view * (1.0 - cured) * 0.6);
@@ -179,7 +181,7 @@ void fragment() {
 	float wash = fn.b * float_view * (1.0 - cured) * (0.28 + 0.08 * sin(TIME * 3.0 + nuv.x * 16.0));
 	col = mix(col, vec3(1.0, 0.82, 0.25), wash);
 	col = mix(col, vec3(1.0, 0.82, 0.25), glint * 0.9);
-	EMISSION = vcol * vp * mix(0.6, 1.4, low_light) + vec3(0.72, 1.0, 0.86) * sp * mix(0.7, 1.2, low_light) + ecol * ep * 0.6 + vec3(1.0, 0.82, 0.25) * (glint * 0.8 + wash * 0.5);
+	EMISSION = vcol * vp * mix(0.85, 1.5, low_light) + vec3(0.72, 1.0, 0.86) * sp * mix(0.7, 1.2, low_light) + ecol * ep * 0.6 + vec3(1.0, 0.82, 0.25) * (glint * 0.8 + wash * 0.5);
 	ALBEDO = col;
 	float rough = mix(0.06, 0.22, depth) + 0.06 * grit + 0.5 * going;
 	rough = mix(rough, 0.55, raw * 0.8);

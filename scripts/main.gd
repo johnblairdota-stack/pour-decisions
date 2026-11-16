@@ -276,6 +276,9 @@ var _pitch_before := 0.62
 # ------------------------------------------------------------------ setup
 
 func _ready() -> void:
+	# (the crew's hand-sign pictures are drawn on a worker thread now, not mid-pour)
+	preload("res://scripts/hand_signs.gd").warm()
+	get_tree().create_timer(4.0, true).timeout.connect(preload("res://scripts/hand_signs.gd").finish)
 	# (a pause never carries over a restart: the crew page has to run)
 	get_tree().paused = false
 	UI.install_fonts()
@@ -1917,11 +1920,16 @@ func _build_walkway() -> void:
 			parts.append(F.box(Vector3(0.07, 1.1, 0.07), rail, p + Vector3(0, 0.55, 0)))
 			# Scaffold standards down to the floor below
 			parts.append(F.box(Vector3(0.06, FH, 0.06), grate, p + Vector3(0, -FH * 0.5, 0)))
+	# (all of it stands still on the rig: merged into a few meshes, F.bake)
+	var scaf := Node3D.new()
+	scaf.name = "Scaffold"
+	rig.add_child(scaf)
+	_rect_rails.append(scaf)
 	for part in parts:
 		# (built round the slab's centre)
 		part.position += Vector3(SC.x, 0, SC.z)
-		rig.add_child(part)
-		_rect_rails.append(part)
+		scaf.add_child(part)
+	F.bake(scaf)
 	# Blue edge screens hung outside the walkway, from rail height down past
 	# the two floors under the deck, as on the real job (open at the hoist
 	# landing, the walkway out to the boom, and where the link joins the
@@ -1940,6 +1948,7 @@ func _build_walkway() -> void:
 	Yard.screen_line(_screens, Vector3(hoist_x + 1.2, 0, nz), Vector3(ex, 0, nz), Vector3(0, 0, -1))
 	Yard.screen_line(_screens, Vector3(ex, 0, sz), Vector3(ex, 0, OTHER_WING[0].y), Vector3(-1, 0, 0))
 	Yard.screen_line(_screens, Vector3(ex, 0, 1.5), Vector3(ex, 0, nz), Vector3(-1, 0, 0))
+	F.bake(_screens)
 
 ## The walkway's centreline as a loop: a point `s` metres round it.
 func walkway_point(s: float) -> Vector2:
@@ -2516,13 +2525,20 @@ func _spire_crane(deck: float) -> void:
 	var want := deck + 3.0 * FH + 3.2 + 32.0
 	var n := 0
 	for c in climb.crane.get_children():
-		if c != climb.crane_slew:
+		if c != climb.crane_slew and not c.has_meta("baked"):
 			n += 1
+	var added := false
 	while n * LS < want:
 		var sec := F.lattice_section(LS, 2.2)
 		sec.position.y = n * LS
 		climb.crane.add_child(sec)
 		n += 1
+		added = true
+	if added:
+		# (the mast's sections never move: one mesh a material for the lot, made again as it grows; the
+		# slewing part on top turns, so it's left out)
+		climb.crane_slew.set_meta("nobake", true)
+		F.bake(climb.crane)
 	climb.CRANE_H = n * LS
 	climb.crane_slew.position.y = climb.CRANE_H
 
@@ -4265,7 +4281,9 @@ func _grade() -> void:
 	_save_medal(medal)
 	Wallet.save()
 	if autotest:
-			print("[autotest]   level %d: +%d pts (total %d, %s), quality %.0f, medal %s in %.1fs (silver %.0f, gold %.0f, fault slack %.0f) (bots %s) | %s | %s" % [k + 1, score.level, score.total, score.rank_name(), quality, score.MEDALS[medal], pour_clock, tg.x, tg.y, _fault_slack, score.MEDALS[was_tier], " | ".join(score.report_rows()), " | ".join(rows)])
+		print("[autotest]   footprints in the finish: %d blamed, %d forgiven" % [prints_n[0], prints_n[1]])
+		prints_n = [0, 0]
+		print("[autotest]   level %d: +%d pts (total %d, %s), quality %.0f, medal %s in %.1fs (silver %.0f, gold %.0f, fault slack %.0f) (bots %s) | %s | %s" % [k + 1, score.level, score.total, score.rank_name(), quality, score.MEDALS[medal], pour_clock, tg.x, tg.y, _fault_slack, score.MEDALS[was_tier], " | ".join(score.report_rows()), " | ".join(rows)])
 
 ## The slab report's contents: the medal, each hard hat's points and what
 ## earned them most, the crew star (the person with the most), and what's next.
@@ -5964,7 +5982,9 @@ func _jobs() -> Array:
 ## walkway round the slab is the way to get about. Once the concrete's gone
 ## off it doesn't matter. (The bots step lightly: prints are for people.)
 const STRIDE := 0.4
+const POKER_GRACE := 12.0   # s fresh finish is forgiven under a poker's boots
 var _foot_toast_t := 0.0
+var prints_n := [0, 0]     # this level: prints in the finish blamed, forgiven (autotest log)
 
 func _footprints(p) -> void:
 	_foot_toast_t = maxf(0.0, _foot_toast_t - get_process_delta_time())
@@ -5984,7 +6004,13 @@ func _footprints(p) -> void:
 	var dir := step.normalized()
 	var side := Vector2(-dir.y, dir.x) * (0.09 if left else -0.09)
 	var at := _pour_local(Vector3(p.position.x + side.x, p.position.y, p.position.z + side.y))
-	if pour.footprint(at, atan2(dir.x, dir.y)) == 2:
+	# (the poker's forgiven finish the screed only just put down round them:
+	# working the purple, they can't always see what's been done behind)
+	var grace: float = POKER_GRACE if p.role == "poker" else 0.0
+	var fp: int = pour.footprint(at, atan2(dir.x, dir.y), grace)
+	if fp >= 2:
+		prints_n[fp - 2] += 1
+	if fp == 2:
 		score.award(p, -3, "Footprints in the finish")
 		if _foot_toast_t <= 0.0:
 			_foot_toast_t = 8.0

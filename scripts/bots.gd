@@ -16,6 +16,11 @@ var _spot_tries := {}   # patch -> {n, at, p}: spot pulls tried on it
 var _strip_runs := {}   # strip x -> {n, at}: pulls down that strip lately
 const STRIP_AGAIN := 2     # pulls down one strip before it's left a while
 const STRIP_REST := 25.0   # s a well-worked strip is left before going back
+## A person on the poker gets this much room (m): the screeder bot keeps its
+## board out of it, so there's no fresh finish right under them that they'd
+## have to walk across to get to the next purple. (A real screed crew works
+## a couple of metres back from the vibrators, not under their feet.)
+const POKER_ROOM := 3.2
 var _barked := {}
 var _naive_dog := OS.get_cmdline_user_args().has("--naive-dog")
 var _pk_target := Vector3(INF, 0, 0)
@@ -953,11 +958,12 @@ func _screed_inner(p, delta: float) -> void:
 			for k in _spot_tries:
 				if _spot_tries[k]["n"] >= 3:
 					skip.append(_spot_tries[k]["p"])
-			var tgt: Vector3 = pour.needs_screed(local, hose, 0.0 if full else 2.4, skip)
+			var room := _poker_room()
+			var tgt: Vector3 = pour.needs_screed(local, hose, 0.0 if full else 2.4, skip, room, POKER_ROOM + 0.6)
 			if tgt.x == INF:
 				# Nothing ready: wait behind the pokers, out from under the boom
 				var wait := Vector3(clampf(hose.x - 4.0, -pour.bw * 0.5 + 1.0, pour.bw * 0.5 - 1.0), 0, clampf(-hose.z * 0.5, -pour.bd * 0.5 + 1.5, pour.bd * 0.5 - 1.5))
-				wait = _on_slab(wait, 1.0)
+				wait = _on_slab(_out_of_room(wait, room), 1.0)
 				walk(p, pour.position + Vector3(wait.x, 0, wait.z) + Vector3(0, wy - pour.position.y, 0), 0.8)
 				return
 			var strip: float = scr.BOARD - 0.3
@@ -965,7 +971,11 @@ func _screed_inner(p, delta: float) -> void:
 			var dir := 1.0 if tgt.z < 0.0 else -1.0
 			if pour.round_r > 0.0:
 				x = clampf(x, -pour.round_r + 1.2, pour.round_r - 1.2)
-			if pour.strip_work(x - strip * 0.5, x + strip * 0.5) >= 14 and absf(tgt.x - x) < 1.3 and not _strip_worn(x):
+			# (a strip with the poker on it is pulled from the far end, toward them,
+			# and stops short of their room)
+			if _strip_start_in_room(x, dir, half_d, room):
+				dir = -dir
+			if pour.strip_work(x - strip * 0.5, x + strip * 0.5) >= 14 and absf(tgt.x - x) < 1.3 and not _strip_worn(x) and not _strip_start_in_room(x, dir, half_d, room):
 				_scr = _strip_pull(x, dir, half_d)
 			else:
 				# Odd bits (a corner, an edge, a patch a strip can't reach): stand
@@ -997,7 +1007,7 @@ func _screed_inner(p, delta: float) -> void:
 				p.model.rotation.y = atan2(-n2.x, -n2.z)
 				return
 			var to_pt := _on_slab((_scr["from"] as Vector3) + n2 * 1.5, 0.45)
-			if walk(p, pour.position + Vector3(to_pt.x, wy - pour.position.y, to_pt.z), 0.25) or _scr["t"] > 3.5:
+			if walk(p, pour.position + Vector3(to_pt.x, wy - pour.position.y, to_pt.z), 0.25) or _scr["t"] > 3.5 or _in_room(local + n2 * 0.9, _poker_room()):
 				p.ai_action = false
 				_scr = {"mode": "seek", "x": 0.0, "dir": 1.0, "end": 0.0, "t": 0.0}
 		"approach":
@@ -1011,7 +1021,13 @@ func _screed_inner(p, delta: float) -> void:
 			# Stepping across to the next strip, the board stays down: it's
 			# dragged along the form, finishing the edge and the corners
 			# (only if there's concrete under the board, not bare deck)
-			p.ai_action = bool(_scr.get("hold", false)) and _under_board(p)
+			var room_a := _poker_room()
+			p.ai_action = bool(_scr.get("hold", false)) and _under_board(p) and not _in_room(local, room_a)
+			if _in_room(start, room_a):
+				# (the poker's moved onto where this pull starts: find other work)
+				p.ai_action = false
+				_scr = {"mode": "seek", "x": 0.0, "dir": 1.0, "end": 0.0, "t": 0.0}
+				return
 			if walk(p, at, 0.35) or _scr["t"] > 6.0 * sqrt(pour.vol_k):
 				if not p.ai_action:
 					p.model.rotation.y = 0.0 if dir > 0.0 else PI
@@ -1027,7 +1043,12 @@ func _screed_inner(p, delta: float) -> void:
 			# Don't screed under the boom's hose
 			var ahead: Vector3 = local + Vector3(0, 0, dir2 * 1.2)
 			var under_hose: bool = g._filled_ratio() < 1.0 and Vector2(ahead.x - hose.x, ahead.z - hose.z).length() < 1.6
-			if arrived or _scr["t"] > 9.0 * sqrt(pour.vol_k) or under_hose:
+			# Nor right up behind a person on the poker: stop short of their room
+			var room_s := _poker_room()
+			var at_poker: bool = _in_room(ahead, room_s) or _in_room(local, room_s)
+			if at_poker:
+				arrived = false
+			if arrived or _scr["t"] > 9.0 * sqrt(pour.vol_k) or under_hose or at_poker:
 				p.ai_action = arrived
 				# Down one strip and back up the next, the way a crew works a slab:
 				# step across a board's width and pull it back the other way
@@ -1048,6 +1069,50 @@ func _screed_inner(p, delta: float) -> void:
 				else:
 					p.ai_action = false
 					_scr = {"mode": "seek", "x": 0.0, "dir": 1.0, "end": 0.0, "t": 0.0}
+
+## Where the people on the poker are (pour-local), when they're out on the
+## slab during the pour: the screeder bot leaves them POKER_ROOM.
+func _poker_room() -> Array:
+	var out: Array = []
+	var g = game
+	if g.phase != "pour":
+		return out
+	for q in g.players:
+		if not q.bot and q.role == "poker" and q.zone == "deck":
+			var l: Vector3 = q.position - g.pour.position
+			out.append(Vector3(l.x, 0, l.z))
+	return out
+
+func _in_room(local: Vector3, room: Array) -> bool:
+	for c in room:
+		if Vector2(local.x - c.x, local.z - c.z).length() < POKER_ROOM:
+			return true
+	return false
+
+## `v` moved out of the poker's room (pour-local), if it's in it.
+func _out_of_room(v: Vector3, room: Array) -> Vector3:
+	var out := v
+	for c in room:
+		var d := Vector2(out.x - c.x, out.z - c.z)
+		if d.length() < POKER_ROOM + 0.5:
+			if d.length() < 0.1:
+				d = Vector2(-1, 0)
+			d = d.normalized() * (POKER_ROOM + 0.5)
+			out = Vector3(c.x + d.x, 0, c.z + d.y)
+	return out
+
+## Does a pull down the strip at `x` in direction `dir` start in the room?
+func _strip_start_in_room(x: float, dir: float, half_d: float, room: Array) -> bool:
+	if room.is_empty():
+		return false
+	var half := _half_at(x, half_d)
+	var band: Vector2 = game.pour.strip_band(x - (game.screed.BOARD - 0.3) * 0.5, x + (game.screed.BOARD - 0.3) * 0.5)
+	var start := -half * dir
+	if band.x != INF:
+		start = maxf(-half, band.x - 1.5) if dir > 0.0 else minf(half, band.y + 1.5)
+		if absf(start) > half - 2.0:
+			start = -half * dir
+	return _in_room(Vector3(x, 0, start), room)
 
 ## A pull down the strip at `x`, only as far as there's concrete wanting it:
 ## from the form (or just short of the first rough bit) to just past the last.
