@@ -572,7 +572,7 @@ static func road_lift(x: float, z: float) -> float:
 ## picture styles reach them too), no brighter than a sunlit render wall, and their walls the game's
 ## window grid, the way Riverlight's neighbours have. Bare ground goes paving grey, the land beyond
 ## the model the game's park green, rock a warm sandstone, water the river's blue-green.
-const RIVER_COL := Color("4a6660")      # (the Brisbane River: grey-green. The warm pick light adds the brown itself.)
+const RIVER_COL := Color("374a3c")      # (the Brisbane River: dark green-brown. The sun and sky brighten it a lot.)
 const WALL_MAX := 0.66       # brightest a wall's colour may be (its value, 0..1)
 ## The pick flight's warm light turns blue glass mint green and cream walls yellow. The real skyline from
 ## the river is grey-white concrete, sand and blue-black glass, so the neighbours carry less colour of
@@ -623,9 +623,10 @@ static func _game_mat(mat: BaseMaterial3D) -> Material:
 		var w := ShaderMaterial.new()
 		w.shader = preload("res://shaders/river.gdshader")
 		w.set_shader_parameter("water", RIVER_COL)
-		w.set_shader_parameter("gloss", 0.10)
+		w.set_shader_parameter("gloss", 0.06)
 		w.set_shader_parameter("smear", 0.14)
-		w.set_shader_parameter("far_mix", 0.45)
+		w.set_shader_parameter("far_mix", 0.5)
+		w.set_shader_parameter("far_tint", Color("486a86"))
 		w.set_shader_parameter("shade_dark", 0.5)
 		var bm := g([487.9, -73.6])           # (the Story Bridge's main span: its shadow on the water)
 		w.set_shader_parameter("shade_line", Vector4(bm.x, bm.y, 0.63, -0.78))
@@ -646,7 +647,7 @@ static func _game_mat(mat: BaseMaterial3D) -> Material:
 	elif nm == "tree_crowns_far":
 		# (the crowns a leafier green: the model's is near black-olive in the warm light)
 		var t2 := mat.duplicate() as BaseMaterial3D
-		t2.albedo_color = Color("3a5a2e")
+		t2.albedo_color = Color("27482b")
 		out = t2
 	elif nm.begins_with("hsw_") and nm.ends_with("_leaf"):
 		# (the far cliff's canopy: the trees' green, not lime in the warm light)
@@ -656,7 +657,7 @@ static func _game_mat(mat: BaseMaterial3D) -> Material:
 	elif nm == "clay_ground" or nm == "far_land" or nm == "clay_rock":
 		# (bare ground in the city blocks is paving, not lawn: the parks have their own grass)
 		var g2 := mat.duplicate() as BaseMaterial3D
-		g2.albedo_color = Color("7f9a5c") if nm == "far_land" else (Color("b49a76") if nm == "clay_rock" else Color("9c9a93"))
+		g2.albedo_color = Color("6f8468") if nm == "far_land" else (Color("b49a76") if nm == "clay_rock" else Color("9c9a93"))
 		out = g2
 		if nm == "clay_ground":
 			# (Kangaroo Point, inside the river's bend, is parkland down to the water: lawn, not paving)
@@ -692,7 +693,7 @@ static func _game_mat(mat: BaseMaterial3D) -> Material:
 			col.v = WALL_MAX
 		if nm.ends_with("_accent"):       # (accents keep their colour: Customs House's copper dome, a weathered verdigris)
 			if nm.contains("26253545"):
-				col = Color("4f8672")
+				col = Color("4a7d74")       # (it brightens and greens a lot in the sun)
 		elif nm.contains("26253545"):
 			col.s *= 0.3      # (Customs House: pale sandstone, not yellow)
 		else:
@@ -700,9 +701,10 @@ static func _game_mat(mat: BaseMaterial3D) -> Material:
 			# picked by its name so it stays put)
 			col.s *= WALL_SAT
 			match nm.hash() % 5:
-				0, 1: col = col.lerp(Color("8f9499"), 0.55)       # (concrete grey)
-				2: col = col.lerp(Color("5e6772"), 0.6)           # (slate)
-				3: col = col.lerp(Color("9a8c78"), 0.5)           # (tan)
+				0, 1: col = col.lerp(Color("8f9499"), 0.8)        # (concrete grey)
+				2: col = col.lerp(Color("5e6772"), 0.8)           # (slate)
+				3: col = col.lerp(Color("9a8c78"), 0.7)           # (tan)
+				_: col = col.lerp(Color("a39a8c"), 0.5)           # (sandstone: no bright cream left)
 			if nm.ends_with("_band"):
 				col.v = minf(col.v, 0.6)
 		var looks: Dictionary = d.get("looks", {})
