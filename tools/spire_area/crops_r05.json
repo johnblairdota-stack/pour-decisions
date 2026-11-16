@@ -1,0 +1,23 @@
+[
+ {"name": "mantra_spire_ann_st_2018", "file": "spire_ann_st_2018_render.png", "box": [850, 100, 350, 1100]},
+ {"name": "mantra_ann_queen_corner", "file": "ann_queen_corner_render.png", "box": [650, 200, 417, 900]},
+ {"name": "mantra_fly_by_east", "file": "fly_by_east_render.png", "box": [700, 0, 600, 755]},
+ {"name": "leaves_willahra_admiralty", "file": "hero_willahra_admiralty.png", "box": [655, 740, 90, 45]},
+ {"name": "leaves_customs_house_a", "file": "hero_customs_house.png", "box": [1230, 480, 160, 70]},
+ {"name": "leaves_customs_house_b", "file": "hero_customs_house.png", "box": [1090, 640, 510, 350]},
+ {"name": "leaves_cathedral_from_carpark_a", "file": "hero_cathedral_from_carpark.png", "box": [720, 340, 300, 440]},
+ {"name": "leaves_cathedral_from_carpark_b", "file": "hero_cathedral_from_carpark.png", "box": [150, 740, 560, 220]},
+ {"name": "leaves_queen_st_streetscape", "file": "hero_queen_st_streetscape.png", "box": [180, 580, 350, 110]},
+ {"name": "leaves_deanery_tree_in_wall", "file": "hero_deanery.png", "box": [940, 470, 100, 110]},
+ {"name": "leaves_spire_ann_st_2018", "file": "spire_ann_st_2018_render.png", "box": [0, 0, 1200, 1600]},
+ {"name": "leaves_cathedral_ann_st_2012", "file": "cathedral_ann_st_2012_render.png", "box": [0, 0, 1200, 1600]},
+ {"name": "patches_ann_st_streetscape", "file": "hero_ann_st_streetscape.png", "box": [790, 560, 230, 440]},
+ {"name": "patches_queen_st_streetscape", "file": "hero_queen_st_streetscape.png", "box": [0, 590, 1500, 170]},
+ {"name": "bus_only_annstcath", "file": "hero_annstcath.png", "box": [600, 650, 700, 350]},
+ {"name": "bus_only_church_house_webber", "file": "hero_church_house_webber.png", "box": [0, 650, 900, 350]},
+ {"name": "cathedral_westfront", "file": "hero_westfront.png", "box": [100, 150, 867, 1250]},
+ {"name": "cathedral_west_front_2010", "file": "cathedral_west_front_2010_render.png", "box": [0, 0, 1600, 1200]},
+ {"name": "sky_hero_aerial", "file": "hero_aerial.png", "box": [0, 0, 1600, 500]},
+ {"name": "sky_cathedral_grounds", "file": "hero_cathedral_grounds.png", "box": [0, 0, 1600, 500]},
+ {"name": "dusk_aerial_ne_dusk", "file": "aerial_ne_dusk_render.png", "box": [0, 0, 1600, 1200]}
+]

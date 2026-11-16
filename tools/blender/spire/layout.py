@@ -155,6 +155,133 @@ HSW = {
     "lift_towers": [{"xy": (600.0, 92.0), "face_deg": -90.0, "top_ahd": 39.0, "cliff_top_xy": (600.0, 121.0),
                      "photo": "hb-m-hsw-shoot2-2", "note": "position estimated (cliff base, under the cliff top path)"}],
 }
+# ---------------------------------------------------------------- HSW round 1 (hero, as built). Photos in
+# PourDecisions-sites/refs/hsw (manifest.csv); file names quoted here, photos never in git.
+HSW.update({
+    # 1 m terrain patch (ground_smooth at 1 m) that replaces the 2 m ground over the strip and its cliffs
+    "patch_box": (300.0, -150.0, 870.0, 170.0),   # r3: west to 300 (spit by HSW), north to 170
+    "rock_slope_deg": 48.0, "scrub_slope_deg": 28.0,
+    "lawns": ["Main Lawn", "River Lawn", "Rivershed Lawn", "Felons Lawn"],   # OSM leisure=outdoor_seating polygons
+    "cliff": {"tuff": ((0.36, 0.30, 0.28), (0.55, 0.46, 0.40), (0.50, 0.33, 0.20)), "bench_m": 4.5,
+              "shrubs": 1800, "seed": 11,
+              "source": "photos overview_aerial/gg_11228e1b, gg_413020c0, gg_d8f7438f: grey-brown tuff with "
+                        "orange iron staining, dark wet streaks, bushy ledges, trees over the top"},
+    # Mr Percival's (OSM way 679146312, ring 476-490 x 36-49): octagonal sage-green pavilion with a standing-seam
+    # roof and a glazed lantern, on a timber deck on piles (photos gg_a57206f9, gg_4681e729, gg_4202cd18)
+    "percivals": {"centre_xy": (483.0, 42.5), "radius_m": 10.5, "deck_ahd": 3.7, "wall_top_ahd": 8.0,
+                  "roof_top_ahd": 12.2, "lantern_r": 3.0, "deck_size_m": (34.0, 22.0), "deck_angle_deg": -2.0,
+                  "wall": (0.56, 0.74, 0.64), "roof": (0.40, 0.42, 0.43),   # r2: mint (photo p09)
+                  "source": "OSM footprint (14 m across) + RESEARCH.md (20 x 30 m deck) + photos"},
+    # Heritage sheds (OSM footprint + LiDAR gable from buildings_clean.json). style -> colours in hsw_hero.SHED_STYLES
+    "sheds": [
+        {"osm": 58693374, "name": "Felons Brewing Co", "style": "felons", "letters": "FELONS BREWING CO",
+         "deck_river_m": 4.5, "photo": "overview_aerial/gg_a5a9345f, hotel/gg_4681e729 (white roof, black letters, on piles)"},
+        {"osm": 58693380, "name": "HSW shed (Yoko / Betty's)", "style": "white_shed", "letters": "HSW",
+         "deck_river_m": 5.0, "photo": "hotel/gg_4681e729 ('HSW' on the roof west of the pier)"},
+        {"osm": 679146315, "name": "Felons Barrel Hall", "style": "barrel_hall", "letters": "",
+         "deck_river_m": 0.0, "photo": "overview_aerial/gg_d8f7438f (dark roof, glass walls, over the water)"},
+        {"osm": 679146329, "name": "Rivershed", "style": "rivershed", "letters": "",
+         "deck_river_m": 3.0, "photo": "overview_aerial/gg_11228e1b (big white gable shed on the river)"},
+        {"osm": 1085817540, "name": "Green House", "style": "glasshouse", "letters": "", "deck_river_m": 0.0},
+        {"osm": 1085817541, "name": "Citrus House", "style": "glasshouse", "letters": "", "deck_river_m": 0.0},
+        {"osm": 1085817543, "name": "Ciao Papi", "style": "cream_shed", "letters": "", "deck_river_m": 0.0},
+        {"osm": 679146335, "name": "Bougainvillea House", "style": "glasshouse", "letters": "", "deck_river_m": 0.0},
+        {"osm": 58693432, "name": "Stanley (1936 Howard Smith office)", "style": "stanley", "letters": "",
+         "deck_river_m": 0.0, "photo": "sheds_felons_stanley sheet: two storeys, cream render, hipped iron roof"},
+    ],
+    # corten lift tower beside Felons up to Bowen Tce / Malt St (photo overview_aerial/gg_a5a9345f: tall
+    # rust-orange shaft with dark slots, rising ~8 m over the cliff-top trees, platform + link at the top)
+    "lift_tower": {"xy": (563.0, 90.0), "size_m": (5.0, 5.0), "top_ahd": 48.0, "link_ahd": 36.4,   # r8: 31 m west of r6
+                   "cliff_top_xy": (585.0, 118.0), "stairs": True,                                     # walkway leaves east
+                   "source": "triangulated from solved photo cams p01/p02/p03 (tools/hsw/triangulate.py: x 590-600, "
+                             "y 67-89, top 49-53 AHD); OSM Malt St end at Bowen Tce (x 602-616, y 122-137)"},
+    # riverwalk: concrete-topped boardwalk on steel cantilevers (RESEARCH.md: ~5 m cantilevers on piles, from land)
+    "riverwalk": {"width_m": 5.0, "deck_ahd": 3.6, "rail_m": 1.1, "lamp_every_m": 22.0,
+                  "colour": (0.40, 0.29, 0.22)},   # r4: sand-pink pavers
+    # ferry terminal (OSM pier 1015736500 'Howard Smith Wharves' ferry terminal) + HSW pontoon (1015736499)
+    "pontoons": {"ways": [1015736500, 1015736499], "deck_ahd": 1.2, "canopy_m": 3.6,
+                 "source": "OSM + photos pontoons_ferry (white/grey canopy on a grey pontoon, gangway to the riverwalk)"},
+    "wilson_fence": {"park_way": 438226546, "post_m": 2.0, "height_m": 1.2},
+    # Crystalbrook Vincent facade: saw-tooth facets. Photos hotel/gg_4681e729 and overview_aerial/pg_0d874e9b show
+    # white and charcoal chevron panels (not the brief's 'natural tones'); photos win.
+    # mangrove / scrub fringe on the low river banks (photo overview_aerial/gg_80fd9d96: dense dark green on the
+    # Kangaroo Pt north tip and along the bank). Cells with ground 0.4-2.6 m AHD inside the box get bushes.
+    "mangroves": {"box": (100.0, -420.0, 700.0, -50.0), "z": (0.4, 6.5), "every_m": 2.0, "seed": 5},
+    "hotel_fins": {"pitch_m": 4.8, "depth_m": 1.8, "colour": (0.85, 0.84, 0.80), "accent": (0.05, 0.055, 0.06)},   # r4: bigger, contrast
+})
+# ---------------------------------------------------------------- HSW round 2 (critic's ranked list, 15 Nov 2026)
+HSW.update({
+    # 1 cliff: warm tan-ochre Brisbane tuff, fractured near-vertical faces, mostly bare (photos p06, p10, gg_11228e1b)
+    "cliff": {"tuff": ((0.35, 0.31, 0.26), (0.53, 0.47, 0.38), (0.52, 0.33, 0.17)), "bench_m": 4.0,   # r8: grey-buff
+              "shrubs": 1500, "seed": 11, "slabs": 0, "rim_rocks": 0,
+              "source": "photos p06/p10: tan-ochre rock with orange iron stain, dark joints, overhangs, "
+                        "tufts on ledges, figs and vines hanging off the rim"},
+    # 2 trees: leaf-card trees round HSW (same as round Spire), mixed species, set back from the rim
+    "trees": {"centre_r": (640.0, 60.0, 380.0), "rim_setback_m": 1.5, "min_ground_ahd": 2.6,
+              "max_slope_deg": 50.0, "hanging_every_m": 9.0, "hanging_len_m": (5.0, 14.0), "seed": 23,
+              "mix": {"fig": 45, "eucalypt": 6, "poinciana": 25, "palm": 9, "generic": 15}},   # r10: fewer pale trunks
+    # 3 waterline: river bank below the decks sinks under the water; dark timber pile colonnade under the
+    # riverwalk and shed decks with cross bracing (photo p09); riprap boulders (photo p06, Rivershed point)
+    "waterline": {"sink_below_ahd": 2.2, "sink_to_ahd": -1.2, "pile_every_m": 3.2, "pile_w_m": 0.75,
+                  "pile_rgb": (0.17, 0.145, 0.12), "fascia_rgb": (0.10, 0.085, 0.07),
+                  "riprap_box": (690.0, -60.0, 870.0, 40.0), "riprap_z": (-0.8, 2.8), "riprap_every_m": 1.6},
+    # 4 ground: sand-pink decomposed granite paths through the lawns (OSM footways), warm pale paving
+    "ground": {"paving": (0.47, 0.39, 0.29),   # r9: warm buff
+              "path": (0.515, 0.33, 0.24),   # r4: sand-pink ~ sRGB 190,155,135
+               "path_w_m": 3.2, "deck": (0.36, 0.27, 0.19)},
+    # 5 river: olive-brown, fine ripples, no mirror hot spot (photos p06, p01)
+    "sun_angle_deg": 1.6,
+    "river": {"rgb": (0.13, 0.12, 0.06),   # r10: olive-yellow-green near field
+              "rough": 0.16, "spec": 0.25, "swell_scale": 0.06, "wave_scale": 0.18,
+              "chop_scale": 1.6, "bump": 0.55, "bump_dist": 0.15},   # r4: glossy, ripples at 3 scales
+    # 7 north main pier: arch crown 8.2 m under the pier top (photo p09: 120 px at 14.6 px/m), dark inside
+    "pier_arch_crown_below_top_m": 8.2,
+    # 10 lift tower: slimmer, oxide red (photo p06/p10)
+    "lift_tower_r2": {"size_m": (3.6, 3.6), "rgb": (0.33, 0.10, 0.05)},
+})
+# ---------------------------------------------------------------- HSW round 3 (critic, round 2 over-corrected)
+HSW.update({
+    # 1 the hill behind Felons, the hotel and the lift is solid canopy (photo p12); bare tuff only SE of Barrel Hall
+    "green_cliff_x_max": 655.0, "canopy_every_m": 10, "canopy_r_m": (8.0, 13.0),   # r10: fewer, 2x larger lumpy crowns (p12)
+    # 2 river halves of these sheds stand on piles over water (photos p09, p12, p13)
+    "over_water_sheds": [58693374, 58693380, 679146315], "pile_grid_m": 2.6, "riverwalk_piles_x": (395.0, 670.0),
+    # 3 bridge steel: dark charcoal grey-green (photos p13, p09), not pale sage
+    "bridge_steel": (0.135, 0.145, 0.14),   # r10: one step (~30 %) darker, slight green-grey (p13)
+    # 7 pier: warm cream render, mid-dark arch with a lit back wall
+    "pier_render": (0.84, 0.78, 0.72),   # r8: near-white, faint warm pink
+    "pier_arch_back": (0.30, 0.26, 0.20),   # r5: lit back wall, not a void
+    # 8 roof letters mid grey; Mr Percival's one dark roof
+    "letters_rgb": (0.06, 0.06, 0.065), "percivals_roof_r3": (0.09, 0.10, 0.11),
+    # 10 lift: corten frame, teal glass shaft, enclosed teal skybridge (photo p12)
+    "lift_glass": (0.10, 0.20, 0.22), "skybridge_extra_m": 22.0,
+    "fiume": {"box": (535.0, 100.0, 560.0, 112.0)},          # r9: Fiume terrace on the crest above Felons (p12)
+    # r10: crest apartments the footprint data misses. Source: 2019 LiDAR class-3 cells (DSM - ground > 8 m) in
+    # this box that no OSM / buildings_clean footprint covers; components > 120 m2. Largest: x 516-656, y 162-228,
+    # roof 65 m AHD (90th pct DSM) - the cream apartment row above Felons in photo p12. Built on a 4 m tile grid.
+    "lidar_blocks": {"box": (430.0, 95.0, 800.0, 340.0), "min_h_m": 8.0, "min_cells": 120, "tile_m": 4,
+                     "wall": (0.74, 0.66, 0.48), "slab": (0.80, 0.74, 0.60), "rail": (0.10, 0.10, 0.11)},
+    "umbrella_cluster_xy": (735.0, -20.0),                    # r9: Rivershed Lawn, 12 taupe umbrellas
+    # 12 horizon: compositor mist toward a warm haze, far ridge card, green far land
+    "mist": {"start_m": 350.0, "depth_m": 2600.0, "strength": 0.5, "rgb": (0.62, 0.66, 0.72)},
+    "ridge": {"dist_m": 4300.0, "h_m": (40.0, 95.0), "rgb": (0.62, 0.67, 0.74), "emit": 0.95},   # r9: soft pale
+    # 13 cream two-storey house west of the HSW shed: terracotta hip roof (photo p13)
+    "terracotta": (0.42, 0.16, 0.09),
+    # round 6: open dining deck on piles with umbrellas between Felons and Barrel Hall (photos p12/p13), Oakwood
+    "felons_east_deck": {"box": (578.0, 47.0, 606.0, 74.0), "deck_ahd": 3.7},
+    "oakwood_way": 26386779,
+    # round 7: cream balconied apartment blocks on the cliff crest (Bowen Tce), photos p12/p09, refs bowen_tce_wilson_outlook
+    "crest_blocks": {"box": (380.0, 0.0, 1000.0, 330.0), "min_top_ahd": 30.0, "min_base_ahd": 12.0,
+                     "override": {26386779: (0.70, 0.70, 0.68)},   # Oakwood: grey-white, black-framed glazing
+                     "wall": (0.62, 0.53, 0.40),
+                     "slab": (0.74, 0.67, 0.53), "rail": (0.10, 0.10, 0.11)},
+})
+# Story Bridge piers (HSW round 1): each main pier is one rendered-concrete portal in cream ACROSS the bridge:
+# a leg under each truss, a round-headed arch between them under the road centre line, plinth, string course,
+# cornice. Photo from_river/gg_a5335881 (Kangaroo Pt bank, looking N: portal face-on, ~29 m wide, arch ~12 m,
+# crown ~18 m over the ground) and from_river/gg_391ced7e, hotel/gg_4681e729. Thickness along the bridge assumed.
+STORY_BRIDGE_PIERS = {"main_across_m": 30.0, "main_thick_m": 10.0, "arch_w_m": 13.0, "arch_spring_m": 14.5,
+                      "cornice_m": 1.4, "render": (0.80, 0.77, 0.70), "steel": (0.30, 0.36, 0.34),
+                      "steel_note": "grey-green paint (sRGB ~#7c8a84 in daylight photos)"}
 STAGES["2017_top"] = dict(STAGES["2016_l6"], name="2017: tower near the top, crane still up",
                           evidence="John's fly-by photos 'crane placement' 2 and 3 (almost complete)",
                           deck_level=36, deck_pours_done=["A"], props_levels_below=2)
@@ -299,7 +426,7 @@ STAGE_CAMERAS = [
 # Story Bridge (step 5): measured from the 2019 LiDAR bridge points (bridge_hsw voxels). t = metres along
 # the axis (+ to the south / Kangaroo Point), n = metres across (+ east). Heights m AHD.
 STORY_BRIDGE = {
-    "centre_xy": (491.5, -182.2), "axis": (-0.0083, -0.99997),
+    "centre_xy": (490.5, -188.6), "axis": (0.0227, -0.99974),   # HSW r6: from the 4 tower peaks in the LiDAR DSM
     "truss_centre_n": -3.5, "truss_half_m": 10.5,
     "truss_t": (-395.0, 165.0),               # north anchor end .. south anchor end (truss length 560 m)
     "main_piers_t": (-255.0, 25.0),           # main span 280 m between the main piers (published: 282 m)
@@ -373,6 +500,21 @@ def sun_position(date="", hour=12.0):
     el = math.asin(math.sin(lat) * math.sin(dec) + math.cos(lat) * math.cos(dec) * math.cos(ha))
     az = math.atan2(-math.sin(ha) * math.cos(dec), math.cos(lat) * math.sin(dec) - math.sin(lat) * math.cos(dec) * math.cos(ha))
     return math.degrees(az) % 360.0, math.degrees(el)
+# HSW + Story Bridge hero views (HSW round 1). pos / look_at in absolute metres AHD (not above ground).
+HSW_HERO_CAMERAS = [
+    {"id": "aerial_sw", "pos": (360.0, -170.0, 140.0), "look_at": (600.0, 40.0, 10.0), "lens_mm": 28.0,
+     "note": "over the river SW of HSW: whole strip, cliffs, the bridge's north half"},
+    {"id": "kangaroo_pt", "pos": (470.0, -340.0, 28.0), "look_at": (540.0, 60.0, 18.0), "lens_mm": 32.0, "clip_m": 45.0,
+     "note": "Kangaroo Pt bank by the south anchor pier, looking N across the river at HSW"},
+    {"id": "main_lawn", "pos": (790.0, -85.0, 6.0), "look_at": (520.0, 60.0, 30.0), "lens_mm": 24.0,
+     "note": "Main Lawn at eye height looking NW along the strip to the bridge"},
+    {"id": "riverwalk_under_bridge", "pos": (566.0, 84.0, 5.8), "look_at": (440.0, 78.0, 16.0), "lens_mm": 20.0,
+     "note": "riverwalk by Felons looking W under the bridge deck at the north pier and the hotel"},
+    {"id": "wilson_outlook", "pos": (784.0, -16.0, 40.0), "look_at": (560.0, 45.0, 8.0), "clip_m": 12.0, "lens_mm": 24.0,
+     "note": "Wilson Outlook fence, looking W down onto the sheds, lawns and the bridge"},
+    {"id": "citycat", "pos": (610.0, -95.0, 2.2), "look_at": (540.0, 60.0, 14.0), "lens_mm": 26.0,
+     "note": "low on the river (CityCat deck height) off the ferry terminal, looking NW"},
+]
 TOP_VIEW = {"half": 400.0, "aerial_year": 2016}   # top-down clay overlay: whole 800 m square, 2016 aerial
 SITE_VIEW = {"half": 80.0, "aerial_year": 2016}   # close top-down of the site (matches aerial_*_site160m)
 
@@ -668,6 +810,9 @@ def spire_stage():
     return st if st and "deck_level" in st else None
 
 
+GAME_EXPORT = False      # export_game.py sets it: build the game's model (no HSW hero detail, the game's budget)
+
+
 def hsw_stage():
     st = ACTIVE_STAGE
     return st if st and st.get("site") == "hsw" else None
@@ -743,6 +888,23 @@ def lidar_building_heights():
 
 def spire_podium_outline():
     return [tuple(p) for p in json.load(open(os.path.join(REF, "lidar", "spire_podium.json")))["outline_local"]]
+
+
+def hsw_crest_ids():
+    """HSW round 7: the cliff-crest apartment blocks that hsw_hero.crest_blocks builds itself (buildings.py skips them)."""
+    CB = HSW.get("crest_blocks")
+    if not CB:
+        return set()
+    x0, y0, x1, y1 = CB["box"]
+    out = set()
+    skip = {HSW["hotel_way"]} | {s["osm"] for s in HSW["sheds"]}
+    for b in json.load(open(os.path.join(REF, "lidar", "buildings_clean.json")))["buildings"]:
+        r = b["tiers"][0]["ring"]
+        cx, cy = sum(p[0] for p in r) / len(r), sum(p[1] for p in r) / len(r)
+        if (b["osm"] not in skip and x0 <= cx <= x1 and y0 <= cy <= y1 and max(t["top_ahd"] for t in b["tiers"]) >= CB["min_top_ahd"]
+                and b["base_ahd"] >= CB.get("min_base_ahd", -99)):
+            out.add(b["osm"])
+    return out
 
 
 def tree_points():

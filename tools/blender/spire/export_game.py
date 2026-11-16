@@ -111,6 +111,74 @@ def far(ob):
     return all(math.hypot((mw @ c).x, (mw @ c).y) > KEEP_R for c in xs)
 
 
+# The Spire area pieces (area_hero.py), merged for the game: one object per material in each group, and
+# near-identical colours share one material (each object x material is a draw call, and the game is CPU bound).
+AREA_FLAT = ("asphalt", "carpark_lines", "wheel_stops", "island_mulch", "forecourt_drive", "forecourt_beds", "manholes",
+             "side_pits", "gutter_strip", "grass_bank", "deanery_bank", "rolled_kerb", "carpark_kerbs")
+AREA_SMALL = ("sign", "board", "lamp", "light_", "gate")
+AREA_BLDG = ("mantra_", "hall_", "roof_plant", "roof_ac", "customs_")
+
+
+def area_group(name):
+    n = name[len("area_"):]
+    for key, words in (("bldg", AREA_BLDG), ("flat", AREA_FLAT), ("small", AREA_SMALL)):
+        if any(w in n for w in words):
+            return key
+    return "kit"
+
+
+def merge_area():
+    obs = [o for o in bpy.data.objects if o.type == "MESH" and o.name.startswith("area_") and o.data.polygons]
+    if not obs:
+        return 0, 0
+    n0 = len(obs)
+    for o in obs:                                    # (clear_kerb.py reads world positions straight from the file)
+        if o.matrix_world != o.matrix_world.Identity(4):
+            o.data.transform(o.matrix_world)
+            o.matrix_world = o.matrix_world.Identity(4)
+    # 1. near-identical colours (within 0.035 linear in every channel) in the same group share one material
+    groups = {}
+    for o in obs:
+        groups.setdefault(area_group(o.name), []).append(o)
+    for key, gobs in groups.items():
+        keep = []
+        for o in gobs:
+            for i, m in enumerate(o.data.materials):
+                if m is None:
+                    continue
+                c = tuple(m.diffuse_color)[:3]
+                same = next((k for k in keep if max(abs(a - b) for a, b in zip(tuple(k.diffuse_color)[:3], c)) < 0.035
+                             and ("_leaf" in k.name) == ("_leaf" in m.name)), None)
+                if same is None:
+                    if not m.name.startswith("area_%s_" % key):
+                        m2 = m.copy()
+                        m2.name = "area_%s_%s" % (key, m.name.replace("area_", "").replace("clay_", ""))
+                        m = m2
+                    keep.append(m)
+                    same = m
+                o.data.materials[i] = same
+    # 2. one object per (group, material)
+    joined = 0
+    for key, gobs in groups.items():
+        bymat = {}
+        for o in gobs:
+            mats = [m for m in o.data.materials if m]
+            if len(mats) == 1:
+                bymat.setdefault(mats[0].name, []).append(o)
+            else:
+                o.name = "area_%s_%s" % (key, o.name[5:])
+        for mname, mobs in bymat.items():
+            if len(mobs) > 1:
+                with bpy.context.temp_override(active_object=mobs[0], selected_editable_objects=mobs, object=mobs[0]):
+                    bpy.ops.object.join()
+                joined += len(mobs) - 1
+            mobs[0].name = "area_%s_%s" % (key, mname.split("_", 2)[2] if mname.startswith("area_%s_" % key) else mname)
+    n1 = sum(1 for o in bpy.data.objects if o.type == "MESH" and o.name.startswith("area_"))
+    print("export_game: area pieces merged %d -> %d objects, %d materials" % (
+        n0, n1, len({m.name for o in bpy.data.objects if o.name.startswith("area_") and o.type == "MESH" for m in o.data.materials if m})))
+    return n0, n1
+
+
 def main():
     import build_all
     import trees
@@ -126,6 +194,11 @@ def main():
     trees.fig_trunk = lambda buf, x, y, g, h, rb: _tube(buf, (x, y, g - 0.2), (x, y, g + h), rb * 1.6, rb, 5)
     L.STAGES["game_l6"] = dict(L.STAGES["2016_l6"], name="Game start: L1-L5 poured, L6 next",
                                deck_level=5, deck_pours_done=["A", "B"], screen_levels=1)
+    import area_hero
+    area_hero.GAME = True                           # the Spire area's surroundings, without its render-only parts
+    L.GAME_EXPORT = True
+    import foliage
+    foliage.GAME = True
     build_all.build_all("game_l6", write_meta=False)
     lv = {x["n"]: x for x in L.spire_levels()}
     z_cut = lv[L.LEVELS["transfer_level"] - 1]["top_ahd"] + 0.05
@@ -165,6 +238,7 @@ def main():
             mod.ratio = 0.12
             bpy.context.view_layer.objects.active = ob
             bpy.ops.object.modifier_apply(modifier=mod.name)
+    merge_area()
     # materials: plain principled with the clay colour (glTF can't carry the procedural looks)
     for m in bpy.data.materials:
         c = tuple(m.diffuse_color)
@@ -177,6 +251,10 @@ def main():
                 b.inputs["Roughness"].default_value = 0.2
     big = sorted(((len(o.data.polygons), o.name) for o in bpy.data.objects if o.type == "MESH"), reverse=True)[:30]
     print("export_game biggest:", big)
+    tot = sum(len(o.data.polygons) for o in bpy.data.objects if o.type == "MESH")
+    tri = sum(len(p.vertices) - 2 for o in bpy.data.objects if o.type == "MESH" for p in o.data.polygons)
+    print("export_game totals: %d mesh objects, %d faces, %d triangles, %d materials" % (
+        sum(1 for o in bpy.data.objects if o.type == "MESH"), tot, tri, len(bpy.data.materials)))
     if os.environ.get("SPIRE_EXPORT_DRY"):
         return
     os.makedirs(os.path.dirname(OUT_GLB), exist_ok=True)

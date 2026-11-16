@@ -10,6 +10,9 @@ import common as C
 
 LOD = lambda c: (1.0, 1.0)
 CLOUDS = []                                         # every crown volume: trees.py turns these into shadow casters
+GAME = False        # export_game.py: no leaf cards, each crown is one 8-face blob (the game's own tree crowns)
+_OCT = ([(1, 0, 0), (-1, 0, 0), (0, 1, 0), (0, -1, 0), (0, 0, 1), (0, 0, -1)],
+        [(0, 2, 4), (2, 1, 4), (1, 3, 4), (3, 0, 4), (2, 0, 5), (1, 2, 5), (3, 1, 5), (0, 3, 5)])
 
 
 class Foliage:
@@ -40,9 +43,19 @@ class Foliage:
         self.uv.append(np.tile(np.array([[0, 0], [1, 0], [1, 1], [0, 1]], "f4"), (k, 1)))
         self.n += 4 * k
 
+    def _blob(self, c, radii):
+        vs, fs = _OCT
+        V = np.array([(c[0] + a * radii[0], c[1] + b * radii[1], c[2] + z * radii[2]) for a, b, z in vs], "f4")
+        self.v.append(V)
+        self.f.append(np.array(fs) + self.n)
+        self.n += len(V)
+
     def cloud(self, c, radii, count, size, shell=0.7, top_bias=0.0):
         """Cards filling an ellipsoid: mostly near the surface (shell), normals pointing outwards."""
         CLOUDS.append((tuple(c), tuple(radii)))
+        if GAME:
+            self._blob(c, radii)
+            return
         km, sm = LOD(c)                                  # far crowns: fewer, bigger cards (same cover)
         count, size = max(8, int(count * km)), size * sm
         r = self.rng
@@ -59,6 +72,9 @@ class Foliage:
 
     def tufts(self, c, radius, count, height):
         """Strappy clumps (lomandra, grasses): tall narrow cards, near vertical."""
+        if GAME:
+            self._blob((c[0], c[1], c[2] + height * 0.4), (radius, radius, height * 0.45))
+            return
         r = self.rng
         a = r.random(count) * 2 * math.pi
         rr = radius * r.random(count) ** 0.5
@@ -68,6 +84,8 @@ class Foliage:
 
     def strands(self, top_pts, normal, length, step=0.45, size=0.55):
         """Trailing plants: a line of cards hanging down from each point, pushed out along `normal`."""
+        if GAME:
+            return
         r = self.rng
         P, N, S = [], [], []
         for x, y, z in top_pts:
@@ -87,6 +105,11 @@ class Foliage:
             return None
         V = np.concatenate(self.v)
         F = np.concatenate(self.f)
+        if GAME:                                         # blobs: one plain mesh, the game shades it as a tree crown
+            m = C.material_rgb(name + "_leaf", rgb)
+            ob = C.mesh_fast(name, V, F, col, "tree")
+            ob.data.materials[0] = m
+            return ob
         UV = np.concatenate(self.uv)
         m = C.material_rgb(name + "_leaf", rgb)
         m["shader"] = "leaf"

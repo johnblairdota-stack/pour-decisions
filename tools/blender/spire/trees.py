@@ -92,7 +92,64 @@ def species(x, y, h):
     return "generic"
 
 
-HERO_CENTRES = [(0.0, 0.0, 340.0), (-80.0, -100.0, 160.0)]   # leaf-card trees round Spire and the cathedral
+HERO_CENTRES = [(0.0, 0.0, 340.0), (-80.0, -100.0, 160.0), L.HSW["trees"]["centre_r"]]   # Spire, cathedral, HSW
+
+
+def in_hsw(x, y):
+    cx, cy, r = L.HSW["trees"]["centre_r"]
+    return math.hypot(x - cx, y - cy) < r
+
+
+_HB = []
+
+
+def _hotel_box():
+    if not _HB:
+        import hsw_hero
+        r = hsw_hero.rec_by_osm()[L.HSW["hotel_way"]]
+        xs = [p[0] for t in r["tiers"] for p in t["ring"]]
+        ys = [p[1] for t in r["tiers"] for p in t["ring"]]
+        _HB.append((min(xs), min(ys), max(xs), max(ys)))
+    return _HB[0]
+
+
+def hsw_ok(x, y, g):
+    """HSW round 2: no trunk on the cliff face, near the rim edge, or on low river sand/mud."""
+    T = L.HSW["trees"]
+    if g < T["min_ground_ahd"]:
+        return False
+    import hsw_hero
+    if hsw_hero.sunk(x, y):                              # r4: deck strips sunk under the river: no tree there
+        return False
+    if 400.0 <= x <= 612.0 and y < 95.0:                 # r6: open wharf strip: FELONS / HSW roofs and the hotel
+        return False                                     # front stay visible from the river (p09, p13)
+    hx0, hy0, hx1, hy1 = _hotel_box()
+    if hx0 - 14 <= x <= hx1 + 14 and hy0 - 14 <= y <= hy1 - 4:
+        return False
+    for k in range(8):
+        a = k * math.pi / 4
+        dz = abs(L.ground_z(x + 1.5 * math.cos(a), y + 1.5 * math.sin(a)) - g)
+        if math.degrees(math.atan2(dz, 1.5)) > T["max_slope_deg"]:          # on the face itself
+            return False
+        rs = T["rim_setback_m"]
+        if g - L.ground_z(x + rs * math.cos(a), y + rs * math.sin(a)) > 0.9 * rs * 2:   # right on the rim
+            return False
+    return True
+
+
+def hsw_species(x, y, h):
+    """HSW round 2: a mixed canopy (figs, eucalypts, poinciana, palms, scrub trees), stable per position."""
+    mix = L.HSW["trees"]["mix"]
+    k = (int(x * 3.0) * 73856093 ^ int(y * 3.0) * 19349663) % sum(mix.values())
+    for s, w in mix.items():
+        if k < w:
+            if s == "palm" and h > 16:
+                return "eucalypt"
+            if s == "fig" and h < 7:
+                return "generic"
+            return s
+        k -= w
+    return "generic"
 SPECIES_LEAF = {   # leaf colour pairs (dark, light) and trunk colour
     "fig": ((0.035, 0.09, 0.03), (0.09, 0.19, 0.06), (0.30, 0.27, 0.22)),
     "poinciana": ((0.07, 0.15, 0.04), (0.16, 0.28, 0.07), (0.28, 0.24, 0.20)),
@@ -183,7 +240,8 @@ def build():
         p = c.get("pos")
         if p and p[2] - L.ground_z(p[0], p[1]) < 4.0:
             cams.append(tuple(p[:2]))
-    clear = lambda x, y: all(math.hypot(x - cx, y - cy) > 9.0 for cx, cy in cams)   # photos: taken from open spots
+    cams.append((784.0, -16.0))                                          # HSW r9: Wilson Outlook lookout
+    clear = lambda x, y: all(math.hypot(x - cx, y - cy) > (50.0 if (cx, cy) == (784.0, -16.0) else 9.0) for cx, cy in cams)
     guard = RoadGuard()
     for x, y, h, g in L.tree_points():
         if h < 3.0 or h > 40.0 or not clear(x, y):
@@ -192,7 +250,15 @@ def build():
         if fx is None:
             continue
         x, y = fx
-        s = species(x, y, h)
+        if in_hsw(x, y):
+            if 470.0 <= x <= 680.0 and 95.0 <= y <= 150.0 and g > 20.0:   # r8: low crest canopy, the blocks show (p12)
+                h = min(h, 9.0)
+            if not hsw_ok(x, y, g):
+                count["hsw_dropped"] = count.get("hsw_dropped", 0) + 1
+                continue
+            s = hsw_species(x, y, h)
+        else:
+            s = species(x, y, h)
         count[s] = count.get(s, 0) + 1
         near = hero(x, y)
         nhero += near
@@ -210,8 +276,11 @@ def build():
         if s == "fig":
             r = 0.42 * h
             rz = 0.25 * h
-            fig_trunk(trunks, x, y, g, h * 0.45, 0.5)
-            trunk(trunks, x, y, g + h * 0.4, 0.4, 0.1, 5, r * 0.45)
+            if in_hsw(x, y):
+                fig_trunk(trunks, x, y, g, h * 0.45, 0.3)                       # HSW r3: slimmer flare
+            else:                                                               # area r2: round tapered trunk, no bell
+                tube(trunks, (x, y, g - 0.2), (x, y, g + h * 0.45), 0.5, 0.34, 10)
+            trunk(trunks, x, y, g + h * 0.4, 0.4 if in_hsw(x, y) else 0.26, 0.1, 5, r * 0.45)   # area r3: no cuff ring
             cz = g + h - rz
             if near:
                 leaves["fig"].cloud((x, y, cz), (r, r, rz), int(9 * (150 + 6 * r * r)), 0.6, shell=0.2, top_bias=0.3)
@@ -225,7 +294,7 @@ def build():
                 leaves[s].cloud((x, y, cz), (r, r, rz), int(9 * (120 + 5 * r * r)), 0.22, shell=0.3, top_bias=0.6)
                 blooms[s].cloud((x, y, cz + rz * 0.5), (r * 0.85, r * 0.85, rz * 0.5), int(2 * (25 + r * r)), 0.18, shell=0.9, top_bias=0.9)
             else:
-                crown(crowns, x, y, cz, r, 0.25, 6)
+                crown(crowns, x, y, cz, r * 0.8, 0.6, 6)                 # HSW r3: rounder, not umbrella-pine
         elif s == "eucalypt":
             r = 0.25 * h
             trunk(pale, x, y, g, 0.3, h * 0.7, 3, r * 0.7)
@@ -264,6 +333,8 @@ def build():
             h = float(np.percentile(hgt[r0:r0 + 4, c0:c0 + 4][blk], 80))
             g = float(gnd[r0 + 2, c0 + 2])
             if np.min(np.hypot(placed[:, 0] - x, placed[:, 1] - y)) < max(3.0, 0.3 * h) or not clear(x, y):
+                continue
+            if in_hsw(x, y) and (h < 3.0 or not hsw_ok(x, y, g)):   # HSW: cliff faces get hsw_hero tufts instead
                 continue
             fx = guard.fix(x, y)
             if fx is None:

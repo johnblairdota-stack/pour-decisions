@@ -214,29 +214,58 @@ def setup_morning():
         rough = {"clay_water": 0.06, "clay_spire_glass": 0.08, "clay_spire_balustrade": 0.8, "clay_spire_soffit": 0.9, "clay_balustrade": 0.05, "clay_steel": 0.45}.get(m.name, 0.85)
         bsdf.inputs["Roughness"].default_value = rough
         if m.name == "clay_water":                       # Brisbane River: brown-green, sky reflection, small ripples
-            bsdf.inputs["Base Color"].default_value = (0.05, 0.055, 0.045, 1)   # step 7j: darker, less mirror-like
-            bsdf.inputs["Roughness"].default_value = 0.22
-            bsdf.inputs["Specular IOR Level"].default_value = 0.3
+            Rv = L.HSW["river"]                          # HSW round 2: olive-brown, matte sheen, fine ripples
+            bsdf.inputs["Base Color"].default_value = (*Rv["rgb"], 1)
+            bsdf.inputs["Roughness"].default_value = Rv["rough"]
+            bsdf.inputs["Specular IOR Level"].default_value = Rv["spec"]
             nt = m.node_tree
-            tex = nt.nodes.new("ShaderNodeTexNoise")
-            tex.inputs["Scale"].default_value = 0.35
-            tex.inputs["Detail"].default_value = 6.0
             geo = nt.nodes.new("ShaderNodeNewGeometry")
-            nt.links.new(geo.outputs["Position"], tex.inputs["Vector"])
+            tone = nt.nodes.new("ShaderNodeTexNoise")                   # silt patches, slightly greener/browner
+            tone.inputs["Scale"].default_value = 0.01
+            nt.links.new(geo.outputs["Position"], tone.inputs["Vector"])
+            tmix = nt.nodes.new("ShaderNodeMix")
+            tmix.data_type = "RGBA"
+            nt.links.new(tone.outputs["Fac"], tmix.inputs["Factor"])
+            tmix.inputs[6].default_value = (Rv["rgb"][0] * 0.8, Rv["rgb"][1] * 0.9, Rv["rgb"][2] * 0.8, 1)
+            tmix.inputs[7].default_value = (Rv["rgb"][0] * 1.2, Rv["rgb"][1] * 1.1, Rv["rgb"][2] * 0.9, 1)
+            fres = nt.nodes.new("ShaderNodeLayerWeight")                # slight sky tint at grazing angles
+            fres.inputs["Blend"].default_value = 0.2
+            fk = nt.nodes.new("ShaderNodeMath")
+            fk.operation = "MULTIPLY"
+            nt.links.new(fres.outputs["Fresnel"], fk.inputs[0])
+            fk.inputs[1].default_value = 0.35                            # r5: more sky in drone views
+            fmix = nt.nodes.new("ShaderNodeMix")
+            fmix.data_type = "RGBA"
+            nt.links.new(fk.outputs[0], fmix.inputs["Factor"])
+            nt.links.new(tmix.outputs[2], fmix.inputs[6])
+            fmix.inputs[7].default_value = (0.26, 0.31, 0.36, 1)
+            nt.links.new(fmix.outputs[2], bsdf.inputs["Base Color"])
+            # HSW r4: ripples sized to read at 50-300 m: swell ~16 m, wind waves ~5 m, chop ~1 m
+            hsum = None
+            for kind, scale, weight in (("noise", 0.015, 1.2), ("noise", Rv["swell_scale"], 1.0), ("wave", Rv["wave_scale"], 0.25), ("noise", Rv["chop_scale"], 0.3)):
+                if kind == "noise":
+                    t_ = nt.nodes.new("ShaderNodeTexNoise")
+                    t_.inputs["Detail"].default_value = 4.0
+                else:
+                    t_ = nt.nodes.new("ShaderNodeTexWave")
+                    t_.wave_type = "BANDS"
+                    t_.inputs["Distortion"].default_value = 14.0
+                    t_.inputs["Detail"].default_value = 3.0
+                t_.inputs["Scale"].default_value = scale
+                nt.links.new(geo.outputs["Position"], t_.inputs["Vector"])
+                mm = nt.nodes.new("ShaderNodeMath")
+                mm.operation = "MULTIPLY_ADD"
+                nt.links.new(t_.outputs["Fac"], mm.inputs[0])
+                mm.inputs[1].default_value = weight
+                if hsum is None:
+                    mm.inputs[2].default_value = 0.0
+                else:
+                    nt.links.new(hsum, mm.inputs[2])
+                hsum = mm.outputs[0]
             bump = nt.nodes.new("ShaderNodeBump")
-            bump.inputs["Strength"].default_value = 0.25
-            rip = nt.nodes.new("ShaderNodeTexWave")                     # step 7j: wind ripples on top of the swell
-            rip.wave_type = "BANDS"
-            rip.inputs["Scale"].default_value = 0.9
-            rip.inputs["Distortion"].default_value = 9.0
-            rip.inputs["Detail"].default_value = 3.0
-            nt.links.new(geo.outputs["Position"], rip.inputs["Vector"])
-            addh = nt.nodes.new("ShaderNodeMath")
-            addh.operation = "MULTIPLY_ADD"
-            nt.links.new(rip.outputs["Fac"], addh.inputs[0])
-            addh.inputs[1].default_value = 0.35
-            nt.links.new(tex.outputs["Fac"], addh.inputs[2])
-            nt.links.new(addh.outputs[0], bump.inputs["Height"])
+            bump.inputs["Strength"].default_value = Rv["bump"]
+            bump.inputs["Distance"].default_value = Rv["bump_dist"]
+            nt.links.new(hsum, bump.inputs["Height"])
             nt.links.new(bump.outputs["Normal"], bsdf.inputs["Normal"])
         if m.name == "clay_road":                        # step 7d: bitumen with aggregate speckle and patches
             nt = m.node_tree
@@ -384,8 +413,8 @@ def setup_morning():
             wv.inputs["Distortion"].default_value = 0.0
             nt.links.new(geo.outputs["Position"], wv.inputs["Vector"])
             ramp = nt.nodes.new("ShaderNodeValToRGB")
-            ramp.color_ramp.elements[0].color = (0.07, 0.15, 0.035, 1)
-            ramp.color_ramp.elements[1].color = (0.17, 0.29, 0.07, 1)
+            ramp.color_ramp.elements[0].color = (0.08, 0.11, 0.035, 1)                  # r5: olive, not apple-green
+            ramp.color_ramp.elements[1].color = (0.17, 0.21, 0.07, 1)
             add = nt.nodes.new("ShaderNodeMath")
             add.operation = "MULTIPLY_ADD"
             nt.links.new(wv.outputs["Fac"], add.inputs[0])
@@ -438,6 +467,9 @@ def setup_morning():
                                 for k in ("bay", "win", "sill", "head", "glass", "rough", "floor") if "win_" + k in m})
         elif m.get("shader") in ("brick", "ashlar"):
             facade_material(m, None)
+        if m.get("shader") in ("tuff", "tuff_dark", "dg", "sheet", "boards", "corten", "glass_green", "stripes", "pile", "pave", "chevron"):   # HSW
+            import hsw_hero
+            hsw_hero.shade(m, bsdf)
         m["look_done"] = True
     mo = L.MORNING
     apply_light(mo["sun_azimuth_deg"], mo["sun_elevation_deg"])
@@ -474,7 +506,7 @@ def apply_light(az_deg, el_deg, kind="day"):
     k = max(0.15, min(1.0, math.sin(math.radians(max(el_deg, 1.0))) * 2.2))
     sun.data.energy = mo["sun_strength"] * (0.12 if dusk else k)
     sun.data.color = (1.0, 0.62, 0.38) if dusk else mo["sun_colour"]
-    sun.data.angle = math.radians(0.53)
+    sun.data.angle = math.radians(L.HSW.get("sun_angle_deg", 0.53))      # HSW r4: softer bridge shadow edge
     try:
         sun.data.shadow_maximum_resolution = 0.012
         sc.eevee.shadow_pool_size = "512"                      # 1024 caused GPU timeouts with dense leaves

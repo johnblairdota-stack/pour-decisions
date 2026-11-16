@@ -15,6 +15,7 @@ def build():
     g = L.lidar("ground_smooth")
     x0, y0, x1, y1 = L.LIDAR_BOX
     st = L.hsw_stage()
+    hero = not st and not L.GAME_EXPORT      # the HSW render's ground fixes (not in the game's model)
     if st:                                   # HSW 2017: the basement dig at the hotel footprint
         import prep_lidar as PL
         import shapes as S
@@ -28,12 +29,31 @@ def build():
     H, W = g.shape
     rows, cols = np.arange(0, H, STEP), np.arange(0, W, STEP)
     sub = g[np.ix_(rows, cols)]
+    if hero:                                 # HSW round 2: tidal mud flats / pale spits go under the water
+        sub = np.where((sub < 1.6) & (sub > L.RIVER_LEVEL_AHD - 2.0), np.minimum(sub, -1.2), sub)
+        Xg, Yg = np.meshgrid(x0 + cols + 0.5, y1 - rows - 0.5)
+        sub = np.where((Xg > 400) & (Xg < 600) & (Yg > -178) & (Yg < -112) & (sub < 10.0) &
+                       ~((Yg < -150) & (Xg > 540)), np.minimum(sub, -1.2), sub)   # HSW r9: boat strip mid-river (p01)
+        sub = np.where((Xg > 480) & (Xg < 620) & (Yg > -215) & (Yg < -140) & (sub < 2.6), np.minimum(sub, -1.2), sub)   # mudflat
+        sub = np.where((Xg > 530) & (Xg < 620) & (Yg > -195) & (Yg < -140) & (sub < 8.0), np.minimum(sub, -1.2), sub)   # r9: islet (p01)
+        for _ in range(3):                   # HSW r6: no lone spikes left standing in the river
+            wet_ = sub < 0.0
+            nb = (np.roll(wet_, 1, 0).astype(int) + np.roll(wet_, -1, 0) + np.roll(wet_, 1, 1) + np.roll(wet_, -1, 1))
+            sub = np.where((sub < 4.0) & (nb >= 3), np.minimum(sub, -1.2), sub)
     R, Cn = sub.shape
     X, Y = np.meshgrid(x0 + cols + 0.5, y1 - rows - 0.5)
     verts = np.stack([X, Y, sub], -1).reshape(-1, 3)
     idx = np.arange(R * Cn).reshape(R, Cn)
     faces = np.stack([idx[:-1, :-1], idx[1:, :-1], idx[1:, 1:], idx[:-1, 1:]], -1).reshape(-1, 4)
+    keep = None
+    if hero:                                 # HSW round 1: hsw_hero builds a 1 m patch here
+        px0, py0, px1, py1 = L.HSW["patch_box"]
+        fc = verts[faces[:, 0]]
+        keep = ~((fc[:, 0] >= px0 + 1) & (fc[:, 0] < px1 - 1) & (fc[:, 1] >= py0 + 1) & (fc[:, 1] < py1 - 1))
+        faces = faces[keep]
     ob = C.mesh_fast("ground_lidar2019_smooth", verts, faces, col, "ground")
+    if hero:
+        ob.data.materials[0] = C.material_rgb("ground_r3", (0.24, 0.23, 0.20))   # HSW r3: no white city floor
     ob.data.materials.append(C.material("rock"))
     dzx = np.abs(sub[:-1, 1:] - sub[:-1, :-1]) / STEP
     dzy = np.abs(sub[1:, :-1] - sub[:-1, :-1]) / STEP
@@ -59,6 +79,17 @@ def build():
     gm = mask[np.ix_(rows, cols)][:-1, :-1].ravel()
     ob.data.materials.append(C.material("grass"))
     mi = np.where(steep > 0, 1, np.where(gm, 2, 0)).astype("i4")
+    if hero:                                 # HSW round 2: the mangrove island / bank is dark mud under the trees
+        ob.data.materials.append(C.material_rgb("mangrove_mud", (0.15, 0.13, 0.09)))   # r7: lighter mud
+        mx0, my0, mx1, my1 = L.HSW["mangroves"]["box"]
+        fc_ = np.stack([X[:-1, :-1], Y[:-1, :-1], sub[:-1, :-1]], -1).reshape(-1, 3)
+        mud = (fc_[:, 0] > mx0) & (fc_[:, 0] < mx1) & (fc_[:, 1] > my0) & (fc_[:, 1] < my1) & (fc_[:, 2] < L.HSW["mangroves"]["z"][1] + 0.5)
+        mi = np.where(mud & ~gm, 3, mi).astype("i4")
+        hx, hy, hr = L.HSW["trees"]["centre_r"]                 # low riverside land near HSW: grass, not bare
+        low = (np.hypot(fc_[:, 0] - hx, fc_[:, 1] - hy) < hr + 200) & (fc_[:, 2] < 5.0) & (fc_[:, 2] > 1.0) & (steep == 0) & ~mud
+        mi = np.where(low & (mi == 0), 2, mi).astype("i4")
+    if keep is not None:
+        mi = mi[keep]
     ob.data.polygons.foreach_set("material_index", mi)
     ob.data.shade_smooth()
     # step 7j: far land - a skirt from the LiDAR edge out 6 km (no floating edge, no void under the sky)
@@ -84,12 +115,13 @@ def build():
             a, b = r * n + i, r * n + (i + 1) % n
             ff.append((a, b, b + n, a + n))
     far = C.mesh_object("far_land", fv, ff, col, "ground")
-    far.data.materials[0] = C.material_rgb("far_land", (0.10, 0.11, 0.105))
+    far.data.materials[0] = C.material_rgb("far_land", (0.085, 0.11, 0.06), shader="canopy")   # r4: mottled green
     # far suburbs: low roofs scattered over the skirt so the city does not end in a plateau
     import random
     rnd = random.Random(7)
     fb = C.MeshBuf()
-    for _ in range(30000):
+    fbt, fbg = C.MeshBuf(), C.MeshBuf()                               # r3: terracotta roofs and tree clumps
+    for _ in range(30000 if L.GAME_EXPORT else 80000):                # r5: denser mixed suburb (game: the old 30k)
         x = rnd.uniform(x0 - 3000, x1 + 3000)
         y = rnd.uniform(y0 - 3000, y1 + 3000)
         if x0 - 20 < x < x1 + 20 and y0 - 20 < y < y1 + 20:
@@ -100,9 +132,23 @@ def build():
             continue                                                    # keep the near skirt clear (it slopes)
         w_, l_ = rnd.uniform(7, 16), rnd.uniform(8, 20)
         h_ = rnd.choice((4, 5, 5, 6, 7, 9)) if rnd.random() > 0.01 else rnd.uniform(15, 45)
-        fb.box(x, y, zb - 0.5, w_, l_, h_, rnd.uniform(0, 3.14))
+        if hero and d < 1500 and rnd.random() < 0.25:                          # HSW r8: varied mid-rise near in
+            h_ = rnd.uniform(12, 40)
+        kind = rnd.random() if hero else 1.0                          # (game: plain roofs only)
+        if kind < 0.45:
+            fbg.box(x, y, zb - 0.5, w_ * 1.4, l_ * 1.4, rnd.uniform(6, 12), rnd.uniform(0, 3.14))
+        elif kind < 0.7:
+            fbt.box(x, y, zb - 0.5, w_, l_, h_, rnd.uniform(0, 3.14))
+        else:
+            fb.box(x, y, zb - 0.5, w_, l_, h_, rnd.uniform(0, 3.14))
     obf = fb.object("far_suburbs", col, "ground")
-    obf.data.materials[0] = C.material_rgb("far_suburbs", (0.30, 0.29, 0.27))
+    obf.data.materials[0] = C.material_rgb("far_suburbs", (0.33, 0.32, 0.30))
+    obt = fbt.object("far_suburbs_terracotta", col, "ground") if hero else None
+    if obt:
+        obt.data.materials[0] = C.material_rgb("far_suburbs_tc", (0.32, 0.22, 0.17))   # HSW r9: desaturated
+    obg = fbg.object("far_suburbs_trees", col, "ground") if hero else None
+    if obg:
+        obg.data.materials[0] = C.material_rgb("far_suburbs_trees", (0.05, 0.08, 0.035))
     E = 6000
     w = C.mesh_object("river_water", [(x0 - E, y0 - E, L.RIVER_LEVEL_AHD), (x1 + E, y0 - E, L.RIVER_LEVEL_AHD),
                                        (x1 + E, y1 + E, L.RIVER_LEVEL_AHD), (x0 - E, y1 + E, L.RIVER_LEVEL_AHD)],

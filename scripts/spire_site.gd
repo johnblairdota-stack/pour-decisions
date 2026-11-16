@@ -274,12 +274,13 @@ static func build_world(parent: Node3D) -> Node3D:
 const NO_SHADOW := ["ground_", "far_", "river_water", "roads", "footpaths_kerbs", "footways", "line_marking",
 	"car_park", "kerb_gutter", "streetname", "busonly", "street_white", "street_red", "street_no_stopping",
 	"street_lenses", "street_lit_", "street_target_boards", "street_heads", "street_name_blades",
-	"street_sign_faces", "street_art", "hsw_boardwalk", "tree_crowns_far", "palm_fronds_far"]
+	"street_sign_faces", "street_art", "hsw_boardwalk", "tree_crowns_far", "palm_fronds_far", "area_flat_"]
 ## Small things nobody can make out from further off than this (m): the street names painted on the
 ## road, the bus lane words, the lamps' lenses and the signal heads.
 const NEAR_ONLY := {"streetname": 70.0, "busonly": 70.0, "street_lenses": 160.0, "street_lit_": 160.0,
 	"street_target_boards": 160.0, "street_sign_faces": 120.0, "street_name_blades": 120.0, "street_bins": 60.0,
-	"street_bin_wheels": 60.0, "street_bollards": 90.0, "street_art": 120.0}
+	"street_bin_wheels": 60.0, "street_bollards": 90.0, "street_art": 120.0,
+	"area_small_": 150.0, "area_carpark_sign_text": 60.0, "area_cathedral_noticeboard_text": 60.0, "area_sign": 120.0}
 
 static func _trim(n: Node) -> void:
 	if n is GeometryInstance3D:
@@ -498,7 +499,7 @@ const LEVEL_X0 := -12.0
 const LEVEL_X1 := 34.0
 const LEVEL_EASE := 16.0
 const GROUND_KIT := ["ground_", "roads", "footpaths", "footways", "line_marking", "car_park", "kerb_", "streetname",
-	"busonly", "hoarding", "bus_", "street_", "tree_", "palm_"]
+	"busonly", "hoarding", "bus_", "street_", "tree_", "palm_", "area_flat_", "area_kit_", "area_small_", "area_sign"]
 
 static func _level_w(x: float) -> float:
 	return smoothstep(LEVEL_X0 - LEVEL_EASE, LEVEL_X0, x) * (1.0 - smoothstep(LEVEL_X1, LEVEL_X1 + LEVEL_EASE, x))
@@ -603,6 +604,17 @@ static func _game_mat(mat: BaseMaterial3D) -> Material:
 	elif nm == "clay_slab" or nm == "clay_slab_b" or nm == "clay_column" or nm == "clay_formwork":
 		# (the podium's own structure: the game's concrete and formply, not the model's pale clay colours)
 		out = F.color_mat(Color("c79a5e") if nm == "clay_formwork" else (Color("5f666e") if nm == "clay_column" else Color("c9ccc8")))
+	elif nm.begins_with("area_bldg_"):
+		# (the Spire area's parts of the neighbours: Mantra's blue stripes and balconies, roof plant, the
+		# Customs House portico: plain, and cut away with the walls they're on)
+		col = col.linear_to_srgb()
+		if col.v > WALL_MAX:
+			col.v = WALL_MAX
+		var am := F.window_mat(col, 0.0, 0.0, col)
+		am.set_shader_parameter("cell", Vector2(9999.0, 9999.0))
+		am.set_shader_parameter("cut", true)
+		_cut_mats.append(am)
+		out = am
 	elif nm.begins_with("look_") or nm.begins_with("gen_") or nm == "clay_roof":
 		# the neighbours (glTF colours are linear: the game's are sRGB)
 		col = col.linear_to_srgb()
