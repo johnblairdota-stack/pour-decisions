@@ -233,7 +233,7 @@ def setup_morning():
             fk = nt.nodes.new("ShaderNodeMath")
             fk.operation = "MULTIPLY"
             nt.links.new(fres.outputs["Fresnel"], fk.inputs[0])
-            fk.inputs[1].default_value = 0.35                            # r5: more sky in drone views
+            fk.inputs[1].default_value = 0.22                            # r12: less mirror (critic r11)
             fmix = nt.nodes.new("ShaderNodeMix")
             fmix.data_type = "RGBA"
             nt.links.new(fk.outputs[0], fmix.inputs["Factor"])
@@ -527,18 +527,30 @@ def apply_light(az_deg, el_deg, kind="day"):
         sky.name = "SKY_morning"
         nt.links.new(sky.outputs["Color"], bg.inputs["Color"])
     try:
-        sky.sky_type = "NISHITA"
+        _st = [e.identifier for e in sky.bl_rna.properties["sky_type"].enum_items]
+        sky.sky_type = "NISHITA" if "NISHITA" in _st else "MULTIPLE_SCATTERING"   # Blender 5 renamed Nishita
         sky.sun_disc = False
         sky.sun_elevation = math.radians(-1.0) if dusk else el     # dusk: civil twilight, no sun glow on the river
         sky.sun_rotation = math.radians(90.0 - az_deg)   # Blender: 0 = +X (east), CCW
         sky.air_density = 1.0
-        sky.dust_density = 1.2 if dusk else mo["haze_dust"]
+        setattr(sky, "dust_density" if hasattr(sky, "dust_density") else "aerosol_density",   # Blender 5 name
+                1.2 if dusk else mo["haze_dust"])
         sky.ozone_density = 1.5
         sky.altitude = 30.0
     except (AttributeError, TypeError):
         pass
-    bg.inputs["Strength"].default_value = mo["sky_strength"] * (6.0 if dusk else 1.0)
+    k5 = 1.0
+    if getattr(sky, "sky_type", "") == "MULTIPLE_SCATTERING":        # Blender 5 sky is brighter than 4.x Nishita
+        k5 = float(os.environ.get("SKY5_K", L.MORNING.get("sky5_k", 0.3)))   # calibrated on p06/p09 vs PC r10
+    bg.inputs["Strength"].default_value = mo["sky_strength"] * (6.0 if dusk else 1.0) * k5
     sc.view_settings.exposure = mo["exposure"] + (0.5 if dusk else 0.0)
+    if k5 != 1.0:                                   # Blender 5 (cloud): match the PC 4.5 look
+        sc.view_settings.exposure += 0.5
+        try:
+            sc.view_settings.use_white_balance = True
+            sc.view_settings.white_balance_temperature = 7000.0   # slightly warmer: cloud renders read cold/blue
+        except AttributeError:
+            pass
     try:
         sc.view_settings.look = "AgX - Medium High Contrast"
     except TypeError:
