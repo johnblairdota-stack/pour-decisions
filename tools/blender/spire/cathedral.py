@@ -299,7 +299,7 @@ def build():
                 K.lancet(False, tu + pl, tv + d, 0.5, sq_top - 7.0, sq_top - 6.2, s, frame=False, key="dress")
         for du in (-1, 1):                                              # area r5: slender octagonal corner pinnacles
             for dv in (-1, 1):
-                K.octagon("stone", tu + du * ts * 0.48, tv + dv * ts * 0.48, 0.85, sq_top - 4.0, oct_top + 1.0)
+                K.octagon("dress", tu + du * ts * 0.48, tv + dv * ts * 0.48, 0.85, sq_top - 4.0, oct_top + 1.0)   # area r6: golden sandstone (2010 photo)
                 x_, y_, _ = K.P(tu + du * ts * 0.48, tv + dv * ts * 0.48, 0)
                 ring_ = [(x_ + 0.95 * math.cos(ang + math.pi / 8 + k * math.pi / 4), y_ + 0.95 * math.sin(ang + math.pi / 8 + k * math.pi / 4),
                           g + oct_top + 1.0) for k in range(8)]
@@ -364,6 +364,8 @@ def build():
     gw = min(7.0, fw * 0.6)
     gw_top = max(12.0, eave - 2.5)
     K.lancet(False, uw, 0.0, gw, 11.0, gw_top, west)                   # great west window, 5 lights
+    for k_ in range(3):                                                 # area r6: big recessed arch, 3 orders stepping in
+        K.arch_frame(uw + west * (0.15 + 0.45 * (2 - k_)), 0.0, fw * 0.86 - 1.1 * k_, 0.0, gw_top - 0.6 - 0.4 * k_, 0.55, west)
     for k in (-2, -1, 1, 2):
         x, y, _ = K.P(uw + west * 0.14, k * gw / 5, 0)
         K.b["dress"].box(x, y, g + 11.0, 0.18, 0.22, gw_top - 11.0 + 0.6 * gw, ang)

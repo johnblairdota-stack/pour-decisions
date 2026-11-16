@@ -814,44 +814,41 @@ def mantra_fin(col, b, rings, stripe_xy, objs, report):
     # r5 (critics + photos): the stripe runs up the south-east corner, on the face towards Ann St. Found by
     # projecting the tower outline into spire_ann_st_2018 / ann_queen_corner / fly_by_east: that corner is the
     # LEFT edge of Mantra in the first two and the right edge of the face seen in fly_by_east.
-    MS = P("mantra_stripe", {"corner": (14.5, 70.0), "along": (0.0, 1.0), "normal": (1.0, 0.0),   # east face, from the SE corner
-                             "base_ahd": 38.8, "out_m": 1.0})
+    # r6: the three photos do not fit one corner. spire_ann_st_2018 and ann_queen_corner show the blue running down
+    # Mantra's LEFT silhouette from the crest (the SE corner, east face); fly_by_east shows a second vertical blue
+    # band ~80 % across the north face and the horizontal "mantra" sign at the top of that face. So: two stripes,
+    # a wedge crest at the SE corner top, the sign horizontal on the north face. Azure #1E8FD0 (pinned by the critic).
+    stripes = P("mantra_stripes", [
+        {"centre": (14.5, 71.3), "along": (0.0, 1.0), "normal": (1.0, 0.0), "crest": True},    # east face at the SE corner
+        {"centre": (3.6, 97.5), "along": (-1.0, 0.0), "normal": (0.0, 1.0), "crest": False},   # north face (fly_by_east)
+    ])
     top = max(t["top_ahd"] for t in b["tiers"])
-    base = MS["base_ahd"]                                           # podium roof to the tower roof
-    ux, uy = MS["along"]
-    nx, ny = MS["normal"]
-    W = 3.0
-    px, py = MS["corner"][0] + ux * W / 2, MS["corner"][1] + uy * W / 2
-    fin, sign = C.MeshBuf(), C.MeshBuf()
-    D = 0.25
-    def slab(z0, z1, out0, out1, w0, w1):
+    base, W, D, O = 38.8, 2.6, 0.25, 1.0                            # podium roof -> roof; 0.05 m proud of the slab edges
+    fin = C.MeshBuf()
+
+    def slab(px, py, ux, uy, nx, ny, z0, z1, out0, out1, w0, w1):
         q = []
         for z, o, w in ((z0, out0, w0), (z1, out1, w1)):
             for s in (-1, 1):
                 for dd in (0.0, D):
                     q.append((px + ux * s * w / 2 + nx * (o + dd), py + uy * s * w / 2 + ny * (o + dd), z))
-        # 8 verts: z0 (s-,d0)(s-,d1)(s+,d0)(s+,d1), z1 same
-        f = [[0, 2, 3, 1], [4, 5, 7, 6], [0, 1, 5, 4], [2, 6, 7, 3], [1, 3, 7, 5], [0, 4, 6, 2]]
-        fin.add(q, f)
-    O = MS["out_m"]                                                 # 0.05 m proud of the balcony slab edges (0.95 m)
-    slab(base, top, O, O, W, W)                                     # the stripe on the corner face
-    steps = 10                                                      # the crest: flares out and up from the stripe top
-    for i in range(steps):
-        a0, a1 = i / steps * math.pi / 2, (i + 1) / steps * math.pi / 2
-        R = 6.0
-        z0, z1 = top + R * math.sin(a0), top + R * math.sin(a1)
-        o0, o1 = O + R * (1 - math.cos(a0)) * 0.45, O + R * (1 - math.cos(a1)) * 0.45
-        w0, w1 = W * (1 - 0.35 * i / steps), W * (1 - 0.35 * (i + 1) / steps)
-        slab(z0, z1, o0, o1, w0, w1)
-    put(fin, "mantra_blue_fin", col, mat("mantra_blue", lin("1F7BD0")), objs)
-    zt = top - 4.0                                                  # white "mantra" sign near the top of the stripe
-    ob = C.text_obj(col, "area_mantra_sign", "mantra", (px + nx * (O + D + 0.03), py + ny * (O + D + 0.03), zt),
-                    (math.pi / 2, 0, math.atan2(ny, nx) + math.pi / 2), 1.1, (0.95, 0.95, 0.95))
-    ob.rotation_euler = (math.pi / 2, 0, math.atan2(nx, -ny))      # text faces out along the facade normal
-    ob.data.body = "m\na\nn\nt\nr\na"                               # stacked letters up the stripe
-    ob.data.space_line = 0.85
-    note(px, py, "building")
-    report.append("Mantra: blue stripe %.0f m + crest + sign at (%.0f, %.0f)" % (top - base, px, py))
+        fin.add(q, [[0, 2, 3, 1], [4, 5, 7, 6], [0, 1, 5, 4], [2, 6, 7, 3], [1, 3, 7, 5], [0, 4, 6, 2]])
+    for st in stripes:
+        px, py = st["centre"]
+        ux, uy = st["along"]
+        nx, ny = st["normal"]
+        slab(px, py, ux, uy, nx, ny, base, top, O, O, W, W)
+        note(px, py, "building")
+        if st["crest"]:                                             # wedge crest: widens and leans out as it rises
+            for i in range(8):
+                f0, f1 = i / 8, (i + 1) / 8
+                slab(px, py, ux, uy, nx, ny, top + 9.0 * f0, top + 9.0 * f1, O + 3.2 * f0 ** 1.5, O + 3.2 * f1 ** 1.5,
+                     W + 4.0 * f0, W + 4.0 * f1)
+    put(fin, "mantra_blue_fin", col, mat("mantra_blue", lin("1E8FD0")), objs)
+    sx, sy, snx, sny = P("mantra_sign", (2.5, 97.5, 0.0, 1.0))      # horizontal sign at the top of the north face
+    ob = C.text_obj(col, "area_mantra_sign", "mantra", (sx + snx * (O + 0.3), sy + sny * (O + 0.3), top - 2.2),
+                    (math.pi / 2, 0, math.atan2(snx, -sny)), 2.0, (0.95, 0.95, 0.95))
+    report.append("Mantra: 2 azure stripes (SE corner + north face) %.0f m, wedge crest, horizontal sign" % (top - base))
 
 
 def mantra_slabs(col, recs, objs, report):
@@ -1328,6 +1325,113 @@ def low_leaves_on_road(guard, report):
                   % (gone, inside))
 
 
+def round6(guard, report):
+    """r6 structural fixes (each checked by crop):
+    1. spire_ann_st_2018: the photo shows an open street (brick left, ONE fig right): every tree within 30 m in
+       front of that camera goes, except the right-hand side (the fig), outside the keep-out zone only.
+    2. Named ghost crowns (rays from the critic's pixels): the Willahra 'lens' (a jacaranda at 71.5, -69) and the
+       far crown at the Customs House (-78, -326); then every trunk with no leaves within 2 m of its axis, and every
+       far-crown blob with no trunk within 12 m.
+    3. Two-tone roads: rays show both tones are the same 'roads' object and material: overlapping crowned ribbons
+       of different OSM ways tilt different ways. All road faces now shade with an up normal (one tone).
+    4. far_land: the steep slivers 1 km south (the 'yellow light shafts' in the aerial) go.
+    5. The Deanery's verandah posts / rails (the 'scaffolding') go: a plain sandstone house."""
+    import numpy as np
+    # 1. the avenue in front of the 2018 Commons camera
+    cam, hd = (167.0, 241.9), math.radians(215.2)
+    wedge = [(cam[0] + d * math.sin(hd + a), cam[1] + d * math.cos(hd + a)) for d, a in
+             ((3, -0.62), (3, 0.12), (30, 0.12), (30, -0.62))]
+    if not any(guard.keepout(x, y) for x, y in wedge):
+        n1 = clear_trees([wedge], guard)
+        report.append("spire_ann_st_2018: trees cleared in front of the camera, right-hand fig kept (%d faces)" % n1)
+    # 2a. named ghost crowns
+    named = P("remove_crowns", [(71.5, -69.0, 7.0), (-78.0, -326.0, 7.0)])
+    tree_obs = [o for o in bpy.data.objects if o.type == "MESH" and o.name.startswith(TREE_PREFIX)]
+    n2 = 0
+    for o in tree_obs:
+        n2 += drop_where(o, lambda X, Y, Z: np.any([(X - x) ** 2 + (Y - y) ** 2 < r * r for x, y, r in named], axis=0))
+    # 2b. pairing check on a 1 m grid: leaves (incl. far crowns, palms) vs wood (trunks)
+    x0, y0, x1, y1 = L.LIDAR_BOX
+    shape = (int(y1 - y0) + 1, int(x1 - x0) + 1)
+    leaf = np.zeros(shape, "i4")
+    wood = np.zeros(shape, "i4")
+    def cells(o):
+        co = np.empty(len(o.data.polygons) * 3, "f4")
+        o.data.polygons.foreach_get("center", co)
+        co = co.reshape(-1, 3)
+        r = np.clip((y1 - co[:, 1]).astype(int), 0, shape[0] - 1)
+        c = np.clip((co[:, 0] - x0).astype(int), 0, shape[1] - 1)
+        return r, c
+    woods = [o for o in tree_obs if "trunk" in o.name] + [o for o in bpy.data.objects if o.name.startswith("area_carpark_tree_trunks")]
+    leaves = [o for o in tree_obs if "trunk" not in o.name and "shadow" not in o.name] + \
+             [o for o in bpy.data.objects if o.name.startswith("area_carpark_leaves")]
+    for o in leaves:
+        r, c = cells(o)
+        np.add.at(leaf, (r, c), 1)
+    for o in woods:
+        r, c = cells(o)
+        np.add.at(wood, (r, c), 1)
+    def box_sum(a, k):
+        s = np.pad(a, k).cumsum(0).cumsum(1)
+        s = np.pad(s, ((1, 0), (1, 0)))
+        n = 2 * k + 1
+        return s[n:, n:] - s[:-n, n:] - s[n:, :-n] + s[:-n, :-n]
+    leaf_near = box_sum(leaf, 2) > 0                                # any leaf within ~2 m of a trunk cell
+    wood_near = box_sum(wood, 12) > 0                               # any trunk within ~12 m of a far-crown cell
+    n3 = sum(drop_where(o, lambda X, Y, Z: (X < 370) & ~leaf_near[np.clip((y1 - Y).astype(int), 0, shape[0] - 1),
+                                                       np.clip((X - x0).astype(int), 0, shape[1] - 1)]) for o in woods)
+    fars = [o for o in tree_obs if o.name.startswith("tree_crowns_far")]
+    n4 = sum(drop_where(o, lambda X, Y, Z: (X < 370) & ~wood_near[np.clip((y1 - Y).astype(int), 0, shape[0] - 1),
+                                                       np.clip((X - x0).astype(int), 0, shape[1] - 1)]) for o in fars)
+    report.append("tree pairing: %d faces of named ghost crowns, %d trunk faces with no crown, %d far-crown faces "
+                  "with no trunk dropped" % (n2, n3, n4))
+    # 3. roads shade as one surface
+    rd = bpy.data.objects.get("roads")
+    if rd is not None:
+        me = rd.data
+        me.polygons.foreach_set("use_smooth", [True] * len(me.polygons))
+        me.normals_split_custom_set_from_vertices([(0.0, 0.0, 1.0)] * len(me.vertices))
+        report.append("roads: one up normal on all %d faces (no two-tone crown shading)" % len(me.polygons))
+    # 4. far_land slivers
+    fl = bpy.data.objects.get("far_land")
+    if fl is not None:
+        nm = np.empty(len(fl.data.polygons) * 3, "f4")
+        fl.data.polygons.foreach_get("normal", nm)
+        steep = np.abs(nm.reshape(-1, 3)[:, 2]) < 0.5
+        k = drop_where(fl, lambda X, Y, Z: steep[:len(X)] if len(X) == len(steep) else np.zeros(len(X), bool))
+        report.append("far_land: %d steep sliver faces dropped" % k)
+    # 5. the Deanery without its scaffold-like verandah
+    k = drop_where(bpy.data.objects.get("bldg_look_106225770_band"), lambda X, Y, Z: np.ones(len(X), bool))
+    report.append("Deanery: verandah posts / rails dropped (%d faces): plain sandstone house" % k)
+    # 6. ghost pixels: leaf cards within 2.5 m of the camera ray through a pixel the critics marked
+    A_ = json.load(open(os.path.join(os.path.dirname(L.HERE), "..", "spire_area", "area_cams.json"), encoding="utf-8"))
+    heroes = {h["id"]: h for h in A_["heroes"]}
+    k6 = 0
+    for hid, px, py, rad in P("ghost_pixels", [("willahra_admiralty", 700, 762, 2.5), ("willahra_admiralty", 680, 752, 2.5),
+                                               ("willahra_admiralty", 730, 775, 2.5)]):
+        h = heroes.get(hid)
+        if not h:
+            continue
+        pos = np.array([h["pos"][0], h["pos"][1], h["pos"][2] + gz(h["pos"][0], h["pos"][1])])
+        look = np.array([h["look_at"][0], h["look_at"][1], h["look_at"][2] + gz(h["look_at"][0], h["look_at"][1])])
+        f = (look - pos) / np.linalg.norm(look - pos)
+        r = np.cross(f, [0, 0, 1.0])
+        r /= np.linalg.norm(r)
+        u = np.cross(r, f)
+        t = 18.0 / h["lens_mm"]
+        d = f + r * (px - 800) / 800 * t + u * (500 - py) / 800 * t
+        d /= np.linalg.norm(d)
+        for o in tree_obs + leaves:
+            if o.name in bpy.data.objects:
+                def ray_test(X, Y, Z, pos=pos, d=d, rad=rad):
+                    V = np.stack([X - pos[0], Y - pos[1], Z - pos[2]], 1)
+                    s = V @ d
+                    perp = np.linalg.norm(V - s[:, None] * d[None], axis=1)
+                    return (s > 5.0) & (perp < rad)
+                k6 += drop_where(o, ray_test)
+    report.append("ghost pixels: %d leaf faces on the critics' rays dropped" % k6)
+
+
 def smooth_surfaces(report):
     """r4 (critic: hard tone edges cut streets in half): smooth shading on the crowned road and the draped car
     park / drive surfaces, so their triangles do not show as flat tone patches."""
@@ -1444,18 +1548,177 @@ def customs_house(col, guard, objs, report):
 
 
 # ---------------------------------------------------------------------------------------------- self-check
+# John, 16 Nov 2026 03:00 UTC, in the project thread: "Yes, PC may add the Orient and Ann/Queen exception to the
+# Spire area build, render only." Named exceptions only: anything else in the keep-out zone still fails the build,
+# nothing may be on the Spire lot or within 1 m of it, and area_hero is skipped for the game export (game_l6).
+AREA_ZONE_EXCEPTIONS = {"orient", "annqueen_signals"}       # "annqueen_marks": not used yet
+
+
+_SITE = {}
+
+
+def near_lot(guard, x, y, m):
+    """On the Spire lot, within m of its line, or within 1 m of any Spire site object (hoarding, gate, gantry,
+    truck bay, cones, crane, booms, hoist, sheds: collections spire / core / logistics / site_plant)."""
+    lot = guard.lot
+    if S.point_in(x, y, lot) or min(seg_dist(x, y, a, b) for a, b in zip(lot, lot[1:] + lot[:1])) < m:
+        return True
+    if "kd" not in _SITE:
+        import numpy as np
+        from mathutils import kdtree
+        pts = []
+        for cname in ("spire", "core", "logistics", "site_plant"):
+            colx = bpy.data.collections.get(cname)
+            for o in (colx.all_objects if colx else []):
+                if o.type == "MESH":
+                    co = np.empty(len(o.data.vertices) * 3, "f4")
+                    o.data.vertices.foreach_get("co", co)
+                    pts.append(co.reshape(-1, 3)[:, :2])
+        P2 = np.concatenate(pts) if pts else np.zeros((0, 2), "f4")
+        kd = kdtree.KDTree(len(P2))
+        for i, p in enumerate(P2):
+            kd.insert((float(p[0]), float(p[1]), 0.0), i)
+        kd.balance()
+        _SITE["kd"] = kd
+        _SITE["n"] = len(P2)
+    if _SITE["n"] == 0:
+        return False
+    return _SITE["kd"].find((x, y, 0.0))[2] < 1.0
+
+
 def self_check(guard, report):
-    bad_zone = [(round(x, 1), round(y, 1), k) for x, y, k in NEW if guard.keepout(x, y)]
+    bad_zone = [(round(x, 1), round(y, 1), k) for x, y, k in NEW
+                if guard.keepout(x, y) and (k not in AREA_ZONE_EXCEPTIONS or near_lot(guard, x, y, 1.0))]
     bad_road = [(round(x, 1), round(y, 1), k) for x, y, k in NEW if k not in ("roadmark",) and guard.on_road(x, y)]
     if bad_zone or bad_road:
         raise RuntimeError("area_hero self-check failed: in the Spire keep-out zone %s; on a carriageway %s"
                            % (bad_zone[:10], bad_road[:10]))
-    report.append("self-check: %d new pieces, none in the keep-out zone, none on a carriageway" % len(NEW))
+    exc = {}
+    for x, y, k in NEW:
+        if k in AREA_ZONE_EXCEPTIONS and guard.keepout(x, y):
+            exc[k] = exc.get(k, 0) + 1
+    report.append("self-check: %d new pieces; in the keep-out zone only the named exceptions %s (none on the lot or "
+                  "within 1 m of it); none on a carriageway" % (len(NEW), exc or "{}"))
+
+
+ORIENT_OSM = 186586595
+
+
+def orient(col, guard, objs, report):
+    """Exception "orient" (render only, John 16 Nov): the Orient Hotel's two-level verandah on its two street
+    fronts (cast-iron posts, upper deck with a white lace balustrade, corrugated awning roof) and HOTEL ORIENT
+    lettering. Posts on the footpath, never on the road, never within 3 m of the Spire lot."""
+    import trees as T
+    o = L.osm()
+    w = o["ways"].get(ORIENT_OSM)
+    if not w:
+        return
+    ring = S.ccw(C.clean_ring(o["line"](w)))
+    cx = sum(p[0] for p in ring) / len(ring)
+    cy = sum(p[1] for p in ring) / len(ring)
+    posts, deck, lace, roof = C.MeshBuf(), C.MeshBuf(), C.MeshBuf(), C.MeshBuf()
+    n, best = 0, None
+    for a, b in zip(ring, ring[1:] + ring[:1]):
+        ln = math.dist(a, b)
+        if ln < 6.0:
+            continue
+        ux, uy = (b[0] - a[0]) / ln, (b[1] - a[1]) / ln
+        nx, ny = uy, -ux
+        if ((a[0] + b[0]) / 2 - cx) * nx + ((a[1] + b[1]) / 2 - cy) * ny < 0:
+            nx, ny = -nx, -ny
+        mx, my = (a[0] + b[0]) / 2, (a[1] + b[1]) / 2
+        if near_lot(guard, mx + nx * 2.6, my + ny * 2.6, 3.0) or \
+                not any(guard.on_road(mx + nx * d, my + ny * d) for d in (5.0, 7.0, 9.0)):
+            continue                                                # street fronts only, not the side on the lot
+        if best is None or ln > best[0]:
+            best = (ln, a, b, ux, uy, nx, ny)
+        g = min(gz(*a), gz(*b))
+        k = max(1, int(ln / 3.2))
+        run = []
+        for i in range(k + 1):
+            x = a[0] + (b[0] - a[0]) * i / k + nx * 2.6
+            y = a[1] + (b[1] - a[1]) * i / k + ny * 2.6
+            if near_lot(guard, x, y, 3.0) or guard.on_road(x, y):
+                continue
+            T.tube(posts, (x, y, gz(x, y) + 0.1), (x, y, g + 7.4), 0.07, 0.07, 10)
+            note(x, y, "orient")
+            run.append((x, y))
+            n += 1
+        if len(run) < 2:
+            continue
+        p0, p1 = run[0], run[-1]
+        f0, f1 = (p0[0] - nx * 2.6, p0[1] - ny * 2.6), (p1[0] - nx * 2.6, p1[1] - ny * 2.6)
+        e0, e1 = (p0[0] + nx * 0.15, p0[1] + ny * 0.15), (p1[0] + nx * 0.15, p1[1] + ny * 0.15)
+        zd, zr = g + 3.9, g + 7.4
+        deck.add([(*f0, zd), (*f1, zd), (*e1, zd), (*e0, zd), (*f0, zd + 0.25), (*f1, zd + 0.25), (*e1, zd + 0.25), (*e0, zd + 0.25)],
+                 [[3, 2, 1, 0], [4, 5, 6, 7], [0, 1, 5, 4], [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7]])
+        m = max(1, int(math.dist(p0, p1) / 0.15))
+        for j in range(m + 1):                                      # lace balustrade: white balusters + rails
+            x, y = p0[0] + (p1[0] - p0[0]) * j / m, p0[1] + (p1[1] - p0[1]) * j / m
+            lace.box(x, y, zd + 0.25, 0.03, 0.03, 1.0, math.atan2(uy, ux))
+        for zz in (zd + 0.3, zd + 0.75, zd + 1.25):
+            lace.beam((p0[0], p0[1], zz), (p1[0], p1[1], zz), 0.06, 0.05)
+        roof.add([(*f0, zr + 0.6), (*f1, zr + 0.6), (p1[0] + nx * 0.3, p1[1] + ny * 0.3, zr), (p0[0] + nx * 0.3, p0[1] + ny * 0.3, zr)],
+                 [[0, 1, 2, 3]])
+    if best:
+        ln, a, b, ux, uy, nx, ny = best                              # HOTEL ORIENT on the longest street front
+        mx, my = (a[0] + b[0]) / 2 + nx * 0.12, (a[1] + b[1]) / 2 + ny * 0.12
+        C.text_obj(col, "area_orient_lettering", "HOTEL ORIENT", (mx, my, gz(mx, my) + 8.6),
+                   (math.pi / 2, 0, math.atan2(nx, -ny)), 0.75, (0.93, 0.90, 0.80))
+        note(mx, my, "orient")
+    put(posts, "orient_verandah_posts", col, mat("orient_posts", (0.05, 0.08, 0.06)), objs)
+    put(deck, "orient_verandah_deck", col, mat("orient_deck", (0.35, 0.30, 0.24)), objs)
+    put(lace, "orient_verandah_lace", col, mat("orient_lace", (0.82, 0.82, 0.78)), objs)
+    put(roof, "orient_verandah_roof", col, mat("orient_roof", (0.20, 0.27, 0.25)), objs)
+    report.append("Orient Hotel (exception, render only): verandah, %d posts, lace balustrade, awning roof, HOTEL ORIENT" % n)
+
+
+def annqueen_poles(col, guard, objs, report):
+    """Exception "annqueen_signals" (render only): the square signal / light poles left in the keep-out strip at
+    Ann/Queen become round tapered galvanised poles too, except within 1.5 m of the Spire lot (work zone)."""
+    import numpy as np
+    import trees as T
+    ob = bpy.data.objects.get("street_poles")
+    if ob is None or len(ob.data.vertices) % 8:
+        return
+    me = ob.data
+    co = np.empty(len(me.vertices) * 3, "f4")
+    me.vertices.foreach_get("co", co)
+    co = co.reshape(-1, 8, 3)
+    lo, hi = co.min(1), co.max(1)
+    w = np.maximum(hi[:, 0] - lo[:, 0], hi[:, 1] - lo[:, 1])
+    h = hi[:, 2] - lo[:, 2]
+    cx, cy = (lo[:, 0] + hi[:, 0]) / 2, (lo[:, 1] + hi[:, 1]) / 2
+    pick = (h > 3.0) & (w < 0.6) & np.array([guard.keepout(x, y) and not near_lot(guard, x, y, 1.5) for x, y in zip(cx, cy)])
+    if not pick.any():
+        report.append("Ann/Queen: no square poles to replace")
+        return
+    tubes = C.MeshBuf()
+    for i in np.nonzero(pick)[0]:
+        r = max(0.06, min(0.16, w[i] * 0.55))
+        T.tube(tubes, (float(cx[i]), float(cy[i]), float(lo[i, 2])), (float(cx[i]), float(cy[i]), float(hi[i, 2])), r, r * 0.6, 12)
+        note(float(cx[i]), float(cy[i]), "annqueen_signals")
+    keep = ~pick
+    newv = co[keep].reshape(-1, 3)
+    faces = []
+    for k in range(int(keep.sum())):
+        o = 8 * k
+        faces += [[o + 3, o + 2, o + 1, o + 0], [o + 4, o + 5, o + 6, o + 7]] + [[o + i, o + (i + 1) % 4, o + 4 + (i + 1) % 4, o + 4 + i] for i in range(4)]
+    m0 = me.materials[0] if me.materials else None
+    me.clear_geometry()
+    me.from_pydata([tuple(v) for v in newv], [], faces)
+    me.update()
+    ob2 = tubes.object("area_annqueen_poles_round", col, "pole")
+    if ob2 and m0:
+        ob2.data.materials[0] = m0
+        objs.append(ob2.name)
+    report.append("Ann/Queen (exception, render only): %d square poles replaced by round tapered ones" % int(pick.sum()))
 
 
 def build():
     NEW.clear()
     _STATE.clear()
+    _SITE.clear()
     if L.ACTIVE_STAGE is not None and L.ACTIVE_STAGE is L.STAGES.get("game_l6"):
         return {"module": "area_hero", "objects": [], "note": "render-only: skipped for the game export"}
     col = C.collection("area_hero")
@@ -1467,12 +1730,12 @@ def build():
         if ob.name.startswith("busonly") and not guard.keepout(ob.location.x, ob.location.y):
             ob.location.z += 0.035                    # r2: flat paint decal (no extrusion), just above the crown
             ob.rotation_euler.y = 0.0
-            ob.rotation_euler.z += math.pi            # r3: Ann St is one-way south-west (OSM): letters face that traffic
-            ob.rotation_euler.x = -ob.rotation_euler.x
+            # r6: the r3 180 deg flip is undone: cameras facing along the one-way (SW) traffic read it upside-down
+            # (annqueen 215 deg, annstcath 229, church_house_webber 188, carpark_raised 239): streetscape.py had it right
             if ob.type == "FONT":
                 ob.data.extrude = 0.0
             nb += 1
-    report.append("BUS ONLY words lifted and turned to face the traffic: %d" % nb)
+    report.append("BUS ONLY words lifted and levelled (orientation as streetscape.py): %d" % nb)
     carparks(col, guard, objs, report)
     forecourt(col, guard, objs, report)
     roads(col, guard, objs, report)
@@ -1484,10 +1747,12 @@ def build():
     roof_plant(col, guard, objs, report)
     floating_masts(report)
     deanery_bank(col, guard, objs, report)
-    thin_leaves_near((167.0, 241.9), 215.2, 4.0, 45.0, 24.0, 0.2, guard, report, "spire_ann_st_2018")
+    round6(guard, report)
     orphan_crowns(report)
     low_leaves_on_road(guard, report)
     smooth_surfaces(report)
+    orient(col, guard, objs, report)
+    annqueen_poles(col, guard, objs, report)
     self_check(guard, report)
     for r in report:
         print("  area_hero:", r)
@@ -2098,6 +2363,11 @@ def light(az, el, dusk, kind):
             sun.data.color = P("sun_rgb", (1.0, 0.945, 0.863))
             sun.data.angle = math.radians(0.5)
             sun.data.energy = sun.data.energy * P("sun_gain", 1.6)
+            try:                                                    # r6: stair-stepped shadow edges on the roads
+                sun.data.shadow_filter_radius = P("shadow_filter", 2.5)
+                sun.data.shadow_maximum_resolution = P("shadow_res", 0.006)
+            except AttributeError:
+                pass
         if bg:
             bg.inputs["Strength"].default_value *= P("sky_fill_gain", 0.42)
         sc.view_settings.exposure += P("exposure_add_day", 0.7)          # r2: +0.6 EV on round 1
