@@ -123,10 +123,11 @@ def terrain(col):
     mi = np.zeros(zc.shape, "i4")                                   # 0 paving (warm pale decomposed granite)
     mi[(zc > 16.0) & (slope < H["scrub_slope_deg"])] = 4            # cliff top: ground
     mi[(park | lawn) & (slope < H["scrub_slope_deg"]) & (cls != 3)] = 3
-    mi[lawn] = 3
+    mi[lawn] = 6                                                     # r8: bright lawn terraces (p04, p10)
     mi[(slope >= H["scrub_slope_deg"]) & (slope < H["rock_slope_deg"])] = 2
     mi[slope >= H["rock_slope_deg"]] = 1
-    mi[(mi == 1) & (X[:-1, :-1] < H["green_cliff_x_max"])] = 2      # r3: green hill, no bare tuff west of Barrel Hall
+    gap_ = ((np.floor(X[:-1, :-1] / 7) + np.floor(Y[:-1, :-1] / 5)) % 9 == 0) & (slope >= 62.0)
+    mi[(mi == 1) & (X[:-1, :-1] < H["green_cliff_x_max"]) & ~gap_] = 2      # r8: green hill with rock gaps (p12)
     mi[(mi == 0) & (X[:-1, :-1] < 400.0)] = 3                        # r5: the land west of HSW is park, not paving
     mi[(zc < 3.2) & (slope >= H["scrub_slope_deg"])] = 5            # river bank under the decks: dark mud/rock
     mi[zc2 < 2.6] = 5
@@ -138,6 +139,7 @@ def terrain(col):
     ob.data.materials.append(C.material("grass"))
     ob.data.materials.append(rgbm("clifftop_litter", (0.085, 0.09, 0.045), "dg"))
     ob.data.materials.append(rgbm("bank", (0.025, 0.022, 0.02)))
+    ob.data.materials.append(rgbm("lawn_bright", (0.11, 0.21, 0.045), "dg"))
     ob.data.polygons.foreach_set("material_index", mi.ravel())
     ob.data.shade_smooth()
     names = [ob.name]
@@ -295,15 +297,15 @@ def cliff_dress(col, X, Y, sub, slope, zc, orig, riprap_zone):
     ra, rb_ = H["canopy_r_m"]
     green = (slope >= H["scrub_slope_deg"] - 6) & (zc > 3.5) & (X[:-1, :-1] < gx_max) & (X[:-1, :-1] > 380)
     green &= ~((X[:-1, :-1] < 612.0) & (Y[:-1, :-1] < 85.0))          # r6: not on the wharf strip's bank edges
-    top_band = near_top & (zc > 14.0) & (X[:-1, :-1] < gx_max) & (X[:-1, :-1] > 380)
+    top_band = near_top & (zc > 14.0) & (X[:-1, :-1] > 380)                  # r8: canopy line along the whole crest
     for r, c in zip(*np.nonzero(green | top_band)):
-        if (r % ev) or (c % ev):
+        if (r % ev) or (c % ev) or (green[r, c] and (int(X[r, c] // 7) + int(Y[r, c] // 5)) % 9 == 0 and slope[r, c] >= 62.0):
             continue
         ux, uy = -gx[r, c], -gy[r, c]
         ln = math.hypot(ux, uy) or 1.0
         ux, uy = ux / ln, uy / ln
         rad = rnd.uniform(ra, rb_)
-        lift = rnd.uniform(1.5, 4.0) if green[r, c] else rnd.uniform(5.0, 10.0)   # crowns of trees behind the rim
+        lift = rnd.uniform(1.5, 4.0) if green[r, c] else rnd.uniform(2.0, 4.5)    # r8: low crest canopy, blocks show
         px_ = X[r, c] + ux * 1.2 + rnd.uniform(-1.5, 1.5)
         py_ = Y[r, c] + uy * 1.2 + rnd.uniform(-1.5, 1.5)
         pz_ = zc[r, c] + lift
@@ -314,11 +316,18 @@ def cliff_dress(col, X, Y, sub, slope, zc, orig, riprap_zone):
         elif roll < 0.13:                                 # a jacaranda or two in flower
             jac.cloud((px_, py_, pz_), (rad, rad, rad * 0.6), int(9 * (20 + 4 * rad * rad)), 0.5, shell=0.2, top_bias=0.5)
         else:                                             # r4: distinct round crowns with lime-lit tops
-            (canopy if rnd.random() < 0.6 else canopy2).cloud((px_, py_, pz_), (rad, rad, rad * 0.75), int(9 * (22 + 5 * rad * rad)),
+            (canopy if rnd.random() < 0.65 else canopy2).cloud((px_, py_, pz_), (rad, rad, rad * 0.75), int(9 * (22 + 5 * rad * rad)),
                                                                0.55, shell=0.12, top_bias=0.2)
             tops.cloud((px_ + 0.3, py_ - 0.3, pz_ + rad * 0.5), (rad * 0.7, rad * 0.7, rad * 0.28), int(3 * (22 + 5 * rad * rad)),
                        0.5, shell=0.3, top_bias=0.9)
         ncan += 1
+    lastp = []                                                         # r8: palms along the crest
+    for x, y, z, ux, uy in rim_pts:
+        if any(math.hypot(x - a, y - b) < 22.0 for a, b in lastp) or rnd.random() < 0.5:
+            continue
+        lastp.append((x, y))
+        for _ in range(rnd.randint(1, 3)):
+            palm(canopy, hill_trunks, x - ux * 4 + rnd.uniform(-2, 2), y - uy * 4 + rnd.uniform(-2, 2), z, rnd.uniform(8.0, 13.0), rnd)
     nh = 0
     last = []
     lo, hi = T["hanging_len_m"]
@@ -344,7 +353,7 @@ def cliff_dress(col, X, Y, sub, slope, zc, orig, riprap_zone):
     for fo, nm, a, b in ((leaves, "hsw_cliff_scrub", (0.05, 0.10, 0.035), (0.13, 0.20, 0.07)),
                          (vines, "hsw_cliff_vines", (0.045, 0.095, 0.03), (0.11, 0.19, 0.06)),
                          (canopy, "hsw_hill_canopy", (0.06, 0.10, 0.03), (0.17, 0.24, 0.07)),
-                         (canopy2, "hsw_hill_canopy_olive", (0.10, 0.12, 0.04), (0.26, 0.29, 0.09)),
+                         (canopy2, "hsw_hill_canopy_olive", (0.14, 0.18, 0.05), (0.34, 0.42, 0.11)),
                          (tops, "hsw_hill_tops", (0.22, 0.34, 0.06), (0.40, 0.52, 0.10)),
                          (jac, "hsw_jacaranda", (0.22, 0.13, 0.45), (0.38, 0.25, 0.65))):
         o_ = fo.object(nm, col, a, b)
@@ -515,6 +524,8 @@ def sheds(col):
                 u = -ln / 2 + i * ln / nu_
                 for v in np.arange(v1 % 3.0, v1 + 0.01, 3.0):
                     x, y, _ = Pt(u, rside * v, 0)
+                    if rnd_p.random() < 0.22:                                      # r8: irregular, gaps
+                        continue
                     pw_ = rnd_p.uniform(0.7, 0.85)                                 # r7: fat, varied
                     piles.box(x + rnd_p.uniform(-0.15, 0.15), y + rnd_p.uniform(-0.15, 0.15), -2.5, pw_, pw_, base - 0.3 + 2.5,
                               rnd_p.uniform(0, 0.4))
@@ -647,13 +658,15 @@ def lift_tower(col):
     gt = L.ground_z(cx, cy)
     zl = T["link_ahd"]
     cor.box(x, y, T["top_ahd"], sx + 1.4, sy + 1.4, 0.5)                           # cap
-    cy = cy + H["skybridge_extra_m"]                                    # r4: reach the Bowen Tce building
-    steel.box(x, (y + cy) / 2 + sy / 4, zl - 0.5, 2.6, abs(cy - y) - sy / 2, 0.5)   # link bridge deck
-    teal.box(x, (y + cy) / 2 + sy / 4, zl, 2.8, abs(cy - y) - sy / 2, 2.6)          # r3: enclosed teal skybridge
-    steel.box(x, (y + cy) / 2 + sy / 4, zl + 2.6, 3.2, abs(cy - y) - sy / 2, 0.25)
-    for sxx in (-1.3, 1.3):
-        steel.beam((x + sxx, y + sy / 2, zl + 1.1), (x + sxx, cy, zl + 1.1), 0.08)
-        steel.beam((x + sxx, y + sy / 2, zl - 0.5), (x + sxx, cy, zl - 0.5), 0.3, 0.5)
+    lk = math.dist((x, y), (cx, cy))                                     # r8: the walkway leaves east to the crest
+    hd = math.atan2(cy - y, cx - x)
+    mx_, my_ = (x + cx) / 2, (y + cy) / 2
+    steel.box(mx_, my_, zl - 0.5, lk, 2.6, 0.5, hd)                      # deck
+    teal.box(mx_, my_, zl, lk, 2.8, 2.6, hd)                             # enclosed teal skybridge
+    steel.box(mx_, my_, zl + 2.6, lk, 3.2, 0.25, hd)
+    for sv in (-1.4, 1.4):
+        ox_, oy_ = -math.sin(hd) * sv, math.cos(hd) * sv
+        steel.beam((x + ox_, y + oy_, zl - 0.5), (cx + ox_, cy + oy_, zl - 0.5), 0.3, 0.5)
     glass.box(x - sx / 2 - 1.6, y, zl - 0.2, 3.2, sy + 2.0, 0.3)                 # top viewing platform
     # zigzag stair beside the tower (east side), flights of 3.6 m rise
     stx = x + sx / 2 + 2.6
@@ -915,6 +928,39 @@ def hotel_skin(col):
     names = [obj(skin, "hsw_hotel_chevron_skin", col, rgbm("hotel_chevron", (0.45, 0.38, 0.30), "chevron")),
              obj(plant, "hsw_hotel_planters", col, C.material_rgb("hsw_hotel_planter", (0.05, 0.10, 0.035), shader="canopy")),
              obj(tr, "hsw_hotel_jacaranda_trunk", col, rgbm("palm_trunk", (0.33, 0.30, 0.26)))]
+    top_t = max(rec["tiers"], key=lambda t: t["top_ahd"])
+    tr_ = [tuple(p) for p in top_t["ring"]]
+    fx0 = max(p[0] for p in tr_) - 14.0
+    zt = top_t["top_ahd"]
+    fi_umb, fi_glass = C.MeshBuf(), C.MeshBuf()
+    xs_ = [p[0] for p in tr_ if p[0] >= fx0]
+    ys_ = [p[1] for p in tr_ if p[0] >= fx0] or [p[1] for p in tr_]
+    if xs_:
+        bx0, bx1, by0, by1 = fx0, max(xs_), min(ys_), max(ys_)
+        for (ax_, ay_), (bx, by) in (((bx0, by0), (bx1, by0)), ((bx1, by0), (bx1, by1))):
+            fi_glass.beam((ax_, ay_, zt + 0.6), (bx, by, zt + 0.6), 0.06, 1.1)       # Fiume glass balustrade
+        for ux in np.arange(bx0 + 2.0, bx1 - 1.0, 3.5):
+            for uy in np.arange(by0 + 2.0, by1 - 1.0, 3.5):
+                ring_ = [(ux + 1.3 * math.cos(t_), uy + 1.3 * math.sin(t_), zt + 2.2) for t_ in np.linspace(0, 2 * math.pi, 9)[:-1]]
+                fi_umb.add(ring_ + [(ux, uy, zt + 2.7)], [[i, (i + 1) % 8, 8] for i in range(8)])
+                fi_glass.beam((ux, uy, zt), (ux, uy, zt + 2.4), 0.05)
+    names += [n_ for n_ in (obj(fi_umb, "hsw_fiume_umbrellas", col, rgbm("umbrella", (0.86, 0.84, 0.78))),
+                            obj(fi_glass, "hsw_fiume_glass", col, rgbm("glass_dark", (0.05, 0.065, 0.07), "glass_green"))) if n_]
+    pt_, pf_ = C.MeshBuf(), FO.Foliage(seed=81)
+    rnd_h = random.Random(5)
+    r0_ = [tuple(p) for p in rec["tiers"][0]["ring"]]
+    for k in range(0, len(r0_), max(1, len(r0_) // 7)):                     # palms round the hotel
+        px_, py_ = r0_[k]
+        if py_ > max(p[1] for p in r0_) - 3:
+            continue
+        palm(pf_, pt_, px_ - 2.0, py_ - 2.0, L.ground_z(px_ - 2.0, py_ - 2.0), rnd_h.uniform(7.0, 11.0), rnd_h)
+    for n_, b_ in (("hsw_hotel_palm_trunks", pt_),):
+        o2 = obj(b_, n_, col, rgbm("palm_trunk", (0.33, 0.30, 0.26)))
+        if o2:
+            names.append(o2)
+    o2 = pf_.object("hsw_hotel_palms", col, (0.07, 0.15, 0.045), (0.18, 0.30, 0.08))
+    if o2:
+        names.append(o2.name)
     o_ = terr.object("hsw_hotel_terrace_planting", col, (0.05, 0.11, 0.035), (0.15, 0.25, 0.07))
     if o_:
         names.append(o_.name)
@@ -960,7 +1006,7 @@ def crest_blocks(col):
     import os
     CB = H["crest_blocks"]
     x0, y0, x1, y1 = CB["box"]
-    walls, slabs, rails = C.MeshBuf(), C.MeshBuf(), C.MeshBuf()
+    walls, slabs, rails, alt_walls = C.MeshBuf(), C.MeshBuf(), C.MeshBuf(), C.MeshBuf()
     n = 0
     skip = {H["hotel_way"]} | {s["osm"] for s in H["sheds"]}
     for b in json.load(open(os.path.join(L.REF, "lidar", "buildings_clean.json")))["buildings"]:
@@ -970,7 +1016,7 @@ def crest_blocks(col):
         ring0 = b["tiers"][0]["ring"]
         cx = sum(p[0] for p in ring0) / len(ring0)
         cy = sum(p[1] for p in ring0) / len(ring0)
-        if not (x0 <= cx <= x1 and y0 <= cy <= y1) or top < CB["min_top_ahd"]:
+        if not (x0 <= cx <= x1 and y0 <= cy <= y1) or top < CB["min_top_ahd"] or b["base_ahd"] < CB.get("min_base_ahd", -99):
             continue
         for ti, t in enumerate(b["tiers"]):
             ring = [tuple(p) for p in t["ring"]]
@@ -984,7 +1030,7 @@ def crest_blocks(col):
                     out.append((tx + (x - tx) * (r_ + d) / r_, ty + (y - ty) * (r_ + d) / r_))
                 return out
             z0 = b["base_ahd"] if ti == 0 else b["tiers"][ti - 1]["top_ahd"]
-            walls.prism(grow(0.08), z0, t["top_ahd"])
+            (alt_walls if b["osm"] in CB.get("override", {}) else walls).prism(grow(0.08), z0, t["top_ahd"])
             z = z0 + 3.0
             while z < t["top_ahd"] - 1.0:
                 slabs.prism(grow(1.5), z, z + 0.22)
@@ -992,7 +1038,10 @@ def crest_blocks(col):
                 z += 3.0
         n += 1
     win = {"bay": 3.2, "win": 1.9, "sill": 0.35, "head": 0.85, "glass": (0.05, 0.06, 0.07), "rough": 0.2, "floor": 3.0}
+    alt_rgb = next(iter(CB.get("override", {}).values()), CB["wall"])
     return [m for m in (obj(walls, "hsw_crest_walls", col, rgbm("crest_wall", CB["wall"], "render", win)),
+                        obj(alt_walls, "hsw_crest_walls_oakwood", col, rgbm("crest_wall_oak", alt_rgb, "render",
+                                                                             dict(win, glass=(0.02, 0.02, 0.025)))),
                         obj(slabs, "hsw_crest_balconies", col, rgbm("crest_slab", CB["slab"])),
                         obj(rails, "hsw_crest_rails", col, rgbm("crest_rail", CB["rail"]))) if m], n
 
@@ -1101,14 +1150,13 @@ def dressing(col):
     o = L.osm()
     umb, pole, plant = C.MeshBuf(), C.MeshBuf(), C.MeshBuf()
     nu = 0
-    seat = [o["line"](w) for w in o["ways"].values() if w.get("tags", {}).get("leisure") == "outdoor_seating"]
-    seat = [r_ for r_ in seat if len(r_) >= 3]
-    seat = sorted(seat, key=lambda r_: -sum(p[0] for p in r_) / len(r_))[:1]     # r7: one cluster, by the Rivershed
-    for ring in seat:
-        xs, ys = [p[0] for p in ring], [p[1] for p in ring]
-        for x in np.arange(min(xs) + 2, max(xs) - 2, 3.6):
-            for y in np.arange(min(ys) + 2, max(ys) - 2, 3.6):
-                if not C.point_in_ring(x, y, ring) or nu >= 14:
+    rs_ = o["line"](o["ways"][679146329])                                 # r8: Rivershed footprint
+    ux0 = max(p[0] for p in rs_) + 4.0
+    uy0 = sum(p[1] for p in rs_) / len(rs_)
+    for x in np.arange(ux0, ux0 + 9.1, 3.0):
+        for y in np.arange(uy0 - 4.5, uy0 + 4.6, 3.0):
+            if True:
+                if nu >= 12:
                     continue
                 g = L.ground_z(x, y)
                 x2, y2 = x + rnd.uniform(-1, 1), y + rnd.uniform(-1, 1)
@@ -1174,7 +1222,7 @@ def dressing(col):
              obj(arch, "mr_percivals_arched_windows", col, rgbm("glass_dark", (0.05, 0.065, 0.07), "glass_green")),
              obj(frame, "mr_percivals_arch_frames", col, rgbm("percivals_trim", (0.86, 0.88, 0.84))),
              obj(trunks, "hsw_palm_trunks", col, rgbm("palm_trunk", (0.33, 0.30, 0.26))),
-             obj(umb, "hsw_umbrellas", col, rgbm("umbrella", (0.86, 0.84, 0.78))),
+             obj(umb, "hsw_umbrellas", col, rgbm("umbrella_taupe", (0.52, 0.46, 0.39))),
              obj(pole, "hsw_umbrella_poles", col, rgbm("frames", (0.12, 0.12, 0.12))),
              obj(plant, "hsw_planters", col, rgbm("planter", (0.22, 0.21, 0.20)))]
     ob = fo.object("hsw_palms_planting", col, (0.07, 0.15, 0.045), (0.18, 0.30, 0.08))

@@ -167,7 +167,7 @@ def build():
                                   for j in range(17)] + [(hA - 0.05, g)]
         # HSW r6: an open arch in daylight (p09): nothing inside; a glazed wall of the HSW buildings behind it
         bx_, by_, _ = P(tt - D2 - 16.0, nc, 0)
-        behind.box(bx_, by_, g, 1.0, 2 * hA + 8.0, 12.0, ang)
+        behind.box(bx_, by_, g, 1.0, 2 * hA + 10.0, 24.0, ang)            # r8: fills the arch view
         for j in range(-4, 5):                                            # mullions on it
             mx_, my_, _ = P(tt - D2 - 15.4, nc + j * 2.4, 0)
             misc.box(mx_, my_, g, 0.25, 0.18, 12.0, ang)
@@ -239,14 +239,14 @@ def build():
             misc.beam(P(t, n, deck(t) + 8.0), P(t, n + (1.2 if n > nc else -1.2) * -1, deck(t) + 8.0), 0.15)
         t += B["light_spacing_m"]
     sm = C.material_rgb("story_bridge_steel", L.HSW.get("bridge_steel", BP["steel"]))     # r3: dark charcoal (p13)
-    rm = C.material_rgb("story_bridge_render", L.HSW.get("pier_render", BP["render"]))
+    rm = C.material_rgb("story_bridge_render", L.HSW.get("pier_render", BP["render"]), shader="dg")   # r8: weathered
     objs = []
     um = C.material_rgb("story_bridge_underside", (0.03, 0.034, 0.034))   # HSW r2: near-black in shade (p09)
     am = C.material_rgb("story_bridge_arch_dark", L.HSW.get("pier_arch_back", (0.012, 0.012, 0.013)))
     for buf, name, mat in ((steel, "story_bridge_truss", sm), (under, "story_bridge_deck_steel", um),
                            (conc, "story_bridge_piers_footways", rm), (dk, "story_bridge_deck", None),
                            (misc, "story_bridge_rails_lights", sm), (shade_, "story_bridge_arch_shadow", am),
-                           (behind, "story_bridge_arch_glazing", C.material_rgb("story_bridge_arch_glazing", (0.11, 0.13, 0.14)))):
+                           (behind, "story_bridge_arch_glazing", C.material_rgb("story_bridge_arch_glazing", (0.05, 0.06, 0.065)))):
         ob = buf.object(name, col, "deck" if mat is None else "steel")
         if ob is None:                                                    # r6: the arch shadow panel is gone
             continue

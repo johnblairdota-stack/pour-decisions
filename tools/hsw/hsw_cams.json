@@ -307,14 +307,14 @@
    49.5
   ],
   "lift_top": [
-   577.0,
+   563.0,
    90.0,
    48.0
   ],
   "lift_base": [
-   577.0,
+   563.0,
    90.0,
-   3.6
+   4.27
   ],
   "percivals_top": [
    483.0,
@@ -400,73 +400,73 @@
    ],
    "mode": "tilt",
    "pos": [
-    812.6,
-    -164.4,
-    76.2
+    823.3,
+    -172.8,
+    78.7
    ],
-   "eye_above_ground_m": 51.5,
-   "heading_deg": 297.9,
-   "pitch_deg": -8.17,
+   "eye_above_ground_m": 54.3,
+   "heading_deg": 298.2,
+   "pitch_deg": -8.21,
    "roll_deg": 0.0,
-   "focal_35mm": 22.5,
+   "focal_35mm": 23.8,
    "blender": {
-    "lens_mm": 22.49,
+    "lens_mm": 23.85,
     "sensor_mm": 36.0,
     "shift_y": -0.0
    },
    "marks": 9,
-   "fit_rms_px": 13.6,
-   "fit_max_px": 25.8,
+   "fit_rms_px": 12.3,
+   "fit_max_px": 26.9,
    "per_mark_px": {
-    "peak_n_e": 25.8,
-    "peak_s_e": 2.7,
-    "pier_n_e_top": 7.7,
-    "pier_s_e_top": 6.5,
-    "felons_ridge_w": 15.2,
-    "felons_ridge_e": 13.6,
-    "rivershed_ridge_w": 2.1,
-    "lift_top": 20.9,
-    "percivals_top": 5.8
+    "peak_n_e": 26.9,
+    "peak_s_e": 3.3,
+    "pier_n_e_top": 10.2,
+    "pier_s_e_top": 9.4,
+    "felons_ridge_w": 10.2,
+    "felons_ridge_e": 5.8,
+    "rivershed_ridge_w": 3.5,
+    "lift_top": 15.6,
+    "percivals_top": 6.0
    },
    "projected": {
     "peak_n_e": [
-     938.5,
-     380.0
+     944.0,
+     377.1
     ],
     "peak_s_e": [
-     42.8,
-     374.6
+     41.7,
+     375.3
     ],
     "pier_n_e_top": [
-     936.2,
-     497.4
+     941.7,
+     497.3
     ],
     "pier_s_e_top": [
-     61.8,
-     553.7
-    ],
-    "felons_ridge_w": [
-     943.0,
+     60.0,
      555.9
     ],
+    "felons_ridge_w": [
+     948.7,
+     557.2
+    ],
     "felons_ridge_e": [
-     1089.9,
-     590.7
+     1098.2,
+     592.6
     ],
     "rivershed_ridge_w": [
-     1296.8,
-     750.3
+     1297.2,
+     748.6
     ],
     "lift_top": [
-     1148.5,
-     476.7
+     1125.6,
+     473.4
     ],
     "percivals_top": [
-     872.1,
-     554.2
+     876.0,
+     555.6
     ]
    },
-   "holdout_rms_px": 34.1,
+   "holdout_rms_px": 27.5,
    "note": ""
   },
   {
@@ -552,73 +552,73 @@
    ],
    "mode": "tilt",
    "pos": [
-    833.1,
-    -146.9,
-    72.7
+    848.2,
+    -160.6,
+    76.8
    ],
-   "eye_above_ground_m": 46.9,
-   "heading_deg": 310.6,
-   "pitch_deg": -13.41,
+   "eye_above_ground_m": 50.4,
+   "heading_deg": 310.5,
+   "pitch_deg": -13.16,
    "roll_deg": 0.0,
-   "focal_35mm": 32.3,
+   "focal_35mm": 34.6,
    "blender": {
-    "lens_mm": 33.63,
+    "lens_mm": 35.99,
     "sensor_mm": 36.0,
     "shift_y": -0.0
    },
    "marks": 9,
-   "fit_rms_px": 24.9,
-   "fit_max_px": 40.0,
+   "fit_rms_px": 26.5,
+   "fit_max_px": 44.5,
    "per_mark_px": {
-    "peak_n_e": 36.0,
-    "pier_n_top_sw": 10.9,
-    "pier_n_crown_s": 12.7,
-    "felons_ridge_w": 11.8,
-    "felons_ridge_e": 8.8,
-    "rivershed_ridge_w": 25.8,
-    "anchor_n_deck": 38.6,
-    "lift_top": 4.7,
-    "barrel_hall_top": 40.0
+    "peak_n_e": 34.5,
+    "pier_n_top_sw": 10.5,
+    "pier_n_crown_s": 11.6,
+    "felons_ridge_w": 12.1,
+    "felons_ridge_e": 4.3,
+    "rivershed_ridge_w": 27.8,
+    "anchor_n_deck": 44.5,
+    "lift_top": 25.7,
+    "barrel_hall_top": 36.3
    },
    "projected": {
     "peak_n_e": [
-     371.8,
-     142.4
+     373.9,
+     141.2
     ],
     "pier_n_top_sw": [
-     331.9,
-     255.7
+     332.6,
+     255.8
     ],
     "pier_n_crown_s": [
-     352.0,
-     278.4
+     353.2,
+     278.9
     ],
     "felons_ridge_w": [
-     384.9,
-     316.4
+     386.7,
+     317.5
     ],
     "felons_ridge_e": [
-     511.5,
-     342.3
+     515.8,
+     344.1
     ],
     "rivershed_ridge_w": [
-     631.8,
-     465.7
+     633.8,
+     464.3
     ],
     "anchor_n_deck": [
-     598.5,
-     240.5
+     604.4,
+     239.3
     ],
     "lift_top": [
-     562.6,
-     233.8
+     540.8,
+     232.3
     ],
     "barrel_hall_top": [
-     610.1,
-     351.7
+     614.0,
+     353.6
     ]
    },
-   "holdout_rms_px": 73.9,
+   "holdout_rms_px": 64.4,
    "note": "round 2: re-read on a grid; the old rivershed_ridge_w was the far eave corner; pier corner, arch crown, lift top, Barrel Hall, Rivershed near gable added"
   },
   {
@@ -1084,58 +1084,63 @@
    ],
    "mode": "tilt",
    "pos": [
-    518.1,
-    -84.3,
+    516.4,
+    -84.0,
     2.5
    ],
    "eye_above_ground_m": 4.2,
-   "heading_deg": 5.7,
-   "pitch_deg": 4.98,
+   "heading_deg": 6.6,
+   "pitch_deg": 4.95,
    "roll_deg": 0.0,
-   "focal_35mm": 30.2,
+   "focal_35mm": 29.6,
    "blender": {
-    "lens_mm": 31.37,
+    "lens_mm": 30.83,
     "sensor_mm": 36.0,
     "shift_y": -0.0
    },
-   "marks": 6,
-   "fit_rms_px": 7.4,
+   "marks": 7,
+   "fit_rms_px": 7.0,
    "fit_max_px": 13.8,
    "per_mark_px": {
     "pier_n_top_sw": 13.8,
-    "pier_n_top_se": 2.6,
-    "pier_n_crown_s": 3.1,
-    "pier_n_spring_sw": 10.4,
-    "pier_n_spring_se": 2.0,
-    "percivals_top": 2.3
+    "pier_n_top_se": 3.2,
+    "pier_n_crown_s": 3.8,
+    "pier_n_spring_sw": 10.7,
+    "pier_n_spring_se": 1.9,
+    "percivals_top": 1.5,
+    "lift_top": 2.9
    },
    "projected": {
     "pier_n_top_sw": [
-     150.4,
-     407.1
+     150.6,
+     407.3
     ],
     "pier_n_top_se": [
-     452.7,
-     415.0
+     450.8,
+     416.2
     ],
     "pier_n_crown_s": [
-     301.0,
-     490.0
+     300.4,
+     489.8
     ],
     "pier_n_spring_sw": [
-     232.6,
-     552.2
+     232.3,
+     551.2
     ],
     "pier_n_spring_se": [
-     364.8,
-     554.0
+     363.6,
+     553.3
     ],
     "percivals_top": [
-     261.5,
-     611.2
+     263.3,
+     609.6
+    ],
+    "lift_top": [
+     997.1,
+     374.0
     ]
    },
-   "holdout_rms_px": 11.9,
+   "holdout_rms_px": 20.0,
    "note": "round 2 (Wikimedia, Kgbo CC BY-SA 4.0). Lift top (995, 372) and Felons east ridge end (1240, 607) left out: they miss by 120-150 px, so the model lift tower or Felons east end is a few metres off (check next round)"
   },
   {
@@ -1150,73 +1155,78 @@
    ],
    "mode": "tilt",
    "pos": [
-    342.6,
-    -228.6,
+    340.2,
+    -160.5,
     5.6
    ],
    "eye_above_ground_m": 7.3,
-   "heading_deg": 28.1,
-   "pitch_deg": 3.82,
+   "heading_deg": 35.6,
+   "pitch_deg": 4.76,
    "roll_deg": 0.0,
-   "focal_35mm": 60.9,
+   "focal_35mm": 50.1,
    "blender": {
-    "lens_mm": 63.35,
+    "lens_mm": 52.06,
     "sensor_mm": 36.0,
     "shift_y": -0.0
    },
-   "marks": 9,
-   "fit_rms_px": 23.6,
-   "fit_max_px": 33.1,
+   "marks": 10,
+   "fit_rms_px": 26.8,
+   "fit_max_px": 45.3,
    "per_mark_px": {
-    "pier_n_top_sw": 33.1,
-    "pier_n_top_se": 26.0,
-    "pier_n_crown_s": 19.1,
-    "pier_n_spring_sw": 7.4,
-    "pier_n_spring_se": 28.5,
-    "percivals_top": 1.8,
-    "hswshed_ridge_w": 25.3,
-    "peak_n_w": 20.9,
-    "peak_n_e": 30.4
+    "pier_n_top_sw": 35.4,
+    "pier_n_top_se": 21.1,
+    "pier_n_crown_s": 15.6,
+    "pier_n_spring_sw": 9.1,
+    "pier_n_spring_se": 25.2,
+    "percivals_top": 18.7,
+    "hswshed_ridge_w": 25.8,
+    "peak_n_w": 21.5,
+    "peak_n_e": 45.3,
+    "lift_top": 31.4
    },
    "projected": {
     "pier_n_top_sw": [
-     557.5,
+     562.4,
      530.8
     ],
     "pier_n_top_se": [
-     791.7,
-     542.3
+     781.5,
+     548.0
     ],
     "pier_n_crown_s": [
-     677.0,
-     608.2
+     675.3,
+     611.3
     ],
     "pier_n_spring_sw": [
-     625.5,
-     663.8
+     626.7,
+     666.5
     ],
     "pier_n_spring_se": [
-     727.2,
-     666.3
+     722.0,
+     670.2
     ],
     "percivals_top": [
-     765.5,
-     727.0
+     782.2,
+     730.3
     ],
     "hswshed_ridge_w": [
-     225.3,
-     728.9
+     225.7,
+     730.1
     ],
     "peak_n_w": [
-     577.4,
-     140.9
+     577.0,
+     141.4
     ],
     "peak_n_e": [
-     738.2,
-     160.8
+     726.9,
+     170.8
+    ],
+    "lift_top": [
+     1044.8,
+     499.0
     ]
    },
-   "holdout_rms_px": 33.3,
+   "holdout_rms_px": 45.0,
    "note": "round 2 (Wikimedia, Kangaroo Point). Weak: holdout ~49 px. Lift top (1040, 530) and Felons east ridge end (1310, 768) left out for the same reason as p12"
   }
  ]

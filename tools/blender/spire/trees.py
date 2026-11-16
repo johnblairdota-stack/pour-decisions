@@ -250,6 +250,8 @@ def build():
             continue
         x, y = fx
         if in_hsw(x, y):
+            if 470.0 <= x <= 680.0 and 95.0 <= y <= 150.0 and g > 20.0:   # r8: low crest canopy, the blocks show (p12)
+                h = min(h, 9.0)
             if not hsw_ok(x, y, g):
                 count["hsw_dropped"] = count.get("hsw_dropped", 0) + 1
                 continue
