@@ -35,12 +35,12 @@ static func _mat(c: Color, rough := 0.85, metal := 0.0) -> StandardMaterial3D:
 	m.metallic = metal
 	return m
 
-static func _glass() -> StandardMaterial3D:
+static func _glass(clear := false) -> StandardMaterial3D:
 	var m := StandardMaterial3D.new()
 	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	m.albedo_color = Color(0.75, 0.88, 0.9, 0.12)
+	m.albedo_color = Color(0.75, 0.88, 0.9, 0.03 if clear else 0.12)
 	m.roughness = 0.05
-	m.metallic = 0.4
+	m.metallic = 0.0 if clear else 0.4
 	m.cull_mode = BaseMaterial3D.CULL_DISABLED
 	return m
 
@@ -101,8 +101,9 @@ static func _pool(root: Node3D) -> void:
 	_blk(root, _mat(Color("16303f"), 0.3), -40.0, 40.0, edge, edge + 0.12, -0.4, -0.01)
 	# the catch trough's far wall, and the frameless glass on it with a pale top edge
 	_blk(root, _mat(Color("8f8d88"), 0.8), -40.0, 40.0, edge + 0.55, edge + 0.7, -0.6, -0.12)
-	_blk(root, _glass(), -40.0, 40.0, edge + 0.6, edge + 0.63, -0.12, 0.5)
-	_blk(root, _mat(Color("dfe6e8"), 0.3, 0.5), -40.0, 40.0, edge + 0.59, edge + 0.64, 0.5, 0.52)
+	# (clear glass: a tinted pane read as the city mirrored in a band of water)
+	_blk(root, _glass(true), -40.0, 40.0, edge + 0.6, edge + 0.63, -0.12, 0.5)
+	_blk(root, _mat(Color("aab2b6"), 0.3, 0.5), -40.0, 40.0, edge + 0.58, edge + 0.65, 0.5, 0.545)
 	# the stone coping curving round the pool's end, in at the bottom right
 	for k in 7:
 		var a := deg_to_rad(187.0 - 8.0 * k)
