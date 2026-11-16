@@ -7626,6 +7626,8 @@ func _spire_views() -> Array:
 		["roof", Vector3(23, base_y + 7, 7), Vector3(13, base_y + 1.5, -3.5)],
 		["road_w", Vector3(2, 4, 12), Vector3(-34, -1, 15)],
 		["crane", at + Vector3(14, 95, 85), at + Vector3(10, 34, 0)],
+		["hsw_far", at + Vector3(0, 30, 0), Vector3(SpireSite.g([560.0, -60.0]).x, -15.0, SpireSite.g([560.0, -60.0]).y)],
+		["bridge_far", at + Vector3(0, 30, 0), Vector3(SpireSite.g([470.0, -200.0]).x, 0.0, SpireSite.g([470.0, -200.0]).y)],
 		["street_e", Vector3(-22, 6, 14), Vector3(2, 6, -1)],
 		["podium", Vector3(4, base_y * 0.5 + 4, 18), Vector3(4, base_y * 0.6, -4)],
 		["deck_a", Vector3(4, dk + 16, SpireSite.front_z(4.0) + 16), Vector3(0, dk, SpireSite.front_z(0.0) - 8)],
