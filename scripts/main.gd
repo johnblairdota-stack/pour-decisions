@@ -4605,8 +4605,10 @@ func _process(delta: float) -> void:
 			else:
 				selector.pick(2 if tutorial else (0 if _auto_kit == "tower" else 1))
 				_auto_kit = ""
-		if picking():
-			_update_daylight(delta)        # (golden hour on the pick and its flight)
+		# (golden hour on the hand of cards; the flight wears its floor's own light from the first frame.
+		# It used to keep whatever was showing: golden after the hand, plain day after a change of site)
+		if picking() or (is_instance_valid(selector) and selector.arriving):
+			_update_daylight(delta)
 		_update_camera(delta)
 		_update_see_through(delta)
 		return
