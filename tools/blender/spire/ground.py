@@ -126,6 +126,8 @@ def build():
             continue                                                    # keep the near skirt clear (it slopes)
         w_, l_ = rnd.uniform(7, 16), rnd.uniform(8, 20)
         h_ = rnd.choice((4, 5, 5, 6, 7, 9)) if rnd.random() > 0.01 else rnd.uniform(15, 45)
+        if d < 1500 and rnd.random() < 0.25:                          # HSW r8: varied mid-rise near in
+            h_ = rnd.uniform(12, 40)
         kind = rnd.random()
         if kind < 0.45:
             fbg.box(x, y, zb - 0.5, w_ * 1.4, l_ * 1.4, rnd.uniform(6, 12), rnd.uniform(0, 3.14))

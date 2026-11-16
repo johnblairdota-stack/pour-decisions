@@ -53,7 +53,8 @@ def horizon():
         a_ = 2 * math.pi * i / n
         v = (0.45 * math.sin(3 * a_ + ph[0]) + 0.3 * math.sin(7 * a_ + ph[1]) + 0.15 * math.sin(13 * a_ + ph[2])
              + 0.1 * math.sin(23 * a_ + ph[3]))
-        hs.append(lo + (hi - lo) * (0.5 + 0.5 * v))
+        dw = math.atan2(math.sin(a_ - math.pi * 1.03), math.cos(a_ - math.pi * 1.03))   # r8: Mt Coot-tha, to the west
+        hs.append(lo + (hi - lo) * (0.5 + 0.5 * v) + 170.0 * math.exp(-(dw / 0.12) ** 2))
     verts, faces = [], []
     for i in range(n):
         a = 2 * math.pi * i / n
