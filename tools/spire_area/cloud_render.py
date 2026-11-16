@@ -23,9 +23,16 @@ def cycles_render(path, w, h, transparent=False):
     except TypeError:
         pass
     c.max_bounces = 4; c.diffuse_bounces = 2; c.glossy_bounces = 2; c.transmission_bounces = 4
-    c.volume_bounces = 0; c.transparent_max_bounces = 8
+    c.volume_bounces = 0; c.transparent_max_bounces = 64
     c.volume_step_rate = 4.0
     sc.render.threads_mode = "AUTO"
+    # Cycles traces the leaf cards' specular against the bright sky: crowns turned frosty blue-white. Leaves are matt.
+    for m in bpy.data.materials:
+        if m.get("shader") == "leaf" and m.node_tree:
+            for n in m.node_tree.nodes:
+                if n.type == "BSDF_PRINCIPLED":
+                    n.inputs["Specular IOR Level"].default_value = 0.08
+                    n.inputs["Roughness"].default_value = 0.9
     return _orig(path, w, h, transparent)
 P.render = cycles_render
 runpy.run_path(script, run_name="__main__")
