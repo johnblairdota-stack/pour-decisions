@@ -273,7 +273,10 @@ def build():
         if s == "fig":
             r = 0.42 * h
             rz = 0.25 * h
-            fig_trunk(trunks, x, y, g, h * 0.45, 0.3 if in_hsw(x, y) else 0.5)   # HSW r3: slimmer flare
+            if in_hsw(x, y):
+                fig_trunk(trunks, x, y, g, h * 0.45, 0.3)                       # HSW r3: slimmer flare
+            else:                                                               # area r2: round tapered trunk, no bell
+                tube(trunks, (x, y, g - 0.2), (x, y, g + h * 0.45), 0.5, 0.34, 10)
             trunk(trunks, x, y, g + h * 0.4, 0.4, 0.1, 5, r * 0.45)
             cz = g + h - rz
             if near:

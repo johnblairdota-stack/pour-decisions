@@ -276,6 +276,18 @@
   ],
   "tree_species": [
    {
+    "centre": [-100, -72],
+    "radius": 45,
+    "species": "generic",
+    "note": "area r2: cathedral grounds and forecourt: camphor laurels (dense round crowns, straight trunks)"
+   },
+   {
+    "centre": [24, 58],
+    "radius": 9,
+    "species": "palm",
+    "note": "area r2: Orient Hotel / Ann-Queen corner palms (critic)"
+   },
+   {
     "centre": [
      -80,
      -40

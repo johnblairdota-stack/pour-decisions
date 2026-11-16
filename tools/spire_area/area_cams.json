@@ -28,7 +28,7 @@
    "caption": "Queen St looking south: Willahra, Marriott, Admiralty"},
   {"id": "church_house_webber", "pos": [-55.0, -2.0, 1.6], "look_at": [-60.0, -40.0, 6.0], "lens_mm": 22.0,
    "caption": "Church House and Webber House across Ann St"},
-  {"id": "deanery", "pos": [-46.0, -112.0, 9.0], "look_at": [-16.0, -88.0, 3.0], "lens_mm": 24.0,
+  {"id": "deanery", "pos": [8.0, -116.0, 24.0], "look_at": [-18.0, -89.0, 2.0], "lens_mm": 24.0,
    "caption": "The Deanery over its car park"},
   {"id": "mantra", "pos": [62.0, 140.0, 20.0], "look_at": [6.0, 86.0, 45.0], "lens_mm": 26.0,
    "caption": "Mantra on Queen from the Boundary St junction"},
@@ -38,6 +38,8 @@
    "caption": "Ann St looking north-east from the cathedral corner"},
   {"id": "queen_st_streetscape", "pos": [58.0, -110.0, 1.6], "look_at": [44.0, -20.0, 5.0], "lens_mm": 24.0,
    "caption": "Queen St looking north towards Spire"},
+  {"id": "customs_house_river", "pos": [72.0, -302.0, 4.0], "look_at": [31.0, -262.0, 10.0], "lens_mm": 26.0,
+   "caption": "Customs House colonnade and dome from the river walk"},
   {"id": "customs_house", "pos": [46.0, -212.0, 1.6], "look_at": [27.0, -262.0, 9.0], "lens_mm": 24.0,
    "caption": "Customs House from Queen St"}
  ],

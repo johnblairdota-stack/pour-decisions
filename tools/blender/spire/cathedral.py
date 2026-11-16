@@ -308,7 +308,8 @@ def build():
     K.block("stone", *sorted((uw, up)), -pw / 2, pw / 2, ph + 1.0, ph + 1.6)
     pr = ph + 1.6 + math.tan(PITCH) * pw / 2
     K.b["stone"].add([K.P(up, -pw / 2, ph + 1.6), K.P(up, pw / 2, ph + 1.6), K.P(up, 0, pr)], [[0, 1, 2] if west > 0 else [2, 1, 0]])
-    K.gable_roof("slate", *sorted((uw, up + west * 0.3)), -pw / 2 - 0.2, pw / 2 + 0.2, ph + 1.6)
+    # area r2: no slate pent roof over the porch (critic: it read as a dark pyramid); a solid stone gable instead
+    K.gable_roof("stone", *sorted((up - west * 0.7, up)), -pw / 2, pw / 2, ph + 1.6)
     for k in range(4):                                                  # arch orders stepping in to the doors
         K.arch_frame(up - west * (0.02 + 0.85 * k), 0.0, pw - 0.6 - 0.9 * k, 0.0, ph - 2.6 - 0.25 * k, 0.42, west)
         K.block("dress", *sorted((up - west * 0.85 * k, up - west * (0.85 * k + 0.85))), -(pw - 0.6 - 0.9 * k) / 2, -(pw - 0.6 - 0.9 * k) / 2 + 0.45, -0.5, ph - 2.6 - 0.25 * k)
@@ -317,6 +318,15 @@ def build():
     for k in range(5):                                                  # steps down to the forecourt
         K.block("dress", *sorted((up + west * 0.4 * k, up + west * 0.4 * (k + 1))), -pw / 2 - 0.8 * k, pw / 2 + 0.8 * k,
                 -0.6, 0.15 * (5 - k) - 0.6)
+    K.b.setdefault("rail", C.MeshBuf())                                 # area r2: black handrails down the steps
+    for s_ in (-1, 1):
+        for dv in (pw / 2 + 0.2, 1.2):
+            p0 = K.P(up + west * 0.1, s_ * dv, 0.15 + 0.9)
+            p1 = K.P(up + west * 2.0, s_ * (dv + 1.5 if dv > 2 else dv), -0.6 + 0.9)
+            K.b["rail"].beam(p0, p1, 0.05)
+            for t in (0.0, 0.5, 1.0):
+                q = tuple(p0[i] + (p1[i] - p0[i]) * t for i in range(3))
+                K.b["rail"].beam((q[0], q[1], q[2] - 0.95), q, 0.05)
     for k in range(11):                                                 # blind arcade band
         dv = -fw * 0.42 + k * fw * 0.84 / 10
         K.lancet(False, uw, dv, 0.7, 7.9, 9.0, west, frame=False, key="dress")
@@ -329,7 +339,14 @@ def build():
     for k in (-2, -1, 1, 2):
         x, y, _ = K.P(uw + west * 0.14, k * gw / 5, 0)
         K.b["dress"].box(x, y, g + 11.0, 0.18, 0.22, gw_top - 11.0 + 0.6 * gw, ang)
-    n = 12                                                              # rose in the central gable
+    head = gw_top + 0.05                                                # area r2: tracery in the window head
+    for s_ in (-1, 1):                                                  # two sub-arches over the lights
+        K.arch_frame(uw + west * 0.16, s_ * gw / 4, gw / 2 - 0.2, 11.0, head, 0.16, west)
+    cz_, cr_ = head + 0.62 * gw * 0.55, gw * 0.17                       # a circle above them
+    ring_ = [K.P(uw + west * 0.16, cr_ * math.cos(2 * math.pi * k / 16), cz_ + cr_ * math.sin(2 * math.pi * k / 16)) for k in range(17)]
+    for p_, q_ in zip(ring_[:-1], ring_[1:]):
+        K.b["dress"].beam(p_, q_, 0.16)
+    n = 12                                                             # rose in the central gable
     rz, rr = eave + 2.0, 1.5
     rose = [K.P(uw + west * 0.1, rr * math.cos(2 * math.pi * k / n), rz + rr * math.sin(2 * math.pi * k / n)) for k in range(n)]
     K.b["glass"].add(rose, [list(range(n)) if west < 0 else list(range(n - 1, -1, -1))])
@@ -341,7 +358,8 @@ def build():
             "tile": C.material_rgb("cathedral_terracotta", LOOK["tile"]),
             "slate": C.material_rgb("cathedral_slate", LOOK["slate"]),
             "spire": C.material_rgb("cathedral_spire_slate", LOOK["spire_slate"]),
-            "glass": C.material_rgb("cathedral_leadlight", LOOK["leadlight"])}
+            "glass": C.material_rgb("cathedral_leadlight", LOOK["leadlight"]),
+            "rail": C.material_rgb("cathedral_rail", (0.02, 0.02, 0.02))}
     objs = []
     for key, buf in K.b.items():
         ob = buf.object("cathedral_" + key, col, "roof")
