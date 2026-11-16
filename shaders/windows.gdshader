@@ -26,6 +26,11 @@ uniform bool roof = false;
 // Spire's neighbours: cut away in a circle where they stand between the camera and someone at
 // work down on the street (main._update_see_through sets cut_n / cut_p)
 uniform bool cut = false;
+// The window in its cell: left, right, sill, head as fractions (Spire's neighbours carry their own
+// from the Blender scene's facade recipes: curtain wall, strip, punched, balcony doors)
+uniform vec4 win_rect = vec4(0.14, 0.86, 0.22, 0.82);
+// Soleil: pale diagonal bands across the whole facade
+uniform bool diag = false;
 
 varying vec3 wpos;
 varying vec3 wnorm;
@@ -47,12 +52,17 @@ void fragment() {
 	float h = abs(wnorm.x) > abs(wnorm.z) ? wpos.z : wpos.x;
 	vec2 uv = vec2(h, wpos.y) / cell;
 	vec2 f = fract(uv);
-	float win = step(0.14, f.x) * step(f.x, 0.86) * step(0.22, f.y) * step(f.y, 0.82);
+	float win = step(win_rect.x, f.x) * step(f.x, win_rect.y) * step(win_rect.z, f.y) * step(f.y, win_rect.w);
 	if (abs(wnorm.y) > 0.9) {
 		win = 0.0;
 	}
 	float lit = step(1.0 - lit_ratio, hash(floor(uv) + floor(wpos.xz * 0.01)));
 	ALBEDO = mix(frame_color.rgb, glass_color.rgb, win);
+	if (diag && abs(wnorm.y) < 0.9) {
+		float band = step(fract((h + wpos.y) / 22.0), 0.09);
+		ALBEDO = mix(ALBEDO, vec3(0.80, 0.80, 0.78), band);
+		win *= 1.0 - band;
+	}
 	if (vertex_tint) {
 		vec3 wall = pow(COLOR.rgb, vec3(2.2));
 		ALBEDO = mix(wall, wall * vec3(0.52, 0.58, 0.66), win);
