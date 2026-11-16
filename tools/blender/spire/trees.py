@@ -240,7 +240,8 @@ def build():
         p = c.get("pos")
         if p and p[2] - L.ground_z(p[0], p[1]) < 4.0:
             cams.append(tuple(p[:2]))
-    clear = lambda x, y: all(math.hypot(x - cx, y - cy) > 9.0 for cx, cy in cams)   # photos: taken from open spots
+    cams.append((784.0, -16.0))                                          # HSW r9: Wilson Outlook lookout
+    clear = lambda x, y: all(math.hypot(x - cx, y - cy) > (50.0 if (cx, cy) == (784.0, -16.0) else 9.0) for cx, cy in cams)
     guard = RoadGuard()
     for x, y, h, g in L.tree_points():
         if h < 3.0 or h > 40.0 or not clear(x, y):

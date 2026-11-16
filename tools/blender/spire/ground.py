@@ -30,6 +30,11 @@ def build():
     sub = g[np.ix_(rows, cols)]
     if not st:                               # HSW round 2: tidal mud flats / pale spits go under the water
         sub = np.where((sub < 1.6) & (sub > L.RIVER_LEVEL_AHD - 2.0), np.minimum(sub, -1.2), sub)
+        Xg, Yg = np.meshgrid(x0 + cols + 0.5, y1 - rows - 0.5)
+        sub = np.where((Xg > 400) & (Xg < 600) & (Yg > -178) & (Yg < -112) & (sub < 10.0) &
+                       ~((Yg < -150) & (Xg > 540)), np.minimum(sub, -1.2), sub)   # HSW r9: boat strip mid-river (p01)
+        sub = np.where((Xg > 480) & (Xg < 620) & (Yg > -215) & (Yg < -140) & (sub < 2.6), np.minimum(sub, -1.2), sub)   # mudflat
+        sub = np.where((Xg > 530) & (Xg < 620) & (Yg > -195) & (Yg < -140) & (sub < 8.0), np.minimum(sub, -1.2), sub)   # r9: islet (p01)
         for _ in range(3):                   # HSW r6: no lone spikes left standing in the river
             wet_ = sub < 0.0
             nb = (np.roll(wet_, 1, 0).astype(int) + np.roll(wet_, -1, 0) + np.roll(wet_, 1, 1) + np.roll(wet_, -1, 1))
@@ -138,7 +143,7 @@ def build():
     obf = fb.object("far_suburbs", col, "ground")
     obf.data.materials[0] = C.material_rgb("far_suburbs", (0.33, 0.32, 0.30))
     obt = fbt.object("far_suburbs_terracotta", col, "ground")
-    obt.data.materials[0] = C.material_rgb("far_suburbs_tc", (0.36, 0.17, 0.11))
+    obt.data.materials[0] = C.material_rgb("far_suburbs_tc", (0.32, 0.22, 0.17))   # HSW r9: desaturated
     obg = fbg.object("far_suburbs_trees", col, "ground")
     obg.data.materials[0] = C.material_rgb("far_suburbs_trees", (0.05, 0.08, 0.035))
     E = 6000

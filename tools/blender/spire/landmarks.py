@@ -117,7 +117,15 @@ def build():
     tq = ta
     while tq < tb:                                                        # r6: thin cross-girders every 3.5 m
         under.beam(P(tq, nc - hw, deck(tq) - 1.2), P(tq, nc + hw, deck(tq) - 1.2), 0.3, 0.3)
+        if int(round((tq - ta) / 3.5)) % 2 == 0:                          # r9: deep cross-girder every 7 m
+            under.beam(P(tq, nc - hw, deck(tq) - 2.2), P(tq, nc + hw, deck(tq) - 2.2), 0.25, 1.6)
         tq += 3.5
+    for n_ in (nc - hw + 1.5, nc - 3.5, nc + 3.5, nc + hw - 1.5):       # r9: lower stringer layer
+        tq = ta
+        while tq < tb:
+            t2 = min(tq + 7.0, tb)
+            under.beam(P(tq, n_, deck(tq) - 2.9), P(t2, n_, deck(t2) - 2.9), 0.35, 0.6)
+            tq = t2
     for i in range(k):                                                    # HSW r2: secondary hangers + sway braces
         tm = (ts[i] + ts[i + 1]) / 2
         for side in (-1, 1):
@@ -167,6 +175,8 @@ def build():
                                   for j in range(17)] + [(hA - 0.05, g)]
         # HSW r6: an open arch in daylight (p09): nothing inside; a glazed wall of the HSW buildings behind it
         bx_, by_, _ = P(tt - D2 - 16.0, nc, 0)
+        if tt != tn_:                                                     # r9: north pier only (south one is over the river)
+            continue
         behind.box(bx_, by_, g, 1.0, 2 * hA + 10.0, 24.0, ang)            # r8: fills the arch view
         for j in range(-4, 5):                                            # mullions on it
             mx_, my_, _ = P(tt - D2 - 15.4, nc + j * 2.4, 0)
@@ -246,7 +256,7 @@ def build():
     for buf, name, mat in ((steel, "story_bridge_truss", sm), (under, "story_bridge_deck_steel", um),
                            (conc, "story_bridge_piers_footways", rm), (dk, "story_bridge_deck", None),
                            (misc, "story_bridge_rails_lights", sm), (shade_, "story_bridge_arch_shadow", am),
-                           (behind, "story_bridge_arch_glazing", C.material_rgb("story_bridge_arch_glazing", (0.05, 0.06, 0.065)))):
+                           (behind, "story_bridge_arch_glazing", C.material_rgb("story_bridge_arch_glazing", (0.45, 0.38, 0.30), shader="chevron"))):
         ob = buf.object(name, col, "deck" if mat is None else "steel")
         if ob is None:                                                    # r6: the arch shadow panel is gone
             continue
