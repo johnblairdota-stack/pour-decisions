@@ -1498,7 +1498,7 @@ def customs_house(col, guard, objs, report):
     w = o["ways"].get(CUSTOMS_OSM)
     m = bpy.data.materials.get("look_%d_accent" % CUSTOMS_OSM)
     if m:
-        m.diffuse_color = (0.09, 0.20, 0.15, 1)
+        m.diffuse_color = (0.56, 0.76, 0.65, 1) if L.GAME_EXPORT else (0.09, 0.20, 0.15, 1)     # (game: pale verdigris, 8fc3a6)
     if not w:
         return
     ring = S.ccw(C.clean_ring(o["line"](w)))
@@ -1546,6 +1546,20 @@ def customs_house(col, guard, objs, report):
     put(cols_, "customs_columns", col, ston, objs)
     put(stone, "customs_portico", col, ston, objs)
     report.append("Customs House: 6-column portico + pediment on the river front, copper dome green")
+    if L.GAME_EXPORT:
+        # the big fig beside it (from the river, the second thing you see): a trunk and a clump of round crowns
+        fx, fy = mx + ux * (ln / 2 + 9.0) + nx * 3.0, my + uy * (ln / 2 + 9.0) + ny * 3.0
+        fg = gz(fx, fy)
+        bark, leaf = C.MeshBuf(), C.MeshBuf()
+        T.tube(bark, (fx, fy, fg - 0.3), (fx, fy, fg + 9.0), 1.3, 0.8, 7)
+        for dx, dy, dz, r in ((0, 0, 15.0, 8.5), (5.5, 1.5, 12.5, 6.5), (-5.0, 2.5, 13.0, 6.5), (1.0, -5.5, 12.0, 6.0),
+                              (-1.5, 5.0, 16.5, 6.0), (4.0, -3.5, 17.0, 5.5), (-4.5, -3.0, 17.5, 5.0)):
+            T.blob(leaf, fx + ux * dx + nx * dy, fy + uy * dx + ny * dy, fg + dz, r, r * 0.85)
+        put(bark, "customs_fig_bark", col, mat("customs_fig_bark", (0.35, 0.29, 0.23)), objs)
+        fo = put(leaf, "customs_fig_leaf", col, mat("customs_fig_leaf", (0.22, 0.40, 0.17)), objs)
+        if fo:
+            for pl in fo.data.polygons:
+                pl.use_smooth = True
 
 
 # ---------------------------------------------------------------------------------------------- self-check

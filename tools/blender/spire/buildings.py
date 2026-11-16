@@ -177,7 +177,16 @@ def toppers(rec, bf, ring, top):
     cx = sum(p[0] for p in ring) / len(ring)
     cy = sum(p[1] for p in ring) / len(ring)
     rmin = min(math.dist((cx, cy), p) for p in ring)
-    if rec.get("dome"):
+    if rec.get("dome") and L.GAME_EXPORT and rec.get("name") == "Customs House":
+        # (from the river the copper dome is the building: about a third of the river front wide, on a
+        # sandstone drum. The plain rule below gave a nub.)
+        r = max(6.5, 0.8 * rmin)
+        k = 12
+        drum = [(cx + r * 1.05 * math.cos(2 * math.pi * i / k), cy + r * 1.05 * math.sin(2 * math.pi * i / k)) for i in range(k)]
+        bf.walls.prism(drum, top - 0.5, top + 4.0)
+        dome(bf.accent, cx, cy, top + 4.0, r)
+        cone(bf.accent, cx, cy, top + 4.0 + r - 0.3, 0.9, top + 4.0 + r + 3.0, 6)
+    elif rec.get("dome"):
         r = max(2.5, 0.45 * rmin)
         bf.accent.box(cx, cy, top, 2 * r, 2 * r, 1.5)
         dome(bf.accent, cx, cy, top + 1.5, r)

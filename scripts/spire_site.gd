@@ -572,8 +572,13 @@ static func road_lift(x: float, z: float) -> float:
 ## picture styles reach them too), no brighter than a sunlit render wall, and their walls the game's
 ## window grid, the way Riverlight's neighbours have. Bare ground goes paving grey, the land beyond
 ## the model the game's park green, rock a warm sandstone, water the river's blue-green.
-const RIVER_COL := Color("62593c")      # (the Brisbane River's brown)
+const RIVER_COL := Color("56603f")      # (the Brisbane River: olive brown, green enough to stay water in warm light)
 const WALL_MAX := 0.74       # brightest a wall's colour may be (its value, 0..1)
+## The pick flight's warm light turns blue glass mint green and cream walls yellow. The real skyline from
+## the river is grey-white concrete, sand and blue-black glass, so the neighbours carry less colour of
+## their own than the Blender looks do.
+const WALL_SAT := 0.6
+const GLASS_SAT := 0.45
 static var _mats := {}
 
 static func _tint(n: Node) -> void:
@@ -627,7 +632,7 @@ static func _game_mat(mat: BaseMaterial3D) -> Material:
 		# (the Story Bridge from the river: mid grey steel that goes near black underneath, on weathered
 		# concrete piers. The model's own colours come out pale steel on white blocks.)
 		var b2 := mat.duplicate() as BaseMaterial3D
-		b2.albedo_color = Color("4b504f") if nm == "story_bridge_steel" else (Color("1b1e1e") if nm == "story_bridge_underside" else Color("9a9488"))
+		b2.albedo_color = Color("6c7479") if nm == "story_bridge_steel" else (Color("232827") if nm == "story_bridge_underside" else Color("b4b3ae"))
 		b2.metallic = 0.0
 		b2.roughness = 0.9
 		out = b2
@@ -657,6 +662,7 @@ static func _game_mat(mat: BaseMaterial3D) -> Material:
 		col = col.srgb_to_linear()
 		if col.v > WALL_MAX:
 			col.v = WALL_MAX
+		col.s *= WALL_SAT
 		var looks: Dictionary = d.get("looks", {})
 		if looks.has(nm):
 			# (the building's own facade recipe from the Blender scene: its glass, and its window grid as
@@ -664,6 +670,7 @@ static func _game_mat(mat: BaseMaterial3D) -> Material:
 			var lk: Dictionary = looks[nm]
 			var gl: Array = lk["glass"]
 			var glass := Color(float(gl[0]), float(gl[1]), float(gl[2])).lightened(0.1)     # (dark against the pale walls, as the render's glass reads)
+			glass.s *= GLASS_SAT
 			var wm := F.window_mat(col, 0.0, 0.0, glass)
 			var bay := float(lk["bay"])
 			var side := clampf(0.5 - 0.5 * float(lk["win"]) / bay, 0.03, 0.45)

@@ -7647,7 +7647,8 @@ func _roof_pose() -> Array:
 		var lv := SpireSite.levels()
 		var roof := SpireSite.top_y(lv.size() - 1)
 		var br := SpireSite.g([487.9, -73.6])        # (the main span's middle, layout.STORY_BRIDGE)
-		return [Vector3(c.x, roof + RoofSet.EYE, c.y), Vector3(br.x, 22.0, br.y), 40.0]
+		# (aimed under the bridge, so it sits in the upper half over the pool's edge, as in the photo)
+		return [Vector3(c.x, roof + RoofSet.EYE, c.y), Vector3(br.x, -5.0, br.y), 44.0]
 	# (Hamilton: both look up the reach to the city's towers on the skyline, stood off to the side of
 	# the hoist's mast; Riverlight from the rail at its roof's edge, the water tower off its tank top)
 	var top := level_y(TUT_LAST + 1) if tutorial else level_y(floors())
