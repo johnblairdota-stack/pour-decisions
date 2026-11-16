@@ -193,7 +193,33 @@ def toppers(rec, bf, ring, top):
         dome(bf.accent, cx, cy, top + 1.5, r)
     if rec.get("spike"):
         cone(bf.roof, cx, cy, top, 1.2, top + 18.0, 6)
-    if L.GAME_EXPORT and top > 95.0 and rmin > 6.0 and not (rec.get("dome") or rec.get("spike") or rec.get("crown")):
+    gt = rec.get("game_top") if L.GAME_EXPORT else None
+    if gt:
+        # (the landmark towers' real tops, from the river photos)
+        def scaled(k):
+            return [(cx + (p[0] - cx) * k, cy + (p[1] - cy) * k) for p in ring]
+
+        def wedge(k, h0, h1):
+            # a block over the roof whose top slopes across the tower (low on -x, high on +x)
+            r = scaled(k)
+            x0, x1 = min(p[0] for p in r), max(p[0] for p in r)
+            n = len(r)
+            vs = [(p[0], p[1], top) for p in r] + [(p[0], p[1], top + h0 + (h1 - h0) * (p[0] - x0) / max(x1 - x0, 0.1)) for p in r]
+            bf.roof.add(vs, [[i, (i + 1) % n, n + (i + 1) % n, n + i] for i in range(n)] + [[n + i for i in range(n)]])
+        if gt == "mast":                                   # Riparian Plaza: stepped plant levels and the tall spire
+            bf.roof.prism(scaled(0.7), top, top + 8.0)
+            bf.roof.prism(scaled(0.36), top + 8.0, top + 15.0)
+            cone(bf.roof, cx, cy, top + 15.0, 1.3, top + 15.0 + 46.0, 6)
+        elif gt == "crown":                                # One One One Eagle St: a dark crown the full width
+            bf.roof.prism(scaled(1.02), top, top + 9.0)
+        elif gt == "wedge":                                # Central Plaza One: the white sloped cap
+            wedge(1.0, 2.0, 16.0)
+        elif gt == "slope":                                # Soleil: black, cut on a slant
+            wedge(1.0, 1.0, 12.0)
+        elif gt == "steps":                                # Waterfront Place: stepped green glass shoulders
+            bf.roof.prism(scaled(0.78), top, top + 7.0)
+            bf.roof.prism(scaled(0.5), top + 7.0, top + 13.0)
+    elif L.GAME_EXPORT and top > 95.0 and rmin > 6.0 and not (rec.get("dome") or rec.get("spike") or rec.get("crown")):
         # (the skyline from the river: tall towers end in something. A stepped plant level, and on some a
         # mast or a sloped cap, picked by where the tower stands so it stays put.)
         k = int(abs(cx * 7.3 + cy * 3.1)) % 4

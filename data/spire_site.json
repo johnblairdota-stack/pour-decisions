@@ -1135,6 +1135,84 @@
    "floor": 3.6,
    "diag": false
   },
+  "look_134816030_wall": {
+   "glass": [
+    0.1647,
+    0.3216,
+    0.5569
+   ],
+   "bay": 1.5,
+   "win": 1.38,
+   "sill": 0.3,
+   "head": 0.97,
+   "floor": 3.7,
+   "diag": false
+  },
+  "look_134816031_wall": {
+   "glass": [
+    0.1373,
+    0.1569,
+    0.1725
+   ],
+   "bay": 1.5,
+   "win": 1.45,
+   "sill": 0.35,
+   "head": 0.85,
+   "floor": 3.1,
+   "diag": false
+  },
+  "look_134816032_wall": {
+   "glass": [
+    0.1647,
+    0.3216,
+    0.5569
+   ],
+   "bay": 1.5,
+   "win": 1.38,
+   "sill": 0.3,
+   "head": 0.97,
+   "floor": 3.7,
+   "diag": false
+  },
+  "look_138278498_wall": {
+   "glass": [
+    0.3373,
+    0.4078,
+    0.4784
+   ],
+   "bay": 1.5,
+   "win": 1.38,
+   "sill": 0.3,
+   "head": 0.97,
+   "floor": 3.7,
+   "diag": false
+  },
+  "look_138278768_wall": {
+   "glass": [
+    0.3373,
+    0.4078,
+    0.4784
+   ],
+   "bay": 1.5,
+   "win": 1.38,
+   "sill": 0.3,
+   "head": 0.97,
+   "floor": 3.7,
+   "diag": false
+  },
+  "look_140808831_wall": {
+   "glass": [
+    0.1647,
+    0.1882,
+    0.2118
+   ],
+   "bay": 1.5,
+   "win": 1.45,
+   "sill": 0.35,
+   "head": 0.85,
+   "floor": 3.1,
+   "diag": false
+  },
   "look_186247884_wall": {
    "glass": [
     0.1725,
