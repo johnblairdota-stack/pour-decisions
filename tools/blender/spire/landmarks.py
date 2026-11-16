@@ -117,6 +117,9 @@ def build():
     tq = ta
     while tq < tb:                                                        # r6: thin cross-girders every 3.5 m
         under.beam(P(tq, nc - hw, deck(tq) - 1.2), P(tq, nc + hw, deck(tq) - 1.2), 0.3, 0.3)
+        if tq + 3.5 < tb:                                                # r10: diagonal bracing between girders
+            under.beam(P(tq, nc - hw, deck(tq) - 1.3), P(tq + 3.5, nc, deck(tq + 3.5) - 1.3), 0.12)
+            under.beam(P(tq, nc + hw, deck(tq) - 1.3), P(tq + 3.5, nc, deck(tq + 3.5) - 1.3), 0.12)
         if int(round((tq - ta) / 3.5)) % 2 == 0:                          # r9: deep cross-girder every 7 m
             under.beam(P(tq, nc - hw, deck(tq) - 2.2), P(tq, nc + hw, deck(tq) - 2.2), 0.25, 1.6)
         tq += 3.5
