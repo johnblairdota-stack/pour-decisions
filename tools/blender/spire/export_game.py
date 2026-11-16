@@ -265,6 +265,16 @@ def main():
     d = site_data()
     d["model"] = {"glb": "res://assets/spire/spire_site.glb", "keep_radius_m": KEEP_R,
                   "built_to": lv[L.LEVELS["transfer_level"] - 1]["name"], "objects_removed": removed}
+    # each neighbour's facade recipe (looks.py, and what area_hero changed on it): the glTF only carries
+    # the wall's colour, so the game's window shader reads the glass and the window grid from here
+    looks = {}
+    for m in bpy.data.materials:
+        if m.users and "win_bay" in m and "win_glass" in m:
+            looks[m.name] = {"glass": [round(float(c), 4) for c in m["win_glass"]][:3],
+                             "bay": float(m["win_bay"]), "win": float(m["win_win"]), "sill": float(m["win_sill"]),
+                             "head": float(m["win_head"]), "floor": float(m.get("win_floor", L.LEVEL_HEIGHT)),
+                             "diag": bool(m.get("diag", False))}
+    d["looks"] = looks
     json.dump(d, open(OUT_JSON, "w"), indent=1)
     tris = sum(len(o.data.polygons) for o in bpy.data.objects if o.type == "MESH")
     print("export_game: %s (%.1f MB, %d faces), %s" % (OUT_GLB, os.path.getsize(OUT_GLB) / 1e6, tris, OUT_JSON))

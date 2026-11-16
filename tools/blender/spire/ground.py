@@ -29,13 +29,39 @@ def build():
     H, W = g.shape
     rows, cols = np.arange(0, H, STEP), np.arange(0, W, STEP)
     sub = g[np.ix_(rows, cols)]
-    if hero:                                 # HSW round 2: tidal mud flats / pale spits go under the water
+    if not st:                               # HSW round 2: tidal mud flats / pale spits go under the water
+                                             # (the game's model too: they stood out of the river as land on the CityCat's run in)
         sub = np.where((sub < 1.6) & (sub > L.RIVER_LEVEL_AHD - 2.0), np.minimum(sub, -1.2), sub)
         Xg, Yg = np.meshgrid(x0 + cols + 0.5, y1 - rows - 0.5)
-        sub = np.where((Xg > 400) & (Xg < 600) & (Yg > -178) & (Yg < -112) & (sub < 10.0) &
+        sub = np.where((Xg > 400) & (Xg < 600) & (Yg > -178) & (Yg < 0) & (sub < 10.0) &      # (to Yg 0: a spike stood under the bridge's main span at 480, -102)
                        ~((Yg < -150) & (Xg > 540)), np.minimum(sub, -1.2), sub)   # HSW r9: boat strip mid-river (p01)
         sub = np.where((Xg > 480) & (Xg < 620) & (Yg > -215) & (Yg < -140) & (sub < 2.6), np.minimum(sub, -1.2), sub)   # mudflat
         sub = np.where((Xg > 530) & (Xg < 620) & (Yg > -195) & (Yg < -140) & (sub < 8.0), np.minimum(sub, -1.2), sub)   # r9: islet (p01)
+        if L.GAME_EXPORT:
+            # (the game has no 1 m patch at Howard Smith Wharves (hsw_hero.terrain), so its fixes are made
+            # here on the 2 m ground: the wharf decks and the riverwalk out over the river, which the
+            # LiDAR read as ground, stood in the water as a ragged tongue of land along the wharves.
+            # Low ground within 30 m of the water goes under, but for the named lawns and the rock
+            # armour at the Rivershed point. hsw_far.glb has the decks themselves.)
+            import prep_lidar as PL
+            o_ = L.osm()
+            lawn = np.zeros(g.shape, bool)
+            for w_ in o_["ways"].values():
+                if w_.get("tags", {}).get("name") in L.HSW["lawns"]:
+                    ring = o_["line"](w_)
+                    if len(ring) >= 3:
+                        m_, rr, cc = PL.ring_mask(ring, L.LIDAR_BOX)
+                        if m_ is not None:
+                            lawn[rr:rr + m_.shape[0], cc:cc + m_.shape[1]] |= m_
+            lawn = lawn[np.ix_(rows, cols)]
+            px0, py0, px1, py1 = L.HSW["patch_box"]
+            rx0, ry0, rx1, ry1 = L.HSW["waterline"]["riprap_box"]
+            inbox = (Xg > px0) & (Xg < px1) & (Yg > py0) & (Yg < py1)
+            riprap = (Xg >= rx0) & (Xg <= rx1) & (Yg >= ry0) & (Yg <= ry1)
+            near = sub < 0.0
+            for _ in range(30 // STEP):
+                near = near | np.roll(near, 1, 0) | np.roll(near, -1, 0) | np.roll(near, 1, 1) | np.roll(near, -1, 1)
+            sub = np.where(inbox & near & ~lawn & ~riprap & (sub < np.where(Xg >= 400.0, 5.0, 6.0)), np.minimum(sub, -1.2), sub)
         for _ in range(3):                   # HSW r6: no lone spikes left standing in the river
             wet_ = sub < 0.0
             nb = (np.roll(wet_, 1, 0).astype(int) + np.roll(wet_, -1, 0) + np.roll(wet_, 1, 1) + np.roll(wet_, -1, 1))

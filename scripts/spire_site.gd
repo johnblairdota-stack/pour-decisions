@@ -612,7 +612,7 @@ static func _game_mat(mat: BaseMaterial3D) -> Material:
 	var col := mat.albedo_color
 	if nm == "clay_water":
 		var w := mat.duplicate() as BaseMaterial3D
-		w.albedo_color = Color("3f6f78")
+		w.albedo_color = Color("3f6f78")       # (teal: the render's brown-green river read as sand in golden light, with no ripples to say water)
 		w.roughness = 0.08
 		w.metallic_specular = 0.9
 		out = w
@@ -643,7 +643,28 @@ static func _game_mat(mat: BaseMaterial3D) -> Material:
 		col = col.linear_to_srgb()
 		if col.v > WALL_MAX:
 			col.v = WALL_MAX
-		if nm.ends_with("_wall") or nm.ends_with("_band"):
+		var looks: Dictionary = d.get("looks", {})
+		if looks.has(nm):
+			# (the building's own facade recipe from the Blender scene: its glass, and its window grid as
+			# a curtain wall, strips, punched windows or balcony doors)
+			var lk: Dictionary = looks[nm]
+			var gl: Array = lk["glass"]
+			var glass := Color(float(gl[0]), float(gl[1]), float(gl[2])).lightened(0.1)     # (dark against the pale walls, as the render's glass reads)
+			var wm := F.window_mat(col, 0.0, 0.0, glass)
+			var bay := float(lk["bay"])
+			var side := clampf(0.5 - 0.5 * float(lk["win"]) / bay, 0.03, 0.45)
+			wm.set_shader_parameter("cell", Vector2(bay, float(lk["floor"])))
+			wm.set_shader_parameter("win_rect", Vector4(side, 1.0 - side, float(lk["sill"]), float(lk["head"])))
+			wm.set_shader_parameter("diag", bool(lk.get("diag", false)))
+			wm.set_shader_parameter("roof", true)
+			out = wm
+		elif not looks.is_empty() and nm.ends_with("_band"):
+			# (slab edges and balcony fronts: plain bands, as the render has them)
+			var bm := F.window_mat(col, 0.0, 0.0, col)
+			bm.set_shader_parameter("cell", Vector2(9999.0, 9999.0))
+			bm.set_shader_parameter("roof", true)
+			out = bm
+		elif nm.ends_with("_wall") or nm.ends_with("_band"):
 			var glass := col.darkened(0.45).lerp(Color(0.24, 0.32, 0.42), 0.4)
 			var wm := F.window_mat(col, 0.0, 0.0, glass)
 			wm.set_shader_parameter("cell", Vector2(2.4, 3.1))
