@@ -184,10 +184,44 @@ def main():
     import trees
     trees.hero = lambda x, y: False                 # simple crowns everywhere (game budget)
     trees.HERO_CENTRES = []
+    # 20-face crowns. (They were 8-face octahedra: from the river they read as flat diamonds on sticks.)
+    t = (1 + 5 ** 0.5) / 2
+    n = (1 + t * t) ** 0.5
+    ico20 = ([(x / n, y / n, z / n) for x, y, z in ((-1, t, 0), (1, t, 0), (-1, -t, 0), (1, -t, 0), (0, -1, t), (0, 1, t),
+                                                     (0, -1, -t), (0, 1, -t), (t, 0, -1), (t, 0, 1), (-t, 0, -1), (-t, 0, 1))],
+             [(0, 11, 5), (0, 5, 1), (0, 1, 7), (0, 7, 10), (0, 10, 11), (1, 5, 9), (5, 11, 4), (11, 10, 2), (10, 7, 6), (7, 1, 8),
+              (3, 9, 4), (3, 4, 2), (3, 2, 6), (3, 6, 8), (3, 8, 9), (4, 9, 5), (2, 4, 11), (6, 2, 10), (8, 6, 7), (9, 8, 1)])
+    trees.ICO = ico20
+
+    def _lump(buf, x, y, z, rx, rz, turn):
+        # (one icosahedron, turned and tipped by where it stands, so no two crowns show the same outline)
+        ca, sa = math.cos(turn), math.sin(turn)
+        ct, st = math.cos(0.5 + turn * 0.37), math.sin(0.5 + turn * 0.37)
+        vs = []
+        for a, b, c in ico20[0]:
+            b, c = b * ct - c * st, b * st + c * ct
+            a, b = a * ca - b * sa, a * sa + b * ca
+            vs.append((x + a * rx, y + b * rx, z + c * rz))
+        buf.add(vs, [list(f) for f in ico20[1]])
+
+    def _crown(buf, x, y, zc, r, flat, lobes=5):
+        seed = abs(x * 31.7 + y * 17.3)
+        # (the crown hangs well down its trunk: from the river the trees read as round heads, not lollipops)
+        _lump(buf, x, y, zc - r * 0.8 * flat, r * 1.12, r * flat * 1.7, seed)
+        if r >= 3.0 and int(seed) % 3 == 0:             # one big crown in three: two more lumps, a clump and not a ball
+            for k in (0, 1):
+                a = seed * 2.1 + k * 2.6
+                _lump(buf, x + math.cos(a) * r * 0.75, y + math.sin(a) * r * 0.75, zc - r * 0.18 * (k + 1) * flat, r * 0.72, r * 0.6 * flat, seed + k + 1.0)
+    trees.crown = _crown
     oct8 = ([(1, 0, 0), (-1, 0, 0), (0, 1, 0), (0, -1, 0), (0, 0, 1), (0, 0, -1)],
             [(0, 2, 4), (2, 1, 4), (1, 3, 4), (3, 0, 4), (2, 0, 5), (1, 2, 5), (3, 1, 5), (0, 3, 5)])
-    trees.ICO = oct8                                                    # 8-face crowns
-    trees.crown = lambda buf, x, y, zc, r, flat, lobes=5: trees.blob(buf, x, y, zc, r, r * flat)
+
+    def _blob(buf, x, y, z, rx, rz):
+        if rx <= 2.1:                                   # shrubs and hedges: 8 faces is plenty
+            buf.add([(x + a * rx, y + b * rx, z + c * rz) for a, b, c in oct8[0]], [list(f) for f in oct8[1]])
+        else:
+            _lump(buf, x, y, z, rx, rz, abs(x * 3.1 + y * 1.7))
+    trees.blob = _blob
     _tube = trees.tube
     trees.tube = lambda buf, p, q, r0, r1, n=8: _tube(buf, p, q, r0, r1, 4)
     trees.trunk = lambda buf, x, y, g, r, h, branches=0, spread=1.0: _tube(buf, (x, y, g - 0.2), (x, y, g + h + 1.0), r * 1.2, r * 0.6, 4)

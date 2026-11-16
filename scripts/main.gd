@@ -774,6 +774,12 @@ func _update_story_light(delta: float) -> void:
 	var want: Array = Story.LIGHTS["morning"] if tutorial else Story.light(story_k(k))
 	if picking():
 		want = Story.LIGHTS["golden"]
+		if spire:
+			# (Spire's river views are judged against clear-day photos: a blue sky and a higher sun off
+			# to one side, keeping some of the golden warmth)
+			want = Story.mix(want, Story.LIGHTS["midmorning"], 0.6)
+			want[0] = Color("2f6fd0")
+			want[1] = Color("d3dbdc")       # (the horizon lights the fog and the shade: blue here turns the whole city blue)
 	if cfg.get("rain", false) and not tutorial:
 		var t0: float = cfg["rain_at"]
 		var t1: float = t0 + float(cfg["rain_len"])
@@ -7647,7 +7653,8 @@ func _roof_pose() -> Array:
 		var lv := SpireSite.levels()
 		var roof := SpireSite.top_y(lv.size() - 1)
 		var br := SpireSite.g([487.9, -73.6])        # (the main span's middle, layout.STORY_BRIDGE)
-		return [Vector3(c.x, roof + RoofSet.EYE, c.y), Vector3(br.x, 22.0, br.y), 40.0]
+		# (aimed to the right of the bridge, so it sits left of centre over the pool's edge, as in the photo)
+		return [Vector3(c.x, roof + RoofSet.EYE, c.y), Vector3(br.x + 108.0, 70.0, br.y - 74.0), 44.0]
 	# (Hamilton: both look up the reach to the city's towers on the skyline, stood off to the side of
 	# the hoist's mast; Riverlight from the rail at its roof's edge, the water tower off its tank top)
 	var top := level_y(TUT_LAST + 1) if tutorial else level_y(floors())
