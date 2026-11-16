@@ -572,7 +572,8 @@ static func road_lift(x: float, z: float) -> float:
 ## picture styles reach them too), no brighter than a sunlit render wall, and their walls the game's
 ## window grid, the way Riverlight's neighbours have. Bare ground goes paving grey, the land beyond
 ## the model the game's park green, rock a warm sandstone, water the river's blue-green.
-const WALL_MAX := 0.74        # brightest a wall's colour may be (its value, 0..1)
+const RIVER_COL := Color("62593c")      # (the Brisbane River's brown)
+const WALL_MAX := 0.74       # brightest a wall's colour may be (its value, 0..1)
 static var _mats := {}
 
 static func _tint(n: Node) -> void:
@@ -611,14 +612,25 @@ static func _game_mat(mat: BaseMaterial3D) -> Material:
 	var out: Material = null
 	var col := mat.albedo_color
 	if nm == "clay_water":
-		var w := mat.duplicate() as BaseMaterial3D
-		w.albedo_color = Color("3f6f78")       # (teal: the render's brown-green river read as sand in golden light, with no ripples to say water)
-		w.roughness = 0.08
-		w.metallic_specular = 0.9
+		# (the render's muddy brown-green Brisbane River, a little deeper so it doesn't read as sand, with
+		# Riverlight's ripples and glints to say water)
+		var w := ShaderMaterial.new()
+		w.shader = preload("res://shaders/river.gdshader")
+		w.set_shader_parameter("water", RIVER_COL)
+		w.set_shader_parameter("gloss", 0.4)
+		w.set_shader_parameter("rough", 0.3)
 		out = w
 	elif mat.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED or col.a < 0.99 or mat.albedo_texture != null \
 			or nm.contains("glass") or nm.contains("leadlight") or nm.contains("lit_") or nm.contains("lens") or nm.begins_with("text_"):
 		out = null       # (glass, lamps and painted text keep the model's own material)
+	elif nm == "story_bridge_steel" or nm == "story_bridge_underside" or nm == "story_bridge_render":
+		# (the Story Bridge from the river: mid grey steel that goes near black underneath, on weathered
+		# concrete piers. The model's own colours come out pale steel on white blocks.)
+		var b2 := mat.duplicate() as BaseMaterial3D
+		b2.albedo_color = Color("4b504f") if nm == "story_bridge_steel" else (Color("1b1e1e") if nm == "story_bridge_underside" else Color("9a9488"))
+		b2.metallic = 0.0
+		b2.roughness = 0.9
+		out = b2
 	elif nm == "clay_ground" or nm == "far_land" or nm == "clay_rock":
 		# (bare ground in the city blocks is paving, not lawn: the parks have their own grass)
 		var g2 := mat.duplicate() as BaseMaterial3D
@@ -630,7 +642,7 @@ static func _game_mat(mat: BaseMaterial3D) -> Material:
 	elif nm.begins_with("area_bldg_"):
 		# (the Spire area's parts of the neighbours: Mantra's blue stripes and balconies, roof plant, the
 		# Customs House portico: plain, and cut away with the walls they're on)
-		col = col.linear_to_srgb()
+		col = col.srgb_to_linear()       # (as below: the look's own colour)
 		if col.v > WALL_MAX:
 			col.v = WALL_MAX
 		var am := F.window_mat(col, 0.0, 0.0, col)
@@ -639,8 +651,10 @@ static func _game_mat(mat: BaseMaterial3D) -> Material:
 		_cut_mats.append(am)
 		out = am
 	elif nm.begins_with("look_") or nm.begins_with("gen_") or nm == "clay_roof":
-		# the neighbours (glTF colours are linear: the game's are sRGB)
-		col = col.linear_to_srgb()
+		# the neighbours. The Blender scene writes each look's hex colour straight in as a linear value,
+		# and the glTF import brightens that once more for the screen: taking the brightening back off
+		# gives the colour the look was written with (Customs House's sandstone, not off-white).
+		col = col.srgb_to_linear()
 		if col.v > WALL_MAX:
 			col.v = WALL_MAX
 		var looks: Dictionary = d.get("looks", {})

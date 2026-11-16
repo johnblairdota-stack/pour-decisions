@@ -62,6 +62,24 @@ def build():
             for _ in range(30 // STEP):
                 near = near | np.roll(near, 1, 0) | np.roll(near, -1, 0) | np.roll(near, 1, 1) | np.roll(near, -1, 1)
             sub = np.where(inbox & near & ~lawn & ~riprap & (sub < np.where(Xg >= 400.0, 5.0, 6.0)), np.minimum(sub, -1.2), sub)
+            # (and along the whole reach: boardwalks, ferry pontoons and wharf decks out over the water,
+            # which the LiDAR read as ground, stood in the river as long grey slivers off the city bank.
+            # Real land is whatever is joined, by land at least 24 m wide, to ground that rises above
+            # 8 m somewhere; low land that isn't goes under.)
+            land = sub >= 0.0
+            RO = max(1, 12 // STEP)
+            er = land.copy()
+            for _ in range(RO):
+                er = er & np.roll(er, 1, 0) & np.roll(er, -1, 0) & np.roll(er, 1, 1) & np.roll(er, -1, 1)
+            real = er & (sub >= 8.0)
+            while True:
+                grow = (real | np.roll(real, 1, 0) | np.roll(real, -1, 0) | np.roll(real, 1, 1) | np.roll(real, -1, 1)) & er
+                if grow.sum() == real.sum():
+                    break
+                real = grow
+            for _ in range(RO + 1):
+                real = real | np.roll(real, 1, 0) | np.roll(real, -1, 0) | np.roll(real, 1, 1) | np.roll(real, -1, 1)
+            sub = np.where(land & ~real & ~lawn & ~riprap & (sub < 8.0), np.minimum(sub, -1.2), sub)
         for _ in range(3):                   # HSW r6: no lone spikes left standing in the river
             wet_ = sub < 0.0
             nb = (np.roll(wet_, 1, 0).astype(int) + np.roll(wet_, -1, 0) + np.roll(wet_, 1, 1) + np.roll(wet_, -1, 1))
