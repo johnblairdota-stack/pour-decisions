@@ -7258,7 +7258,8 @@ func _who(p) -> String:
 ## is cut out of it (shaders/cutaway.gdshaderinc), clear in the middle and
 ## fading back to solid at the rim; the rest of it stays as it is.
 const STREET_CUT_R := 11.0    # m, the circle cut out of Spire's neighbours round someone on the street
-const CUT_R_STREET := 2.6     # ...and round someone behind Spire's road barriers
+const CUT_R_STREET := 9.0     # ...and the barriers' own circle round someone behind Spire's road barriers,
+const CUT_BACK_STREET := 6.0  # set this far back from the street behind them
 const CUT_R := 4.0            # m, the see-through circle round each bit of work
 var _scr_cut := Vector3.INF    # the nearest concrete a screeder's still to do (world)
 var _scr_cut_t := 0.0
@@ -7331,11 +7332,6 @@ func _update_see_through(delta: float) -> void:
 		for p in humans():
 			if p.zone == "deck" and ps.size() < 5:
 				ps.append(Vector4(p.position.x, p.position.y + 1.0, p.position.z, CUT_R))
-		if _spire_street != null:
-			# (Spire: and anyone down in the work zone, seen through the barriers along it)
-			for p in humans():
-				if p.zone != "deck" and p.position.y < 2.5 and ps.size() < 5:
-					ps.append(Vector4(p.position.x, p.position.y + 0.6, p.position.z, CUT_R_STREET))
 		if phase == "pour" and ps.size() < 6:
 			var d := discharge()
 			ps.append(Vector4(d.x, d.y, d.z, CUT_R))
@@ -7362,6 +7358,8 @@ func _update_see_through(delta: float) -> void:
 			if p.zone != "deck" and sp.size() < 6:
 				sp.append(Vector4(p.position.x, p.position.y + 1.0, p.position.z, STREET_CUT_R))
 		SpireSite.street_cut(sp)
+	if _spire_street != null:
+		_barrier_cut()
 	var n := ps.size()
 	while ps.size() < 6:
 		ps.append(Vector4.ZERO)
@@ -7371,6 +7369,8 @@ func _update_see_through(delta: float) -> void:
 		return
 	_cut_sent = sent
 	for m in _cut_mats.values():
+		if _bar_mats.has(m):
+			continue      # (the barriers keep their own circles)
 		(m as ShaderMaterial).set_shader_parameter("cut_n", n)
 		(m as ShaderMaterial).set_shader_parameter("cut_p", ps)
 
@@ -7395,6 +7395,47 @@ func _cut_showing(at: Vector3) -> bool:
 ## Swaps the cut-away copy of its own material onto `n` and everything under it.
 ## (the modelled parts are painted a surface at a time, each its own colour:
 ## each surface gets its own cut-away copy)
+## Spire: the road barriers stand between the camera and anyone in the work zone. They have circles
+## of their own: wide, and set back behind each player (away from the street), so the whole run of
+## barriers in front of them is properly clear and not just thinned out.
+var _bar_sent: Array = []
+func _barrier_cut() -> void:
+	var bp: Array = []
+	for p in humans():
+		if p.zone != "deck" and p.position.y < 2.5 and bp.size() < 6:
+			bp.append(Vector4(p.position.x, p.position.y + 0.5, p.position.z - CUT_BACK_STREET, CUT_R_STREET))
+	var n := bp.size()
+	while bp.size() < 6:
+		bp.append(Vector4.ZERO)
+	var mats: Array = []
+	for b in _spire_street.barriers:
+		if b != null and is_instance_valid(b):
+			_cut_mats_of(b, mats)
+	var sent := [n, bp, mats.size()]
+	if sent == _bar_sent:
+		return
+	_bar_sent = sent
+	for m in mats:
+		(m as ShaderMaterial).set_shader_parameter("cut_n", n)
+		(m as ShaderMaterial).set_shader_parameter("cut_p", bp)
+		_bar_mats[m] = true
+
+## The cut-away materials (and their outline passes) on a node and its children.
+func _cut_mats_of(n: Node, out: Array) -> void:
+	if n is MeshInstance3D:
+		var mi := n as MeshInstance3D
+		var list: Array = [mi.material_override]
+		if mi.mesh != null:
+			for i in mi.mesh.get_surface_count():
+				list.append(mi.get_surface_override_material(i))
+		for m in list:
+			while m != null and _cut_made.has(m) and not out.has(m):
+				out.append(m)
+				m = (m as Material).next_pass
+	for ch in n.get_children():
+		_cut_mats_of(ch, out)
+var _bar_mats := {}
+
 func _give_cut(n: Node) -> void:
 	if n is MeshInstance3D and (n as MeshInstance3D).material_override == null and (n as MeshInstance3D).mesh != null:
 		var mi := n as MeshInstance3D
