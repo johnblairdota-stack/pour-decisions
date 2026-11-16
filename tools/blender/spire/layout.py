@@ -246,7 +246,7 @@ HSW.update({
     # 2 river halves of these sheds stand on piles over water (photos p09, p12, p13)
     "over_water_sheds": [58693374, 58693380, 679146315], "pile_grid_m": 2.6, "riverwalk_piles_x": (395.0, 670.0),
     # 3 bridge steel: dark charcoal grey-green (photos p13, p09), not pale sage
-    "bridge_steel": (0.135, 0.145, 0.14),   # r10: one step (~30 %) darker, slight green-grey (p13)
+    "bridge_steel": (0.162, 0.178, 0.20),   # r11: back halfway, ~15 % darker than r09 mid blue-grey (p13 only)
     # 7 pier: warm cream render, mid-dark arch with a lit back wall
     "pier_render": (0.84, 0.78, 0.72),   # r8: near-white, faint warm pink
     "pier_arch_back": (0.30, 0.26, 0.20),   # r5: lit back wall, not a void
@@ -259,7 +259,9 @@ HSW.update({
     # this box that no OSM / buildings_clean footprint covers; components > 120 m2. Largest: x 516-656, y 162-228,
     # roof 65 m AHD (90th pct DSM) - the cream apartment row above Felons in photo p12. Built on a 4 m tile grid.
     "lidar_blocks": {"box": (430.0, 95.0, 800.0, 340.0), "min_h_m": 8.0, "min_cells": 120, "tile_m": 4,
-                     "wall": (0.74, 0.66, 0.48), "slab": (0.80, 0.74, 0.60), "rail": (0.10, 0.10, 0.11)},
+                     # r11: clean slabs (critic r10): <= max_slabs per block, top = DSM percentile + raise
+                     "max_slabs": 4, "slab_len_m": 35.0, "gap_m": 3.0, "top_pct": 95, "raise_m": 1.0,
+                     "wall": (0.82, 0.75, 0.55), "slab": (0.92, 0.91, 0.86), "rail": (0.10, 0.10, 0.11)},
     "umbrella_cluster_xy": (735.0, -20.0),                    # r9: Rivershed Lawn, 12 taupe umbrellas
     # 12 horizon: compositor mist toward a warm haze, far ridge card, green far land
     "mist": {"start_m": 350.0, "depth_m": 2600.0, "strength": 0.5, "rgb": (0.62, 0.66, 0.72)},

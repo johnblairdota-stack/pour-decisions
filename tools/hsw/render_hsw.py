@@ -86,6 +86,9 @@ def horizon():
     sc.view_layers[0].use_pass_mist = True
     ms = sc.world.mist_settings
     ms.start, ms.depth, ms.falloff = M["start_m"], M["depth_m"], "LINEAR"
+    if not hasattr(sc, "node_tree"):           # Blender 5.x (cloud pip bpy): compositor is a node group
+        _mist_comp_5x(sc, M)
+        return
     sc.use_nodes = True
     nt = sc.node_tree
     for nd in list(nt.nodes):
@@ -111,6 +114,36 @@ def horizon():
     nt.links.new(mix.outputs[0], comp.inputs["Image"])
 
 
+def _mist_comp_5x(sc, M):
+    """Same mist mix as the 4.x branch, built for the Blender 5 compositor (shader Math/Mix nodes, group output)."""
+    ng = bpy.data.node_groups.new("hsw_mist", "CompositorNodeTree")
+    ng.interface.new_socket("Image", in_out="OUTPUT", socket_type="NodeSocketColor")
+    sc.compositing_node_group = ng
+    rl = ng.nodes.new("CompositorNodeRLayers")
+    out = ng.nodes.new("NodeGroupOutput")
+    lt = ng.nodes.new("ShaderNodeMath")
+    lt.operation = "LESS_THAN"
+    lt.inputs[1].default_value = 0.999
+    ng.links.new(rl.outputs["Mist"], lt.inputs[0])
+    mul = ng.nodes.new("ShaderNodeMath")
+    mul.operation = "MULTIPLY"
+    ng.links.new(rl.outputs["Mist"], mul.inputs[0])
+    ng.links.new(lt.outputs[0], mul.inputs[1])
+    mul2 = ng.nodes.new("ShaderNodeMath")
+    mul2.operation = "MULTIPLY"
+    ng.links.new(mul.outputs[0], mul2.inputs[0])
+    mul2.inputs[1].default_value = M["strength"]
+    mix = ng.nodes.new("ShaderNodeMix")
+    mix.data_type = "RGBA"
+    ng.links.new(mul2.outputs[0], mix.inputs["Factor"])
+    a = [i for i in mix.inputs if i.name == "A" and i.type == "RGBA"][0]
+    b = [i for i in mix.inputs if i.name == "B" and i.type == "RGBA"][0]
+    ng.links.new(rl.outputs["Image"], a)
+    b.default_value = (*M["rgb"], 1)
+    r = [o for o in mix.outputs if o.name == "Result" and o.type == "RGBA"][0]
+    ng.links.new(r, out.inputs[0])
+
+
 def main():
     argv = sys.argv[sys.argv.index("--") + 1:]
     out = argv[0]
@@ -123,6 +156,8 @@ def main():
     P.setup_morning()
     P.hide(["logistics"])
     horizon()
+    if os.environ.get("HSW_TAA"):               # cloud (software GL) runs: fewer Eevee samples
+        bpy.context.scene.eevee.taa_render_samples = int(os.environ["HSW_TAA"])
     cam = P.camera("cam_hsw")
     if "heroes" in argv:
         for c in L.HSW_HERO_CAMERAS:
