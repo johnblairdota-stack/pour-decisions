@@ -623,6 +623,14 @@ static func _game_mat(mat: BaseMaterial3D) -> Material:
 	elif mat.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED or col.a < 0.99 or mat.albedo_texture != null \
 			or nm.contains("glass") or nm.contains("leadlight") or nm.contains("lit_") or nm.contains("lens") or nm.begins_with("text_"):
 		out = null       # (glass, lamps and painted text keep the model's own material)
+	elif nm == "story_bridge_steel" or nm == "story_bridge_underside" or nm == "story_bridge_render":
+		# (the Story Bridge from the river: mid grey steel that goes near black underneath, on weathered
+		# concrete piers. The model's own colours come out pale steel on white blocks.)
+		var b2 := mat.duplicate() as BaseMaterial3D
+		b2.albedo_color = Color("4b504f") if nm == "story_bridge_steel" else (Color("1b1e1e") if nm == "story_bridge_underside" else Color("9a9488"))
+		b2.metallic = 0.0
+		b2.roughness = 0.9
+		out = b2
 	elif nm == "clay_ground" or nm == "far_land" or nm == "clay_rock":
 		# (bare ground in the city blocks is paving, not lawn: the parks have their own grass)
 		var g2 := mat.duplicate() as BaseMaterial3D
