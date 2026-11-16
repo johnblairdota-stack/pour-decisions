@@ -180,7 +180,7 @@ HSW.update({
          "deck_river_m": 5.0, "photo": "hotel/gg_4681e729 ('HSW' on the roof west of the pier)"},
         {"osm": 679146315, "name": "Felons Barrel Hall", "style": "barrel_hall", "letters": "",
          "deck_river_m": 0.0, "photo": "overview_aerial/gg_d8f7438f (dark roof, glass walls, over the water)"},
-        {"osm": 679146329, "name": "Rivershed", "style": "white_shed", "letters": "",
+        {"osm": 679146329, "name": "Rivershed", "style": "rivershed", "letters": "",
          "deck_river_m": 3.0, "photo": "overview_aerial/gg_11228e1b (big white gable shed on the river)"},
         {"osm": 1085817540, "name": "Green House", "style": "glasshouse", "letters": "", "deck_river_m": 0.0},
         {"osm": 1085817541, "name": "Citrus House", "style": "glasshouse", "letters": "", "deck_river_m": 0.0},
@@ -213,7 +213,7 @@ HSW.update({
 HSW.update({
     # 1 cliff: warm tan-ochre Brisbane tuff, fractured near-vertical faces, mostly bare (photos p06, p10, gg_11228e1b)
     "cliff": {"tuff": ((0.35, 0.31, 0.26), (0.53, 0.47, 0.38), (0.52, 0.33, 0.17)), "bench_m": 4.0,   # r8: grey-buff
-              "shrubs": 700, "seed": 11, "slabs": 0, "rim_rocks": 0,
+              "shrubs": 1500, "seed": 11, "slabs": 0, "rim_rocks": 0,
               "source": "photos p06/p10: tan-ochre rock with orange iron stain, dark joints, overhangs, "
                         "tufts on ledges, figs and vines hanging off the rim"},
     # 2 trees: leaf-card trees round HSW (same as round Spire), mixed species, set back from the rim
@@ -226,12 +226,13 @@ HSW.update({
                   "pile_rgb": (0.17, 0.145, 0.12), "fascia_rgb": (0.10, 0.085, 0.07),
                   "riprap_box": (690.0, -60.0, 870.0, 40.0), "riprap_z": (-0.8, 2.8), "riprap_every_m": 1.6},
     # 4 ground: sand-pink decomposed granite paths through the lawns (OSM footways), warm pale paving
-    "ground": {"paving": (0.40, 0.35, 0.29), "path": (0.515, 0.33, 0.24),   # r4: sand-pink ~ sRGB 190,155,135
+    "ground": {"paving": (0.47, 0.39, 0.29),   # r9: warm buff
+              "path": (0.515, 0.33, 0.24),   # r4: sand-pink ~ sRGB 190,155,135
                "path_w_m": 3.2, "deck": (0.36, 0.27, 0.19)},
     # 5 river: olive-brown, fine ripples, no mirror hot spot (photos p06, p01)
     "sun_angle_deg": 1.6,
-    "river": {"rgb": (0.10, 0.09, 0.065),   # r5: less khaki
-              "rough": 0.07, "spec": 0.5, "swell_scale": 0.06, "wave_scale": 0.18,
+    "river": {"rgb": (0.12, 0.10, 0.055),   # r9: olive-brown, less mirror
+              "rough": 0.16, "spec": 0.25, "swell_scale": 0.06, "wave_scale": 0.18,
               "chop_scale": 1.6, "bump": 0.55, "bump_dist": 0.15},   # r4: glossy, ripples at 3 scales
     # 7 north main pier: arch crown 8.2 m under the pier top (photo p09: 120 px at 14.6 px/m), dark inside
     "pier_arch_crown_below_top_m": 8.2,
@@ -253,9 +254,11 @@ HSW.update({
     "letters_rgb": (0.06, 0.06, 0.065), "percivals_roof_r3": (0.09, 0.10, 0.11),
     # 10 lift: corten frame, teal glass shaft, enclosed teal skybridge (photo p12)
     "lift_glass": (0.10, 0.20, 0.22), "skybridge_extra_m": 22.0,
+    "fiume": {"box": (535.0, 100.0, 560.0, 112.0)},          # r9: Fiume terrace on the crest above Felons (p12)
+    "umbrella_cluster_xy": (735.0, -20.0),                    # r9: Rivershed Lawn, 12 taupe umbrellas
     # 12 horizon: compositor mist toward a warm haze, far ridge card, green far land
     "mist": {"start_m": 350.0, "depth_m": 2600.0, "strength": 0.5, "rgb": (0.62, 0.66, 0.72)},
-    "ridge": {"dist_m": 4300.0, "h_m": (40.0, 95.0), "rgb": (0.55, 0.60, 0.66)},   # r5: smooth haze silhouette
+    "ridge": {"dist_m": 4300.0, "h_m": (40.0, 95.0), "rgb": (0.62, 0.67, 0.74), "emit": 0.95},   # r9: soft pale
     # 13 cream two-storey house west of the HSW shed: terracotta hip roof (photo p13)
     "terracotta": (0.42, 0.16, 0.09),
     # round 6: open dining deck on piles with umbrellas between Felons and Barrel Hall (photos p12/p13), Oakwood
@@ -502,7 +505,7 @@ HSW_HERO_CAMERAS = [
      "note": "Main Lawn at eye height looking NW along the strip to the bridge"},
     {"id": "riverwalk_under_bridge", "pos": (566.0, 84.0, 5.8), "look_at": (440.0, 78.0, 16.0), "lens_mm": 20.0,
      "note": "riverwalk by Felons looking W under the bridge deck at the north pier and the hotel"},
-    {"id": "wilson_outlook", "pos": (784.0, -16.0, 40.0), "look_at": (560.0, 45.0, 8.0), "clip_m": 12.0, "lens_mm": 26.0,
+    {"id": "wilson_outlook", "pos": (784.0, -16.0, 40.0), "look_at": (560.0, 45.0, 8.0), "clip_m": 12.0, "lens_mm": 24.0,
      "note": "Wilson Outlook fence, looking W down onto the sheds, lawns and the bridge"},
     {"id": "citycat", "pos": (610.0, -95.0, 2.2), "look_at": (540.0, 60.0, 14.0), "lens_mm": 26.0,
      "note": "low on the river (CityCat deck height) off the ferry terminal, looking NW"},
