@@ -23,9 +23,13 @@ Builder: cloud session, 16 Nov 2026. Merged HSW r11 (ba0459b) first. Same render
 5. **Cathedral**: gable coping now slim wall stone instead of a proud cream ribbon; small pinnacle at the apex, no
    cross; window glass dark blue-grey (#1b222c), not brown; two more block tones (a darker and a lighter) with the
    same mean, so no global stone shift.
-6. **Road dark shape**: rays show it is the cast shadow of the buildings behind the camera at 9 am, not overlapping
-   faces. Both streetscape heroes now render at 11:30, when that shadow is short.
+6. **Road dark shape**: both streetscape heroes now render at 11:30 so building shadows are short. The stepped
+   light/dark patch on Ann St is still there at 11:30, so it is not a shadow: it is in the road surface itself
+   (round 9: trace it face by face).
 7. **Colours**: Ann St 2018 brick ochre-tan (AE8658) instead of salmon; Admiralty peach-pink (E2C9B0).
+
+## Seen after the full render
+- cathedral_ann_st_2012: a dark cone at the bottom left and a few leaf dots remain.
 
 ## Not done yet
 Turn arrows and island hatching at Ann/Queen, car park asphalt colour, three worst camera fits, Deanery cliff and the
