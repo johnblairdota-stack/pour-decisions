@@ -770,11 +770,11 @@ NEIGHBOUR_WALLS = {        # critic round 0 (photos): own albedo per building, s
     236155564: "8C969E",   # Skyline (Meriton): dark glass tower, grey frame
     236155562: "8C969E",
     26253098: "E6DCC4",    # Willahra: off-white (r4, photo; r7 critics: cream)
-    186586595: "D7C88E",   # Orient Hotel: ochre render (r7, orient_front photo; exception "orient")
-    26386571: "E0D3BA", 26386543: "E0D3BA",   # Admiralty I / II: warm off-white (r4, photo)
+    186586595: "D2B98A",   # r8: warmer tan (photo). Orient Hotel: ochre render (r7, orient_front photo; exception "orient")
+    26386571: "E2C9B0", 26386543: "E2C9B0",   # Admiralty I / II: r8 critics: peach-pink (was E0D3BA)
     224320345: "D9AE88",   # Macrossan: Petrie Bight peach
 }
-CATHEDRAL_LOOK = {"ashlar": ["978888", "A48E78", "B09E8D", "9E8A76", "AA9482"], "dressing": "D6BE8A",   # r5: r4 + half the step to the 2010 photo wall average #AE9378
+CATHEDRAL_LOOK = {"ashlar": ["978888", "A48E78", "B09E8D", "9E8A76", "AA9482", "8A7C7A", "BCA996"], "dressing": "D6BE8A",   # r8: + a dark and a light block (+/-12 %), same mean;   # r5: r4 + half the step to the 2010 photo wall average #AE9378
                   "tile": "A8452C", "spire": "2A2624", "slate": "6A6866"}
 HALL_OSM = 1210526673      # brick block in the forecourt view: LiDAR top includes trees; photo shows a low gabled hall
 
@@ -820,7 +820,8 @@ def mantra_fin(col, b, rings, stripe_xy, objs, report):
     # band ~80 % across the north face and the horizontal "mantra" sign at the top of that face. So: two stripes,
     # a wedge crest at the SE corner top, the sign horizontal on the north face. Azure #1E8FD0 (pinned by the critic).
     stripes = P("mantra_stripes", [
-        {"centre": (14.5, 71.3), "along": (0.0, 1.0), "normal": (1.0, 0.0), "crest": True, "full": False},  # r7: SE corner = crest wing only
+        # r8 (ann_queen_corner photo, 3 critics): a THIN blue line runs the full height of that corner, crest to podium
+        {"centre": (14.5, 70.9), "along": (0.0, 1.0), "normal": (1.0, 0.0), "crest": True, "full": True, "w": 0.9},
         # r7: spire_ann_st_2018 shows the blue running down Mantra's LEFT edge for about a third of the height from
         # the crest, fly_by_east shows only the crest wing there: so the SE band tapers out ~22 m below the roof
         {"centre": (3.6, 97.5), "along": (-1.0, 0.0), "normal": (0.0, 1.0), "crest": False},   # north face (fly_by_east)
@@ -840,22 +841,24 @@ def mantra_fin(col, b, rings, stripe_xy, objs, report):
         px, py = st["centre"]
         ux, uy = st["along"]
         nx, ny = st["normal"]
-        if st.get("full", True):                                    # r7: fly_by_east photo: no full-height band at the SE corner
-            slab(px, py, ux, uy, nx, ny, base, top, O, O, W, W)
+        if st.get("full", True):                                    # r8: full height again, own width
+            slab(px, py, ux, uy, nx, ny, base, top, O, O, st.get("w", W), st.get("w", W))
         else:                                                       # a tapering band from the crest wing, 22 m down
             for i in range(6):
                 f0, f1 = i / 6, (i + 1) / 6
                 slab(px, py, ux, uy, nx, ny, top - 22.0 * (1 - f0), top - 22.0 * (1 - f1), O, O, W * (0.25 + 0.75 * f0), W * (0.25 + 0.75 * f1))
         note(px, py, "building")
         if st["crest"]:                                             # wedge crest: widens and leans out as it rises
+            w0 = st.get("w", W)                                     # r8 (fly_by_east): a bigger wedge, from the line
             for i in range(8):
                 f0, f1 = i / 8, (i + 1) / 8
-                slab(px, py, ux, uy, nx, ny, top + 9.0 * f0, top + 9.0 * f1, O + 3.2 * f0 ** 1.5, O + 3.2 * f1 ** 1.5,
-                     W + 4.0 * f0, W + 4.0 * f1)
+                slab(px, py, ux, uy, nx, ny, top - 3.0 + 14.0 * f0, top - 3.0 + 14.0 * f1, O + 4.5 * f0 ** 1.5, O + 4.5 * f1 ** 1.5,
+                     w0 + 5.5 * f0, w0 + 5.5 * f1)
     put(fin, "mantra_blue_fin", col, mat("mantra_blue", lin("1E8FD0")), objs)
-    sx, sy, snx, sny = P("mantra_sign", (2.5, 97.5, 0.0, 1.0))      # horizontal sign at the top of the north face
-    ob = C.text_obj(col, "area_mantra_sign", "mantra", (sx + snx * (O + 0.3), sy + sny * (O + 0.3), top - 2.2),
-                    (math.pi / 2, 0, math.atan2(snx, -sny)), 2.0, (0.95, 0.95, 0.95))
+    # r8 (fly_by_east photo): the sign runs across the top of the NE face, the face that looks at that camera
+    sx, sy, snx, sny = P("mantra_sign", (11.85, 93.2, 0.506, 0.861))     # 1.6 m out: the tower tier bulges past OSM
+    ob = C.text_obj(col, "area_mantra_sign", "mantra", (sx + snx * (O + 1.6), sy + sny * (O + 1.6), top - 2.6),
+                    (math.pi / 2, 0, math.atan2(snx, -sny)), 3.0, (0.95, 0.95, 0.95))
     report.append("Mantra: 2 azure stripes (SE corner + north face) %.0f m, wedge crest, horizontal sign" % (top - base))
 
 
@@ -931,7 +934,7 @@ def neighbours(col, guard, objs, report):
         if m:
             m["shader"] = "render"
             if osm in (568836537, 189779738):
-                m.diffuse_color = (*hx("E8DCC0"), 1)     # r5 (pinned): Mantra cream #e8dcc0 (Willahra / Admiralty: NEIGHBOUR_WALLS)
+                m.diffuse_color = (*hx(P("mantra_cream", "ECDDBE")), 1)     # r8: critics read grey-white; a step warmer (#E9DFC8 target) (Willahra / Admiralty: NEIGHBOUR_WALLS)
             for k, v in (("bay", 3.0), ("win", 2.3), ("sill", 0.06), ("head", 0.86), ("floor", 3.1), ("rough", 0.18)):
                 m["win_" + k] = v
             m["win_glass"] = [0.10, 0.14, 0.19]          # r4: blue-grey glass, not charcoal
@@ -1495,6 +1498,114 @@ def ray_boxes(report):
     return total
 
 
+def round8_trees(guard, report):
+    """r8 (critics' boxes, traced to objects by ray-casting the round 7 cameras):
+    1. Named trees go whole (leaves, trunk, shadow proxy): the car park tree the camera of hero_carpark_eye stands
+       in, the near crown filling cathedral_ann_st_2012, the car park V by the chancel, the Deanery eucalypts read
+       as bare white poles, the river-walk trees standing in the water and the pale trunks at the Customs House,
+       the poinciana dots and the second bare trunk in spire_ann_st_2018 (the photo has one low fig), the speckle
+       over the west front, the far blob at the Customs House, the forecourt car park trunks, the Willahra fork.
+    2. Build check: every trunk piece (mesh island) needs a crown: at least 40 leaf cards within max(2.5 m,
+       half its height) of its top. Trunks that fail go.
+    3. Build check: leaf cards with no trunk top within 10 m go (speckle)."""
+    import numpy as np
+    kill = P("r8_tree_kill", [
+        (-27.0, -61.0, 4.5), (-188.4, -110.9, 6.0), (-45.8, -74.3, 3.5), (-13.6, -107.9, 4.0), (4.6, -90.0, 4.0),
+        (47.5, -293.0, 6.0), (56.5, -259.0, 4.5), (150.3, 224.8, 5.0), (144.1, 218.1, 3.0), (-121.7, -54.0, 5.0),
+        (-83.2, -330.8, 8.0), (-115.4, -101.7, 3.0), (28.7, -14.5, 1.6), (-64.9, -29.6, 3.0),
+        # second probe after the first r8 test render: the V and dots in cathedral_ann_st_2012, the bare fork and dots
+        # in spire_ann_st_2018, the river-edge crowns and the tall bare trunks at the Customs House river walk
+        (-158.5, -106.3, 3.5), (-165.0, -106.0, 4.0), (-178.5, -104.0, 4.5), (145.9, 220.8, 2.0), (141.0, 214.7, 3.0),
+        (148.2, 218.8, 3.0), (54.0, -279.3, 5.0), (53.5, -269.5, 3.0), (50.3, -282.4, 3.0), (50.6, -250.0, 3.0),
+        (52.8, -255.2, 3.0), (59.0, -260.8, 4.0)])
+    kill = [k for k in kill if not guard.keepout(k[0], k[1])]
+    trees = [o for o in bpy.data.objects if o.type == "MESH" and (o.name.startswith(TREE_PREFIX) or
+             o.name.startswith(("area_carpark_tree_trunks", "area_carpark_leaves")))]
+    K_ = np.array(kill, "f8")
+    n1 = 0
+    for o in trees:
+        n1 += drop_where(o, lambda X, Y, Z: ((X[:, None] - K_[:, 0]) ** 2 + (Y[:, None] - K_[:, 1]) ** 2 < K_[:, 2] ** 2).any(1))
+    report.append("r8 named trees: %d spots, %d faces dropped" % (len(kill), n1))
+    # leaf density grid (1 m) from every near-leaf object, cards >= 2 m above the ground
+    x0, y0, x1, y1 = L.LIDAR_BOX
+    shape = (int(y1 - y0) + 1, int(x1 - x0) + 1)
+    def rc(X, Y):
+        return np.clip((y1 - Y).astype(int), 0, shape[0] - 1), np.clip((X - x0).astype(int), 0, shape[1] - 1)
+    leaf_obs = [o for o in trees if o.name.startswith(("leaves_", "area_carpark_leaves")) and "palm" not in o.name]
+    leaf = np.zeros(shape, "i4")
+    crown_obs = leaf_obs + [o for o in bpy.data.objects if o.type == "MESH" and o.name.startswith(("tree_crowns_far", "palm_fronds_far"))]
+    for o in crown_obs:
+        c = np.empty(len(o.data.polygons) * 3, "f4")
+        o.data.polygons.foreach_get("center", c)
+        c = c.reshape(-1, 3)
+        np.add.at(leaf, rc(c[:, 0], c[:, 1]), 1)
+    s_ = np.pad(leaf, ((1, 0), (1, 0))).cumsum(0).cumsum(1)
+    def disc_sum(r_, c_, k):                                          # box sum (2k+1)^2 around each cell
+        r0, r1 = np.clip(r_ - k, 0, shape[0]), np.clip(r_ + k + 1, 0, shape[0])
+        c0, c1 = np.clip(c_ - k, 0, shape[1]), np.clip(c_ + k + 1, 0, shape[1])
+        return s_[r1, c1] - s_[r0, c1] - s_[r1, c0] + s_[r0, c0]
+    tops = []
+    n2 = n2i = 0
+    for o in [t for t in trees if t.name.startswith(("tree_trunks", "area_carpark_tree_trunks"))]:
+        me = o.data
+        nv = len(me.vertices)
+        if not nv or not me.polygons:
+            continue
+        co = np.empty(nv * 3, "f4")
+        me.vertices.foreach_get("co", co)
+        co = co.reshape(-1, 3) + np.array(o.matrix_world.translation, "f4")
+        lv = np.empty(len(me.loops), "i4")
+        me.loops.foreach_get("vertex_index", lv)
+        ls = np.empty(len(me.polygons), "i4")
+        me.polygons.foreach_get("loop_start", ls)
+        lab = np.arange(nv)
+        for _ in range(400):                                           # islands by min-label propagation
+            pl = np.minimum.reduceat(lab[lv], ls)
+            new = lab.copy()
+            np.minimum.at(new, lv, np.repeat(pl, np.diff(np.append(ls, len(lv)))))
+            if (new == lab).all():
+                break
+            lab = new
+        u, inv = np.unique(lab, return_inverse=True)
+        zmin = np.full(len(u), np.inf); np.minimum.at(zmin, inv, co[:, 2])
+        zmax = np.full(len(u), -np.inf); np.maximum.at(zmax, inv, co[:, 2])
+        top = co[:, 2] > (zmin + 0.75 * (zmax - zmin))[inv]
+        tx = np.bincount(inv[top], co[top, 0], len(u)) / np.maximum(np.bincount(inv[top], None, len(u)), 1)
+        ty = np.bincount(inv[top], co[top, 1], len(u)) / np.maximum(np.bincount(inv[top], None, len(u)), 1)
+        h = zmax - zmin
+        r_, c_ = rc(tx, ty)
+        k = np.clip(np.maximum(2.5, 0.5 * h).astype(int), 2, 8)
+        cnt = np.array([disc_sum(a, b, kk) for a, b, kk in zip(r_, c_, k)])
+        bad = (((cnt < P("r8_min_leaves", 40)) & (h > 1.5)) | (zmin < P("r8_min_base_ahd", 1.2))) & (tx < 370)
+        tops += [(x, y) for x, y, b in zip(tx, ty, bad) if not b]
+        if bad.any():
+            badv = bad[inv]
+            pl_bad = np.maximum.reduceat(badv[lv].astype("i1"), ls).astype(bool)
+            n2 += drop_where(o, lambda X, Y, Z, m=pl_bad: m[:len(X)] if len(X) == len(m) else np.zeros(len(X), bool))
+            n2i += int(bad.sum())
+    report.append("r8 trunk check: %d trunk pieces without a crown dropped (%d faces)" % (n2i, n2))
+    # speckle: leaf cards with no trunk top within 10 m
+    wood = np.zeros(shape, "i4")
+    if tops:
+        T_ = np.array(tops)
+        np.add.at(wood, rc(T_[:, 0], T_[:, 1]), 1)
+    for o in bpy.data.objects:
+        if o.type == "MESH" and (o.name.startswith("palm") or ("trunk" in o.name and "palm" in o.name)):
+            c = np.empty(len(o.data.vertices) * 3, "f4")
+            o.data.vertices.foreach_get("co", c)
+            c = c.reshape(-1, 3)
+            if len(c):
+                np.add.at(wood, rc(c[:, 0], c[:, 1]), 1)
+    ws = np.pad(wood, ((1, 0), (1, 0))).cumsum(0).cumsum(1)
+    def wood_near(X, Y, k=10):
+        r_, c_ = rc(X, Y)
+        r0, r1 = np.clip(r_ - k, 0, shape[0]), np.clip(r_ + k + 1, 0, shape[0])
+        c0, c1 = np.clip(c_ - k, 0, shape[1]), np.clip(c_ + k + 1, 0, shape[1])
+        return (ws[r1, c1] - ws[r0, c1] - ws[r1, c0] + ws[r0, c0]) > 0
+    n3 = sum(drop_where(o, lambda X, Y, Z: (X < 370) & ~wood_near(X, Y)) for o in leaf_obs)
+    report.append("r8 speckle check: %d leaf faces with no trunk within 10 m dropped" % n3)
+
+
 def ann_2018_brick(report):
     """r7 (critics + spire_ann_st_2018 photo): the white box at the left of that view is OSM 236155563 as one
     block. The photo shows a tall red-brick building nearest the camera and the white "lawler" building further
@@ -1510,7 +1621,7 @@ def ann_2018_brick(report):
         if brick is None:
             brick = src.copy()
             brick.name = src.name.replace("236155563", "2361555630")
-        brick.diffuse_color = (*hx(P("ann_brick_hex", "9A5A40")), 1)
+        brick.diffuse_color = (*hx(P("ann_brick_hex", "AE8658")), 1)
         import bmesh
         bm = bmesh.new()
         bm.from_mesh(ob.data)
@@ -1754,7 +1865,7 @@ def orient(col, guard, objs, report):
         e0, e1 = (p0[0] + nx * 0.15, p0[1] + ny * 0.15), (p1[0] + nx * 0.15, p1[1] + ny * 0.15)
         # r7: two cantilevered hoods from the photo: the shop awning (2.6 m out, deep fascia) and a slim hood
         # over the first floor (0.9 m out) with the HOTEL ORIENT letters on the wall above it
-        for zd, out_, th in ((g + 3.6, 1.0, 0.45), (g + 7.0, 0.35, 0.18)):
+        for zd, out_, th in ((g + 3.6, 1.0, 0.45), (g + 7.0, 0.55, 0.3)):     # r8: the first-floor hood is deep (photo)
             e0_ = (f0[0] + (p0[0] - f0[0]) * out_ + nx * 0.15 * out_, f0[1] + (p0[1] - f0[1]) * out_ + ny * 0.15 * out_)
             e1_ = (f1[0] + (p1[0] - f1[0]) * out_ + nx * 0.15 * out_, f1[1] + (p1[1] - f1[1]) * out_ + ny * 0.15 * out_)
             deck.add([(*f0, zd), (*f1, zd), (*e1_, zd), (*e0_, zd), (*f0, zd + th), (*f1, zd + th), (*e1_, zd + th), (*e0_, zd + th)],
@@ -1765,6 +1876,28 @@ def orient(col, guard, objs, report):
         C.text_obj(col, "area_orient_lettering", "HOTEL ORIENT", (mx, my, gz(mx, my) + 7.35),
                    (math.pi / 2, 0, math.atan2(nx, -ny)), 0.6, (0.55, 0.50, 0.36))   # r7: raised letters in the render
         note(mx, my, "orient")
+    # r8 (orient_front photo, 3 critics): no crenellated parapet; a dark projecting cornice and a hipped
+    # corrugated roof (#4A4C4E) over the whole footprint, round the curved corner
+    import numpy as np
+    import buildings as B
+    acc = bpy.data.objects.get("bldg_look_%d_accent" % ORIENT_OSM)
+    k_acc = drop_where(acc, lambda X, Y, Z: np.ones(len(X), bool)) if acc is not None else 0
+    wl = bpy.data.objects.get("bldg_look_%d_walls" % ORIENT_OSM)
+    if wl is not None and wl.data.vertices:
+        zt = max((wl.matrix_world @ v.co).z for v in wl.data.vertices)
+        cor, hip = C.MeshBuf(), C.MeshBuf()
+        out_r = B.offset(ring, 0.55)
+        cor.prism(out_r, zt - 0.45, zt)
+        inner = B.offset(ring, -P("orient_hip_in", 3.2))
+        zr = zt + P("orient_hip_rise", 2.3)
+        nr = len(out_r)
+        if len(inner) == nr:
+            vs = [(x, y, zt) for x, y in out_r] + [(x, y, zr) for x, y in inner]
+            fs = [[i, (i + 1) % nr, nr + (i + 1) % nr, nr + i] for i in range(nr)] + [list(range(nr, 2 * nr))]
+            hip.add(vs, fs)
+        put(cor, "orient_cornice", col, mat("orient_cornice", hx("6B6458")), objs)
+        put(hip, "orient_hip_roof", col, mat("orient_hip_roof", hx("4A4C4E")), objs)
+        report.append("Orient: crenellations dropped (%d faces), cornice + hipped roof at %.1f-%.1f m" % (k_acc, zt, zr))
     rm = bpy.data.materials.get("look_%d_roof" % ORIENT_OSM)              # r7: dark tin roof (photo)
     if rm is not None:
         rm.diffuse_color = (*hx("4A4D4F"), 1)
@@ -1853,6 +1986,7 @@ def build():
     ann_2018_brick(report)
     orphan_crowns(report)
     low_leaves_on_road(guard, report)
+    round8_trees(guard, report)
     smooth_surfaces(report)
     orient(col, guard, objs, report)
     annqueen_poles(col, guard, objs, report)
@@ -2038,8 +2172,8 @@ def leading(nt, bsdf):
     br.inputs["Row Height"].default_value = 0.45
     br.inputs["Mortar Size"].default_value = 0.025
     br.offset = 0.0
-    br.inputs["Color1"].default_value = (0.035, 0.04, 0.06, 1)
-    br.inputs["Color2"].default_value = (0.06, 0.035, 0.03, 1)
+    br.inputs["Color1"].default_value = (0.012, 0.016, 0.024, 1)     # r8: dark glass #1b222c, not brown wood
+    br.inputs["Color2"].default_value = (0.02, 0.025, 0.036, 1)
     br.inputs["Mortar"].default_value = (0.012, 0.012, 0.012, 1)
     nt.links.new(br.outputs["Color"], bsdf.inputs["Base Color"])
     bsdf.inputs["Roughness"].default_value = 0.18
@@ -2278,6 +2412,9 @@ def lit_windows(m, nt, bsdf):
 
 
 SKY_DAY = [(0.0, "DCE6EE"), (0.07, "C4D8EA"), (0.25, "8FB5DE"), (1.0, "2F6FC0")]   # r3: pale horizon band
+SKY_MODE = None    # r8: per view (area_cams.json "sky"): "deep" clear blue or "pale" grey-white, matched to its photo
+SKY_DEEP = [(0.0, "B4CCE8"), (0.06, "7FA9DE"), (0.22, "4C86D2"), (1.0, "1F5BB8")]
+SKY_PALE = [(0.0, "E2E5E8"), (0.10, "D3DAE2"), (0.35, "B9C6D4"), (1.0, "8FA8C8")]
 SKY_DUSK = [(0.0, "E8A890"), (0.16, "E8A890"), (0.30, "9C7CA8"), (0.62, "6E73A0"), (1.0, "4E5C8E")]   # r5 PINNED: peach band #e8a890 under lilac #9c7ca8
 
 
@@ -2367,7 +2504,7 @@ def sky(dusk):
     _STATE["view"] = _STATE.get("view", 0) + 1
     nt.nodes["AREA_CLOUD_NOISE"].inputs["W"].default_value = 3.7 * _STATE["view"]
     ramp = nt.nodes["AREA_SKY_RAMP"].color_ramp
-    stops = SKY_DUSK if dusk else SKY_DAY
+    stops = SKY_DUSK if dusk else {"deep": SKY_DEEP, "pale": SKY_PALE}.get(SKY_MODE, SKY_DAY)
     el = ramp.elements
     while len(el) > 1:                                              # r4: rebuild exactly, one element per stop
         el.remove(el[-1])
@@ -2385,7 +2522,7 @@ def sky(dusk):
         nt.links.new(sh.outputs["Color"], cm_.inputs[7])
     sh = nt.nodes["AREA_CLOUD_SHADE"].color_ramp.elements
     sh[1].color = (1.0, 0.86, 0.80, 1) if dusk else (1.0, 1.0, 1.0, 1)
-    nt.nodes["AREA_CLOUD"].inputs["To Max"].default_value = 0.55 if dusk else P("cloud_cover", 0.97)
+    nt.nodes["AREA_CLOUD"].inputs["To Max"].default_value = 0.55 if dusk else {"deep": 0.45, "pale": 0.25}.get(SKY_MODE, P("cloud_cover", 0.97))
     nt.nodes["AREA_SKY_BG"].inputs["Strength"].default_value = P("sky_cam_dusk", 1.3) if dusk else P("sky_cam_day", 1.55)
 
 

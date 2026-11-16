@@ -35,12 +35,17 @@ except ImportError:
     AH = None
 
 
-def light(date, hour, dusk=False, kind="street"):
-    """Sun + sky for one view: preview's look, then the area round's changes when area_hero is built."""
+def light(date, hour, dusk=False, kind="street", sky=None):
+    """Sun + sky for one view: preview's look, then the area round's changes when area_hero is built.
+    sky: "deep" / "pale" (area_cams.json "sky", r8: matched to each pair's photo), else the default day sky."""
     az, el = L.sun_position(date or "2024-04-15", hour)
     P.apply_light(az, el, "dusk" if dusk else "day")
     if AH is not None:
+        AH.SKY_MODE = sky
         AH.light(az, el, dusk, kind)
+
+
+SKYMAP = {}
 
 
 def agl(p):
@@ -94,6 +99,7 @@ def main():
     only = next((a[5:].split(",") for a in argv if a.startswith("only=")), None)
     scale = float(next((a[6:] for a in argv if a.startswith("scale=")), 1.0))
     A = json.load(open(os.path.join(HERE, "area_cams.json"), encoding="utf-8"))
+    SKYMAP.update(A.get("sky", {}))
     pcams = {c["id"]: c for c in json.load(open(os.path.join(SPIRE, "photo_cams.json")))["cams"]}
     ccams = {c["id"]: c for c in json.load(open(os.path.join(SPIRE, "showcase_cams.json")))["cams"]}
     lay = {c["id"]: c for c in L.CAMERAS + L.HERO_CAMERAS}
@@ -136,7 +142,7 @@ def main():
             P.hide(["logistics"], stage in ("as_built", "pre_spire") and not c.get("show_logistics"))
             if kind == "agl":
                 w, h = place_agl(cam, c, c.get("size"))
-                light(c.get("date"), c.get("hour", 9.0), False, "street" if c["pos"][2] < 3 else "aerial")
+                light(c.get("date"), c.get("hour", 9.0), False, "street" if c["pos"][2] < 3 else "aerial", SKYMAP.get(jid))
                 path = os.path.join(out, "hero_%s.png" % jid)
             else:
                 w, h, where = photo_cam(cam, c)
@@ -144,7 +150,7 @@ def main():
                 hour = float(c.get("time_h") or (17.4 if dusk else 12.0))
                 if not dusk:
                     hour = min(max(hour, 8.5), 15.5)
-                light(c.get("date", ""), hour, dusk, where)
+                light(c.get("date", ""), hour, dusk, where, SKYMAP.get(jid))
                 path = os.path.join(out, ("hero_%s.png" % jid) if kind == "photo_day" else ("%s_render.png" % jid))
             P.render(path, int(w * scale), int(h * scale))
             done.append(os.path.basename(path))

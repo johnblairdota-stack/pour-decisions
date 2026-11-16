@@ -315,11 +315,11 @@ def build():
     K.gable_roof("tile", *(sorted((ub0 + 0.8, ub1)) if west < 0 else sorted((ub0, ub1 - 0.8))), -fw / 2 - 0.3, fw / 2 + 0.3, eave)
     K.gable_end("stone", uw, -fw / 2, fw / 2, eave, eave + math.tan(PITCH) * (fw / 2 + 0.3), west)
     gr_ = eave + math.tan(PITCH) * (fw / 2 + 0.3)                       # area r4: coped gable parapet + cross
+    # area r8 (critics: a proud cream ribbon outlines the gable, a cross on top): coping in wall stone, slim and
+    # nearly flush; a small pinnacle at the apex as in the 2010 photo, no cross
     for s_ in (-1, 1):
-        K.b["dress"].beam(K.P(uw + west * 0.15, s_ * (fw / 2 + 0.3), eave + 0.2), K.P(uw + west * 0.15, 0.0, gr_ + 0.35), 0.55, 0.4)
-    xg_, yg_, _ = K.P(uw + west * 0.15, 0.0, 0)
-    K.b["dress"].box(xg_, yg_, g + gr_ + 0.3, 0.3, 0.3, 2.4, ang)
-    K.b["dress"].box(xg_, yg_, g + gr_ + 1.9, 0.3, 1.3, 0.28, ang)
+        K.b["stone"].beam(K.P(uw + west * 0.06, s_ * (fw / 2 + 0.3), eave + 0.2), K.P(uw + west * 0.06, 0.0, gr_ + 0.2), 0.35, 0.22)
+    K.pinnacle(uw, 0.0, gr_, 3.0, 0.4)
     for dv, w_, h_ in ((-fw * 0.3, 2.2, 4.4), (fw * 0.3, 2.2, 4.4)):                        # side portals, two orders
         for k in range(2):
             K.arch_frame(uw + west * (0.5 - 0.35 * k), dv, w_ + 1.2 - 0.6 * k, 0.0, h_ - 0.3 * k, 0.3, west)
