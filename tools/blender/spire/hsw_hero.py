@@ -322,10 +322,10 @@ def cliff_dress(col, X, Y, sub, slope, zc, orig, riprap_zone):
         elif roll < 0.18:                                 # r9: dry olive crowns (jacarandas only at the hotel)
             dry.cloud((px_, py_, pz_), (rad, rad, rad * 0.7), int(9 * (20 + 4 * rad * rad)), 0.55, shell=0.15, top_bias=0.2)
         else:                                             # r4: distinct round crowns with lime-lit tops
-            fo_ = canopy if rnd.random() < 0.6 else canopy2
+            fo_ = canopy if rnd.random() < 0.6 else canopy2         # r11: canopy2 is the lime set (~40 %)
             for lb in range(3):                                         # r10: lumpy, overlapping lobes
                 a_ = rnd.uniform(0, 2 * math.pi)
-                rl = rad * rnd.uniform(0.55, 0.75)
+                rl = rad * rnd.uniform(0.66, 0.86)                       # r11: crowns overlap, no grass slope
                 fo_.cloud((px_ + math.cos(a_) * rad * 0.45, py_ + math.sin(a_) * rad * 0.45, pz_ + rnd.uniform(-1, 1.5)),
                           (rl, rl, rl * 0.8), int(9 * (14 + 1.4 * rl * rl)), 1.1, shell=0.15, top_bias=0.3)
             tops.cloud((px_ + 0.3, py_ - 0.3, pz_ + rad * 0.45), (rad * 0.6, rad * 0.6, rad * 0.25), int(3 * (14 + 1.4 * rad * rad)),
@@ -335,7 +335,7 @@ def cliff_dress(col, X, Y, sub, slope, zc, orig, riprap_zone):
     for x, y, z, ux, uy in rim_pts:
         if math.hypot(x - 784.0, y + 16.0) < 50.0:                 # r9: Wilson Outlook sightline
             continue
-        if any(math.hypot(x - a, y - b) < 22.0 for a, b in lastp) or rnd.random() < 0.5:
+        if any(math.hypot(x - a, y - b) < 22.0 for a, b in lastp) or rnd.random() < 0.8:   # r11: fewer skyline sticks
             continue
         lastp.append((x, y))
         for _ in range(rnd.randint(1, 3)):
@@ -367,9 +367,9 @@ def cliff_dress(col, X, Y, sub, slope, zc, orig, riprap_zone):
     for fo, nm, a, b in ((leaves, "hsw_cliff_scrub", (0.05, 0.10, 0.035), (0.13, 0.20, 0.07)),
                          (vines, "hsw_cliff_vines", (0.045, 0.095, 0.03), (0.11, 0.19, 0.06)),
                          (canopy, "hsw_hill_canopy", (0.10, 0.17, 0.04), (0.25, 0.35, 0.09)),   # r10: brighter mid-green
-                         (canopy2, "hsw_hill_canopy_olive", (0.20, 0.33, 0.04), (0.38, 0.48, 0.07)),   # r9: ~#8fb43a-#b5c94a
+                         (canopy2, "hsw_hill_canopy_olive", (0.30, 0.48, 0.04), (0.54, 0.66, 0.09)),   # r11: lime ~#9cbf3a-#c2d455 (linear)
                          (dry, "hsw_hill_canopy_dry", (0.17, 0.16, 0.07), (0.30, 0.28, 0.12)),
-                         (tops, "hsw_hill_tops", (0.22, 0.34, 0.06), (0.40, 0.52, 0.10)),
+                         (tops, "hsw_hill_tops", (0.30, 0.46, 0.06), (0.52, 0.64, 0.10)),   # r11: bright lit crown tops
                          (jac, "hsw_jacaranda", (0.22, 0.13, 0.45), (0.38, 0.25, 0.65))):
         o_ = fo.object(nm, col, a, b)
         if o_:
@@ -400,12 +400,12 @@ def blob(buf, x, y, z, r, rz, rnd, nu=7, nv=4):
 
 # ---------------------------------------------------------------- sheds
 SHED_STYLES = {   # wall, roof, glass, walls glazed fraction, deck
-    "felons":     {"wall": (0.78, 0.76, 0.70), "roof": (0.55, 0.57, 0.58), "glass": (0.03, 0.035, 0.04), "bay": 4.0, "win": 3.75, "sill": 0.03, "head": 0.95},   # r2: mostly open glass
-    "white_shed": {"wall": (0.80, 0.78, 0.72), "roof": (0.55, 0.57, 0.58), "glass": (0.03, 0.035, 0.04), "bay": 4.5, "win": 4.1, "sill": 0.04, "head": 0.93},
+    "felons":     {"wall": (0.78, 0.76, 0.70), "roof": (0.30, 0.32, 0.34), "glass": (0.03, 0.035, 0.04), "bay": 4.0, "win": 3.75, "sill": 0.03, "head": 0.95},   # r2: mostly open glass
+    "white_shed": {"wall": (0.80, 0.78, 0.72), "roof": (0.30, 0.32, 0.34), "glass": (0.03, 0.035, 0.04), "bay": 4.5, "win": 4.1, "sill": 0.04, "head": 0.93}, # r11: mid galvanised grey (critic r10: still near-white)
     "barrel_hall": {"wall": (0.20, 0.21, 0.21), "roof": (0.13, 0.14, 0.145), "glass": (0.06, 0.07, 0.075), "bay": 3.0, "win": 2.8, "sill": 0.05, "head": 0.75},
-    "rivershed":  {"wall": (0.70, 0.69, 0.64), "roof": (0.45, 0.50, 0.56), "glass": (0.04, 0.05, 0.06), "bay": 4.0, "win": 3.0, "sill": 0.35, "head": 0.7},
-    "cream_shed": {"wall": (0.74, 0.69, 0.58), "roof": (0.48, 0.50, 0.50), "glass": (0.06, 0.07, 0.07), "bay": 3.5, "win": 2.2, "sill": 0.2, "head": 0.8},
-    "glasshouse": {"wall": (0.30, 0.36, 0.34), "roof": (0.62, 0.64, 0.64), "glass": (0.12, 0.16, 0.15), "bay": 2.0, "win": 1.85, "sill": 0.04, "head": 0.95},
+    "rivershed":  {"wall": (0.70, 0.69, 0.64), "roof": (0.26, 0.29, 0.33), "glass": (0.04, 0.05, 0.06), "bay": 4.0, "win": 3.0, "sill": 0.35, "head": 0.7}, # r11: mid galvanised grey (critic r10: still near-white)
+    "cream_shed": {"wall": (0.74, 0.69, 0.58), "roof": (0.29, 0.31, 0.32), "glass": (0.06, 0.07, 0.07), "bay": 3.5, "win": 2.2, "sill": 0.2, "head": 0.8}, # r11: mid galvanised grey (critic r10: still near-white)
+    "glasshouse": {"wall": (0.30, 0.36, 0.34), "roof": (0.36, 0.38, 0.39), "glass": (0.12, 0.16, 0.15), "bay": 2.0, "win": 1.85, "sill": 0.04, "head": 0.95}, # r11: mid galvanised grey (critic r10: still near-white)
     "stanley":    {"wall": (0.80, 0.74, 0.60), "roof": (0.42, 0.16, 0.09), "glass": (0.05, 0.06, 0.07), "bay": 3.2, "win": 1.3, "sill": 0.3, "head": 0.82},
 }
 
@@ -956,6 +956,11 @@ def hotel_skin(col):
                 ring_ = [(ux + 1.3 * math.cos(t_), uy + 1.3 * math.sin(t_), zt + 2.2) for t_ in np.linspace(0, 2 * math.pi, 9)[:-1]]
                 fi_umb.add(ring_ + [(ux, uy, zt + 2.7)], [[i, (i + 1) % 8, 8] for i in range(8)])
                 fi_glass.beam((ux, uy, zt), (ux, uy, zt + 2.4), 0.05)
+    fi_base = C.MeshBuf()                                                 # r11: terrace slab on a solid base + back wall
+    fi_base.box((bx0 + bx1) / 2, (by0 + by1) / 2, zt - 3.0, bx1 - bx0, by1 - by0, 3.3)
+    fi_base.box((bx0 + bx1) / 2, by1 - 0.3, zt, bx1 - bx0, 0.6, 3.4)
+    fi_base.box(bx0 + 0.3, (by0 + by1) / 2, zt, 0.6, by1 - by0, 3.4)
+    names.append(obj(fi_base, "hsw_fiume_base", col, rgbm("fiume_base", (0.30, 0.28, 0.25), "render")))
     names += [n_ for n_ in (obj(fi_umb, "hsw_fiume_umbrellas", col, rgbm("umbrella", (0.86, 0.84, 0.78))),
                             obj(fi_glass, "hsw_fiume_glass", col, rgbm("glass_dark", (0.05, 0.065, 0.07), "glass_green"))) if n_]
     pt_, pf_ = C.MeshBuf(), FO.Foliage(seed=81)
@@ -1102,6 +1107,7 @@ def lidar_blocks(col):
     lab = np.zeros(free.shape, int)
     keep = np.zeros(free.shape, bool)
     k = 0
+    comps = []
     for (i, j) in zip(*np.nonzero(free)):                  # connected components, keep the big ones
         if lab[i, j]:
             continue
@@ -1117,37 +1123,51 @@ def lidar_blocks(col):
                     lab[p_, q_] = k
                     st.append((p_, q_))
         if len(cells) >= LB["min_cells"]:
-            for a, b_ in cells:
-                keep[a, b_] = True
-    T = LB["tile_m"]
+            comps.append(cells)
     walls, slabs, rails = C.MeshBuf(), C.MeshBuf(), C.MeshBuf()
     ntile = 0
     tops = []
-    H_, W_ = keep.shape
-    tile_top = {}
-    for ti in range(0, H_, T):
-        for tj in range(0, W_, T):
-            blk = keep[ti:ti + T, tj:tj + T]
-            if blk.sum() < T * T * 0.5:
+    for cells in comps:
+        # r11: 2-4 clean rectangular slabs per LiDAR block (was 4 m tiles = stepped "honeycomb" from the air).
+        # Orientation from the cells' principal axis; split along the long axis; each slab to its own height.
+        P_ = np.array([(X0 + c0 + j + 0.5, Y1 - (r0 + i) - 0.5) for i, j in cells])
+        Z_ = np.array([dsm[r0 + i, c0 + j] for i, j in cells])
+        G_ = np.array([gr[r0 + i, c0 + j] for i, j in cells])
+        m0 = P_.mean(0)
+        ev, evec = np.linalg.eigh(np.cov((P_ - m0).T))
+        ax = evec[:, 1]
+        hd = math.atan2(ax[1], ax[0])
+        u = (P_ - m0) @ ax
+        v = (P_ - m0) @ np.array([-ax[1], ax[0]])
+        ulo, uhi = np.percentile(u, 2), np.percentile(u, 98)
+        n = int(min(LB["max_slabs"], max(1, round((uhi - ulo) / LB["slab_len_m"]))))
+        edges = np.linspace(ulo, uhi, n + 1)
+        for k_ in range(n):
+            sel = (u >= edges[k_]) & (u <= edges[k_ + 1])
+            if sel.sum() < 20:
                 continue
-            ds = dsm[r0 + ti:r0 + ti + T, c0 + tj:c0 + tj + T][blk]
-            gg = gr[r0 + ti:r0 + ti + T, c0 + tj:c0 + tj + T][blk]
-            tile_top[(ti, tj)] = (float(np.percentile(ds, 90)), float(gg.min()))
-    for (ti, tj), (top, base) in tile_top.items():
-        x = X0 + c0 + tj + T / 2
-        y = Y1 - (r0 + ti) - T / 2
-        walls.box(x, y, base - 0.5, T, T, top - base + 0.5)
-        tops.append(top)
-        ntile += 1
-        for (di, dj), (ox, oy, sx, sy) in (((-T, 0), (0, T / 2 + 0.6, T, 1.2)), ((T, 0), (0, -T / 2 - 0.6, T, 1.2)),
-                                           ((0, -T), (-T / 2 - 0.6, 0, 1.2, T)), ((0, T), (T / 2 + 0.6, 0, 1.2, T))):
-            if (ti + di, tj + dj) in tile_top:
-                continue                                    # inner face: no balcony
+            vlo, vhi = np.percentile(v[sel], 4), np.percentile(v[sel], 96)
+            top = float(np.percentile(Z_[sel], LB["top_pct"])) + LB["raise_m"]
+            base = float(np.percentile(G_[sel], 10))
+            gap = LB["gap_m"] if n > 1 else 0.0
+            lu = edges[k_ + 1] - edges[k_] - gap
+            lv = vhi - vlo
+            cu, cv = (edges[k_] + edges[k_ + 1]) / 2, (vlo + vhi) / 2
+            cx, cy = m0 + ax * cu + np.array([-ax[1], ax[0]]) * cv
+            walls.box(cx, cy, base - 0.5, lu, lv, top - base + 0.5, hd)
+            walls.box(cx, cy, top, lu - 1.0, lv - 1.0, 0.9, hd)               # parapet / roof plant line
+            tops.append(top)
+            ntile += 1
             z = base + 3.0
-            while z < top - 1.0:
-                slabs.box(x + ox, y + oy, z, sx, sy, 0.22)
-                rails.box(x + ox * 1.9 if ox else x, y + oy * 1.9 if oy else y, z + 0.95, sx if sx > 2 else 0.08,
-                          sy if sy > 2 else 0.08, 0.1)
+            while z < top - 1.0:                                              # white balcony band every floor
+                slabs.box(cx, cy, z, lu + 2.4, lv + 2.4, 0.25, hd)
+                for su, sv in ((lu + 2.3, 0.07), (0.07, lv + 2.3)):
+                    for sg in (-1, 1):
+                        ox = (lv + 2.3) / 2 * sg if sv == 0.07 else 0.0
+                        oy = (lu + 2.3) / 2 * sg if su == 0.07 else 0.0
+                        dx = ax[0] * oy - ax[1] * ox
+                        dy = ax[1] * oy + ax[0] * ox
+                        rails.box(cx + dx, cy + dy, z + 0.95, su, sv, 0.1, hd)
                 z += 3.0
     win = {"bay": 3.6, "win": 2.6, "sill": 0.3, "head": 0.85, "glass": (0.05, 0.06, 0.07), "rough": 0.2, "floor": 3.0}
     LIDAR_BLOCKS_META.update({"tiles": ntile, "top_max": round(max(tops), 1) if tops else None})
