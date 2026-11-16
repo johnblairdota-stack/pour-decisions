@@ -129,17 +129,19 @@ class Cath:
                 for k in range(8)]
         self.b[key].prism(S.ccw(ring), self.g + z0, self.g + z1)
 
+    def drum(self, key, u, v, r, z0, z1, n=16):
+        """Round turret drum (area r4)."""
+        x, y, _ = self.P(u, v, 0)
+        self.b[key].prism([(x + r * math.cos(2 * math.pi * k / n), y + r * math.sin(2 * math.pi * k / n)) for k in range(n)],
+                          self.g + z0, self.g + z1)
+
     def spire(self, u, v, r, z0, z1):
         x, y, _ = self.P(u, v, 0)
         n = 8
         a0 = self.ang + math.pi / 8
         base = [(x + r * math.cos(a0 + k * math.pi / 4), y + r * math.sin(a0 + k * math.pi / 4), self.g + z0) for k in range(n)]
         self.b["spire"].add(base + [(x, y, self.g + z1)], [[k, (k + 1) % n, n] for k in range(n)])
-        for f in (0.62, 0.74, 0.86):                                    # pale stone bands near the top
-            zr = z0 + (z1 - z0) * f
-            rr = r * (1 - f) + 0.08
-            self.b["dress"].prism([(x + rr * math.cos(a0 + k * math.pi / 4), y + rr * math.sin(a0 + k * math.pi / 4)) for k in range(n)],
-                                  self.g + zr, self.g + zr + 0.35)
+        # area r4: the pale stone bands ("gold collars") near the top are gone (critic + photos)
         self.b["dress"].box(x, y, self.g + z1, 0.25, 0.25, 2.2, self.ang)           # finial and cross
         self.b["dress"].box(x, y, self.g + z1 + 1.3, 1.1, 0.2, 0.2, self.ang)
 
@@ -272,16 +274,24 @@ def build():
                 for z0_, z1_, hw_ in ((-0.3, sq_top * 0.35, 1.0), (sq_top * 0.35, sq_top * 0.7, 0.8), (sq_top * 0.7, sq_top - 0.5, 0.6)):
                     K.block("dress", tu + du * ts / 2 - hw_, tu + du * ts / 2 + hw_, tv + dv * ts / 2 - hw_, tv + dv * ts / 2 + hw_, z0_, z1_)
         K.octagon("stone", tu, tv, ts * 0.52, sq_top, oct_top)
-        for s in (-1, 1):                                               # tall paired belfry lancets
-            for d in (-0.7, 0.7):
-                K.lancet(True, tv + s * ts * 0.48, tu + d, 0.9, sq_top - 4.5, sq_top - 1.4, s)   # area r3: on the square stage
-                K.lancet(False, tu + s * ts * 0.48, tv + d, 0.9, sq_top - 4.5, sq_top - 1.4, s)
-        for du in (-1, 1):                                              # step 7b: round corner turrets with cone caps
+        for s in (-1, 1):                                               # area r4: 3 louvred belfry lancets per face
+            pl = s * ts * 0.505                                         # just proud of the square stage (r3 sat inside it)
+            for d in (-1.6, 0.0, 1.6):
+                K.lancet(True, tv + pl, tu + d, 0.85, sq_top - 4.6, sq_top - 1.5, s, key="slate")
+                K.lancet(False, tu + pl, tv + d, 0.85, sq_top - 4.6, sq_top - 1.5, s, key="slate")
+                for zl in (sq_top - 4.2, sq_top - 3.6, sq_top - 3.0, sq_top - 2.4):   # louvre boards
+                    K.block("dress", tu + d - 0.4, tu + d + 0.4, *sorted((tv + pl, tv + pl + s * 0.1)), zl, zl + 0.08)
+                    K.block("dress", *sorted((tu + pl, tu + pl + s * 0.1)), tv + d - 0.4, tv + d + 0.4, zl, zl + 0.08)
+            for k in range(7):                                          # blind arcade band under the belfry
+                d = -ts * 0.36 + k * ts * 0.72 / 6
+                K.lancet(True, tv + pl, tu + d, 0.5, sq_top - 7.0, sq_top - 6.2, s, frame=False, key="dress")
+                K.lancet(False, tu + pl, tv + d, 0.5, sq_top - 7.0, sq_top - 6.2, s, frame=False, key="dress")
+        for du in (-1, 1):                                              # area r4: round corner drums with cone caps
             for dv in (-1, 1):
-                K.octagon("stone", tu + du * ts * 0.48, tv + dv * ts * 0.48, 1.25, sq_top - 4.0, oct_top + 1.0)
+                K.drum("stone", tu + du * ts * 0.48, tv + dv * ts * 0.48, 1.25, sq_top - 4.0, oct_top + 1.0)
                 x_, y_, _ = K.P(tu + du * ts * 0.48, tv + dv * ts * 0.48, 0)
-                ring_ = [(x_ + 1.35 * math.cos(k * math.pi / 4), y_ + 1.35 * math.sin(k * math.pi / 4), g + oct_top + 1.0) for k in range(8)]
-                K.b["dress"].add(ring_ + [(x_, y_, g + oct_top + 3.0)], [[k, (k + 1) % 8, 8] for k in range(8)])
+                ring_ = [(x_ + 1.35 * math.cos(k * math.pi / 8), y_ + 1.35 * math.sin(k * math.pi / 8), g + oct_top + 1.0) for k in range(16)]
+                K.b["dress"].add(ring_ + [(x_, y_, g + oct_top + 3.0)], [[k, (k + 1) % 16, 16] for k in range(16)])
         K.spire(tu, tv, ts * 0.45, oct_top, top)                       # area r3: broader slate base
         tower_meta.append({"uv": [round(tu, 1), round(tv, 1)], "spire_top_m": round(top, 1), "octagon_from_m": round(sq_top, 1)})
     # ------------------------------------------------------------ west front between the towers
@@ -292,6 +302,12 @@ def build():
     # area r1: the roof starts 0.8 m behind the front plane so the stone gable shows (was a salmon triangle)
     K.gable_roof("tile", *(sorted((ub0 + 0.8, ub1)) if west < 0 else sorted((ub0, ub1 - 0.8))), -fw / 2 - 0.3, fw / 2 + 0.3, eave)
     K.gable_end("stone", uw, -fw / 2, fw / 2, eave, eave + math.tan(PITCH) * (fw / 2 + 0.3), west)
+    gr_ = eave + math.tan(PITCH) * (fw / 2 + 0.3)                       # area r4: coped gable parapet + cross
+    for s_ in (-1, 1):
+        K.b["dress"].beam(K.P(uw + west * 0.15, s_ * (fw / 2 + 0.3), eave + 0.2), K.P(uw + west * 0.15, 0.0, gr_ + 0.35), 0.55, 0.4)
+    xg_, yg_, _ = K.P(uw + west * 0.15, 0.0, 0)
+    K.b["dress"].box(xg_, yg_, g + gr_ + 0.3, 0.3, 0.3, 2.4, ang)
+    K.b["dress"].box(xg_, yg_, g + gr_ + 1.9, 0.3, 1.3, 0.28, ang)
     for dv, w_, h_ in ((-fw * 0.3, 2.2, 4.4), (fw * 0.3, 2.2, 4.4)):                        # side portals, two orders
         for k in range(2):
             K.arch_frame(uw + west * (0.5 - 0.35 * k), dv, w_ + 1.2 - 0.6 * k, 0.0, h_ - 0.3 * k, 0.3, west)
