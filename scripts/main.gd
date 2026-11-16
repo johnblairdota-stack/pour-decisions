@@ -1920,11 +1920,16 @@ func _build_walkway() -> void:
 			parts.append(F.box(Vector3(0.07, 1.1, 0.07), rail, p + Vector3(0, 0.55, 0)))
 			# Scaffold standards down to the floor below
 			parts.append(F.box(Vector3(0.06, FH, 0.06), grate, p + Vector3(0, -FH * 0.5, 0)))
+	# (all of it stands still on the rig: merged into a few meshes, F.bake)
+	var scaf := Node3D.new()
+	scaf.name = "Scaffold"
+	rig.add_child(scaf)
+	_rect_rails.append(scaf)
 	for part in parts:
 		# (built round the slab's centre)
 		part.position += Vector3(SC.x, 0, SC.z)
-		rig.add_child(part)
-		_rect_rails.append(part)
+		scaf.add_child(part)
+	F.bake(scaf)
 	# Blue edge screens hung outside the walkway, from rail height down past
 	# the two floors under the deck, as on the real job (open at the hoist
 	# landing, the walkway out to the boom, and where the link joins the
