@@ -7258,6 +7258,7 @@ func _who(p) -> String:
 ## is cut out of it (shaders/cutaway.gdshaderinc), clear in the middle and
 ## fading back to solid at the rim; the rest of it stays as it is.
 const STREET_CUT_R := 11.0    # m, the circle cut out of Spire's neighbours round someone on the street
+const CUT_R_STREET := 2.6     # ...and round someone behind Spire's road barriers
 const CUT_R := 4.0            # m, the see-through circle round each bit of work
 var _scr_cut := Vector3.INF    # the nearest concrete a screeder's still to do (world)
 var _scr_cut_t := 0.0
@@ -7293,6 +7294,9 @@ func _update_see_through(delta: float) -> void:
 			roots.append(_spire_mast)
 		if _spire_b != null:
 			roots += [_spire_b.mast, _spire_b.yaw.get_child(0), _spire_b.arm1]
+		if _spire_street != null:
+			# (the water-filled barriers stand between the camera and the truck bay)
+			roots += _spire_street.barriers
 		if climb != null:
 			# (the climbing frame, the section on the hook or set down on the
 			# deck, and the tower crane's mast)
@@ -7327,7 +7331,12 @@ func _update_see_through(delta: float) -> void:
 		for p in humans():
 			if p.zone == "deck" and ps.size() < 5:
 				ps.append(Vector4(p.position.x, p.position.y + 1.0, p.position.z, CUT_R))
-		if phase == "pour":
+		if _spire_street != null:
+			# (Spire: and anyone down in the work zone, seen through the barriers along it)
+			for p in humans():
+				if p.zone != "deck" and p.position.y < 2.5 and ps.size() < 5:
+					ps.append(Vector4(p.position.x, p.position.y + 0.6, p.position.z, CUT_R_STREET))
+		if phase == "pour" and ps.size() < 6:
 			var d := discharge()
 			ps.append(Vector4(d.x, d.y, d.z, CUT_R))
 	# The concrete still to screed nearest a screeder: seen through the boom
@@ -7521,6 +7530,7 @@ func _spire_views() -> Array:
 		["air_east", at + Vector3(-70, 35, 20), at],
 		["air_west", at + Vector3(70, 30, 25), at],
 		["pump_far", Vector3(-4, 24, 46), Vector3(20, 1, 4)],
+		["bay_low", Vector3(22, 3.2, 13), Vector3(21, 0.8, 4)],
 		["pump_far2", Vector3(30, 30, 55), Vector3(20, 1, 4)],
 		["street", Vector3(26, 12, 17), Vector3(10, 3, 0)],
 		["street_low", Vector3(32, 2.5, 13), Vector3(6, 6, -2)],

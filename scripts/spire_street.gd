@@ -33,6 +33,7 @@ var _spot_label: Label3D
 var _walkers: Array = []   # people on the footpath: {node, x, dir, phase}
 var _board: Array = []     # the arrow board's lamps
 var _t := 0.0
+var barriers: Array = []  # the barrier nodes (the game cuts them away round anyone working behind them)
 var _hold_traffic := false
 var _hold_gate := false
 var _called_seen := false
@@ -62,6 +63,7 @@ func _barrier(x: float, z: float, i: int, yaw := 0.0) -> void:
 	n.position = Vector3(x, gy(x, z), z)
 	n.rotation.y = yaw
 	add_child(n)
+	barriers.append(n)
 
 func _barriers() -> void:
 	var i := 0
