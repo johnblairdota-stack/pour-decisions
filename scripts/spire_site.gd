@@ -205,6 +205,7 @@ static func build_world(parent: Node3D) -> Node3D:
 		m.rotation.y = th
 		_level_street(m, m, Transform3D(Basis(Vector3.UP, th), Vector3(off.x, -street, off.y)))
 		_tint(m)
+		_trim(m)
 		# (the model's own plant stands where the Blender stage had it: the game builds the booms, the
 		# pump, the trucks and the line itself, and the Ann St planters are out for the pour)
 		for nm in HIDE:
@@ -218,6 +219,35 @@ static func build_world(parent: Node3D) -> Node3D:
 		push_warning("Spire: the site model hasn't been imported yet (open the project in the editor once)")
 	parent.add_child(root)
 	return root
+
+# ------------------------------------------------------------------ what it costs to draw
+## The ground and everything lying flat on it (roads, kerbs, markings, the painted street names), the
+## far suburbs and the far trees: none of it throws a shadow anyone could see, and each was drawn again
+## into the sun's shadow map for every split.
+const NO_SHADOW := ["ground_", "far_", "river_water", "roads", "footpaths_kerbs", "footways", "line_marking",
+	"car_park", "kerb_gutter", "streetname", "busonly", "street_white", "street_red", "street_no_stopping",
+	"street_lenses", "street_lit_", "street_target_boards", "street_heads", "street_name_blades",
+	"street_sign_faces", "street_art", "hsw_boardwalk", "tree_crowns_far", "palm_fronds_far"]
+## Small things nobody can make out from further off than this (m): the street names painted on the
+## road, the bus lane words, the lamps' lenses and the signal heads.
+const NEAR_ONLY := {"streetname": 70.0, "busonly": 70.0, "street_lenses": 160.0, "street_lit_": 160.0,
+	"street_target_boards": 160.0, "street_sign_faces": 120.0, "street_name_blades": 120.0, "street_bins": 60.0,
+	"street_bin_wheels": 60.0, "street_bollards": 90.0, "street_art": 120.0}
+
+static func _trim(n: Node) -> void:
+	if n is GeometryInstance3D:
+		var g := n as GeometryInstance3D
+		var nm := String(g.name)
+		for pre in NO_SHADOW:
+			if nm.begins_with(pre):
+				g.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		for pre in NEAR_ONLY:
+			if nm.begins_with(pre):
+				g.visibility_range_end = float(NEAR_ONLY[pre])
+				g.visibility_range_end_margin = 5.0
+				g.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_DISABLED
+	for c in n.get_children():
+		_trim(c)
 
 # ------------------------------------------------------------------ the street's own levels
 # Ann St isn't flat: it falls along the site and has a crossfall and kerbs. The game's ground is y 0 at
@@ -589,6 +619,7 @@ static func build_core(parent: Node3D) -> Dictionary:
 	var lab := F.label3d("JUMP FORM", 56, Color("1d2023"))
 	lab.name = "Label"
 	rig.add_child(lab)
+	F.bake(rig)
 	return {"walls": walls, "rig": rig, "core": core, "ring": ring}
 
 ## Sets the core's height: walls up to `top`, the rig over the top `rig_levels` storeys.
@@ -626,6 +657,11 @@ static func build_scaffold(parent: Node3D, walk_gap: float, walk_w: float, fh: f
 	var rail := F.mat("orange")
 	var toe := F.mat("yellow_dark")
 	var c := centroid(plate)
+	# (all of it stands still on the rig: it's merged into a few meshes once it's built, F.bake)
+	var scaf := Node3D.new()
+	scaf.name = "Scaffold"
+	parent.add_child(scaf)
+	parts.append(scaf)
 	var m: PackedVector2Array = mid[0]
 	for j in m.size():
 		var a: Vector2 = m[j]
@@ -633,8 +669,7 @@ static func build_scaffold(parent: Node3D, walk_gap: float, walk_w: float, fh: f
 		var at := (a + b) * 0.5
 		var seg := F.box(Vector3(a.distance_to(b) + 0.25, 0.1, walk_w), grate, Vector3(at.x, -0.05, at.y))
 		seg.rotation.y = -atan2(b.y - a.y, b.x - a.x)
-		parent.add_child(seg)
-		parts.append(seg)
+		scaf.add_child(seg)
 	var o: PackedVector2Array = outer[0]
 	var screens := Node3D.new()
 	screens.name = "EdgeScreens"
@@ -662,21 +697,20 @@ static func build_scaffold(parent: Node3D, walk_gap: float, walk_w: float, fh: f
 			for y in [0.55, 1.08]:
 				var bar := F.box(Vector3(ln, 0.06, 0.06), rail, Vector3(at.x, y, at.y))
 				bar.rotation.y = ry
-				parent.add_child(bar)
-				parts.append(bar)
+				scaf.add_child(bar)
 			var tb := F.box(Vector3(ln, 0.15, 0.03), toe, Vector3(at.x, 0.075, at.y))
 			tb.rotation.y = ry
-			parent.add_child(tb)
-			parts.append(tb)
+			scaf.add_child(tb)
 			var n := maxi(1, int(ln / 2.0))
 			for k in n + 1:
 				var s := p.lerp(q, float(k) / n)
 				for post in [F.box(Vector3(0.07, 1.1, 0.07), rail, Vector3(s.x, 0.55, s.y)), F.box(Vector3(0.06, fh, 0.06), grate, Vector3(s.x, -fh * 0.5, s.y))]:
-					parent.add_child(post)
-					parts.append(post)
+					scaf.add_child(post)
 			var out := (at - c).normalized() * 0.25
 			var inward := Vector3(c.x - at.x, 0, c.y - at.y).normalized()
 			yard.screen_line(screens, Vector3(p.x + out.x, 0, p.y + out.y), Vector3(q.x + out.x, 0, q.y + out.y), inward)
+	F.bake(scaf)
+	F.bake(screens)
 	return parts
 
 ## The parts of a..b outside x0..x1.

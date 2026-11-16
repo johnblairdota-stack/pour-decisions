@@ -48,6 +48,8 @@ func build(owner_game) -> void:
 	_signs()
 	_gantry()
 	_zones()
+	# (the barriers, cones, signs, gantry and lines never move: a few meshes for the lot)
+	F.bake(self)
 	_people()
 
 # ------------------------------------------------------------------ the work zone
@@ -143,6 +145,7 @@ func _signs() -> void:
 		Vector2(0.5, 0.35), Vector2(0.5, -0.35), Vector2(0.15, 0.2), Vector2(0.15, -0.2)]
 	for lp: Vector2 in lamps:
 		var m := F.box(Vector3(0.03, 0.16, 0.16), F.flat_mat(Color("ffcf33")), Vector3(-0.07, 2.6 + lp.y, lp.x), false)
+		m.set_meta("nobake", true)
 		ab.add_child(m)
 		_board.append(m)
 	ab.position = Vector3(-21.5, gy(-21.5, 3.6), 3.6)

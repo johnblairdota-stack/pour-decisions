@@ -270,6 +270,8 @@ static func prop(prop_name: String, per := {}, glb := PROPS_GLB) -> Node3D:
 	_paint(n, per, PROP_OUTLINE)
 	return n
 
+const CREW_NO_SHADOW := ["Look_sunnies", "Look_moustache", "Look_beard", "Kit_Docket", "Kit_Whistle", "Kit_Radio", "Kit_SplatterL", "Kit_SplatterR"]
+
 static func chibi(vest_color: Color, hat_color := Color("ffc72c")) -> Node3D:
 	if _crew_scene == null:
 		_crew_scene = load(CREW_GLB)
@@ -286,6 +288,10 @@ static func chibi(vest_color: Color, hat_color := Color("ffc72c")) -> Node3D:
 	for n in _crew_parts(root):
 		if n.name.begins_with("Look_") or n.name.begins_with("Kit_"):
 			n.visible = false
+		# (the eyes, the sunnies and the little kit would only add specks to the person's own shadow, each
+		# drawn again for every split of the sun's)
+		if n is GeometryInstance3D and (String(n.name).begins_with("Eye") or n.name in CREW_NO_SHADOW):
+			(n as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	# Arms hang a little out from the body, as the chibi's always did
 	(root.get_node("ArmL") as Node3D).rotation.z = -0.25
 	(root.get_node("ArmR") as Node3D).rotation.z = 0.25
@@ -415,3 +421,81 @@ static func prism(poly: PackedVector2Array, y0: float, h: float, material: Mater
 	mi.mesh = st.commit()
 	mi.material_override = material
 	return mi
+
+## Merges every visible mesh under `root` that stands still relative to it (a scaffold, a row of
+## barriers, the edge screens) into one mesh a material, so the lot costs a few draws instead of one each
+## (and as many again for each split of the sun's shadow). The parts stay as they were, only emptied, so
+## anything hung off them (labels, lights) is kept. Leave out anything that moves on its own, or a part
+## meant to be shown and hidden by itself: give it (or a node above it) the meta "nobake". Returns how
+## many parts went in.
+static func bake(root: Node3D) -> int:
+	var groups := {}
+	var order: Array = []
+	var parts: Array = []
+	_bake_walk(root, root, Transform3D.IDENTITY, groups, order, parts)
+	if parts.size() < 2:
+		return 0
+	var shadows := {}
+	for key in order:
+		var g: Dictionary = groups[key]
+		var st := SurfaceTool.new()
+		for it in g["items"]:
+			st.append_from(it[0], it[1], it[2])
+		var cast: int = g["cast"]
+		if not shadows.has(cast):
+			var mi := MeshInstance3D.new()
+			mi.name = "Baked"
+			mi.mesh = ArrayMesh.new()
+			mi.cast_shadow = cast
+			root.add_child(mi)
+			shadows[cast] = mi
+		var into: MeshInstance3D = shadows[cast]
+		var am := into.mesh as ArrayMesh
+		st.commit(am)
+		am.surface_set_material(am.get_surface_count() - 1, g["mat"])
+	for mi in parts:
+		(mi as MeshInstance3D).mesh = null
+		(mi as MeshInstance3D).material_override = null
+	return parts.size()
+
+static func _bake_walk(n: Node, root: Node3D, xf: Transform3D, groups: Dictionary, order: Array, parts: Array) -> void:
+	if n != root:
+		if not n is Node3D or n.has_meta("nobake") or not (n as Node3D).visible:
+			return
+		xf = xf * (n as Node3D).transform
+		if n is MeshInstance3D:
+			_bake_part(n as MeshInstance3D, xf, groups, order, parts)
+	for c in n.get_children():
+		_bake_walk(c, root, xf, groups, order, parts)
+
+static func _bake_part(mi: MeshInstance3D, xf: Transform3D, groups: Dictionary, order: Array, parts: Array) -> void:
+	var m := mi.mesh
+	if m == null or mi.skin != null or (m is ArrayMesh and (m as ArrayMesh).get_blend_shape_count() > 0):
+		return
+	if xf.basis.determinant() < 1e-9:
+		return   # (and a mirrored part would come out inside out)
+	for s in m.get_surface_count():
+		if mi.get_active_material(s) == null:
+			return
+	for s in m.get_surface_count():
+		var mat := mi.get_active_material(s)
+		var fmt: int = ((m as ArrayMesh).surface_get_format(s) & (Mesh.ARRAY_FORMAT_COLOR | Mesh.ARRAY_FORMAT_TEX_UV | Mesh.ARRAY_FORMAT_TEX_UV2)) if m is ArrayMesh else Mesh.ARRAY_FORMAT_TEX_UV
+		var key := "%s/%d/%d" % [_mat_key(mat), fmt, mi.cast_shadow]
+		if not groups.has(key):
+			groups[key] = {"mat": mat, "cast": mi.cast_shadow, "items": []}
+			order.append(key)
+		groups[key]["items"].append([m, s, xf])
+	parts.append(mi)
+
+## Two materials that would draw the same (code makes a new one per box) merge as one: the same shader
+## with the same settings, and the same for whatever's drawn after it (the outline).
+static func _mat_key(mat: Material) -> String:
+	if mat is ShaderMaterial and (mat as ShaderMaterial).shader != null:
+		var sm := mat as ShaderMaterial
+		var parts: PackedStringArray = [str(sm.shader.get_instance_id()), str(sm.render_priority)]
+		for u in sm.shader.get_shader_uniform_list():
+			parts.append(str(sm.get_shader_parameter(u["name"])))
+		if sm.next_pass != null:
+			parts.append("+" + _mat_key(sm.next_pass))
+		return "|".join(parts)
+	return str(mat.get_instance_id())

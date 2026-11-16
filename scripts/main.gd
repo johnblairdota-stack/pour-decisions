@@ -1940,6 +1940,7 @@ func _build_walkway() -> void:
 	Yard.screen_line(_screens, Vector3(hoist_x + 1.2, 0, nz), Vector3(ex, 0, nz), Vector3(0, 0, -1))
 	Yard.screen_line(_screens, Vector3(ex, 0, sz), Vector3(ex, 0, OTHER_WING[0].y), Vector3(-1, 0, 0))
 	Yard.screen_line(_screens, Vector3(ex, 0, 1.5), Vector3(ex, 0, nz), Vector3(-1, 0, 0))
+	F.bake(_screens)
 
 ## The walkway's centreline as a loop: a point `s` metres round it.
 func walkway_point(s: float) -> Vector2:
