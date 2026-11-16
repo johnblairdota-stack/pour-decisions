@@ -54,6 +54,7 @@ var _views_t := 0.0
 var _cost := Vector3.ZERO          # summed ms: script, draw cpu, gpu
 var _phys_ms := 0.0                # summed ms of the fixed-step code
 var _draws := 0.0                  # summed draw calls
+var _eng := Vector4.ZERO           # summed engine monitors: process s, physics s, navigation s, triangles
 var _t0 := 0                       # when this frame's scripts started (usec)
 var _p0 := 0                       # the same for a physics step
 var _mark_us := 0
@@ -116,7 +117,9 @@ func _reset() -> void:
 	_views_t = 0.0
 	_phys_ms = 0.0
 	_draws = 0.0
+	_eng = Vector4.ZERO
 	_marks.clear()
+	_hitches.clear()
 	_ext.clear()
 	_ext_on = false
 	_counting = false
@@ -129,7 +132,9 @@ static var _ext_on := false
 
 static func took(part: String, since_us: int) -> void:
 	if _ext_on:
-		_ext[part] = _ext.get(part, 0) + Time.get_ticks_usec() - since_us
+		var us := Time.get_ticks_usec() - since_us
+		_ext[part] = _ext.get(part, 0) + us
+		_fparts[part] = _fparts.get(part, 0) + us
 
 func mark(part: String) -> void:
 	if not _counting:
@@ -137,7 +142,35 @@ func mark(part: String) -> void:
 	var now := Time.get_ticks_usec()
 	if part != "":
 		_marks[part] = _marks.get(part, 0) + now - _mark_us
+		_fparts[part] = _fparts.get(part, 0) + now - _mark_us
 	_mark_us = now
+
+## Hitches: frames over HITCH ms, each with what its scripts spent the time on (or "drawing", when
+## they didn't), so a stutter can be traced. In the bench's summary and in the minute's log line.
+static var HITCH := 50.0 if OS.get_environment("PD_HITCH") == "" else float(OS.get_environment("PD_HITCH"))
+static var _fparts := {}           # this frame's parts, usec
+var _hitches: Array = []           # [ms, what]
+
+func _note_hitch(ms: float, script_ms: float) -> void:
+	var names: Array = _fparts.keys()
+	names.sort_custom(func(a, b): return _fparts[a] > _fparts[b])
+	var what: PackedStringArray = []
+	for n in names.slice(0, 3):
+		if _fparts[n] >= 4000:
+			what.append("%s %d" % [n, int(_fparts[n] / 1000)])
+	if script_ms < ms * 0.4:
+		what.append("drawing or the engine %d" % int(ms - script_ms))
+	_hitches.append([ms, ", ".join(what)])
+
+func _hitch_text() -> String:
+	if _hitches.is_empty():
+		return "no hitches over %d ms" % int(HITCH)
+	var worst: Array = _hitches.duplicate()
+	worst.sort_custom(func(a, b): return a[0] > b[0])
+	var out: PackedStringArray = []
+	for hh in worst.slice(0, 4):
+		out.append("%d ms (%s)" % [int(hh[0]), hh[1]])
+	return "%d hitches over %d ms; worst: %s" % [_hitches.size(), int(HITCH), "; ".join(out)]
 
 func _physics_process(_delta: float) -> void:
 	if _counting and _p0 > 0:
@@ -187,6 +220,13 @@ func _apply_off() -> void:
 	if "views" in _off:
 		for v in root.find_children("*", "SubViewport", true, false):
 			(v as SubViewport).render_target_update_mode = SubViewport.UPDATE_DISABLED
+	if "people" in _off:
+		for n in root.find_children("Chibi*", "Node3D", true, false):
+			(n as Node3D).visible = false
+	if "spiresite" in _off:
+		var ss := root.find_child("SpireSite", true, false) as Node3D
+		if ss != null:
+			ss.visible = false
 	if "world" in _off:
 		for n in root.find_children("*", "Node", true, false):
 			var sc = n.get_script()
@@ -213,12 +253,15 @@ func _process(_delta: float) -> void:
 	_prev_us = now
 	if first or get_tree().paused or ms > 2000.0:
 		_counting = false
+		_fparts.clear()
 		return   # (a pause, or a hitch from the window being dragged: not the game)
 	# The benchmark only counts the pour itself
 	if bench_secs > 0.0 and (game == null or game.phase != "pour"):
 		_counting = false
+		_fparts.clear()
 		return
 	if not _counting:
+		_fparts.clear()
 		_counting = true   # (the parts are counted from the next frame)
 		_ext_on = true
 		return
@@ -235,6 +278,11 @@ func _process(_delta: float) -> void:
 		gpu += RenderingServer.viewport_get_measured_render_time_gpu(rid)
 	_cost += Vector3(script_ms, cpu, gpu)
 	_draws += RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME)
+	_eng += Vector4(Performance.get_monitor(Performance.TIME_PROCESS), Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS),
+		Performance.get_monitor(Performance.TIME_NAVIGATION_PROCESS), RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_PRIMITIVES_IN_FRAME))
+	if ms > HITCH:
+		_note_hitch(ms, script_ms)
+	_fparts.clear()
 	_ms.append(ms)
 	_win_t += ms / 1000.0
 	_recent.append(ms)
@@ -255,8 +303,12 @@ func _process(_delta: float) -> void:
 		_write(s)
 		if bench_secs > 0.0:
 			print("[bench] %s" % _line(s))
+			print("[bench] %s" % _hitch_text())
 			if OS.get_cmdline_user_args().has("--benchdump"):
 				_dump()
+			var e := _eng / maxf(1.0, float(_ms.size()))
+			print("[bench] engine: process %.1f ms, physics step %.1f ms, navigation %.1f ms, %dk triangles drawn, %d nodes, %d physics bodies awake" % [e.x * 1000.0, e.y * 1000.0, e.z * 1000.0, int(e.w / 1000.0),
+				int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT)), int(Performance.get_monitor(Performance.PHYSICS_3D_ACTIVE_OBJECTS))])
 			if not _marks.is_empty():
 				print("[bench] script parts, ms a frame: %s" % _parts(_ms.size(), c.x))
 			get_tree().quit(0)
@@ -266,7 +318,9 @@ func _process(_delta: float) -> void:
 		_cost = Vector3.ZERO
 		_phys_ms = 0.0
 		_draws = 0.0
+		_eng = Vector4.ZERO
 		_marks.clear()
+		_hitches.clear()
 
 ## Average and 1% low frame rate, and the worst frame, of a run of frame times (ms).
 static func summary(ms: PackedFloat32Array) -> Dictionary:
@@ -305,6 +359,9 @@ static func _short(n: int) -> String:
 ## those cast a shadow.
 func _dump() -> void:
 	var groups := {}
+	var tris := {}
+	var big: Array = []
+	var ex := {}
 	var total := Vector3i.ZERO
 	for n in get_tree().root.find_children("*", "GeometryInstance3D", true, false):
 		var g := n as GeometryInstance3D
@@ -327,12 +384,59 @@ func _dump() -> void:
 		var add := Vector3i(1, pieces, casts)
 		groups[key] = groups.get(key, Vector3i.ZERO) + add
 		total += add
+		var t := _tris(g)
+		tris[key] = tris.get(key, 0) + t
+		big.append([t, "/".join(names), casts > 0])
+		if OS.get_environment("PD_MESHNAMES") != "" and g is MeshInstance3D:
+			var rn := "%s %s" % [key, (g as MeshInstance3D).mesh.resource_name]
+			ex[" " + rn] = int(ex.get(" " + rn, 0)) + pieces
+		if not ex.has(key):
+			var mname := ""
+			if g is MeshInstance3D:
+				var mm: Mesh = (g as MeshInstance3D).mesh
+				mname = "%s %s" % [mm.get_class(), mm.resource_name]
+				var mt := (g as MeshInstance3D).get_active_material(0)
+				if mt != null:
+					mname += " mat:" + mt.resource_name + (" col:" + str((mt as BaseMaterial3D).albedo_color.to_html(false)) if mt is BaseMaterial3D else "")
+			ex[key] = "%s (%s) at %s" % [mname, g.get_parent().get_class(), str(g.global_position.snapped(Vector3.ONE * 0.1))]
 	var keys: Array = groups.keys()
 	keys.sort_custom(func(a, b): return groups[a].z * 4 + groups[a].y > groups[b].z * 4 + groups[b].y)
 	print("[bench] scene: %d meshes, %d pieces, %d pieces cast a shadow" % [total.x, total.y, total.z])
 	for i in mini(40, keys.size()):
 		var v: Vector3i = groups[keys[i]]
-		print("[bench]   %s: %d meshes, %d pieces, %d cast" % [keys[i], v.x, v.y, v.z])
+		print("[bench]   %s: %d meshes, %d pieces, %d cast, %dk tris  e.g. %s" % [keys[i], v.x, v.y, v.z, tris.get(keys[i], 0) / 1000, ex.get(keys[i], "")])
+	if OS.get_environment("PD_MESHNAMES") != "":
+		for k in ex:
+			if String(k).begins_with(" ") and int(ex[k]) >= 6:
+				print("[bench] mesh %s: %d pieces" % [k, ex[k]])
+	big.sort_custom(func(a, b): return a[0] > b[0])
+	var sum := 0
+	for b in big:
+		sum += b[0]
+	print("[bench] triangles in the scene: %dk. The biggest:" % (sum / 1000))
+	for i in mini(30, big.size()):
+		print("[bench]   %dk %s%s" % [big[i][0] / 1000, big[i][1], "" if big[i][2] else " (no shadow)"])
+
+## Triangles in a mesh (all its pieces), or in all of a MultiMesh's copies.
+static func _tris(g: GeometryInstance3D) -> int:
+	var m: Mesh = null
+	var copies := 1
+	if g is MeshInstance3D:
+		m = (g as MeshInstance3D).mesh
+	elif g is MultiMeshInstance3D and (g as MultiMeshInstance3D).multimesh != null:
+		m = (g as MultiMeshInstance3D).multimesh.mesh
+		copies = (g as MultiMeshInstance3D).multimesh.visible_instance_count
+		if copies < 0:
+			copies = (g as MultiMeshInstance3D).multimesh.instance_count
+	if m == null:
+		return 0
+	var t := 0
+	for s in m.get_surface_count():
+		var a := m.surface_get_arrays(s)
+		var idx = a[Mesh.ARRAY_INDEX]
+		var n: int = idx.size() if idx != null and idx.size() > 0 else (a[Mesh.ARRAY_VERTEX] as PackedVector3Array).size()
+		t += n / 3
+	return t * copies
 
 ## The marked parts of the frame, dearest first, and what's left over (the
 ## scripts outside main.gd's frame: HUD, sound, traffic, people).
@@ -365,4 +469,5 @@ func _write(s: Dictionary) -> void:
 		return
 	f.seek_end()
 	f.store_line(_line(s))
+	f.store_line("    " + _hitch_text())
 	f.close()

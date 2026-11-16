@@ -27,6 +27,7 @@ const TOWER_CLEAR := 1.3       # m from the tower's middle back to the Ann St bo
 const SLIDE_X := 2.0           # the plate's straight Ann St edge then runs x -11 .. 14.9: the tower and the hoist both stand on it
 const WALK_OUT := 0.85         # main.WALK_MID
 const RIG_CLEAR := 0.7         # m people keep off the jump form's screens
+const CORE_CLEAR := 0.45       # m people keep off the core's walls (they walk under the jump form)
 
 ## Parts of the site model the game leaves out
 const HIDE := ["placing_booms_KVM26", "line_pump_BSA2109HD", "agitator_truck", "delivery_line", "street_shrubs", "PROPS_and_backprops"]
@@ -108,13 +109,37 @@ static func _big(parts: Array) -> PackedVector2Array:
 
 ## The two pours: the joint runs along x just in front of the jump form. "A" is the Ann St strip, "B" the
 ## rest with the core cut out; "front" is A's side of the plate (the scaffold's line).
+static func _area(pp: PackedVector2Array) -> float:
+	var a := 0.0
+	for i in pp.size():
+		a += pp[i].cross(pp[(i + 1) % pp.size()])
+	return absf(a) * 0.5
+
 static func _cut_pours() -> void:
 	var plate := _raw("plate")
 	var core := _raw("core")
 	# The joint runs parallel to Ann St just in front of the jump form: our pour is the whole Ann St
 	# strip of the plate, one open slab with nothing to work round, and the other crew's wraps the core.
-	var zc := _box(core).end.y + float(d["jump_form"]["rig_out_m"]) + RIG_CLEAR + 0.6
+	# (John, 16 Nov: our pour is the Ann St front and both sides of the core, a U round it; the joint
+	# runs along the line of the core's back wall and the other crew pours the strip behind)
+	# He wants the two pours equal: the joint (parallel to Ann St) is slid to where each crew has half
+	# the floor's area, no further back than the core's back wall so ours stays a U and never a ring.
 	var bb := _box(plate).grow(5.0)
+	var lo := _box(core).position.y
+	var hi := _box(core).end.y
+	var half := (_area(plate) - _area(core)) * 0.5
+	for i in 24:
+		var zm := (lo + hi) * 0.5
+		var box := PackedVector2Array([Vector2(bb.position.x, zm), Vector2(bb.end.x, zm), Vector2(bb.end.x, bb.end.y), Vector2(bb.position.x, bb.end.y)])
+		var a_m := 0.0
+		for part in Geometry2D.intersect_polygons(plate, box):
+			for piece in Geometry2D.clip_polygons(part, core):
+				a_m += _area(piece)
+		if a_m > half:
+			lo = zm
+		else:
+			hi = zm
+	var zc := (lo + hi) * 0.5
 	var front_box := PackedVector2Array([Vector2(bb.position.x, zc), Vector2(bb.end.x, zc), Vector2(bb.end.x, bb.end.y), Vector2(bb.position.x, bb.end.y)])
 	var back_box := PackedVector2Array([Vector2(bb.position.x, bb.position.y), Vector2(bb.end.x, bb.position.y), Vector2(bb.end.x, zc), Vector2(bb.position.x, zc)])
 	var front := _big(Geometry2D.intersect_polygons(plate, front_box))
@@ -125,13 +150,35 @@ static func _cut_pours() -> void:
 	_polys["rig"] = rig[0] if not rig.is_empty() else core
 	# where people can walk on our deck: pour A and its scaffold, a metre over the joint onto pour
 	# B's formwork, never into the jump form
-	var keep: Array = Geometry2D.offset_polygon(_polys["rig"], RIG_CLEAR, Geometry2D.JOIN_MITER)
+	# (the jump form's screens hang a storey up: people work under them, right up to the core's wall)
+	var keep: Array = Geometry2D.offset_polygon(core, CORE_CLEAR, Geometry2D.JOIN_MITER)
 	var grown: Array = Geometry2D.offset_polygon(front, 1.25, Geometry2D.JOIN_MITER)
 	_polys["walk"] = _big(Geometry2D.clip_polygons(grown[0], keep[0]))
 	# the walkway's centreline: round the outside of pour A, in front of the jump form at the back
 	var mid: Array = Geometry2D.offset_polygon(front, WALK_OUT, Geometry2D.JOIN_MITER)
-	var keep2: Array = Geometry2D.offset_polygon(_polys["rig"], RIG_CLEAR + 0.4, Geometry2D.JOIN_MITER)
+	var keep2: Array = Geometry2D.offset_polygon(core, CORE_CLEAR + 0.6, Geometry2D.JOIN_MITER)
 	_polys["loop"] = _big(Geometry2D.clip_polygons(mid[0], keep2[0]))
+	# The boom operator's beat: the scaffold along Ann St and round both ends, out and back (the
+	# joint side is the other crew's deck, and the bit round the core is on our own wet slab)
+	var ring: PackedVector2Array = mid[0]
+	var n := ring.size()
+	var first := -1
+	for i in n:
+		if ring[i].y < zc + 0.6 and ring[(i + 1) % n].y >= zc + 0.6:
+			first = (i + 1) % n
+	var beat := PackedVector2Array()
+	if first >= 0:
+		for i in n:
+			var q := ring[(first + i) % n]
+			if q.y < zc + 0.6:
+				break
+			beat.append(q)
+	if beat.size() >= 2:
+		var ret := beat.duplicate()
+		ret.reverse()
+		_polys["beat"] = beat + ret.slice(1, ret.size() - 1)
+	else:
+		_polys["beat"] = _polys["loop"]
 
 ## Local metres (x east, y north) -> game x/z.
 static func g(p) -> Vector2:
@@ -205,6 +252,7 @@ static func build_world(parent: Node3D) -> Node3D:
 		m.rotation.y = th
 		_level_street(m, m, Transform3D(Basis(Vector3.UP, th), Vector3(off.x, -street, off.y)))
 		_tint(m)
+		_trim(m)
 		# (the model's own plant stands where the Blender stage had it: the game builds the booms, the
 		# pump, the trucks and the line itself, and the Ann St planters are out for the pour)
 		for nm in HIDE:
@@ -218,6 +266,35 @@ static func build_world(parent: Node3D) -> Node3D:
 		push_warning("Spire: the site model hasn't been imported yet (open the project in the editor once)")
 	parent.add_child(root)
 	return root
+
+# ------------------------------------------------------------------ what it costs to draw
+## The ground and everything lying flat on it (roads, kerbs, markings, the painted street names), the
+## far suburbs and the far trees: none of it throws a shadow anyone could see, and each was drawn again
+## into the sun's shadow map for every split.
+const NO_SHADOW := ["ground_", "far_", "river_water", "roads", "footpaths_kerbs", "footways", "line_marking",
+	"car_park", "kerb_gutter", "streetname", "busonly", "street_white", "street_red", "street_no_stopping",
+	"street_lenses", "street_lit_", "street_target_boards", "street_heads", "street_name_blades",
+	"street_sign_faces", "street_art", "hsw_boardwalk", "tree_crowns_far", "palm_fronds_far"]
+## Small things nobody can make out from further off than this (m): the street names painted on the
+## road, the bus lane words, the lamps' lenses and the signal heads.
+const NEAR_ONLY := {"streetname": 70.0, "busonly": 70.0, "street_lenses": 160.0, "street_lit_": 160.0,
+	"street_target_boards": 160.0, "street_sign_faces": 120.0, "street_name_blades": 120.0, "street_bins": 60.0,
+	"street_bin_wheels": 60.0, "street_bollards": 90.0, "street_art": 120.0}
+
+static func _trim(n: Node) -> void:
+	if n is GeometryInstance3D:
+		var g := n as GeometryInstance3D
+		var nm := String(g.name)
+		for pre in NO_SHADOW:
+			if nm.begins_with(pre):
+				g.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		for pre in NEAR_ONLY:
+			if nm.begins_with(pre):
+				g.visibility_range_end = float(NEAR_ONLY[pre])
+				g.visibility_range_end_margin = 5.0
+				g.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_DISABLED
+	for c in n.get_children():
+		_trim(c)
 
 # ------------------------------------------------------------------ the street's own levels
 # Ann St isn't flat: it falls along the site and has a crossfall and kerbs. The game's ground is y 0 at
@@ -303,14 +380,25 @@ static func podium_z(x0: float, x1: float) -> float:
 
 ## The podium's Ann St face as a building under way reads from the pour camera: a pale edge band on
 ## every slab and the storeys between them dark and open (car park decks with nothing in them yet).
-## `brick`: the folded brick skin started from the bottom, up to that many storeys.
-static func build_podium_face(parent: Node3D, brick := 0) -> void:
+## `brick`: the folded brick skin started from the bottom, up to that many storeys. `scaffold`: the
+## bricklayers' scaffold stands on the gantry up to the storey being laid, with shade mesh on that
+## storey. `gaps`: [x0, x1] runs the scaffold leaves clear (hoist, stairs, riser).
+## Call it again as the job goes on: it clears what it built before.
+static func build_podium_face(parent: Node3D, brick := 0, scaffold := false, gaps: Array = []) -> void:
+	for c in parent.get_children():
+		if String(c.name).begins_with("PodiumFace"):
+			parent.remove_child(c)
+			c.queue_free()
 	if _pod.is_empty():
 		return
 	var bands: Array[Transform3D] = []
 	var backs: Array[Transform3D] = []
 	var skins: Array[Transform3D] = []
+	var tubes: Array[Transform3D] = []
+	var planks: Array[Transform3D] = []
+	var mesh: Array[Transform3D] = []
 	var ys: Array = [0.0] + PODIUM_SLABS
+	var top_storey := mini(brick + 1, ys.size() - 2)
 	for i in POD_N - 1:
 		var z0 := _pod[i]
 		var z1 := _pod[i + 1]
@@ -320,18 +408,39 @@ static func build_podium_face(parent: Node3D, brick := 0) -> void:
 		var z := (z0 + z1) * 0.5
 		var yaw := -atan2(z1 - z0, 0.5)
 		var len := Vector2(0.5, z1 - z0).length() + 0.02
+		var rot := Basis(Vector3.UP, yaw)
+		var clear := scaffold
+		for gp in gaps:
+			if x > gp[0] and x < gp[1]:
+				clear = false
 		for lv in range(1, ys.size()):
 			var y: float = ys[lv]
-			bands.append(Transform3D(Basis(Vector3.UP, yaw) * Basis.from_scale(Vector3(len, 0.42, 0.12)), Vector3(x, y - 0.1, z + 0.05)))
+			bands.append(Transform3D(rot * Basis.from_scale(Vector3(len, 0.42, 0.12)), Vector3(x, y - 0.1, z + 0.05)))
 			if lv >= 2:
 				var y0: float = ys[lv - 1]
 				if lv - 1 <= brick:
 					# (folded brickwork: the face steps in and out a brick's width every 2 m)
 					var fold := 0.12 if int(floor(x / 2.0)) % 2 == 0 else 0.0
-					skins.append(Transform3D(Basis(Vector3.UP, yaw) * Basis.from_scale(Vector3(len, y - y0 - 0.5, 0.12)), Vector3(x, (y0 + y) * 0.5 - 0.05, z - 0.02 + fold)))
+					skins.append(Transform3D(rot * Basis.from_scale(Vector3(len, y - y0 - 0.5, 0.12)), Vector3(x, (y0 + y) * 0.5 - 0.05, z - 0.02 + fold)))
 				else:
-					backs.append(Transform3D(Basis(Vector3.UP, yaw) * Basis.from_scale(Vector3(len, y - y0 - 0.4, 0.1)), Vector3(x, (y0 + y) * 0.5 - 0.1, z - 1.1)))
-	var sets := [[bands, Color("e6e8e3")], [backs, Color("343a42")], [skins, Color("a8553a")]]
+					backs.append(Transform3D(rot * Basis.from_scale(Vector3(len, y - y0 - 0.4, 0.1)), Vector3(x, (y0 + y) * 0.5 - 0.1, z - 1.1)))
+				if clear and lv - 1 <= top_storey:
+					planks.append(Transform3D(rot * Basis.from_scale(Vector3(len, 0.05, 0.75)), Vector3(x, y0 + 0.12, z + 0.62)))
+					for hy in [1.1, 2.1]:
+						tubes.append(Transform3D(rot * Basis.from_scale(Vector3(len, 0.05, 0.05)), Vector3(x, y0 + 0.12 + hy, z + 1.0)))
+					if i % 4 == 0:
+						for dz in [0.24, 1.0]:
+							tubes.append(Transform3D(Basis.from_scale(Vector3(0.06, y - y0, 0.06)), Vector3(x, (y0 + y) * 0.5 + 0.12, z + dz)))
+						tubes.append(Transform3D(Basis.from_scale(Vector3(0.05, 0.05, 0.76)), Vector3(x, y0 + 0.07, z + 0.62)))
+					if lv - 1 == top_storey and brick < ys.size() - 2:
+						mesh.append(Transform3D(rot * Basis.from_scale(Vector3(len, y - y0 + 0.9, 0.02)), Vector3(x, (y0 + y) * 0.5 + 0.55, z + 1.05)))
+	var net := StandardMaterial3D.new()
+	net.albedo_color = Color(0.16, 0.42, 0.36, 0.5)
+	net.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	net.cull_mode = BaseMaterial3D.CULL_DISABLED
+	var sets := [[bands, F.color_mat(Color("e6e8e3"))], [backs, F.color_mat(Color("343a42"))],
+		[skins, F.color_mat(Color("a8553a"))], [tubes, F.color_mat(Color("9aa3ad"))],
+		[planks, F.color_mat(Color("c9a45c"))], [mesh, net]]
 	for st in sets:
 		var xf: Array = st[0]
 		if xf.is_empty():
@@ -340,7 +449,7 @@ static func build_podium_face(parent: Node3D, brick := 0) -> void:
 		mm.transform_format = MultiMesh.TRANSFORM_3D
 		var bm := BoxMesh.new()
 		bm.size = Vector3.ONE
-		bm.material = F.color_mat(st[1])
+		bm.material = st[1]
 		mm.mesh = bm
 		mm.instance_count = xf.size()
 		for k in xf.size():
@@ -348,7 +457,14 @@ static func build_podium_face(parent: Node3D, brick := 0) -> void:
 		var mi := MultiMeshInstance3D.new()
 		mi.name = "PodiumFace"
 		mi.multimesh = mm
-		parent.add_child(mi)
+		if st[1] == net:
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		parent.add_child(mi, true)
+
+## How far the podium's brick has got by pour `k` (0 = level 6): [storeys laid, scaffold up?].
+## Bare for the first pours, a storey every three floors, done and stripped by level 20.
+static func podium_stage(k: int) -> Array:
+	return [clampi(k / 3, 0, PODIUM_SLABS.size() - 1), k >= 2 and k < 14]
 
 ## Game z of whatever's furthest out at game x: the boundary line or the podium's own face.
 static func face_z(x: float) -> float:
@@ -447,6 +563,23 @@ static func _tint(n: Node) -> void:
 	for c in n.get_children():
 		_tint(c)
 
+## The neighbours' materials: they're cut away where they hide someone working down on the street.
+static var _cut_mats: Array = []
+static var _cut_sent: Array = []
+
+## `ps`: up to 6 work points (world xyz, circle radius in m) the neighbours mustn't hide.
+static func street_cut(ps: Array) -> void:
+	var n := ps.size()
+	ps = ps.duplicate()
+	while ps.size() < 6:
+		ps.append(Vector4.ZERO)
+	if [n, ps] == _cut_sent:
+		return
+	_cut_sent = [n, ps]
+	for m in _cut_mats:
+		(m as ShaderMaterial).set_shader_parameter("cut_n", n)
+		(m as ShaderMaterial).set_shader_parameter("cut_p", ps)
+
 static func _game_mat(mat: BaseMaterial3D) -> Material:
 	var nm := String(mat.resource_name)
 	if _mats.has(nm):
@@ -488,7 +621,12 @@ static func _game_mat(mat: BaseMaterial3D) -> Material:
 			rm.set_shader_parameter("roof", true)
 			out = rm
 		else:
-			out = F.color_mat(col)
+			# (plain parts of a neighbour: the same shader with no windows, so it can be cut away too)
+			var pm := F.window_mat(col, 0.0, 0.0, col)
+			pm.set_shader_parameter("cell", Vector2(9999.0, 9999.0))
+			out = pm
+		(out as ShaderMaterial).set_shader_parameter("cut", true)
+		_cut_mats.append(out)
 	_mats[nm] = out
 	return out
 
@@ -540,7 +678,7 @@ static func build_core(parent: Node3D) -> Dictionary:
 		for c in cells:
 			edge.add_child(F.box(Vector3(w - 0.08, 1.0, 0.1), screens[(c + j) % 2], Vector3(-len * 0.5 + (c + 0.5) * w, 0.5, 0)))
 		for c in cells + 1:
-			edge.add_child(F.box(Vector3(0.14, 1.0 + 1.1 * u, 0.2), frame, Vector3(-len * 0.5 + c * w, 0.5 - 0.55 * u, 0.02)))
+			edge.add_child(F.box(Vector3(0.14, 1.0 + 0.3 * u, 0.2), frame, Vector3(-len * 0.5 + c * w, 0.5 - 0.15 * u, 0.02)))
 		# The deck edges showing through as dark bands with a yellow kick board, a handrail along the
 		# top, and the open trailing platform hung underneath
 		for dk in [deck_y, deck_y - 2.9 * u, deck_y - 5.8 * u]:
@@ -548,9 +686,9 @@ static func build_core(parent: Node3D) -> Dictionary:
 				edge.add_child(F.box(Vector3(len + 0.2, 0.22 * u, 0.22), frame, Vector3(0, dk, 0.03)))
 				edge.add_child(F.box(Vector3(len + 0.2, 0.12 * u, 0.24), rail, Vector3(0, dk + 0.2 * u, 0.03)))
 		edge.add_child(F.box(Vector3(len + 0.2, 0.1 * u, 0.16), rail, Vector3(0, 1.0 + 0.05 * u, 0)))
-		edge.add_child(F.box(Vector3(len + 0.2, 0.16 * u, 0.9), frame, Vector3(0, -1.0 * u, -0.4)))
-		edge.add_child(F.box(Vector3(len + 0.2, 0.07 * u, 0.07), rail, Vector3(0, -0.35 * u, 0.02)))
-		edge.add_child(F.box(Vector3(len + 0.2, 0.07 * u, 0.07), rail, Vector3(0, -0.7 * u, 0.02)))
+		edge.add_child(F.box(Vector3(len + 0.2, 0.16 * u, 0.9), frame, Vector3(0, -0.25 * u, -0.4)))
+		edge.add_child(F.box(Vector3(len + 0.2, 0.07 * u, 0.07), rail, Vector3(0, 0.3 * u, 0.02)))
+		edge.add_child(F.box(Vector3(len + 0.2, 0.07 * u, 0.07), rail, Vector3(0, 0.6 * u, 0.02)))
 	# The top deck (formply), and on it the things that say "jump form" from above: the wall steel
 	# standing up out of the pour, the hydraulic pack, the crew's toilet and the stair hatch
 	rig.add_child(F.prism(ring, deck_y - 0.1 * u, 0.1 * u, F.color_mat(Color("c79a5e"))))
@@ -589,6 +727,7 @@ static func build_core(parent: Node3D) -> Dictionary:
 	var lab := F.label3d("JUMP FORM", 56, Color("1d2023"))
 	lab.name = "Label"
 	rig.add_child(lab)
+	F.bake(rig)
 	return {"walls": walls, "rig": rig, "core": core, "ring": ring}
 
 ## Sets the core's height: walls up to `top`, the rig over the top `rig_levels` storeys.
@@ -626,6 +765,11 @@ static func build_scaffold(parent: Node3D, walk_gap: float, walk_w: float, fh: f
 	var rail := F.mat("orange")
 	var toe := F.mat("yellow_dark")
 	var c := centroid(plate)
+	# (all of it stands still on the rig: it's merged into a few meshes once it's built, F.bake)
+	var scaf := Node3D.new()
+	scaf.name = "Scaffold"
+	parent.add_child(scaf)
+	parts.append(scaf)
 	var m: PackedVector2Array = mid[0]
 	for j in m.size():
 		var a: Vector2 = m[j]
@@ -633,8 +777,7 @@ static func build_scaffold(parent: Node3D, walk_gap: float, walk_w: float, fh: f
 		var at := (a + b) * 0.5
 		var seg := F.box(Vector3(a.distance_to(b) + 0.25, 0.1, walk_w), grate, Vector3(at.x, -0.05, at.y))
 		seg.rotation.y = -atan2(b.y - a.y, b.x - a.x)
-		parent.add_child(seg)
-		parts.append(seg)
+		scaf.add_child(seg)
 	var o: PackedVector2Array = outer[0]
 	var screens := Node3D.new()
 	screens.name = "EdgeScreens"
@@ -662,21 +805,20 @@ static func build_scaffold(parent: Node3D, walk_gap: float, walk_w: float, fh: f
 			for y in [0.55, 1.08]:
 				var bar := F.box(Vector3(ln, 0.06, 0.06), rail, Vector3(at.x, y, at.y))
 				bar.rotation.y = ry
-				parent.add_child(bar)
-				parts.append(bar)
+				scaf.add_child(bar)
 			var tb := F.box(Vector3(ln, 0.15, 0.03), toe, Vector3(at.x, 0.075, at.y))
 			tb.rotation.y = ry
-			parent.add_child(tb)
-			parts.append(tb)
+			scaf.add_child(tb)
 			var n := maxi(1, int(ln / 2.0))
 			for k in n + 1:
 				var s := p.lerp(q, float(k) / n)
 				for post in [F.box(Vector3(0.07, 1.1, 0.07), rail, Vector3(s.x, 0.55, s.y)), F.box(Vector3(0.06, fh, 0.06), grate, Vector3(s.x, -fh * 0.5, s.y))]:
-					parent.add_child(post)
-					parts.append(post)
+					scaf.add_child(post)
 			var out := (at - c).normalized() * 0.25
 			var inward := Vector3(c.x - at.x, 0, c.y - at.y).normalized()
 			yard.screen_line(screens, Vector3(p.x + out.x, 0, p.y + out.y), Vector3(q.x + out.x, 0, q.y + out.y), inward)
+	F.bake(scaf)
+	F.bake(screens)
 	return parts
 
 ## The parts of a..b outside x0..x1.
@@ -696,7 +838,7 @@ static func _cut_run(a: Vector2, b: Vector2, x0: float, x1: float) -> Array:
 
 ## A point `s` metres round the walkway's centreline, and how far round the point nearest `q` is.
 static func loop_point(s: float) -> Vector2:
-	var lp := poly("loop")
+	var lp := poly("beat")
 	var n := lp.size()
 	var per := 0.0
 	for i in n:
@@ -710,7 +852,7 @@ static func loop_point(s: float) -> Vector2:
 	return lp[0]
 
 static func loop_param(q: Vector2) -> float:
-	var lp := poly("loop")
+	var lp := poly("beat")
 	var n := lp.size()
 	var best := 1e9
 	var out := 0.0
