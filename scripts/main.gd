@@ -6864,9 +6864,12 @@ var _park_f := 0.0
 const RIG_PAD := 0.45          # m the arms keep off the form (they're 0.3 m thick)
 var _rig_hit_t := 0.0
 
-## How far out from the boom's head (m, on plan) the form's edge is, looking along `dir`.
-func _rig_edge(dir: Vector2) -> float:
-	var hp := Vector2(head.global_position.x, head.global_position.z)
+## The helpers below take the boom's head (world, the slewing ring) and its two arm lengths, so the
+## other crew's boom (spire_b.gd) can use them too.
+
+## How far out from the head (m, on plan) the form's edge is, looking along `dir`.
+func rig_edge(hd: Vector3, dir: Vector2) -> float:
+	var hp := Vector2(hd.x, hd.z)
 	var ring: PackedVector2Array = SpireSite.poly("rig")
 	var far := 0.0
 	for da in [-0.07, 0.0, 0.07]:
@@ -6878,17 +6881,17 @@ func _rig_edge(dir: Vector2) -> float:
 	return far + RIG_PAD
 
 ## With the tip `d` m out from the head, do both arms clear the form (its edge `r` m out)?
-func _rig_arms_clear(d: float, r: float) -> bool:
+func rig_arms_clear(hd: Vector3, la: float, lb: float, d: float, r: float) -> bool:
 	if d < r:
 		return false
-	var hy := head.global_position.y + SHOULDER
+	var hy := hd.y + SHOULDER
 	var rig: Node3D = _spire_core["rig"]
 	var top := rig.global_position.y + rig.scale.y + RIG_PAD - hy     # (the form's top, from the shoulder)
 	var ty := deck_top() + 1.3 + HOSE - hy
-	var dist := clampf(sqrt(d * d + ty * ty), 1.0, l1 + l2 - 0.05)
+	var dist := clampf(sqrt(d * d + ty * ty), 1.0, la + lb - 0.05)
 	var phi := atan2(ty, d)
-	var a := acos(clampf((l1 * l1 + dist * dist - l2 * l2) / (2.0 * l1 * dist), -1.0, 1.0))
-	var el := Vector2(cos(phi + a), sin(phi + a)) * l1
+	var a := acos(clampf((la * la + dist * dist - lb * lb) / (2.0 * la * dist), -1.0, 1.0))
+	var el := Vector2(cos(phi + a), sin(phi + a)) * la
 	var tp := Vector2(d, ty)
 	for i in 13:
 		var f := i / 12.0
@@ -6899,27 +6902,29 @@ func _rig_arms_clear(d: float, r: float) -> bool:
 	return true
 
 ## The nearest the tip may come to the head along `dir` (m, on plan).
-func _rig_dmin(dir: Vector2) -> float:
-	var r := _rig_edge(dir)
-	if r <= RIG_PAD or _rig_arms_clear(r, r):
+func rig_dmin(hd: Vector3, la: float, lb: float, dir: Vector2) -> float:
+	var r := rig_edge(hd, dir)
+	if r <= RIG_PAD or rig_arms_clear(hd, la, lb, r, r):
 		return r
 	var lo := r
-	var hi := l1 + l2 - 0.5
+	var hi := la + lb - 0.5
 	for i in 12:
 		var mid := (lo + hi) * 0.5
-		if _rig_arms_clear(mid, r):
+		if rig_arms_clear(hd, la, lb, mid, r):
 			hi = mid
 		else:
 			lo = mid
 	return hi
 
 ## `at` (world), pushed out from the head until the boom clears the form. [point, was it pushed?]
-func _rig_clear(at: Vector3) -> Array:
-	var hp := Vector2(head.global_position.x, head.global_position.z)
+func rig_clear(at: Vector3, hd: Vector3, la: float, lb: float) -> Array:
+	if _spire_core.is_empty():
+		return [at, false]
+	var hp := Vector2(hd.x, hd.z)
 	var to := Vector2(at.x, at.z) - hp
 	if to.length() < 0.01:
 		to = Vector2(0, 1)
-	var need := _rig_dmin(to.normalized())
+	var need := rig_dmin(hd, la, lb, to.normalized())
 	if to.length() >= need:
 		return [at, false]
 	var out := hp + to.normalized() * need
@@ -6929,7 +6934,7 @@ func _rig_clear(at: Vector3) -> Array:
 func _rig_bump(delta: float) -> void:
 	_rig_hit_t = maxf(0.0, _rig_hit_t - delta)
 	var was := tip_target
-	var res := _rig_clear(tip_target)
+	var res := rig_clear(tip_target, head.global_position, l1, l2)
 	tip_target = res[0]
 	if res[1] and phase == "pour" and was.distance_to(tip_target) > 0.04 and _rig_hit_t <= 0.0:
 		# (a knock, and it springs back a touch)
@@ -6942,7 +6947,7 @@ func _rig_bump(delta: float) -> void:
 		var op = _boom_operator()
 		if op != null and not op.bot and not op.covering:
 			op.say("jump form!")
-	tip_pos = _rig_clear(tip_pos)[0]
+	tip_pos = rig_clear(tip_pos, head.global_position, l1, l2)[0]
 
 func _update_boom() -> void:
 	if arm1 == null:
