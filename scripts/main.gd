@@ -4255,7 +4255,9 @@ func _grade() -> void:
 	_save_medal(medal)
 	Wallet.save()
 	if autotest:
-			print("[autotest]   level %d: +%d pts (total %d, %s), quality %.0f, medal %s in %.1fs (silver %.0f, gold %.0f, fault slack %.0f) (bots %s) | %s | %s" % [k + 1, score.level, score.total, score.rank_name(), quality, score.MEDALS[medal], pour_clock, tg.x, tg.y, _fault_slack, score.MEDALS[was_tier], " | ".join(score.report_rows()), " | ".join(rows)])
+		print("[autotest]   footprints in the finish: %d blamed, %d forgiven" % [prints_n[0], prints_n[1]])
+		prints_n = [0, 0]
+		print("[autotest]   level %d: +%d pts (total %d, %s), quality %.0f, medal %s in %.1fs (silver %.0f, gold %.0f, fault slack %.0f) (bots %s) | %s | %s" % [k + 1, score.level, score.total, score.rank_name(), quality, score.MEDALS[medal], pour_clock, tg.x, tg.y, _fault_slack, score.MEDALS[was_tier], " | ".join(score.report_rows()), " | ".join(rows)])
 
 ## The slab report's contents: the medal, each hard hat's points and what
 ## earned them most, the crew star (the person with the most), and what's next.
@@ -5945,7 +5947,9 @@ func _jobs() -> Array:
 ## walkway round the slab is the way to get about. Once the concrete's gone
 ## off it doesn't matter. (The bots step lightly: prints are for people.)
 const STRIDE := 0.4
+const POKER_GRACE := 12.0   # s fresh finish is forgiven under a poker's boots
 var _foot_toast_t := 0.0
+var prints_n := [0, 0]     # this level: prints in the finish blamed, forgiven (autotest log)
 
 func _footprints(p) -> void:
 	_foot_toast_t = maxf(0.0, _foot_toast_t - get_process_delta_time())
@@ -5965,7 +5969,13 @@ func _footprints(p) -> void:
 	var dir := step.normalized()
 	var side := Vector2(-dir.y, dir.x) * (0.09 if left else -0.09)
 	var at := _pour_local(Vector3(p.position.x + side.x, p.position.y, p.position.z + side.y))
-	if pour.footprint(at, atan2(dir.x, dir.y)) == 2:
+	# (the poker's forgiven finish the screed only just put down round them:
+	# working the purple, they can't always see what's been done behind)
+	var grace: float = POKER_GRACE if p.role == "poker" else 0.0
+	var fp: int = pour.footprint(at, atan2(dir.x, dir.y), grace)
+	if fp >= 2:
+		prints_n[fp - 2] += 1
+	if fp == 2:
 		score.award(p, -3, "Footprints in the finish")
 		if _foot_toast_t <= 0.0:
 			_foot_toast_t = 8.0
