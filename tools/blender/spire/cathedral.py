@@ -334,10 +334,9 @@ def build():
         K.block("dress", *sorted((up - west * 0.6, up + west * 0.4)), s_ * (pw / 2 + 0.3) - 0.5, s_ * (pw / 2 + 0.3) + 0.5, -0.5, ph + 0.4)
         K.pinnacle(up, s_ * (pw / 2 + 0.3), ph + 0.4, 4.5, 0.5)
     K.block("stone", *sorted((uw, up)), -pw / 2, pw / 2, ph + 1.0, ph + 1.6)
-    pr = ph + 1.6 + math.tan(PITCH) * pw / 2
-    K.b["stone"].add([K.P(up, -pw / 2, ph + 1.6), K.P(up, pw / 2, ph + 1.6), K.P(up, 0, pr)], [[0, 1, 2] if west > 0 else [2, 1, 0]])
-    # area r2: no slate pent roof over the porch (critic: it read as a dark pyramid); a solid stone gable instead
-    K.gable_roof("stone", *sorted((up - west * 0.7, up)), -pw / 2, pw / 2, ph + 1.6)
+    # area r7 (critics + 2010 photo): no gable over the porch (it read as a grey triangular hood); the photo shows a
+    # flat front with a horizontal arcaded band over the portals: a level coped parapet instead
+    K.block("dress", *sorted((uw, up + west * 0.15)), -pw / 2 - 0.15, pw / 2 + 0.15, ph + 1.6, ph + 1.85)
     for k in range(4):                                                  # arch orders stepping in to the doors
         K.arch_frame(up - west * (0.02 + 0.85 * k), 0.0, pw - 0.6 - 0.9 * k, 0.0, ph - 2.6 - 0.25 * k, 0.42, west)
         K.block("dress", *sorted((up - west * 0.85 * k, up - west * (0.85 * k + 0.85))), -(pw - 0.6 - 0.9 * k) / 2, -(pw - 0.6 - 0.9 * k) / 2 + 0.45, -0.5, ph - 2.6 - 0.25 * k)
@@ -365,7 +364,10 @@ def build():
     gw_top = max(12.0, eave - 2.5)
     K.lancet(False, uw, 0.0, gw, 11.0, gw_top, west)                   # great west window, 5 lights
     for k_ in range(3):                                                 # area r6: big recessed arch, 3 orders stepping in
-        K.arch_frame(uw + west * (0.15 + 0.45 * (2 - k_)), 0.0, fw * 0.86 - 1.1 * k_, 0.0, gw_top - 0.6 - 0.4 * k_, 0.55, west)
+        # area r7 (critics): the r6 orders stood 0.15-1.05 m proud in cream and read as floating ribbons. Now carved:
+        # wall stone, each order only 0.04 m further in front than the one inside it (0.12 m at most)
+        K.arch_frame(uw + west * (0.04 + 0.04 * (2 - k_)), 0.0, fw * 0.86 - 1.1 * k_, 0.0, gw_top - 0.6 - 0.4 * k_, 0.55, west,
+                     key="stone")
     for k in (-2, -1, 1, 2):
         x, y, _ = K.P(uw + west * 0.14, k * gw / 5, 0)
         K.b["dress"].box(x, y, g + 11.0, 0.18, 0.22, gw_top - 11.0 + 0.6 * gw, ang)

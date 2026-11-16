@@ -766,10 +766,11 @@ def hx(s):
 
 NEIGHBOUR_WALLS = {        # critic round 0 (photos): own albedo per building, sRGB
     568836537: "E3D8BC",   # Mantra on Queen: cream
-    26253094: "D2C19C",    # Marriott: buff (r4: a step warmer, photo)
+    26253094: "D8BC94",    # Marriott: buff (r4: a step warmer, photo; r7 critics: a touch more peach)
     236155564: "8C969E",   # Skyline (Meriton): dark glass tower, grey frame
     236155562: "8C969E",
-    26253098: "EAE4D6",    # Willahra: off-white (r4, photo)
+    26253098: "E6DCC4",    # Willahra: off-white (r4, photo; r7 critics: cream)
+    186586595: "D7C88E",   # Orient Hotel: ochre render (r7, orient_front photo; exception "orient")
     26386571: "E0D3BA", 26386543: "E0D3BA",   # Admiralty I / II: warm off-white (r4, photo)
     224320345: "D9AE88",   # Macrossan: Petrie Bight peach
 }
@@ -819,7 +820,9 @@ def mantra_fin(col, b, rings, stripe_xy, objs, report):
     # band ~80 % across the north face and the horizontal "mantra" sign at the top of that face. So: two stripes,
     # a wedge crest at the SE corner top, the sign horizontal on the north face. Azure #1E8FD0 (pinned by the critic).
     stripes = P("mantra_stripes", [
-        {"centre": (14.5, 71.3), "along": (0.0, 1.0), "normal": (1.0, 0.0), "crest": True},    # east face at the SE corner
+        {"centre": (14.5, 71.3), "along": (0.0, 1.0), "normal": (1.0, 0.0), "crest": True, "full": False},  # r7: SE corner = crest wing only
+        # r7: spire_ann_st_2018 shows the blue running down Mantra's LEFT edge for about a third of the height from
+        # the crest, fly_by_east shows only the crest wing there: so the SE band tapers out ~22 m below the roof
         {"centre": (3.6, 97.5), "along": (-1.0, 0.0), "normal": (0.0, 1.0), "crest": False},   # north face (fly_by_east)
     ])
     top = max(t["top_ahd"] for t in b["tiers"])
@@ -837,7 +840,12 @@ def mantra_fin(col, b, rings, stripe_xy, objs, report):
         px, py = st["centre"]
         ux, uy = st["along"]
         nx, ny = st["normal"]
-        slab(px, py, ux, uy, nx, ny, base, top, O, O, W, W)
+        if st.get("full", True):                                    # r7: fly_by_east photo: no full-height band at the SE corner
+            slab(px, py, ux, uy, nx, ny, base, top, O, O, W, W)
+        else:                                                       # a tapering band from the crest wing, 22 m down
+            for i in range(6):
+                f0, f1 = i / 6, (i + 1) / 6
+                slab(px, py, ux, uy, nx, ny, top - 22.0 * (1 - f0), top - 22.0 * (1 - f1), O, O, W * (0.25 + 0.75 * f0), W * (0.25 + 0.75 * f1))
         note(px, py, "building")
         if st["crest"]:                                             # wedge crest: widens and leans out as it rises
             for i in range(8):
@@ -1432,6 +1440,101 @@ def round6(guard, report):
     report.append("ghost pixels: %d leaf faces on the critics' rays dropped" % k6)
 
 
+def ray_boxes(report):
+    """r7 (critics' boxes, 1600 x 1000 heroes): every tree face (leaves AND trunks) within the radius of a camera
+    ray through a grid of points in each box goes. Kills crownless Y / V stumps and floating crowns at once."""
+    import numpy as np
+    A_ = json.load(open(os.path.join(os.path.dirname(L.HERE), "..", "spire_area", "area_cams.json"), encoding="utf-8"))
+    cams = {h["id"]: h for h in A_["heroes"]}
+    for c in L.CAMERAS + L.HERO_CAMERAS:
+        cams.setdefault({"street_ann_cathedral": "annstcath"}.get(c["id"], c["id"]), c)
+    boxes = P("ray_boxes", [
+        ("deanery", 655, 485, 95, 85, 3.0),
+        ("carpark_eye", 320, 485, 70, 70, 1.5), ("carpark_eye", 425, 520, 40, 60, 1.2),
+        ("carpark_eye", 1465, 560, 70, 55, 1.5), ("carpark_eye", 180, 470, 35, 65, 1.2),
+        ("annstcath", 165, 480, 30, 80, 1.2), ("annstcath", 320, 480, 70, 80, 1.5), ("annstcath", 425, 480, 15, 80, 1.0),
+        ("cathedral_from_carpark", 1260, 250, 110, 595, 2.0),
+        ("church_house_webber", 890, 620, 120, 55, 1.5),
+        ("orient_hotel", 0, 150, 200, 600, 2.0),                      # the dead Y tree at the left (camera moved r7)
+        ("orient_hotel", 750, 330, 70, 360, 1.5),                     # the bare fork at the Orient corner
+    ])
+    trees = [o for o in bpy.data.objects if o.type == "MESH" and (o.name.startswith(TREE_PREFIX) or
+             o.name.startswith("area_carpark_tree_trunks") or o.name.startswith("area_carpark_leaves"))]
+    total = 0
+    for vid, bx, by, bw, bh, rad in boxes:
+        h = cams.get(vid)
+        if not h:
+            report.append("ray boxes: no camera %s" % vid)
+            continue
+        pos = np.array([h["pos"][0], h["pos"][1], h["pos"][2] + gz(h["pos"][0], h["pos"][1])])
+        look = np.array([h["look_at"][0], h["look_at"][1], h["look_at"][2] + gz(h["look_at"][0], h["look_at"][1])])
+        f = (look - pos) / np.linalg.norm(look - pos)
+        r = np.cross(f, [0, 0, 1.0])
+        r /= np.linalg.norm(r)
+        u = np.cross(r, f)
+        t = 18.0 / h["lens_mm"]
+        dirs = []
+        for i in range(4):
+            for j in range(5):
+                px, py = bx + bw * (i + 0.5) / 4, by + bh * (j + 0.5) / 5
+                d = f + r * (px - 800) / 800 * t + u * (500 - py) / 800 * t
+                dirs.append(d / np.linalg.norm(d))
+        D = np.array(dirs)
+        k = 0
+        for o in trees:
+            if o.name not in bpy.data.objects:
+                continue
+            def test(X, Y, Z, pos=pos, D=D, rad=rad):
+                V = np.stack([X - pos[0], Y - pos[1], Z - pos[2]], 1)
+                s = V @ D.T                                           # (faces, rays)
+                perp2 = (V * V).sum(1)[:, None] - s * s
+                return ((s > 3.0) & (perp2 < rad * rad)).any(1)
+            k += drop_where(o, test)
+        total += k
+        report.append("ray box %s (%d,%d,%d,%d): %d tree faces dropped" % (vid, bx, by, bw, bh, k))
+    return total
+
+
+def ann_2018_brick(report):
+    """r7 (critics + spire_ann_st_2018 photo): the white box at the left of that view is OSM 236155563 as one
+    block. The photo shows a tall red-brick building nearest the camera and the white "lawler" building further
+    down Ann St. Rays from the camera: the near part is x > 121 m. Its faces get a red-brick material."""
+    import numpy as np
+    k = 0
+    for nm in ("bldg_look_236155563_walls", "bldg_look_236155563_ground"):
+        ob = bpy.data.objects.get(nm)
+        if ob is None or ob.type != "MESH" or not ob.data.materials:
+            continue
+        src = ob.data.materials[0]                                  # a copy of the facade material (keeps the windows)
+        brick = bpy.data.materials.get(src.name.replace("236155563", "2361555630"))
+        if brick is None:
+            brick = src.copy()
+            brick.name = src.name.replace("236155563", "2361555630")
+        brick.diffuse_color = (*hx(P("ann_brick_hex", "9A5A40")), 1)
+        import bmesh
+        bm = bmesh.new()
+        bm.from_mesh(ob.data)
+        x0 = P("ann_brick_x", 121.0) - ob.matrix_world.translation.x
+        bmesh.ops.bisect_plane(bm, geom=bm.verts[:] + bm.edges[:] + bm.faces[:], plane_co=(x0, 0, 0), plane_no=(1, 0, 0))
+        bm.to_mesh(ob.data)
+        bm.free()
+        me = ob.data
+        if brick.name not in [m.name for m in me.materials if m]:
+            me.materials.append(brick)
+        slot = [m.name if m else "" for m in me.materials].index(brick.name)
+        cen = np.empty(len(me.polygons) * 3, "f4")
+        me.polygons.foreach_get("center", cen)
+        cen = cen.reshape(-1, 3)
+        mi = np.empty(len(me.polygons), "i4")
+        me.polygons.foreach_get("material_index", mi)
+        near = cen[:, 0] > P("ann_brick_x", 121.0)
+        mi[near] = slot
+        me.polygons.foreach_set("material_index", mi)
+        me.update()
+        k += int(near.sum())
+    report.append("Ann St 2018 view: near part of OSM 236155563 in red brick (%d faces), the far part stays white" % k)
+
+
 def smooth_surfaces(report):
     """r4 (critic: hard tone edges cut streets in half): smooth shading on the crowned road and the draped car
     park / drive surfaces, so their triangles do not show as flat tone patches."""
@@ -1640,7 +1743,7 @@ def orient(col, guard, objs, report):
             y = a[1] + (b[1] - a[1]) * i / k + ny * 2.6
             if near_lot(guard, x, y, 3.0) or guard.on_road(x, y):
                 continue
-            T.tube(posts, (x, y, gz(x, y) + 0.1), (x, y, g + 7.4), 0.07, 0.07, 10)
+            # r7: the orient_front photo (2026) shows cantilevered awnings: no posts on the footpath
             note(x, y, "orient")
             run.append((x, y))
             n += 1
@@ -1649,28 +1752,26 @@ def orient(col, guard, objs, report):
         p0, p1 = run[0], run[-1]
         f0, f1 = (p0[0] - nx * 2.6, p0[1] - ny * 2.6), (p1[0] - nx * 2.6, p1[1] - ny * 2.6)
         e0, e1 = (p0[0] + nx * 0.15, p0[1] + ny * 0.15), (p1[0] + nx * 0.15, p1[1] + ny * 0.15)
-        zd, zr = g + 3.9, g + 7.4
-        deck.add([(*f0, zd), (*f1, zd), (*e1, zd), (*e0, zd), (*f0, zd + 0.25), (*f1, zd + 0.25), (*e1, zd + 0.25), (*e0, zd + 0.25)],
-                 [[3, 2, 1, 0], [4, 5, 6, 7], [0, 1, 5, 4], [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7]])
-        m = max(1, int(math.dist(p0, p1) / 0.15))
-        for j in range(m + 1):                                      # lace balustrade: white balusters + rails
-            x, y = p0[0] + (p1[0] - p0[0]) * j / m, p0[1] + (p1[1] - p0[1]) * j / m
-            lace.box(x, y, zd + 0.25, 0.03, 0.03, 1.0, math.atan2(uy, ux))
-        for zz in (zd + 0.3, zd + 0.75, zd + 1.25):
-            lace.beam((p0[0], p0[1], zz), (p1[0], p1[1], zz), 0.06, 0.05)
-        roof.add([(*f0, zr + 0.6), (*f1, zr + 0.6), (p1[0] + nx * 0.3, p1[1] + ny * 0.3, zr), (p0[0] + nx * 0.3, p0[1] + ny * 0.3, zr)],
-                 [[0, 1, 2, 3]])
+        # r7: two cantilevered hoods from the photo: the shop awning (2.6 m out, deep fascia) and a slim hood
+        # over the first floor (0.9 m out) with the HOTEL ORIENT letters on the wall above it
+        for zd, out_, th in ((g + 3.6, 1.0, 0.45), (g + 7.0, 0.35, 0.18)):
+            e0_ = (f0[0] + (p0[0] - f0[0]) * out_ + nx * 0.15 * out_, f0[1] + (p0[1] - f0[1]) * out_ + ny * 0.15 * out_)
+            e1_ = (f1[0] + (p1[0] - f1[0]) * out_ + nx * 0.15 * out_, f1[1] + (p1[1] - f1[1]) * out_ + ny * 0.15 * out_)
+            deck.add([(*f0, zd), (*f1, zd), (*e1_, zd), (*e0_, zd), (*f0, zd + th), (*f1, zd + th), (*e1_, zd + th), (*e0_, zd + th)],
+                     [[3, 2, 1, 0], [4, 5, 6, 7], [0, 1, 5, 4], [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7]])
     if best:
         ln, a, b, ux, uy, nx, ny = best                              # HOTEL ORIENT on the longest street front
         mx, my = (a[0] + b[0]) / 2 + nx * 0.12, (a[1] + b[1]) / 2 + ny * 0.12
-        C.text_obj(col, "area_orient_lettering", "HOTEL ORIENT", (mx, my, gz(mx, my) + 8.6),
-                   (math.pi / 2, 0, math.atan2(nx, -ny)), 0.75, (0.93, 0.90, 0.80))
+        C.text_obj(col, "area_orient_lettering", "HOTEL ORIENT", (mx, my, gz(mx, my) + 7.35),
+                   (math.pi / 2, 0, math.atan2(nx, -ny)), 0.6, (0.55, 0.50, 0.36))   # r7: raised letters in the render
         note(mx, my, "orient")
-    put(posts, "orient_verandah_posts", col, mat("orient_posts", (0.05, 0.08, 0.06)), objs)
-    put(deck, "orient_verandah_deck", col, mat("orient_deck", (0.35, 0.30, 0.24)), objs)
+    rm = bpy.data.materials.get("look_%d_roof" % ORIENT_OSM)              # r7: dark tin roof (photo)
+    if rm is not None:
+        rm.diffuse_color = (*hx("4A4D4F"), 1)
+    put(deck, "orient_verandah_deck", col, mat("orient_deck", (0.29, 0.29, 0.27)), objs)
     put(lace, "orient_verandah_lace", col, mat("orient_lace", (0.82, 0.82, 0.78)), objs)
     put(roof, "orient_verandah_roof", col, mat("orient_roof", (0.20, 0.27, 0.25)), objs)
-    report.append("Orient Hotel (exception, render only): verandah, %d posts, lace balustrade, awning roof, HOTEL ORIENT" % n)
+    report.append("Orient Hotel (exception, render only): cantilevered shop awning + first-floor hood (%d bays), HOTEL ORIENT" % n)
 
 
 def annqueen_poles(col, guard, objs, report):
@@ -1748,11 +1849,17 @@ def build():
     floating_masts(report)
     deanery_bank(col, guard, objs, report)
     round6(guard, report)
+    ray_boxes(report)
+    ann_2018_brick(report)
     orphan_crowns(report)
     low_leaves_on_road(guard, report)
     smooth_surfaces(report)
     orient(col, guard, objs, report)
     annqueen_poles(col, guard, objs, report)
+    tb = bpy.data.materials.get("street_target_boards")           # r7: photos (orient_front, ann_queen_corner): black
+    if tb is not None:                                              # lantern backs, no yellow boards; heads read smaller
+        tb.diffuse_color = (*hx("1E1F21"), 1)
+        report.append("signal target boards: black (photos), not yellow")
     self_check(guard, report)
     for r in report:
         print("  area_hero:", r)
@@ -2360,7 +2467,7 @@ def light(az, el, dusk, kind):
     bg = w.node_tree.nodes.get("Background")
     if not dusk:
         if sun:
-            sun.data.color = P("sun_rgb", (1.0, 0.945, 0.863))
+            sun.data.color = P("sun_rgb", (1.0, 0.915, 0.77))      # r7: warmer, #FFE9C4 (critics); gain unchanged
             sun.data.angle = math.radians(0.5)
             sun.data.energy = sun.data.energy * P("sun_gain", 1.6)
             try:                                                    # r6: stair-stepped shadow edges on the roads
@@ -2383,5 +2490,5 @@ def light(az, el, dusk, kind):
     sky(dusk)
     far_ridge(dusk)
     # r2: blue-grey haze (#8fa3b8 at display), not khaki; dusk a lilac-grey
-    mist(kind == "aerial", strength=P("haze_k_dusk", 0.32) if dusk else P("haze_k", 0.45),
+    mist(kind == "aerial", strength=P("haze_k_dusk", 0.26) if dusk else P("haze_k", 0.45),
          rgb=P("haze_dusk", lin("7A86A8")) if dusk else P("haze_day", (0.42, 0.55, 0.76)))

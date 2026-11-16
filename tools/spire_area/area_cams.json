@@ -22,7 +22,7 @@
    "caption": "Cathedral grounds: west front, drive, lawn and beds"},
   {"id": "cathedral_lawn_eye", "pos": [-118.0, -64.0, 1.6], "look_at": [-96.0, -80.0, 6.0], "lens_mm": 22.0,
    "caption": "Cathedral lawn and beds by the west front"},
-  {"id": "orient_hotel", "pos": [56.0, 62.0, 1.6], "look_at": [14.0, 36.0, 6.0], "lens_mm": 24.0,
+  {"id": "orient_hotel", "pos": [53.8, 62.0, 1.6], "look_at": [10.1, 39.0, 6.0], "lens_mm": 24.0,
    "caption": "Orient Hotel from the Ann/Queen junction"},
   {"id": "willahra_admiralty", "pos": [46.0, 5.0, 1.6], "look_at": [62.0, -60.0, 34.0], "lens_mm": 22.0,
    "caption": "Queen St looking south: Willahra, Marriott, Admiralty"},

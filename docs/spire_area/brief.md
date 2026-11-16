@@ -13,6 +13,13 @@ shared .blend). The HSW + Story Bridge thread works in the same scene on branch
 `claude/project-thread-ulx8uc`; this work is on `claude/project-thread-o8dogj` (started from its tip
 e285392). Merge `origin/claude/project-thread-ulx8uc` in before each round.
 
+## Where Blender runs (16 Nov 2026, from round 7)
+In the CLOUD thread, not on John's PC (the PC renders crashed it and hurt game fps). Setup: Python 3.11 venv with
+`pip install "bpy==4.5.*"`, plus `apt-get install libegl1 libegl-mesa0 libgl1-mesa-dri`. Render with
+`<venv>/bin/python tools/spire_area/cloud_render.py tools/spire_area/render_area.py <out> showcase heroes pairs commons [only=..] [scale=..]`:
+Cycles on CPU (EEVEE without a GPU takes minutes per sample), CYC_SAMPLES env (default 48). Pair photos come from the
+showcase artifact's pairs/ folder, never git.
+
 ## HARD RULE: the Spire site is gameplay, hands off
 The Spire site (tower under construction, its kerbside setup, crane, booms, hoist, hoarding, gate, sheds,
 site plant) is driven by the playable level now. Do NOT add to it or change it:
