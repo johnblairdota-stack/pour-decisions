@@ -23,7 +23,7 @@ uniform float far_mix = 0.0;
 uniform int bank_n = 0;
 uniform vec2 bank_line[10];
 uniform float bank_side = 1.0;
-uniform float bank_dark = 0.35;
+uniform float bank_dark = 0.62;
 uniform float patch = 0.0;            // (broad lighter and darker reaches across the water, 0 = none)
 uniform float shade_dark = 0.38;
 uniform float shade_half = 0.0;           // (half the shadow's width, m: 0 = none)
@@ -77,10 +77,10 @@ void fragment() {
 			}
 			run += len;
 		}
-		float near_bank = smoothstep(45.0, 115.0, best) * step(0.0, side);
-		float streak = 0.55 + 0.45 * (sin(along * 0.085) * 0.5 + sin(along * 0.23 + 1.1) * 0.3 + sin(along * 0.031 + 2.0) * 0.4);
+		float near_bank = smoothstep(15.0, 95.0, best) * step(0.0, side);
+		float streak = 0.72 + 0.28 * (sin(along * 0.085) * 0.5 + sin(along * 0.23 + 1.1) * 0.3 + sin(along * 0.031 + 2.0) * 0.4);
 		ALBEDO *= 1.0 - bank_dark * near_bank * clamp(streak, 0.0, 1.0);
-		ALBEDO *= 1.0 + 0.14 * (1.0 - smoothstep(0.0, 70.0, best));
+		ALBEDO *= 1.0 + 0.28 * (1.0 - smoothstep(0.0, 60.0, best));
 	}
 	if (patch > 0.0) {
 		float n1 = sin(p.x * 0.011 + sin(p.y * 0.006) * 2.2) * sin(p.y * 0.009 + 1.3);

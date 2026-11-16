@@ -1575,7 +1575,7 @@ def _customs_game(col, guard, objs, report, a, b, mx, my, ux, uy, nx, ny, ln, g)
     rw_ = ln - 2 * pav
     for i in range(6):                                        # the free columns
         px, py = at(-rw_ / 2 + 0.9 + (rw_ - 1.8) * i / 5, -0.5)
-        T.tube(cols_, (px, py, g + 1.0), (px, py, g + 1.0 + H), 0.62, 0.54, 12)
+        T.tube(cols_, (px, py, g + 1.0), (px, py, g + 1.0 + H), 0.8, 0.7, 12)
         cols_.box(px, py, g + 0.4, 1.5, 1.5, 0.6, e)
         cols_.box(px, py, g + 1.0 + H - 0.1, 1.4, 1.4, 0.7, e)
     px, py = at(0, -2.0)
@@ -1625,7 +1625,7 @@ def _customs_game(col, guard, objs, report, a, b, mx, my, ux, uy, nx, ny, ln, g)
     for i in range(int(wl / 3.0) + 1):
         u = -wl / 2 + i * 3.0
         bw.box(bx2 + ux * u + nx * 1.9, by2 + uy * u + ny * 1.9, L.RIVER_LEVEL_AHD - 1.5, 0.3, 0.3, 3.9, e)   # piles and posts
-    put(rec, "customs_porch_shadow", col, mat("customs_porch_shadow", (0.035, 0.03, 0.028)), objs)
+    put(rec, "customs_porch_shadow", col, mat("customs_porch_shadow", (0.11, 0.10, 0.09)), objs)
     put(cols_, "customs_columns", col, mat("customs_columns_pale", (0.66, 0.62, 0.53)), objs)
     put(stone, "customs_portico", col, mat("customs_portico_pale", (0.58, 0.54, 0.46)), objs)
     put(rw, "customs_riverwall", col, mat("customs_riverwall", (0.25, 0.22, 0.17)), objs)

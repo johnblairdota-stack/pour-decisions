@@ -593,16 +593,18 @@ static func road_lift(x: float, z: float) -> float:
 # Plaza One, Waterfront Place, 480 Queen, Soleil). Inputs are darker than the photos: the sun brightens them a lot.
 const HERO := {
 	"140808831": {"wall": "8f8e88", "glass": "2a3036", "band": "9a9992", "roof": "7a7a76"},
-	"134816032": {"wall": "2e4a70", "glass": "22406a", "band": "2a3a52", "roof": "1c2028"},
-	"134816030": {"wall": "2e4a70", "glass": "22406a", "band": "2a3a52", "roof": "1c2028"},
+	"134816032": {"wall": "33465c", "glass": "2a3c54", "band": "2a3a52", "roof": "1c2028"},
+	"134816030": {"wall": "33465c", "glass": "2a3c54", "band": "2a3a52", "roof": "1c2028"},
 	"134816031": {"wall": "8c8778", "glass": "23282c", "band": "97927f", "roof": "77746a"},
 	"138278498": {"wall": "a4a6a4", "glass": "56687a", "band": "aaaaaa", "roof": "9a9c9c"},
 	"138278768": {"wall": "a4a6a4", "glass": "56687a", "band": "aaaaaa", "roof": "9a9c9c"},
 	"140804995": {"wall": "2f5f5c", "glass": "1f4a4a", "band": "3a6a66", "roof": "2c4a48"},
-	"26387267": {"wall": "5577a0", "glass": "2f5f96", "band": "8f959a", "roof": "6a6f76"},
+	"26387267": {"wall": "4a6078", "glass": "3a5676", "band": "8f959a", "roof": "6a6f76"},
 	"224320346": {"roof": "14161c"},
+	"26386543": {"wall": "8a7a5c", "band": "97896a", "roof": "7d735e"},      # (Admiralty Towers: beige, not white)
+	"26386571": {"wall": "8a7a5c", "band": "97896a", "roof": "7d735e"},
 }
-const RIVER_COL := Color("454628")      # (the Brisbane River: dark green-brown. The sun and sky brighten it a lot.)
+const RIVER_COL := Color("414a24")      # (the Brisbane River: dark green-brown. The sun and sky brighten it a lot.)
 const WALL_MAX := 0.66       # brightest a wall's colour may be (its value, 0..1)
 ## The pick flight's warm light turns blue glass mint green and cream walls yellow. The real skyline from
 ## the river is grey-white concrete, sand and blue-black glass, so the neighbours carry less colour of
