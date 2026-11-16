@@ -58,7 +58,7 @@ const P := {
 	"haze": {"shade": 2, "wrap": 0.2, "bands": 2, "edge": 0.01, "tint": Color(0.30, 0.36, 0.62, 0.22), "rim": 0.0, "spec": 1.2,
 		"ink_w": 1.4, "ink": Color(0.02, 0.02, 0.03, 1.0), "tm": Environment.TONE_MAPPER_FILMIC, "exp": 1.08, "white": 1.0,
 		"grade": [], "con": 1.12, "sat": 1.3, "amb": 1.0, "haze": 0.7, "glow": 0.0, "bloom": 0.0, "edges": false,
-		"lut": "res://assets/looks/warm_haze_lut.png", "ssao": false, "warm": 0.6},
+		"lut": "res://assets/looks/warm_haze_lut.png", "ssao": false, "warm": 0.7},
 }
 
 const LUT_N := 32

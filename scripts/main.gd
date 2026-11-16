@@ -770,8 +770,8 @@ func _update_story_light(delta: float) -> void:
 		_light_now = want
 	_light_now = Story.mix(_light_now, want, minf(1.0, delta * 0.6))
 	var l := _light_now
-	# (Warm Haze: the sky and the sun lean golden, less so under cloud)
-	var wk := Look.warm() * (1.0 - float(l[8]))
+	# (Warm Haze: the sky and the sun lean golden, but not under a grey sky)
+	var wk := Look.warm() * (1.0 - smoothstep(0.6, 0.95, float(l[8])))
 	if wk > 0.0:
 		var gold: Array = Story.LIGHTS["golden"]
 		l = l.duplicate()
