@@ -246,9 +246,9 @@ HSW.update({
     # 2 river halves of these sheds stand on piles over water (photos p09, p12, p13)
     "over_water_sheds": [58693374, 58693380, 679146315], "pile_grid_m": 2.6, "riverwalk_piles_x": (395.0, 670.0),
     # 3 bridge steel: dark charcoal grey-green (photos p13, p09), not pale sage
-    "bridge_steel": (0.162, 0.178, 0.20),   # r11: back halfway, ~15 % darker than r09 mid blue-grey (p13 only)
+    "bridge_steel": (0.15, 0.155, 0.168),   # r13: neutral mid-grey ~#6b6f78 (critic r12: navy)
     # 7 pier: warm cream render, mid-dark arch with a lit back wall
-    "pier_render": (0.84, 0.78, 0.72),   # r8: near-white, faint warm pink
+    "pier_render": (0.78, 0.70, 0.55),   # r13: cream-pink #E4D9C2 (p09)
     "pier_arch_back": (0.30, 0.26, 0.20),   # r5: lit back wall, not a void
     # 8 roof letters mid grey; Mr Percival's one dark roof
     "letters_rgb": (0.06, 0.06, 0.065), "percivals_roof_r3": (0.09, 0.10, 0.11),
