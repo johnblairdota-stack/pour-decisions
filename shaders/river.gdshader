@@ -9,6 +9,8 @@ uniform vec4 water : source_color = vec4(0.31, 0.4, 0.376, 1.0);
 uniform vec4 sky : source_color = vec4(0.66, 0.78, 0.86, 1.0);
 uniform float ripple = 1.0;
 uniform float glint = 1.0;
+uniform float gloss = 0.8;        // (how much sky it mirrors: Spire's muddy river takes less)
+uniform float rough = 0.12;
 
 varying vec3 wpos;
 
@@ -40,8 +42,8 @@ void fragment() {
 	NORMAL = normalize((VIEW_MATRIX * vec4(n, 0.0)).xyz);
 	// (the sky's reflection does the rest: glossy, as the river always was)
 	ALBEDO = mix(water.rgb, sky.rgb, clamp(-g.x * 1.5, 0.0, 0.06) * near);
-	ROUGHNESS = 0.12;
-	SPECULAR = 0.8;
+	ROUGHNESS = rough;
+	SPECULAR = gloss;
 	// Glints: the steepest ripple crests, now and then
 	float c = sin(p.x * 1.9 + TIME * 1.3) * sin(p.y * 2.3 - TIME * 0.9) * sin((p.x + p.y) * 0.7 + TIME * 0.5);
 	EMISSION = vec3(1.0, 0.97, 0.88) * smoothstep(0.93, 0.99, c) * 0.35 * glint * near;

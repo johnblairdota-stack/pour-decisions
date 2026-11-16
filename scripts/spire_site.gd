@@ -572,7 +572,8 @@ static func road_lift(x: float, z: float) -> float:
 ## picture styles reach them too), no brighter than a sunlit render wall, and their walls the game's
 ## window grid, the way Riverlight's neighbours have. Bare ground goes paving grey, the land beyond
 ## the model the game's park green, rock a warm sandstone, water the river's blue-green.
-const WALL_MAX := 0.74        # brightest a wall's colour may be (its value, 0..1)
+const RIVER_COL := Color("62593c")      # (the Brisbane River's brown)
+const WALL_MAX := 0.74       # brightest a wall's colour may be (its value, 0..1)
 static var _mats := {}
 
 static func _tint(n: Node) -> void:
@@ -611,10 +612,13 @@ static func _game_mat(mat: BaseMaterial3D) -> Material:
 	var out: Material = null
 	var col := mat.albedo_color
 	if nm == "clay_water":
-		var w := mat.duplicate() as BaseMaterial3D
-		w.albedo_color = Color("3f6f78")       # (teal: the render's brown-green river read as sand in golden light, with no ripples to say water)
-		w.roughness = 0.08
-		w.metallic_specular = 0.9
+		# (the render's muddy brown-green Brisbane River, a little deeper so it doesn't read as sand, with
+		# Riverlight's ripples and glints to say water)
+		var w := ShaderMaterial.new()
+		w.shader = preload("res://shaders/river.gdshader")
+		w.set_shader_parameter("water", RIVER_COL)
+		w.set_shader_parameter("gloss", 0.4)
+		w.set_shader_parameter("rough", 0.3)
 		out = w
 	elif mat.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED or col.a < 0.99 or mat.albedo_texture != null \
 			or nm.contains("glass") or nm.contains("leadlight") or nm.contains("lit_") or nm.contains("lens") or nm.begins_with("text_"):
