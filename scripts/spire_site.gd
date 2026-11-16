@@ -533,6 +533,23 @@ static func _tint(n: Node) -> void:
 	for c in n.get_children():
 		_tint(c)
 
+## The neighbours' materials: they're cut away where they hide someone working down on the street.
+static var _cut_mats: Array = []
+static var _cut_sent: Array = []
+
+## `ps`: up to 6 work points (world xyz, circle radius in m) the neighbours mustn't hide.
+static func street_cut(ps: Array) -> void:
+	var n := ps.size()
+	ps = ps.duplicate()
+	while ps.size() < 6:
+		ps.append(Vector4.ZERO)
+	if [n, ps] == _cut_sent:
+		return
+	_cut_sent = [n, ps]
+	for m in _cut_mats:
+		(m as ShaderMaterial).set_shader_parameter("cut_n", n)
+		(m as ShaderMaterial).set_shader_parameter("cut_p", ps)
+
 static func _game_mat(mat: BaseMaterial3D) -> Material:
 	var nm := String(mat.resource_name)
 	if _mats.has(nm):
@@ -574,7 +591,12 @@ static func _game_mat(mat: BaseMaterial3D) -> Material:
 			rm.set_shader_parameter("roof", true)
 			out = rm
 		else:
-			out = F.color_mat(col)
+			# (plain parts of a neighbour: the same shader with no windows, so it can be cut away too)
+			var pm := F.window_mat(col, 0.0, 0.0, col)
+			pm.set_shader_parameter("cell", Vector2(9999.0, 9999.0))
+			out = pm
+		(out as ShaderMaterial).set_shader_parameter("cut", true)
+		_cut_mats.append(out)
 	_mats[nm] = out
 	return out
 

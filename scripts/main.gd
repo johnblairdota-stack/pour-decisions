@@ -7257,6 +7257,7 @@ func _who(p) -> String:
 ## between the camera and someone at work, a soft-edged circle round the work
 ## is cut out of it (shaders/cutaway.gdshaderinc), clear in the middle and
 ## fading back to solid at the rim; the rest of it stays as it is.
+const STREET_CUT_R := 11.0    # m, the circle cut out of Spire's neighbours round someone on the street
 const CUT_R := 4.0            # m, the see-through circle round each bit of work
 var _scr_cut := Vector3.INF    # the nearest concrete a screeder's still to do (world)
 var _scr_cut_t := 0.0
@@ -7344,6 +7345,14 @@ func _update_see_through(delta: float) -> void:
 					break
 	if _scr_cut.x != INF and ps.size() < 6:
 		ps.append(Vector4(_scr_cut.x, _scr_cut.y + 0.5, _scr_cut.z, CUT_R))
+	if spire:
+		# The buildings across Ann St stand between the camera and anyone down at the pump, the
+		# truck bay or on the stairs: they're cut away in a wide circle round each of them
+		var sp: Array = []
+		for p in humans():
+			if p.zone != "deck" and sp.size() < 6:
+				sp.append(Vector4(p.position.x, p.position.y + 1.0, p.position.z, STREET_CUT_R))
+		SpireSite.street_cut(sp)
 	var n := ps.size()
 	while ps.size() < 6:
 		ps.append(Vector4.ZERO)
@@ -7511,6 +7520,8 @@ func _spire_views() -> Array:
 		["air_back", at + Vector3(-25, 45, -60), at],
 		["air_east", at + Vector3(-70, 35, 20), at],
 		["air_west", at + Vector3(70, 30, 25), at],
+		["pump_far", Vector3(-4, 24, 46), Vector3(20, 1, 4)],
+		["pump_far2", Vector3(30, 30, 55), Vector3(20, 1, 4)],
 		["street", Vector3(26, 12, 17), Vector3(10, 3, 0)],
 		["street_low", Vector3(32, 2.5, 13), Vector3(6, 6, -2)],
 		["zone", Vector3(16, 15, 16.5), Vector3(15, 0, 3)],
@@ -7538,6 +7549,10 @@ func _spire_shoot() -> void:
 		return
 	RenderingServer.render_loop_enabled = true
 	var views := _spire_views()
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--spireonly="):
+			var want := arg.substr(12).split(",")
+			views = views.filter(func(v): return want.has(v[0]))
 	if _spire_shot_i < 0:
 		_spire_shot_i = 0
 		_spire_shot_wait = 0
