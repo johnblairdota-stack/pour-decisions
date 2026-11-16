@@ -50,6 +50,7 @@ const SpireSite := preload("res://scripts/spire_site.gd")
 const SpireB := preload("res://scripts/spire_b.gd")
 const SpireStreet := preload("res://scripts/spire_street.gd")
 const TowerHand := preload("res://scripts/tower_hand.gd")
+const RoofSet := preload("res://scripts/roof_set.gd")
 const LookFx := preload("res://scripts/look_fx.gd")
 
 # Riverlight: 11 levels; 10 lattice sections reached a 41.4 m free-stand.
@@ -296,6 +297,12 @@ func _ready() -> void:
 			_card_cam = arg.substr(10).split_floats(",")
 		if arg.begins_with("--cardart="):
 			_card_art = arg.substr(10)
+		if arg.begins_with("--roofshot="):
+			_roof_file = arg.substr(11)
+			if _card_cam.size() < 6:
+				_card_cam = PackedFloat64Array([0, 0, 0, 0, 0, 1])
+		if arg.begins_with("--roofcam="):
+			_roof_cam = arg.substr(10).split_floats(",")
 		if arg == "--cardlight=day":
 			_card_day = true
 		if arg.begins_with("--cardfloor="):
@@ -7592,6 +7599,9 @@ func _card_shoot(delta: float) -> void:
 		camera.fov = _card_cam[6]
 	if _card_cam.size() > 7:
 		camera.far = _card_cam[7]         # (dev: a cut through the city, looking down: what stands above a height)
+	if _roof_file != "":
+		_roof_shoot()
+		return
 	if _card_art != "" and _card_t > 9.0:
 		var img := get_viewport().get_texture().get_image()
 		var w := img.get_width()
@@ -7601,6 +7611,48 @@ func _card_shoot(delta: float) -> void:
 		img.save_png(_card_art)
 		print("[cardart] " + _card_art)
 		_card_art = ""
+		get_tree().quit()
+
+## Dev, for the hand of cards' backdrops (assets/cards/roof_*.jpg): `--nopick --site=<site> --roofshot=<file.jpg>`
+## (with `--tutorial` for the water tower) stands on top of the finished building looking out, the
+## roof's own set under the camera (roof_set.gd), in the pick's golden light; saves the whole view and
+## quits. `--roofcam=x,y,z,lx,ly,lz[,fov]` moves it (game coordinates).
+var _roof_file := ""
+var _roof_cam := PackedFloat64Array()
+var _roof_set: Node3D = null
+
+## [camera, look at, fov]: Spire over its pool to the Story Bridge's main span; Riverlight down
+## Hamilton Reach; the water tower from its tank top over the reach.
+func _roof_pose() -> Array:
+	if _roof_cam.size() >= 6:
+		return [Vector3(_roof_cam[0], _roof_cam[1], _roof_cam[2]), Vector3(_roof_cam[3], _roof_cam[4], _roof_cam[5]), _roof_cam[6] if _roof_cam.size() > 6 else 50.0]
+	if spire:
+		var c := SpireSite.centroid(SpireSite.poly("plate"))
+		var lv := SpireSite.levels()
+		var roof := SpireSite.top_y(lv.size() - 1)
+		var br := SpireSite.g([487.9, -73.6])        # (the main span's middle, layout.STORY_BRIDGE)
+		return [Vector3(c.x, roof + RoofSet.EYE, c.y), Vector3(br.x, 22.0, br.y), 40.0]
+	# (Hamilton: both look up the reach to the city's towers on the skyline, stood off to the side of
+	# the hoist's mast; Riverlight from the rail at its roof's edge, the water tower off its tank top)
+	var top := level_y(TUT_LAST + 1) if tutorial else level_y(floors())
+	if tutorial:
+		return [Vector3(-21.0, top + RoofSet.EYE, -21.0), Vector3(418.0, 6.0, -440.0), 46.0]
+	return [Vector3(SC.x - 14.6, top + RoofSet.EYE, SC.z - 14.3), Vector3(420.0, -18.0, -430.0), 50.0]
+
+func _roof_shoot() -> void:
+	var p := _roof_pose()
+	camera.position = p[0]
+	camera.look_at(p[1], Vector3.UP)
+	camera.fov = p[2]
+	if _roof_set == null:
+		_roof_set = RoofSet.build(self, p[0], p[1], "pool" if spire else ("tank" if tutorial else "terrace"))
+		print("[roofshot] cam=%s look=%s" % [str(p[0]), str(p[1])])
+	if _card_t > 9.0:
+		var img := get_viewport().get_texture().get_image()
+		img.convert(Image.FORMAT_RGB8)
+		img.save_jpg(_roof_file, 0.9)
+		print("[roofshot] " + _roof_file)
+		_roof_file = ""
 		get_tree().quit()
 
 ## Dev: `--spireshots=<dir>` (with --site=spire) saves a set of views of the Spire site partway through

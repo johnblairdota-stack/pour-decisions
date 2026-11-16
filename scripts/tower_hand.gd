@@ -1,9 +1,11 @@
 ## The tower pick, "The hand" (John's pick from the design board, 15 Nov): three playing cards fanned
-## low at the bottom of the screen, a slow river flight behind them (main.gd). Left / right fans
-## through, A plays the focused card: it jumps out of the hand and spins face-on, the view pushes into
-## its picture, and main.gd flies low up the river to that tower (reloading on the other site behind the
-## picture when it's there) before the crew page. The cards are real 3D in their own little world
-## (a SubViewport over the game), their faces drawn by 2D pages into textures.
+## low at the bottom of the screen. Behind them, the focused tower's view from its own roof (John, 16
+## Nov: Spire's is over its rooftop pool to the Story Bridge), drifting slowly, crossfading as the
+## hand fans through. Left / right fans through, A plays the focused card: it jumps out of the hand and
+## spins face-on, the hand fades off the roof view, and the roof view fades into main.gd's CityCat chase
+## up the river to that tower (reloading on the other site behind the roof view when it's there) before
+## the floor pick. The cards are real 3D in their own little world (a SubViewport over the game), their
+## faces drawn by 2D pages into textures.
 extends Control
 
 const UI := preload("res://scripts/ui.gd")
@@ -24,15 +26,15 @@ const GOLD := Color("ffd23f")
 const TOWERS := [
 	{"id": "water", "site": "riverlight", "kit": "tutorial", "code": "WT", "suit": "drop", "suit_col": Color("2e7d6b"),
 		"kind": "TUTORIAL", "name": "WATER TOWER", "place": "Your first job · a round tank on a shaft",
-		"chips": ["2 POURS", "1 CLIMB", "GUIDED"], "art": "res://assets/cards/art_water.jpg",
+		"chips": ["2 POURS", "1 CLIMB", "GUIDED"], "art": "res://assets/cards/art_water.jpg", "roof": "res://assets/cards/roof_water.jpg",
 		"caption": "WATER TOWER · HAMILTON · YOUR FIRST JOB"},
 	{"id": "riverlight", "site": "riverlight", "kit": "tower", "code": "RL", "suit": "wave", "suit_col": Color("1f5f8b"),
 		"kind": "HAMILTON", "name": "RIVERLIGHT", "place": "Hamilton Reach, Brisbane · 2016-2018",
-		"chips": ["11 LEVELS", "BOOM CLIMBS", "WEST WING CREW"], "art": "res://assets/cards/art_riverlight.jpg",
+		"chips": ["11 LEVELS", "BOOM CLIMBS", "WEST WING CREW"], "art": "res://assets/cards/art_riverlight.jpg", "roof": "res://assets/cards/roof_riverlight.jpg",
 		"caption": "RIVERLIGHT · HAMILTON REACH · 11 LEVELS"},
 	{"id": "spire", "site": "spire", "kit": "tower", "code": "SP", "suit": "spire", "suit_col": Color("b5553a"),
 		"kind": "CBD", "name": "SPIRE", "place": "550 Queen St, Brisbane · 2015-2018",
-		"chips": ["34 POURS", "L6 TRANSFER", "2 BOOMS"], "art": "res://assets/cards/art_spire.jpg",
+		"chips": ["34 POURS", "L6 TRANSFER", "2 BOOMS"], "art": "res://assets/cards/art_spire.jpg", "roof": "res://assets/cards/roof_spire.jpg",
 		"caption": "SPIRE · 550 QUEEN ST · BRISBANE CBD"},
 ]
 
@@ -55,12 +57,22 @@ var _cam: Camera3D
 var _prompts: Control
 var _title: Label
 var _play_t := -1.0           # playing the focused card
-var _zoom: TextureRect        # its picture, sharp over the card's own as the view pushes into it
 var _pics: Array = []         # per card: its picture window (the face page's Panel)
 
 const PLAY_OUT_T := 0.7       # s: out of the hand, a spin, face-on
-const PLAY_PUSH_T := 1.1      # s: the view pushes in until the picture is the whole screen
+const PLAY_FADE_T := 0.45     # s: then the hand fades off the roof view
 const PLAY_S := 1.6           # the played card's size
+
+## The roof view behind the hand: two pictures (the one fading up over the last), a slow drift.
+const BG_FADE_T := 0.7        # s: one roof view into the next as the hand fans
+var _bg_root: Control
+var _bgs: Array = []          # [under, over] TextureRects
+var _bg_tower := -1           # the tower the over picture is
+var _bg_f := 1.0              # the over picture's fade up, 0..1
+var _box: Control             # the cards' viewport on the screen
+## The roof view's drift as the card's played: the cover (over the reload) starts from it
+static var cover_s := 1.0
+static var cover_pan := 0.0
 
 signal picked(card: Dictionary)
 
@@ -73,8 +85,40 @@ func _ready() -> void:
 	else:
 		focus = 2 if site == "spire" else (1 if Settings.value("tut_done") else 0)
 	_f = float(focus)
+	# the roof view behind it all, and a shade top and bottom for the type and the cards
+	_bg_root = Control.new()
+	_bg_root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_bg_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_bg_root.clip_contents = true
+	_bg_root.modulate.a = 0.0
+	add_child(_bg_root)
+	for k in 2:
+		var r := TextureRect.new()
+		r.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		r.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+		r.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		r.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_bg_root.add_child(r)
+		_bgs.append(r)
+	var g := Gradient.new()
+	g.offsets = PackedFloat32Array([0.0, 0.18, 0.55, 1.0])
+	g.colors = PackedColorArray([Color(0.043, 0.047, 0.063, 0.6), Color(0.043, 0.047, 0.063, 0.0), Color(0.043, 0.047, 0.063, 0.0), Color(0.043, 0.047, 0.063, 0.55)])
+	var gt := GradientTexture2D.new()
+	gt.gradient = g
+	gt.fill_from = Vector2(0, 0)
+	gt.fill_to = Vector2(0, 1)
+	gt.width = 4
+	gt.height = 256
+	var shade := TextureRect.new()
+	shade.texture = gt
+	shade.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	shade.stretch_mode = TextureRect.STRETCH_SCALE
+	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_bg_root.add_child(shade)
 	# the cards' own little world, drawn over the game
 	var box := SubViewportContainer.new()
+	_box = box
 	box.stretch = true
 	box.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -115,13 +159,32 @@ func _ready() -> void:
 	UI.place(_prompts, Vector2(1, 0), Vector2(-40, 34))
 	_prompts.add_child(_prompt("◀▶", "FAN THROUGH"))
 	_prompts.add_child(_prompt("A", "PLAY THIS CARD"))
-	_zoom = TextureRect.new()
-	_zoom.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	_zoom.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-	_zoom.visible = false
-	_zoom.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(_zoom)
 	_layout(0.0)
+	_roof_view(0.0)
+
+## The roof view: the focused tower's, faded up over the last one, drifting (a slow push and a sway),
+## faded in with the deal.
+func _roof_view(delta: float) -> void:
+	if focus != _bg_tower:
+		var under: TextureRect = _bgs[0]
+		var over: TextureRect = _bgs[1]
+		if _bg_tower >= 0:
+			under.texture = over.texture
+		_bg_tower = focus
+		over.texture = load(String(TOWERS[focus]["roof"]))
+		_bg_f = 0.0 if _bg_tower >= 0 and under.texture != null else 1.0
+	_bg_f = minf(1.0, _bg_f + delta / BG_FADE_T)
+	(_bgs[1] as CanvasItem).modulate.a = smoothstep(0.0, 1.0, _bg_f)
+	var s := 1.07 + 0.04 * sin(_t * 0.05)
+	var pan := size.x * 0.012 * sin(_t * 0.037)
+	for r in _bgs:
+		var tr := r as TextureRect
+		tr.pivot_offset = tr.size * 0.5
+		tr.scale = Vector2.ONE * s
+		tr.position = Vector2(pan, 0.0)
+	cover_s = s
+	cover_pan = pan
+	_bg_root.modulate.a = smoothstep(0.0, 0.8, _deal_t)
 
 func _prompt(key: String, text: String) -> Control:
 	var pill := UI.pill(Color(0.06, 0.07, 0.09, 0.78), Vector4(8, 5, 16, 5))
@@ -358,17 +421,6 @@ func _window(i: int) -> Array:
 	return [Vector2((c.x / FACE_PX.x - 0.5) * CARD_W, (0.5 - c.y / FACE_PX.y) * CARD_H),
 		Vector2(r.size.x / FACE_PX.x * CARD_W, r.size.y / FACE_PX.y * CARD_H)]
 
-## Where the played card ends up: its picture window square on the camera, as wide as the screen.
-func _push_end(i: int) -> Vector3:
-	var w: Array = _window(i)
-	var vs := Vector2(_vp.size)
-	var d: float = (w[1] as Vector2).x * PLAY_S / (2.0 * tan(deg_to_rad(_cam.fov * 0.5)) * vs.x / maxf(1.0, vs.y))
-	return Vector3(-(w[0] as Vector2).x * PLAY_S, -(w[0] as Vector2).y * PLAY_S, _cam.position.z - d)
-
-## The push into the picture, 0..1 (slow in, slow out).
-func _push_u() -> float:
-	return smoothstep(0.0, 1.0, clampf((_play_t - PLAY_OUT_T) / PLAY_PUSH_T, 0.0, 1.0))
-
 func _layout(delta: float) -> void:
 	_f = lerpf(_f, float(focus), minf(1.0, delta * 9.0)) if delta > 0.0 else _f
 	var deal := clampf(_deal_t / 1.2, 0.0, 1.0)
@@ -393,8 +445,6 @@ func _layout(delta: float) -> void:
 				p = p.lerp(Vector3(0, 0.0, 1.6), ease(u, -2.0))
 				spin += TAU * ease(u, -1.6)
 				s = lerpf(s, PLAY_S, u)
-				# (then straight at the camera, until its picture window is the screen's whole width)
-				p = p.lerp(_push_end(i), _push_u())
 			else:
 				p.y -= ease(clampf(_play_t / 0.5, 0.0, 1.0), 2.0) * 4.0
 		n.position = p
@@ -416,8 +466,9 @@ func _process(delta: float) -> void:
 	if _play_t >= 0.0:
 		_play_t += delta
 	_layout(delta)
+	_roof_view(delta)
 	if _play_t >= 0.0:
-		_play_step()      # (after the layout: the sharp picture rides the card's window this same frame)
+		_play_step()
 	_title.modulate.a = 1.0 if _play_t < 0.0 else maxf(0.0, 1.0 - _play_t * 3.0)
 	_prompts.modulate.a = _title.modulate.a
 
@@ -486,28 +537,16 @@ func play() -> void:
 
 func _play_step() -> void:
 	var c: Dictionary = TOWERS[focus]
-	if _play_t >= PLAY_OUT_T:
-		# into the picture: the full-size art sits exactly over the card's own picture window and
-		# rides it out to the edges of the screen (one move, no second picture)
-		if not _zoom.visible:
-			_zoom.texture = load(c["art"])
-			_zoom.visible = true
-		var w: Array = _window(focus)
-		var n: Node3D = _cards[focus]["node"]
-		var half: Vector2 = (w[1] as Vector2) * 0.5
-		var ctr := Vector3((w[0] as Vector2).x, (w[0] as Vector2).y, CARD_T * 0.5)
-		var k := size / Vector2(_vp.size)
-		var tl := _cam.unproject_position(n.to_global(ctr + Vector3(-half.x, half.y, 0))) * k
-		var br := _cam.unproject_position(n.to_global(ctr + Vector3(half.x, -half.y, 0))) * k
-		_zoom.position = tl
-		_zoom.size = br - tl
-		_zoom.modulate.a = clampf((_play_t - PLAY_OUT_T) / 0.25, 0.0, 1.0)
-	if _play_t >= PLAY_OUT_T + PLAY_PUSH_T and arrival.is_empty():
+	# (face-on, then the hand fades off the roof view; the roof view stays, and goes over the reload
+	# as the cover main.gd fades into the CityCat chase)
+	_box.modulate.a = 1.0 - smoothstep(PLAY_OUT_T - 0.1, PLAY_OUT_T + PLAY_FADE_T, _play_t)
+	if _play_t >= PLAY_OUT_T + PLAY_FADE_T and arrival.is_empty():
 		arrival = {"card": c, "t": 0.0}
 		picked.emit(c)
 
-## The played card's picture, full screen, on the tree's root: it stays up over a reload to the other
-## site, and main.gd fades it as the flight starts (uncover).
+## The played tower's roof view, full screen, on the tree's root, just as the hand had it (its drift
+## carried on): it stays up over a reload to the other site, and main.gd fades it into the CityCat
+## chase as the flight starts (uncover).
 static var _cover: CanvasLayer
 
 static func cover(tree: SceneTree, c: Dictionary) -> void:
@@ -516,12 +555,18 @@ static func cover(tree: SceneTree, c: Dictionary) -> void:
 	_cover = CanvasLayer.new()
 	_cover.layer = 90
 	var pic := TextureRect.new()
-	pic.texture = load(c["art"])
+	pic.texture = load(String(c.get("roof", c["art"])))
 	pic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	pic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 	pic.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_cover.add_child(pic)
 	tree.root.add_child(_cover)
+	_cover_drift(pic, tree.root.get_visible_rect().size, 0.0)
+
+static func _cover_drift(pic: Control, sz: Vector2, push: float) -> void:
+	pic.pivot_offset = sz * 0.5
+	pic.scale = Vector2.ONE * cover_s * (1.0 + push)
+	pic.position = Vector2(cover_pan, 0.0)
 
 ## Fades the cover out (0 shown .. 1 gone); `push` keeps the picture creeping in while it's up.
 static func uncover(f: float, push := 0.0) -> void:
@@ -533,8 +578,7 @@ static func uncover(f: float, push := 0.0) -> void:
 		return
 	var pic := _cover.get_child(0) as Control
 	pic.modulate.a = 1.0 - clampf(f, 0.0, 1.0)
-	pic.pivot_offset = pic.size * 0.5
-	pic.scale = Vector2.ONE * (1.0 + push)
+	_cover_drift(pic, pic.get_viewport_rect().size, push)     # (not its own size: 0 until it's laid out)
 
 # ------------------------------------------------------------------ drawn bits
 
