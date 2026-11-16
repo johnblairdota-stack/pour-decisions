@@ -695,8 +695,8 @@ def roads(col, guard, objs, report):
                     mx, my = ax + ux * (s0 + s1) / 2 + nx * sd * (hw - 0.18), ay + uy * (s0 + s1) / 2 + ny * sd * (hw - 0.18)
                     if math.hypot(mx, my) < 330 and not guard.keepout(mx, my, 1.0):
                         road_rect(gutter, mx, my, s1 - s0, 0.36, e, crown, 0.01, 2, 1)
-    put(patch, "road_patches", col, mat("road_patch", (0.085, 0.084, 0.082), asphalt=True), objs)
-    put(crack, "road_crack_seal", col, mat("crack_seal", (0.025, 0.025, 0.026)), objs)
+    # r5 (critics): the patch and crack-seal meshes showed stair-step edges: plain asphalt instead (not built)
+    del patch, crack
     put(manhole, "road_manholes", col, mat("manhole", (0.06, 0.055, 0.05), metal=True), objs)
     put(pit, "road_side_pits", col, mat("pit_grate", (0.03, 0.03, 0.03)), objs)
     put(gutter, "road_gutter_strip", col, mat("gutter_concrete", (0.36, 0.35, 0.33)), objs)
@@ -773,7 +773,7 @@ NEIGHBOUR_WALLS = {        # critic round 0 (photos): own albedo per building, s
     26386571: "E0D3BA", 26386543: "E0D3BA",   # Admiralty I / II: warm off-white (r4, photo)
     224320345: "D9AE88",   # Macrossan: Petrie Bight peach
 }
-CATHEDRAL_LOOK = {"ashlar": ["8D8590", "9A8B80", "A69B95", "94877E", "A0918A"], "dressing": "D6BE8A",   # r4: grey-mauve/brown tuff (2010 photo)
+CATHEDRAL_LOOK = {"ashlar": ["978888", "A48E78", "B09E8D", "9E8A76", "AA9482"], "dressing": "D6BE8A",   # r5: r4 + half the step to the 2010 photo wall average #AE9378
                   "tile": "A8452C", "spire": "2A2624", "slate": "6A6866"}
 HALL_OSM = 1210526673      # brick block in the forecourt view: LiDAR top includes trees; photo shows a low gabled hall
 
@@ -811,28 +811,19 @@ def flush_onto(ob, ring, gap):
 def mantra_fin(col, b, rings, stripe_xy, objs, report):
     """r4 (all 3 critics, 3 photos): a ~3 m wide blue stripe #1f7bd0 up the full height of the facade, as real
     geometry 0.35 m proud, sweeping out and up at the top into the blue crest with the white "mantra" sign."""
-    ring = max(rings, key=lambda r: abs(C.signed_area(r)))
+    # r5 (critics + photos): the stripe runs up the south-east corner, on the face towards Ann St. Found by
+    # projecting the tower outline into spire_ann_st_2018 / ann_queen_corner / fly_by_east: that corner is the
+    # LEFT edge of Mantra in the first two and the right edge of the face seen in fly_by_east.
+    MS = P("mantra_stripe", {"corner": (14.5, 70.0), "along": (0.0, 1.0), "normal": (1.0, 0.0),   # east face, from the SE corner
+                             "base_ahd": 38.8, "out_m": 1.0})
     top = max(t["top_ahd"] for t in b["tiers"])
-    base = b["base_ahd"] + 12.0
-    cx = sum(p[0] for p in ring) / len(ring)
-    cy = sum(p[1] for p in ring) / len(ring)
-    tx, ty = stripe_xy if stripe_xy else (cx + 20.0, cy)
-    best = None                                                     # facade point nearest the old strip
-    for a, q in zip(ring, ring[1:] + ring[:1]):
-        dx, dy = q[0] - a[0], q[1] - a[1]
-        l2 = dx * dx + dy * dy or 1e-9
-        k = max(0.0, min(1.0, ((tx - a[0]) * dx + (ty - a[1]) * dy) / l2))
-        px, py = a[0] + dx * k, a[1] + dy * k
-        d = math.hypot(px - tx, py - ty)
-        if best is None or d < best[0]:
-            ln = math.sqrt(l2)
-            best = (d, px, py, dx / ln, dy / ln)
-    _, px, py, ux, uy = best
-    nx, ny = uy, -ux                                                # outward for a ccw ring
-    if (px - cx) * nx + (py - cy) * ny < 0:
-        nx, ny = -nx, -ny
+    base = MS["base_ahd"]                                           # podium roof to the tower roof
+    ux, uy = MS["along"]
+    nx, ny = MS["normal"]
+    W = 3.0
+    px, py = MS["corner"][0] + ux * W / 2, MS["corner"][1] + uy * W / 2
     fin, sign = C.MeshBuf(), C.MeshBuf()
-    W, D = 3.0, 0.35
+    D = 0.25
     def slab(z0, z1, out0, out1, w0, w1):
         q = []
         for z, o, w in ((z0, out0, w0), (z1, out1, w1)):
@@ -842,18 +833,19 @@ def mantra_fin(col, b, rings, stripe_xy, objs, report):
         # 8 verts: z0 (s-,d0)(s-,d1)(s+,d0)(s+,d1), z1 same
         f = [[0, 2, 3, 1], [4, 5, 7, 6], [0, 1, 5, 4], [2, 6, 7, 3], [1, 3, 7, 5], [0, 4, 6, 2]]
         fin.add(q, f)
-    slab(base, top, 0.05, 0.05, W, W)                               # the stripe, flush on the facade
-    steps = 10                                                      # the crest: a quarter sweep out and up
+    O = MS["out_m"]                                                 # 0.05 m proud of the balcony slab edges (0.95 m)
+    slab(base, top, O, O, W, W)                                     # the stripe on the corner face
+    steps = 10                                                      # the crest: flares out and up from the stripe top
     for i in range(steps):
         a0, a1 = i / steps * math.pi / 2, (i + 1) / steps * math.pi / 2
-        R = 9.0
+        R = 6.0
         z0, z1 = top + R * math.sin(a0), top + R * math.sin(a1)
-        o0, o1 = 0.05 + R * (1 - math.cos(a0)) * 0.55, 0.05 + R * (1 - math.cos(a1)) * 0.55
+        o0, o1 = O + R * (1 - math.cos(a0)) * 0.45, O + R * (1 - math.cos(a1)) * 0.45
         w0, w1 = W * (1 - 0.35 * i / steps), W * (1 - 0.35 * (i + 1) / steps)
         slab(z0, z1, o0, o1, w0, w1)
     put(fin, "mantra_blue_fin", col, mat("mantra_blue", lin("1F7BD0")), objs)
     zt = top - 4.0                                                  # white "mantra" sign near the top of the stripe
-    ob = C.text_obj(col, "area_mantra_sign", "mantra", (px + nx * (0.05 + D + 0.03), py + ny * (0.05 + D + 0.03), zt),
+    ob = C.text_obj(col, "area_mantra_sign", "mantra", (px + nx * (O + D + 0.03), py + ny * (O + D + 0.03), zt),
                     (math.pi / 2, 0, math.atan2(ny, nx) + math.pi / 2), 1.1, (0.95, 0.95, 0.95))
     ob.rotation_euler = (math.pi / 2, 0, math.atan2(nx, -ny))      # text faces out along the facade normal
     ob.data.body = "m\na\nn\nt\nr\na"                               # stacked letters up the stripe
@@ -934,7 +926,7 @@ def neighbours(col, guard, objs, report):
         if m:
             m["shader"] = "render"
             if osm in (568836537, 189779738):
-                m.diffuse_color = (*hx("E4DAC0"), 1)     # r4: Mantra cream #e4dac0 (Willahra / Admiralty: NEIGHBOUR_WALLS)
+                m.diffuse_color = (*hx("E8DCC0"), 1)     # r5 (pinned): Mantra cream #e8dcc0 (Willahra / Admiralty: NEIGHBOUR_WALLS)
             for k, v in (("bay", 3.0), ("win", 2.3), ("sill", 0.06), ("head", 0.86), ("floor", 3.1), ("rough", 0.18)):
                 m["win_" + k] = v
             m["win_glass"] = [0.10, 0.14, 0.19]          # r4: blue-grey glass, not charcoal
@@ -1206,6 +1198,136 @@ def thin_leaves_near(cam_xy, heading_deg, near_m, far_m, half_deg, keep, guard, 
     report.append("%s: thinned the leaves in front of the camera (%d cards)" % (label, gone))
 
 
+def orphan_crowns(report):
+    """r5 (3 critics: floating leaves): every leaf crown (foliage.CLOUDS) must have trunk / branch wood within
+    0.5 m of its volume, and no tree may stand inside a building footprint. Crowns that fail lose their leaf
+    cards; trees inside a footprint also lose their trunk. Shrubs (crown bottom < 1 m above ground) are skipped."""
+    import numpy as np
+    import foliage as FO
+    import buildings as B
+    from mathutils import kdtree
+    wood = [o for o in bpy.data.objects if o.type == "MESH" and
+            (o.name.startswith("tree_trunks") or o.name.startswith("area_carpark_tree_trunks") or o.name.startswith("palm"))]
+    pts = []
+    for o in wood:
+        co = np.empty(len(o.data.vertices) * 3, "f4")
+        o.data.vertices.foreach_get("co", co)
+        pts.append(co.reshape(-1, 3))
+    pts = np.concatenate(pts) if pts else np.zeros((0, 3), "f4")
+    kd = kdtree.KDTree(len(pts))
+    for i, p in enumerate(pts):
+        kd.insert(p, i)
+    kd.balance()
+    crowns = [(c, r) for c, r in FO.CLOUDS if c[2] - r[2] > gz(c[0], c[1]) + 1.0]
+    C_ = np.array([c for c, r in crowns] or [(0, 0, 0)], "f8")
+    footprint = np.zeros(len(crowns), bool)
+    for b in B.records():
+        ring = b["tiers"][0]["ring"]
+        xs = [p[0] for p in ring]
+        ys = [p[1] for p in ring]
+        sel = (C_[:, 0] > min(xs)) & (C_[:, 0] < max(xs)) & (C_[:, 1] > min(ys)) & (C_[:, 1] < max(ys))
+        if sel.any():
+            idx = np.nonzero(sel)[0]
+            hit = in_rings_np(C_[idx, 0], C_[idx, 1], [ring])
+            top = max(t["top_ahd"] for t in b["tiers"])
+            # r5: only crowns well inside the building volume (centre >= 1 m in from the wall, below roof - 1 m, building >= 5 m)
+            if top - b["base_ahd"] >= 5.0:
+                inner = [i for i in idx[hit] if C_[i, 2] < top - 1.0 and min(seg_dist(C_[i, 0], C_[i, 1], p, q) for p, q in zip(ring, ring[1:] + ring[:1])) > 1.0]
+                footprint[inner] = True
+    orphan = np.array([len(kd.find_range(c, max(r) + 0.5)) == 0 for c, r in crowns], bool) if crowns else np.zeros(0, bool)
+    bad = [crowns[i] for i in np.nonzero(orphan | footprint)[0]]
+    if not bad:
+        report.append("leaf check: 0 orphan crowns, 0 trees in buildings")
+        return
+    BC = np.array([c for c, r in bad], "f8")
+    BR = np.array([r for c, r in bad], "f8") * 1.05
+    leaves_gone = 0
+    for o in list(bpy.data.objects):
+        if o.type != "MESH" or not (o.name.startswith(("leaves_", "blooms_", "area_carpark_leaves"))):
+            continue
+        def test(X, Y, Z):
+            hit = np.zeros(len(X), bool)
+            order = np.argsort(X)
+            Xs = X[order]
+            for (cx, cy, cz), (rx, ry, rz) in zip(BC, BR):
+                lo, hi = np.searchsorted(Xs, cx - rx), np.searchsorted(Xs, cx + rx)
+                if hi <= lo:
+                    continue
+                i = order[lo:hi]
+                hit[i] |= ((X[i] - cx) / rx) ** 2 + ((Y[i] - cy) / ry) ** 2 + ((Z[i] - cz) / rz) ** 2 < 1.0
+            return hit
+        leaves_gone += drop_where(o, test)
+    fp = [crowns[i] for i in np.nonzero(footprint)[0]]
+    trunk_gone = 0
+    for o in wood:
+        trunk_gone += drop_where(o, lambda X, Y, Z: np.any([(X - c[0]) ** 2 + (Y - c[1]) ** 2 < 1.4 ** 2 for c, r in fp], axis=0)
+                                 if fp else np.zeros(len(X), bool))
+    report.append("leaf check: %d orphan crowns (no wood within 0.5 m), %d trees inside building footprints; "
+                  "%d leaf cards and %d trunk faces dropped" % (int(orphan.sum()), int(footprint.sum()), leaves_gone, trunk_gone))
+
+
+def low_leaves_on_road(guard, report):
+    """r5 (critics: leaf discs scattered over the road at the Customs House and elsewhere): leaf cards less than
+    2.5 m above the ground whose centre is over a carriageway are dropped (shrub clouds spilling onto the road)."""
+    import numpy as np
+    x0, y0, x1, y1 = L.LIDAR_BOX
+    grd = L.lidar("ground")
+    road = np.zeros(grd.shape, bool)                                   # 1 m raster of the carriageways
+    for (ax, ay), (bx, by), h in zip(guard.road.A, guard.road.B, guard.road.H):
+        h = h - 0.2
+        c0, c1 = int(min(ax, bx) - h - x0), int(max(ax, bx) + h - x0) + 1
+        r0, r1 = int(y1 - max(ay, by) - h), int(y1 - min(ay, by) + h) + 1
+        c0, r0 = max(c0, 0), max(r0, 0)
+        c1, r1 = min(c1, road.shape[1]), min(r1, road.shape[0])
+        if c1 <= c0 or r1 <= r0:
+            continue
+        X, Y = np.meshgrid(x0 + np.arange(c0, c1) + 0.5, y1 - np.arange(r0, r1) - 0.5)
+        dx, dy = bx - ax, by - ay
+        l2 = max(dx * dx + dy * dy, 1e-9)
+        k = np.clip(((X - ax) * dx + (Y - ay) * dy) / l2, 0, 1)
+        road[r0:r1, c0:c1] |= (X - ax - dx * k) ** 2 + (Y - ay - dy * k) ** 2 < h * h
+    gone = 0
+    for o in list(bpy.data.objects):
+        if o.type != "MESH" or not o.name.startswith(("leaves_", "street_shrubs", "area_carpark_shrubs")):
+            continue
+        def test(X, Y, Z):
+            c = np.clip((X - x0).astype(int), 0, road.shape[1] - 1)
+            r = np.clip((y1 - Y).astype(int), 0, road.shape[0] - 1)
+            low = Z - grd[r, c]
+            # r5: sparse low shrub clouds read as floating discs: tree leaf objects keep nothing below 2 m
+            return (road[r, c] & (low < 2.5)) | (o.name.startswith("leaves_") & (low < 2.0))
+        gone += drop_where(o, test)
+    # r5: leaf cards inside a building volume (poking through walls, e.g. the Deanery)
+    import buildings as B
+    inside = 0
+    leaf_obs = [o for o in bpy.data.objects if o.type == "MESH" and o.name.startswith(("leaves_", "blooms_"))]
+    rings = []
+    for b in B.records():
+        ring = b["tiers"][0]["ring"]
+        cx = sum(p[0] for p in ring) / len(ring)
+        cy = sum(p[1] for p in ring) / len(ring)
+        if math.hypot(cx, cy) < 360 and not guard.keepout(cx, cy):
+            rings.append((ring, max(t["top_ahd"] for t in b["tiers"]) - 0.3))
+    for o in leaf_obs:
+        def test2(X, Y, Z):
+            hit = np.zeros(len(X), bool)
+            order = np.argsort(X)
+            Xs = X[order]
+            for ring, top in rings:
+                xs = [p[0] for p in ring]
+                lo, hi = np.searchsorted(Xs, min(xs)), np.searchsorted(Xs, max(xs))
+                if hi <= lo:
+                    continue
+                i = order[lo:hi]
+                i = i[Z[i] < top]
+                if len(i):
+                    hit[i] |= in_rings_np(X[i], Y[i], [ring])
+            return hit
+        inside += drop_where(o, test2)
+    report.append("leaf check: %d low leaf cards (over a road, or tree leaves < 2 m up) and %d inside buildings dropped"
+                  % (gone, inside))
+
+
 def smooth_surfaces(report):
     """r4 (critic: hard tone edges cut streets in half): smooth shading on the crowned road and the draped car
     park / drive surfaces, so their triangles do not show as flat tone patches."""
@@ -1363,6 +1485,8 @@ def build():
     floating_masts(report)
     deanery_bank(col, guard, objs, report)
     thin_leaves_near((167.0, 241.9), 215.2, 4.0, 45.0, 24.0, 0.2, guard, report, "spire_ann_st_2018")
+    orphan_crowns(report)
+    low_leaves_on_road(guard, report)
     smooth_surfaces(report)
     self_check(guard, report)
     for r in report:
@@ -1782,7 +1906,7 @@ def lit_windows(m, nt, bsdf):
 
 
 SKY_DAY = [(0.0, "DCE6EE"), (0.07, "C4D8EA"), (0.25, "8FB5DE"), (1.0, "2F6FC0")]   # r3: pale horizon band
-SKY_DUSK = [(0.0, "B7AFBD"), (0.10, "E9B48C"), (0.17, "E2AE92"), (0.28, "B8A2C2"), (0.55, "7F84B2"), (1.0, "4E5C8E")]   # r4: thin peach band ~3-5 deg, lilac above
+SKY_DUSK = [(0.0, "E8A890"), (0.16, "E8A890"), (0.30, "9C7CA8"), (0.62, "6E73A0"), (1.0, "4E5C8E")]   # r5 PINNED: peach band #e8a890 under lilac #9c7ca8
 
 
 def lin(h):
@@ -1835,8 +1959,8 @@ def sky(dusk):
         cr = nt.nodes.new("ShaderNodeMapRange")
         cr.name = "AREA_CLOUD"
         nt.links.new(nz.outputs["Fac"], cr.inputs["Value"])
-        cr.inputs["From Min"].default_value = P("cloud_from", 0.47)
-        cr.inputs["From Max"].default_value = P("cloud_from", 0.47) + 0.14
+        cr.inputs["From Min"].default_value = P("cloud_from", 0.53)
+        cr.inputs["From Max"].default_value = P("cloud_from", 0.53) + 0.12
         fade = nt.nodes.new("ShaderNodeMapRange")                       # no clouds near the horizon
         nt.links.new(sep.outputs["Z"], fade.inputs["Value"])
         fade.inputs["From Min"].default_value = 0.06
@@ -1891,6 +2015,40 @@ def sky(dusk):
     sh[1].color = (1.0, 0.86, 0.80, 1) if dusk else (1.0, 1.0, 1.0, 1)
     nt.nodes["AREA_CLOUD"].inputs["To Max"].default_value = 0.55 if dusk else P("cloud_cover", 0.97)
     nt.nodes["AREA_SKY_BG"].inputs["Strength"].default_value = P("sky_cam_dusk", 1.3) if dusk else P("sky_cam_day", 1.55)
+
+
+def far_ridge(dusk):
+    """r5 (pinned): a low far ridge round the horizon (3 km out, 30-120 m) so aerials end in hills, not an olive
+    carpet; dusk colour #5b6e8c, day a hazy blue-grey. Emission-only, so the colour is not relit."""
+    ob = bpy.data.objects.get("area_far_ridge")
+    if ob is None:
+        n, R = 720, 3000.0
+        verts, faces = [], []
+        for i in range(n):
+            a = 2 * math.pi * i / n
+            h = 30 + 90 * (0.5 + 0.5 * (0.5 * math.sin(3 * a + 1.1) + 0.3 * math.sin(7 * a + 0.4) + 0.2 * math.sin(17 * a + 2.0)))
+            verts += [(R * math.cos(a), R * math.sin(a), -5.0), (R * math.cos(a), R * math.sin(a), h)]
+        for i in range(n):
+            j = (i + 1) % n
+            faces.append((2 * i, 2 * j, 2 * j + 1, 2 * i + 1))
+        me = bpy.data.meshes.new("area_far_ridge")
+        me.from_pydata(verts, [], faces)
+        ob = bpy.data.objects.new("area_far_ridge", me)
+        bpy.context.scene.collection.objects.link(ob)
+        m = bpy.data.materials.new("area_far_ridge")
+        m.use_nodes = True
+        nt = m.node_tree
+        for nd in list(nt.nodes):
+            if nd.bl_idname != "ShaderNodeOutputMaterial":
+                nt.nodes.remove(nd)
+        em = nt.nodes.new("ShaderNodeEmission")
+        em.name = "RIDGE"
+        nt.links.new(em.outputs[0], nt.nodes["Material Output"].inputs["Surface"])
+        ob.data.materials.append(m)
+        ob.visible_shadow = False
+    em = ob.data.materials[0].node_tree.nodes["RIDGE"]
+    em.inputs["Color"].default_value = (*lin("5B6E8C" if dusk else "9DAEC2"), 1)
+    em.inputs["Strength"].default_value = P("ridge_k_dusk", 0.9) if dusk else P("ridge_k_day", 1.6)
 
 
 def mist(on, start=250.0, depth=2600.0, strength=0.42, rgb=(0.62, 0.68, 0.76)):
@@ -1953,6 +2111,7 @@ def light(az, el, dusk, kind):
     for v in _STATE.get("dusk", []):
         v.outputs[0].default_value = 1.0 if dusk else 0.0
     sky(dusk)
+    far_ridge(dusk)
     # r2: blue-grey haze (#8fa3b8 at display), not khaki; dusk a lilac-grey
-    mist(kind == "aerial", strength=P("haze_k_dusk", 0.32) if dusk else P("haze_k", 0.62),
-         rgb=P("haze_dusk", (0.30, 0.34, 0.42)) if dusk else P("haze_day", (0.42, 0.55, 0.76)))
+    mist(kind == "aerial", strength=P("haze_k_dusk", 0.32) if dusk else P("haze_k", 0.45),
+         rgb=P("haze_dusk", lin("7A86A8")) if dusk else P("haze_day", (0.42, 0.55, 0.76)))

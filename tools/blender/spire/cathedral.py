@@ -129,6 +129,12 @@ class Cath:
                 for k in range(8)]
         self.b[key].prism(S.ccw(ring), self.g + z0, self.g + z1)
 
+    def weather(self, u0, u1, v_in, v_out, z, h):
+        """Sloping sandstone weathering on a buttress set-off: high at the wall (v_in), down to z at v_out (area r5)."""
+        vs = [self.P(u0, v_in, z), self.P(u1, v_in, z), self.P(u1, v_out, z), self.P(u0, v_out, z),
+              self.P(u0, v_in, z + h), self.P(u1, v_in, z + h)]
+        self.b["dress"].add(vs, [[3, 2, 1, 0], [4, 5, 2, 3], [0, 1, 5, 4], [0, 4, 3], [1, 2, 5]])
+
     def drum(self, key, u, v, r, z0, z1, n=16):
         """Round turret drum (area r4)."""
         x, y, _ = self.P(u, v, 0)
@@ -231,9 +237,12 @@ def build():
             bu = ub + BAY / 2
             if bu < nu1 - 0.5:
                 x0 = a1 + s * 1.0                                              # thick buttress, three stepped offsets
-                K.block("dress", bu - 0.8, bu + 0.8, x0 - 1.0, x0 + 1.0, -0.3, aisle_top * 0.4)
-                K.block("dress", bu - 0.7, bu + 0.7, x0 - 0.75 - s * 0.25, x0 + 0.75 - s * 0.25, aisle_top * 0.4, aisle_top * 0.75)
-                K.block("dress", bu - 0.6, bu + 0.6, x0 - 0.5 - s * 0.5, x0 + 0.5 - s * 0.5, aisle_top * 0.75, aisle_top + 1.2)
+                # area r5: stepped stone (not cream slabs) with a sloping sandstone weathering at each set-off
+                K.block("stone", bu - 0.8, bu + 0.8, x0 - 1.0, x0 + 1.0, -0.3, aisle_top * 0.4)
+                K.weather(bu - 0.82, bu + 0.82, x0 - s * 1.0, x0 + s * 1.02, aisle_top * 0.4, 0.55)
+                K.block("stone", bu - 0.7, bu + 0.7, x0 - 0.75 - s * 0.25, x0 + 0.75 - s * 0.25, aisle_top * 0.4, aisle_top * 0.75)
+                K.weather(bu - 0.72, bu + 0.72, x0 - s * 1.0, x0 + s * 0.52, aisle_top * 0.75, 0.5)
+                K.block("stone", bu - 0.6, bu + 0.6, x0 - 0.5 - s * 0.5, x0 + 0.5 - s * 0.5, aisle_top * 0.75, aisle_top + 1.2)
                 K.pinnacle(bu, x0 - s * 0.5, aisle_top + 1.2, 4.0, 0.55)
                 K.b["dress"].beam(K.P(bu, x0, aisle_top + 0.8), K.P(bu, a0 + s * 0.2, eave - 2.0), 0.45)   # flying buttress
     # ------------------------------------------------------------ apse at the east end
@@ -272,7 +281,9 @@ def build():
         for du in (-1, 1):                                              # angle buttresses stepping in
             for dv in (-1, 1):
                 for z0_, z1_, hw_ in ((-0.3, sq_top * 0.35, 1.0), (sq_top * 0.35, sq_top * 0.7, 0.8), (sq_top * 0.7, sq_top - 0.5, 0.6)):
-                    K.block("dress", tu + du * ts / 2 - hw_, tu + du * ts / 2 + hw_, tv + dv * ts / 2 - hw_, tv + dv * ts / 2 + hw_, z0_, z1_)
+                    K.block("stone", tu + du * ts / 2 - hw_, tu + du * ts / 2 + hw_, tv + dv * ts / 2 - hw_, tv + dv * ts / 2 + hw_, z0_, z1_)
+                    K.block("dress", tu + du * ts / 2 - hw_ - 0.04, tu + du * ts / 2 + hw_ + 0.04,    # area r5: set-off cap
+                            tv + dv * ts / 2 - hw_ - 0.04, tv + dv * ts / 2 + hw_ + 0.04, z1_ - 0.12, z1_)
         K.octagon("stone", tu, tv, ts * 0.52, sq_top, oct_top)
         for s in (-1, 1):                                               # area r4: 3 louvred belfry lancets per face
             pl = s * ts * 0.505                                         # just proud of the square stage (r3 sat inside it)
@@ -286,12 +297,13 @@ def build():
                 d = -ts * 0.36 + k * ts * 0.72 / 6
                 K.lancet(True, tv + pl, tu + d, 0.5, sq_top - 7.0, sq_top - 6.2, s, frame=False, key="dress")
                 K.lancet(False, tu + pl, tv + d, 0.5, sq_top - 7.0, sq_top - 6.2, s, frame=False, key="dress")
-        for du in (-1, 1):                                              # area r4: round corner drums with cone caps
+        for du in (-1, 1):                                              # area r5: slender octagonal corner pinnacles
             for dv in (-1, 1):
-                K.drum("stone", tu + du * ts * 0.48, tv + dv * ts * 0.48, 1.25, sq_top - 4.0, oct_top + 1.0)
+                K.octagon("stone", tu + du * ts * 0.48, tv + dv * ts * 0.48, 0.85, sq_top - 4.0, oct_top + 1.0)
                 x_, y_, _ = K.P(tu + du * ts * 0.48, tv + dv * ts * 0.48, 0)
-                ring_ = [(x_ + 1.35 * math.cos(k * math.pi / 8), y_ + 1.35 * math.sin(k * math.pi / 8), g + oct_top + 1.0) for k in range(16)]
-                K.b["dress"].add(ring_ + [(x_, y_, g + oct_top + 3.0)], [[k, (k + 1) % 16, 16] for k in range(16)])
+                ring_ = [(x_ + 0.95 * math.cos(ang + math.pi / 8 + k * math.pi / 4), y_ + 0.95 * math.sin(ang + math.pi / 8 + k * math.pi / 4),
+                          g + oct_top + 1.0) for k in range(8)]
+                K.b["dress"].add(ring_ + [(x_, y_, g + oct_top + 5.5)], [[k, (k + 1) % 8, 8] for k in range(8)])
         K.spire(tu, tv, ts * 0.45, oct_top, top)                       # area r3: broader slate base
         tower_meta.append({"uv": [round(tu, 1), round(tv, 1)], "spire_top_m": round(top, 1), "octagon_from_m": round(sq_top, 1)})
     # ------------------------------------------------------------ west front between the towers
