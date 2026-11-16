@@ -43,8 +43,8 @@
   {"id": "customs_house", "pos": [46.0, -212.0, 1.6], "look_at": [27.0, -262.0, 9.0], "lens_mm": 24.0,
    "caption": "Customs House from Queen St"}
  ],
- "sky": {"fly_by_east": "deep", "spire_ann_st_2018": "navy", "flyby": "deep", "ann_queen_corner": "paleblue", "orient_front": "paleblue",
-         "cathedral_forecourt": "deep", "cathedral_west_front_2010": "deep", "forecourt": "deep"},
+ "sky": {"fly_by_east": "deep", "spire_ann_st_2018": "navy", "flyby": "deep", "ann_queen_corner": "paledusk", "orient_front": "paleblue",
+         "cathedral_forecourt": "deep", "ann_st_far": "deep", "cathedral_west_front_2010": "deep", "forecourt": "deep"},
  "pairs": ["aerial_ne_dusk", "cathedral_forecourt", "crane_from_nw", "ann_st_far", "fly_by_east", "crane_from_south",
            "queen_st_willahra", "orient_front", "ann_queen_corner"],
  "commons_pairs": ["spire_ann_st_2018", "cathedral_ann_st_2012", "cathedral_west_front_2010"]
