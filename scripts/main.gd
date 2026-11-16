@@ -773,6 +773,13 @@ func _update_story_light(delta: float) -> void:
 		_light_now = want
 	_light_now = Story.mix(_light_now, want, minf(1.0, delta * 0.6))
 	var l := _light_now
+	# (Warm Haze: the sky and the sun lean golden, but not under a grey sky)
+	var wk := Look.warm() * (1.0 - smoothstep(0.6, 0.95, float(l[8])))
+	if wk > 0.0:
+		var gold: Array = Story.LIGHTS["golden"]
+		l = l.duplicate()
+		for i in 3:
+			l[i] = (l[i] as Color).lerp(gold[i], wk)
 	sky_mat.set_shader_parameter("sky_top", l[0])
 	sky_mat.set_shader_parameter("sky_horizon", l[1])
 	sky_mat.set_shader_parameter("cover", l[8])

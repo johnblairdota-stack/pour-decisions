@@ -13,8 +13,8 @@
 ## saturation, ambient and haze multiply the day's.
 extends RefCounted
 
-const KEYS := ["toon", "cel", "clay", "golden", "ink", "true"]
-const NAMES := ["Site Toon", "Bold Cel", "Soft Clay", "Golden Hour", "Comic Ink", "True Light"]
+const KEYS := ["toon", "cel", "clay", "golden", "ink", "true", "haze"]
+const NAMES := ["Site Toon", "Bold Cel", "Soft Clay", "Golden Hour", "Comic Ink", "True Light", "Warm Haze"]
 const BLURB := [
 	"How it's always looked: soft toon bands and a light rim.",
 	"Hard two-tone cel shading, cool blue shadows, a bright rim, heavier ink on the crew.",
@@ -22,12 +22,16 @@ const BLURB := [
 	"Warm film grade: teal shadows, golden highlights, a little bloom and more haze.",
 	"Three flat bands and ink lines round everything, like a comic panel. Costs a little.",
 	"Plain realistic light: no bands, no rim, no outlines, a neutral grade.",
+	"Soft, warm and pale like the cloud test pictures: creamy buildings, gentle shadows, every day leaning golden.",
 ]
 
 ## Per look. shade: 0 toon, 1 smooth, 2 banded (look.gdshaderinc).
 ## tint: the sun's dark side leans to it (a = how much). ink_w: crew line
 ## weight (0 none). tm: tone mapper. grade: [shadow, mid, highlight] curve
 ## colours, or [] for none. con/sat/amb/haze/glow: times the day's.
+## Optional: lut, a 3D colour table (a strip PNG, LUT_N slices side by
+## side) in place of the grade; ssao false turns the contact shading off;
+## warm, how far the day's sky and sun colours lean to the golden day's.
 const P := {
 	"toon": {"shade": 0, "wrap": 0.0, "bands": 1, "edge": 0.05, "tint": Color(0, 0, 0, 0), "rim": 1.0, "spec": 1.0,
 		"ink_w": 1.0, "ink": Color(0, 0, 0, 0), "tm": Environment.TONE_MAPPER_FILMIC, "exp": 1.0, "white": 1.0,
@@ -47,7 +51,18 @@ const P := {
 	"true": {"shade": 1, "wrap": 0.0, "bands": 1, "edge": 0.05, "tint": Color(0, 0, 0, 0), "rim": 0.0, "spec": 1.0,
 		"ink_w": 0.0, "ink": Color(0, 0, 0, 0), "tm": Environment.TONE_MAPPER_AGX, "exp": 1.1, "white": 1.0,
 		"grade": [], "con": 1.0, "sat": 1.0, "amb": 1.1, "haze": 1.0, "glow": 1.0, "bloom": 0.0, "edges": false},
+	# Warm Haze: Comic Ink's shading run through a colour table fitted from
+	# the same views drawn by the PC renderer and by the simpler one the
+	# cloud test pictures use (tools/look_lut.py). That one draws no contact
+	# shading, so this look doesn't either: it costs less than the others.
+	"haze": {"shade": 2, "wrap": 0.2, "bands": 2, "edge": 0.01, "tint": Color(0.30, 0.36, 0.62, 0.22), "rim": 0.0, "spec": 1.2,
+		"ink_w": 1.4, "ink": Color(0.02, 0.02, 0.03, 1.0), "tm": Environment.TONE_MAPPER_FILMIC, "exp": 1.08, "white": 1.0,
+		"grade": [], "con": 1.12, "sat": 1.3, "amb": 1.0, "haze": 0.7, "glow": 0.0, "bloom": 0.0, "edges": false,
+		"lut": "res://assets/looks/warm_haze_lut.png", "ssao": false, "warm": 0.7},
 }
+
+const LUT_N := 32
+static var _luts := {}
 
 static var cur := 0
 static var _edges: MeshInstance3D
@@ -90,8 +105,11 @@ static func apply(game, i: int) -> void:
 	env.glow_intensity = 0.3 * float(l["glow"])
 	env.glow_bloom = float(l["bloom"])
 	env.glow_enabled = not game.lite and float(l["glow"]) > 0.0
+	env.ssao_enabled = not game.lite and bool(l.get("ssao", true))
 	var gr: Array = l["grade"]
-	if gr.is_empty():
+	if l.has("lut"):
+		env.adjustment_color_correction = _lut(String(l["lut"]))
+	elif gr.is_empty():
 		env.adjustment_color_correction = null
 	else:
 		var grad := Gradient.new()
@@ -105,6 +123,28 @@ static func apply(game, i: int) -> void:
 	# (the day's light picks the look's multipliers up on its next frame)
 	if game.has_method("relight"):
 		game.relight()
+
+## How far the day's sky and sun colours lean to the golden day's (0 none).
+static func warm() -> float:
+	return float(now().get("warm", 0.0))
+
+## A 3D colour table from its strip PNG (LUT_N tall, LUT_N slices of LUT_N
+## wide side by side, blue across the slices), built once.
+static func _lut(path: String) -> Texture3D:
+	if _luts.has(path):
+		return _luts[path]
+	var t := ImageTexture3D.new()
+	var tex := load(path) as Texture2D
+	if tex != null:
+		var strip := tex.get_image()
+		strip.decompress()
+		strip.convert(Image.FORMAT_RGB8)
+		var slices: Array[Image] = []
+		for b in LUT_N:
+			slices.append(strip.get_region(Rect2i(b * LUT_N, 0, LUT_N, LUT_N)))
+		t.create(Image.FORMAT_RGB8, LUT_N, LUT_N, LUT_N, false, slices)
+	_luts[path] = t
+	return t
 
 static func _set_edges(game, on: bool) -> void:
 	if on and not is_instance_valid(_edges):
