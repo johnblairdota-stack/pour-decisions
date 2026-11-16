@@ -589,6 +589,19 @@ static func road_lift(x: float, z: float) -> float:
 ## picture styles reach them too), no brighter than a sunlit render wall, and their walls the game's
 ## window grid, the way Riverlight's neighbours have. Bare ground goes paving grey, the land beyond
 ## the model the game's park green, rock a warm sandstone, water the river's blue-green.
+# The river skyline's landmark towers by OSM id (Riparian Plaza, One One One Eagle St, Riverside Centre, Central
+# Plaza One, Waterfront Place, 480 Queen, Soleil). Inputs are darker than the photos: the sun brightens them a lot.
+const HERO := {
+	"140808831": {"wall": "8f8e88", "glass": "2a3036", "band": "9a9992", "roof": "7a7a76"},
+	"134816032": {"wall": "2e4a70", "glass": "22406a", "band": "2a3a52", "roof": "1c2028"},
+	"134816030": {"wall": "2e4a70", "glass": "22406a", "band": "2a3a52", "roof": "1c2028"},
+	"134816031": {"wall": "8c8778", "glass": "23282c", "band": "97927f", "roof": "77746a"},
+	"138278498": {"wall": "a4a6a4", "glass": "56687a", "band": "aaaaaa", "roof": "9a9c9c"},
+	"138278768": {"wall": "a4a6a4", "glass": "56687a", "band": "aaaaaa", "roof": "9a9c9c"},
+	"140804995": {"wall": "2f5f5c", "glass": "1f4a4a", "band": "3a6a66", "roof": "2c4a48"},
+	"26387267": {"wall": "5577a0", "glass": "2f5f96", "band": "8f959a", "roof": "6a6f76"},
+	"224320346": {"roof": "14161c"},
+}
 const RIVER_COL := Color("454628")      # (the Brisbane River: dark green-brown. The sun and sky brighten it a lot.)
 const WALL_MAX := 0.66       # brightest a wall's colour may be (its value, 0..1)
 ## The pick flight's warm light turns blue glass mint green and cream walls yellow. The real skyline from
@@ -647,6 +660,12 @@ static func _game_mat(mat: BaseMaterial3D) -> Material:
 		w.set_shader_parameter("gloss", 0.06)
 		w.set_shader_parameter("smear", 0.26)
 		w.set_shader_parameter("patch", 0.16)
+		var bl := PackedVector2Array()
+		for q in [[227.5, -1321.59], [128.87, -652.54], [152.65, -407.75], [232.73, -231.65], [343.42, -105.41], [465.94, -85.5], [563.76, -99.93], [685.25, -211.84], [899.39, -1048.2], [1043.53, -1345.1]]:
+			bl.append(g(q))
+		w.set_shader_parameter("bank_line", bl)
+		w.set_shader_parameter("bank_n", bl.size())
+		w.set_shader_parameter("bank_side", -1.0)
 		w.set_shader_parameter("far_mix", 0.35)
 		w.set_shader_parameter("far_tint", Color("6f7a5c"))
 		w.set_shader_parameter("shade_dark", 0.5)
@@ -742,6 +761,11 @@ static func _game_mat(mat: BaseMaterial3D) -> Material:
 			if nm.ends_with("_band"):
 				col = col.lerp(Color("8a877f"), 0.6)      # (slab edges: thin grey lines, not white stripes)
 				col.v = minf(col.v, 0.5)
+		# (the towers everyone knows from the river keep their own colours)
+		var hero: Dictionary = HERO.get(nm.get_slice("_", 1), {})
+		for hk: String in ["wall", "band", "roof"]:
+			if hero.has(hk) and nm.ends_with("_" + hk):
+				col = Color(String(hero[hk]))
 		var looks: Dictionary = d.get("looks", {})
 		if looks.has(nm):
 			# (the building's own facade recipe from the Blender scene: its glass, and its window grid as
@@ -754,6 +778,8 @@ static func _game_mat(mat: BaseMaterial3D) -> Material:
 			# (each tower its own glass: navy, black, teal or grey-blue, not one blue everywhere)
 			var gk := (nm + "g").hash() % 4
 			glass = glass.lerp([Color("1a2432"), Color("14181c"), Color("1e3c42"), Color("2c3238")][gk], 0.85)
+			if hero.has("glass"):
+				glass = Color(String(hero["glass"]))
 			if bool(lk.get("diag", false)):       # (Soleil / the tall diagonal tower: black-blue glass, not brown)
 				col = Color("14182a")
 			var wm := F.window_mat(col, 0.0, 0.0, glass)
