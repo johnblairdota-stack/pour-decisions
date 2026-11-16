@@ -774,7 +774,7 @@ NEIGHBOUR_WALLS = {        # critic round 0 (photos): own albedo per building, s
     26386571: "E2B9A0", 26386543: "E2B9A0",   # Admiralty I / II: r9 critics: peach-pink #e2b9a0
     224320345: "D9AE88",   # Macrossan: Petrie Bight peach
 }
-CATHEDRAL_LOOK = {"ashlar": ["9A8A72", "A3927A", "8F7F68", "B09C80", "6F6458", "7A6E60", "A89070", "C0A88A", "948470", "6F6458"], "dressing": "C9A46A",   # r10: warm golden-tan, grey-brown darks (r9 violet read lilac);   # r8: + a dark and a light block (+/-12 %), same mean;   # r5: r4 + half the step to the 2010 photo wall average #AE9378
+CATHEDRAL_LOOK = {"ashlar": ["9A8A72", "A3927A", "8A8088", "B09C80", "6F6458", "8A8088", "A89070", "C0A88A", "948470", "8A8088"], "dressing": "D8C8A0",   # r12: ~30 % grey-mauve #8a8088, pale cream dressings;   # r10: warm golden-tan, grey-brown darks (r9 violet read lilac);   # r8: + a dark and a light block (+/-12 %), same mean;   # r5: r4 + half the step to the 2010 photo wall average #AE9378
                   "tile": "A8452C", "spire": "2E2E33", "slate": "5A5A60"}
 HALL_OSM = 1210526673      # brick block in the forecourt view: LiDAR top includes trees; photo shows a low gabled hall
 
@@ -852,13 +852,25 @@ def mantra_fin(col, b, rings, stripe_xy, objs, report):
             # r11 (fly_by_east zoom, photo vs render): the wing is a flat blue FLAG standing straight out of the
             # corner, widest AT the roof line (~5.5 m, a quarter of the tower width) and tapering to the corner about
             # 4 floors (12 m) down. A fin in the plane of the face normal, 0.35 m thick, flush with the roof line.
-            fl, hgt, th = P("mantra_crest_flare", 5.5), P("mantra_crest_h", 12.0), 0.35
+            # r12 (critic zooms): from the NE cameras the first ~5 m of the flag hide behind the tower's NE corner,
+            # so it read 7.5 % of the tower width against ~20 % in the photo, and its top sat below the parapet:
+            # outreach 11 m, top 3 m above the roof plane (the parapet line), concave outer edge
+            fl, hgt, th, lift = P("mantra_crest_flare", 11.0), P("mantra_crest_h", 13.0), 0.4, P("mantra_crest_lift", 3.0)
             ax, ay = px + nx * O, py + ny * O
+            prof = [(0.0, top - hgt), (0.0, top + lift), (fl, top + lift)]
+            for k in range(1, 8):                                   # concave edge back to the corner
+                t = k / 8
+                prof.append((fl * (1 - t) ** 1.8, top + lift - 1.2 - (hgt + lift - 1.2) * t))
+            n_ = len(prof)
             q = []
             for s_ in (-th / 2, th / 2):
                 bx, by = ax + ux * s_, ay + uy * s_
-                q += [(bx, by, top - hgt), (bx, by, top), (bx + nx * fl, by + ny * fl, top), (bx + nx * fl, by + ny * fl, top - 0.9)]
-            fin.add(q, [[0, 1, 2, 3], [7, 6, 5, 4], [0, 4, 5, 1], [1, 5, 6, 2], [2, 6, 7, 3], [3, 7, 4, 0]])
+                q += [(bx + nx * o_, by + ny * o_, z_) for o_, z_ in prof]
+            faces = [[1, 0, k] for k in range(2, n_)] + [[n_ + 1, n_ + k, n_] for k in range(2, n_)]
+            faces = [[1, k, k + 1] for k in range(2, n_ - 1)] + [[1, n_ - 1, 0]]
+            faces += [[n_ + 1, n_ + k + 1, n_ + k] for k in range(2, n_ - 1)] + [[n_ + 1, n_, n_ + n_ - 1]]
+            faces += [[i, (i + 1) % n_, n_ + (i + 1) % n_, n_ + i] for i in range(n_)]
+            fin.add(q, faces)
     # r10: dark blue lowercase "mantra" (#1b5fa8); top-floor balcony slabs / rails within 8 m of the sign go
     sx, sy, snx, sny = P("mantra_sign", (11.85, 93.2, 0.506, 0.861))
     put(fin, "mantra_blue_fin", col, mat("mantra_blue", lin("1E8FD0")), objs)
@@ -867,15 +879,16 @@ def mantra_fin(col, b, rings, stripe_xy, objs, report):
     band = C.MeshBuf()
     bo = O + 0.9
     slab_band = []
-    for z in (top - 3.3, top - 0.05):
+    for z in (top - 3.5, top - 0.4):                                    # r12: band stays under the roof line
         for s_ in (-1, 1):
             for dd in (0.0, 0.3):
                 slab_band.append((sx - sny * s_ * 7.0 + snx * (bo + dd), sy + snx * s_ * 7.0 + sny * (bo + dd), z))
     band.add(slab_band, [[0, 2, 3, 1], [4, 5, 7, 6], [0, 1, 5, 4], [2, 6, 7, 3], [1, 3, 7, 5], [0, 4, 6, 2]])
     put(band, "mantra_sign_band", col, mat("mantra_band", hx("E9DFC8")), objs)
-    ob = C.text_obj(col, "area_mantra_sign", "mantra", (sx + snx * (bo + 0.3 + 0.015), sy + sny * (bo + 0.3 + 0.015), top - 1.7),
-                    (math.pi / 2, 0, math.atan2(snx, -sny)), 2.2, lin("1B5FA8"))
+    ob = C.text_obj(col, "area_mantra_sign", "mantra", (sx + snx * (bo + 0.3 + 0.015), sy + sny * (bo + 0.3 + 0.015), top - 2.0),
+                    (math.pi / 2, 0, math.atan2(snx, -sny)), 2.9, lin("1B5FA8"))
     ob.data.extrude = 0.012
+    ob.data.offset = 0.06                                           # r12: bold strokes (photo ~70 % of the band)
     _STATE["mantra_sign"] = (sx, sy, top)
     report.append("Mantra: 2 azure stripes (SE corner + north face) %.0f m, wedge crest, horizontal sign" % (top - base))
 
@@ -939,7 +952,7 @@ def neighbours(col, guard, objs, report):
             m.diffuse_color = (*hx(CATHEDRAL_LOOK[key]), 1)
     # r2 (critic): roof read orange (#c8553a) -> photo #7f4535..#8a4a38; dressings read sage -> warm sandstone
     for name, rgb in (("cathedral_terracotta", P("cath_tile_lin", lin("6E3426"))),
-                      ("cathedral_sandstone", P("cath_dress_lin", lin("C4A878")))):
+                      ("cathedral_sandstone", P("cath_dress_lin", lin("D8C8A0")))):
         m = bpy.data.materials.get(name)
         if m:
             m.diffuse_color = (*rgb, 1)
@@ -979,6 +992,11 @@ def neighbours(col, guard, objs, report):
                  for r in rings]
         gone = drop_where(bpy.data.objects.get("bldg_look_568836537_roof"),
                           lambda X, Y, Z: (Z > top + 1.5) & in_rings_np(X, Y, grown))
+        cap = C.MeshBuf()                                           # r12: the spike drop left a black hole seen from above
+        for t in b["tiers"]:
+            if t["top_ahd"] >= top - 0.5:
+                cap.prism(S.ccw([tuple(p) for p in t["ring"]]), top - 0.3, top + 0.08)
+        put(cap, "mantra_roof_cap", col, mat("mantra_roof_cap", hx("8E8A84")), objs)
         acc = bpy.data.objects.get("bldg_look_568836537_accent")
         stripe_xy = None
         if acc is not None and acc.data.vertices:                     # where buildings.py put the blue strip
@@ -1623,6 +1641,93 @@ def pixel_kill(guard, report):
     report.append("pixel kill: %d spots, %d tree faces dropped" % (len(H_), n_))
 
 
+def frustum_kill(guard, report):
+    """r12 (critic: the sparse outer crowns near the camera are rosettes on hair-thin twigs; rays slip through the
+    alpha holes, so pixel_kill misses them): project every tree face centre (leaves, twigs, trunks, proxies) into
+    the box's real render camera; any face within dmax of the camera that lands in the box marks its tree, and
+    every tree face within 4 m of a mark goes. Trees in the keep-out zone are left alone."""
+    import numpy as np
+    boxes = P("frustum_kill", [
+        ("cathedral_ann_st_2012", 1200, 1600, 985, 60, 215, 200), ("cathedral_ann_st_2012", 1200, 1600, 690, 380, 200, 200),
+        ("cathedral_ann_st_2012", 1200, 1600, 880, 820, 300, 200),
+        ("queen_st_willahra", 1198, 1600, 100, 930, 145, 110), ("queen_st_willahra", 1198, 1600, 160, 1130, 440, 110),
+        ("queen_st_willahra", 1198, 1600, 940, 1190, 160, 120),
+        ("carpark_eye", 1600, 1000, 370, 80, 280, 150), ("carpark_eye", 1600, 1000, 390, 185, 100, 195),
+        ("customs_house_river", 1600, 1000, 1550, 330, 45, 145), ("queen_st_streetscape", 1600, 1000, 1350, 20, 250, 200),
+        ("customs_house", 1600, 1000, 1180, 490, 160, 110), ("cathedral_grounds", 1600, 1000, 840, 640, 25, 360),
+        ("cathedral_forecourt", 1600, 1200, 0, 0, 60, 260),
+    ])
+    here = os.path.join(os.path.dirname(L.HERE), "..", "spire_area")
+    src = open(os.path.join(here, "render_area.py"), encoding="utf-8").read().replace("\nmain()\n", "\n")
+    ns = {"__name__": "ra_fk", "__file__": os.path.join(here, "render_area.py")}
+    exec(compile(src, "render_area", "exec"), ns)
+    A_ = json.load(open(os.path.join(here, "area_cams.json"), encoding="utf-8"))
+    heroes = {h["id"]: h for h in A_["heroes"]}
+    lay = {c["id"]: c for c in L.CAMERAS + L.HERO_CAMERAS}
+    show = {h["id"]: h for h in A_["showcase"]}
+    pc = {c["id"]: c for c in json.load(open(os.path.join(L.HERE, "photo_cams.json")))["cams"]}
+    cc = {c["id"]: c for c in json.load(open(os.path.join(L.HERE, "showcase_cams.json")))["cams"]}
+    cam = bpy.data.objects.new("cam_fk", bpy.data.cameras.new("cam_fk"))
+    bpy.context.scene.collection.objects.link(cam)
+    sc = bpy.context.scene
+    rx, ry = sc.render.resolution_x, sc.render.resolution_y
+    is_tree = lambda o: o.name.startswith(TREE_PREFIX) or o.name.startswith(("area_carpark_tree_trunks", "area_carpark_leaves"))
+    trees = [o for o in bpy.data.objects if o.type == "MESH" and is_tree(o) and o.data.polygons]
+    cents = []
+    for o in trees:
+        c = np.empty(len(o.data.polygons) * 3, "f4")
+        o.data.polygons.foreach_get("center", c)
+        cents.append(c.reshape(-1, 3) + np.array(o.matrix_world.translation, "f4"))
+    marks = []
+    for bxs in boxes:
+        vid, iw, ih, bx, by, bw, bh = bxs[:7]
+        dmax = bxs[7] if len(bxs) > 7 else P("frustum_kill_d", 70.0)
+        v = vid
+        if v in show:
+            v = show[v].get("layout") or show[v].get("photo_day")
+        if v in heroes or v in lay:
+            ns["place_agl"](cam, heroes.get(v) or lay[v])
+        elif v in pc or v in cc:
+            ns["photo_cam"](cam, pc.get(v) or cc[v])
+        else:
+            report.append("frustum kill: no camera %s" % vid)
+            continue
+        sc.render.resolution_x, sc.render.resolution_y = iw, ih
+        bpy.context.view_layer.update()
+        fr = cam.data.view_frame(scene=sc)
+        d = -fr[0].z
+        xs, ys = [q.x for q in fr], [q.y for q in fr]
+        x0_, x1_, y0_, y1_ = min(xs), max(xs), min(ys), max(ys)
+        Mi = np.array(cam.matrix_world.inverted(), "f8")
+        k = 0
+        for C_ in cents:
+            Lc = C_ @ Mi[:3, :3].T + Mi[:3, 3]
+            dep = -Lc[:, 2]
+            ok = (dep > 0.5) & (dep < dmax)
+            if not ok.any():
+                continue
+            u = (Lc[:, 0] / np.maximum(dep, 1e-3) * d - x0_) / (x1_ - x0_) * iw
+            w_ = (y1_ - Lc[:, 1] / np.maximum(dep, 1e-3) * d) / (y1_ - y0_) * ih
+            inb = ok & (u >= bx) & (u <= bx + bw) & (w_ >= by) & (w_ <= by + bh)
+            if inb.any():
+                pts = np.unique(np.round(C_[inb, :2] / 2.0) * 2.0, axis=0)
+                pts = [p_ for p_ in pts if not guard.keepout(float(p_[0]), float(p_[1]))]
+                marks += pts
+                k += len(pts)
+        report.append("frustum kill %s (%d,%d,%d,%d): %d marks" % (vid, bx, by, bw, bh, k))
+    sc.render.resolution_x, sc.render.resolution_y = rx, ry
+    bpy.data.objects.remove(cam)
+    if not marks:
+        return
+    M_ = np.unique(np.array(marks), axis=0)
+    rad = P("frustum_kill_r", 4.0)
+    n_ = 0
+    for o in trees:
+        if o.name in bpy.data.objects:
+            n_ += drop_where(o, lambda X, Y, Z: ((X[:, None] - M_[:, 0]) ** 2 + (Y[:, None] - M_[:, 1]) ** 2 < rad * rad).any(1))
+    report.append("frustum kill: %d marks, %d tree faces dropped" % (len(M_), n_))
+
+
 def round8_trees(guard, report):
     """r8 (critics' boxes, traced to objects by ray-casting the round 7 cameras):
     1. Named trees go whole (leaves, trunk, shadow proxy): the car park tree the camera of hero_carpark_eye stands
@@ -2112,6 +2217,7 @@ def build():
     orphan_crowns(report)
     low_leaves_on_road(guard, report)
     pixel_kill(guard, report)
+    frustum_kill(guard, report)
     round8_trees(guard, report)
     smooth_surfaces(report)
     orient(col, guard, objs, report)
@@ -2216,12 +2322,14 @@ def restyle():
             diag_stripes(nt, bsdf)
         if m.name == "cathedral_slate" or m.name == "cathedral_spire_slate":
             tile_courses(nt, bsdf, course=0.22, dark=0.7)
+        if m.name == "cathedral_slate" and not bsdf.inputs["Base Color"].is_linked:
+            bsdf.inputs["Base Color"].default_value = (*lin("3C3C42"), 1)   # r12: crossing tower roof read pale grey
         if m.name == "cathedral_spire_slate" and not bsdf.inputs["Base Color"].is_linked:
             bsdf.inputs["Base Color"].default_value = (*lin("2E2E33"), 1)   # r11: near-black, not brown-grey
         if m.name == "cathedral_sandstone":                          # r11: matt sandstone, not lemon plastic
             bsdf.inputs["Roughness"].default_value = 0.8
             if not bsdf.inputs["Base Color"].is_linked:
-                bsdf.inputs["Base Color"].default_value = (*lin("C4A878"), 1)
+                bsdf.inputs["Base Color"].default_value = (*lin("D8C8A0"), 1)
         if m.name == "cathedral_tuff_ashlar" and not m.get("r11_joints"):
             m["r11_joints"] = True                                    # r11: dark recessed joints that shadow
             for n_ in nt.nodes:
@@ -2491,7 +2599,7 @@ def flat_up(nt, bsdf):
 def asphalt(m, bsdf):
     """Mid-grey worn asphalt (critic: too dark and blue): recolour the ramp / base, keep the speckle."""
     nt = m.node_tree
-    lo, hi = P("asphalt_lo", (0.060, 0.059, 0.057)), P("asphalt_hi", (0.150, 0.146, 0.140))
+    lo, hi = P("asphalt_lo", (0.042, 0.042, 0.045)), P("asphalt_hi", (0.100, 0.098, 0.100))   # r12: real ~#4a4a50
     ramp = next((n for n in nt.nodes if n.bl_idname == "ShaderNodeValToRGB"), None)
     if ramp is not None:
         ramp.color_ramp.elements[0].color = (*lo, 1)
@@ -2586,7 +2694,7 @@ SKY_MODE = None    # r8: per view (area_cams.json "sky"): "deep" clear blue or "
 SKY_DEEP = [(0.0, "B6D0EC"), (0.12, "8FB8E0"), (0.42, "4F86C8"), (1.0, "1F5FB0")]   # r10: a real gradient
 SKY_NAVY = [(0.0, "A4C0E2"), (0.12, "7AA2D6"), (0.42, "3466B4"), (1.0, "1A3F8F")]
 SKY_PALEBLUE = [(0.0, "EEF1F3"), (0.15, "D8E2EC"), (0.45, "B4C8DE"), (1.0, "8AA8CE")]
-SKY_PALEDUSK = [(0.0, "F2E6DC"), (0.15, "E2DCDC"), (0.45, "C4CAD6"), (1.0, "9AA8C0")]   # r11: ann_queen_corner
+SKY_PALEDUSK = [(0.0, "ECE6E0"), (0.18, "E0E0E4"), (0.5, "D0DAE8"), (1.0, "BCCDE4")]   # r11: ann_queen_corner
 SKY_PALE = [(0.0, "E2E5E8"), (0.10, "D3DAE2"), (0.35, "B9C6D4"), (1.0, "8FA8C8")]
 SKY_DUSK = [(0.0, "E8A890"), (0.16, "E8A890"), (0.30, "9C7CA8"), (0.62, "6E73A0"), (1.0, "4E5C8E")]   # r5 PINNED: peach band #e8a890 under lilac #9c7ca8
 
