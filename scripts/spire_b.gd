@@ -37,6 +37,8 @@ var _t := 0.0
 var _finish := 0.0
 var _placing := false
 var _rig := PackedVector2Array()
+var _step_dt := 0.0
+var _odd := false
 
 func build(owner_game) -> void:
 	game = owner_game
@@ -151,8 +153,13 @@ func update(delta: float, frac: float, phase: String, deck_y: float, head_y: flo
 			_placing = true
 			pour.deposit(hose, pour.needed() / POUR_T * delta)
 	pour.set_splash(_placing, hose)
-	if phase == "pour" or _finish < 1.0:
-		pour.step(delta)
+	# (their concrete flows on every other frame, a double step: it's across the deck from ours, and
+	# stepping it every frame cost as much as our own pour)
+	_step_dt += delta
+	_odd = not _odd
+	if (phase == "pour" or _finish < 1.0) and _odd:
+		pour.step(minf(_step_dt, 0.1))
+		_step_dt = 0.0
 	if phase in ["screed", "cure", "sign", "report"]:
 		# (ours is done: theirs is finished off and goes hard with it)
 		if _finish <= 0.0:
