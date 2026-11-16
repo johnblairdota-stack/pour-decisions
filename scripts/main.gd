@@ -7681,6 +7681,7 @@ func _spire_views() -> Array:
 	var c := SpireSite.centroid(SpireSite.poly("plate"))
 	var dk := deck_top()
 	var at := Vector3(c.x, dk, c.y)
+	var bc: Vector3 = _spire_b.crew_centre() if _spire_b != null else at
 	return [
 		["air_ann", at + Vector3(10, 55, 62), at],
 		["air_top", at + Vector3(0.1, 75, 3), at],
@@ -7710,6 +7711,8 @@ func _spire_views() -> Array:
 		["deck_tower", Vector3(22, dk + 7, 6), Vector3(10, dk, -5)],
 		["deck_hoist", Vector3(-14, dk + 6, 5), Vector3(-6, dk, -5)],
 		["deck_b", at + Vector3(-18, 18, -32), at + Vector3(0, 0, -10)],
+		["crew_b", bc + Vector3(-5, 6, -8), bc],
+		["crew_b_high", bc + Vector3(-10, 14, -16), bc],
 		["far", at + Vector3(120, 90, 190), at],
 	]
 
