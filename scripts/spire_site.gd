@@ -260,12 +260,35 @@ static func build_world(parent: Node3D) -> Node3D:
 			if n != null:
 				n.visible = false
 		root.add_child(m)
+		_add_far(m)
 		# glTF y-up: (x, ahd, -y). A turn of th about y maps it onto the game's frame
 		root.position = Vector3(off.x, -street, off.y)
 	else:
 		push_warning("Spire: the site model hasn't been imported yet (open the project in the editor once)")
 	parent.add_child(root)
 	return root
+
+## Howard Smith Wharves and the Story Bridge, 300-900 m off (tools/blender/spire/export_hsw_far.py): the
+## render's buildings in the same frame as the site model, so they go in under it. Seen only from far off:
+## no shadows.
+const FAR_GLB := "res://assets/spire/hsw_far.glb"
+
+static func _add_far(m: Node3D) -> void:
+	if not ResourceLoader.exists(FAR_GLB):
+		return
+	var scene = load(FAR_GLB)
+	if scene is PackedScene:
+		var far: Node3D = scene.instantiate()
+		far.name = "HSWFar"
+		_tint(far)
+		_no_shadow(far)
+		m.add_child(far)
+
+static func _no_shadow(n: Node) -> void:
+	if n is GeometryInstance3D:
+		(n as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	for c in n.get_children():
+		_no_shadow(c)
 
 # ------------------------------------------------------------------ what it costs to draw
 ## The ground and everything lying flat on it (roads, kerbs, markings, the painted street names), the
