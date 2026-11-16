@@ -1498,7 +1498,7 @@ def customs_house(col, guard, objs, report):
     w = o["ways"].get(CUSTOMS_OSM)
     m = bpy.data.materials.get("look_%d_accent" % CUSTOMS_OSM)
     if m:
-        m.diffuse_color = (0.09, 0.20, 0.15, 1)
+        m.diffuse_color = (0.36, 0.66, 0.54, 1) if L.GAME_EXPORT else (0.09, 0.20, 0.15, 1)     # (game: pale verdigris, 8fc3a6)
     if not w:
         return
     ring = S.ccw(C.clean_ring(o["line"](w)))
@@ -1519,7 +1519,7 @@ def customs_house(col, guard, objs, report):
     g = min(gz(*a), gz(*b))
     cols_, stone = C.MeshBuf(), C.MeshBuf()
     span = min(ln * 0.55, 16.0)
-    H, R = 9.5, 0.45
+    H, R = 9.5, (0.7 if L.GAME_EXPORT else 0.45)
     for i in range(6):
         u = -span / 2 + span * i / 5
         px, py = mx + ux * u + nx * 2.2, my + uy * u + ny * 2.2
@@ -1533,9 +1533,9 @@ def customs_house(col, guard, objs, report):
     zp = g + 1.0 + H + 2.0
     l2 = (span + 2.0) / 2
     tri = [(ex - ux * l2 + nx * 1.8, ey - uy * l2 + ny * 1.8, zp), (ex + ux * l2 + nx * 1.8, ey + uy * l2 + ny * 1.8, zp),
-           (ex + nx * 1.8, ey + ny * 1.8, zp + 2.6),
+           (ex + nx * 1.8, ey + ny * 1.8, zp + (4.4 if L.GAME_EXPORT else 2.6)),
            (ex - ux * l2 - nx * 1.8, ey - uy * l2 - ny * 1.8, zp), (ex + ux * l2 - nx * 1.8, ey + uy * l2 - ny * 1.8, zp),
-           (ex - nx * 1.8, ey - ny * 1.8, zp + 2.6)]
+           (ex - nx * 1.8, ey - ny * 1.8, zp + (4.4 if L.GAME_EXPORT else 2.6))]
     stone.add(tri, [[0, 1, 2], [5, 4, 3], [0, 2, 5, 3], [1, 4, 5, 2], [0, 3, 4, 1]])  # pediment
     if not guard.ok(mx + nx * 2.2, my + ny * 2.2):
         report.append("Customs House portico off: keep-out or road")
@@ -1543,9 +1543,64 @@ def customs_house(col, guard, objs, report):
     note(mx + nx * 2.2, my + ny * 2.2, "building")
     wall = bpy.data.materials.get("look_%d_wall" % CUSTOMS_OSM)
     ston = mat("customs_sandstone", tuple(wall.diffuse_color)[:3] if wall else (0.62, 0.52, 0.36))
-    put(cols_, "customs_columns", col, ston, objs)
-    put(stone, "customs_portico", col, ston, objs)
+    if not L.GAME_EXPORT:
+        put(cols_, "customs_columns", col, ston, objs)
+        put(stone, "customs_portico", col, ston, objs)
     report.append("Customs House: 6-column portico + pediment on the river front, copper dome green")
+    if L.GAME_EXPORT:
+        # the big fig beside it (from the river, the second thing you see): a trunk and a clump of round crowns
+        fx, fy = mx + ux * (ln / 2 + 21.0) + nx * 3.0, my + uy * (ln / 2 + 21.0) + ny * 3.0
+        fg = gz(fx, fy)
+        bark, leaf = C.MeshBuf(), C.MeshBuf()
+        T.tube(bark, (fx, fy, fg - 0.3), (fx, fy, fg + 9.0), 1.3, 0.8, 7)
+        for dx, dy, dz, r in ((0, 0, 15.0, 8.5), (5.5, 1.5, 12.5, 6.5), (-5.0, 2.5, 13.0, 6.5), (1.0, -5.5, 12.0, 6.0),
+                              (-1.5, 5.0, 16.5, 6.0), (4.0, -3.5, 17.0, 5.5), (-4.5, -3.0, 17.5, 5.0)):
+            T.blob(leaf, fx + ux * dx * 0.8 + nx * dy * 0.8, fy + uy * dx * 0.8 + ny * dy * 0.8, fg + dz * 0.68, r * 0.43, r * 0.4)
+        put(bark, "customs_fig_bark", col, mat("customs_fig_bark", (0.35, 0.29, 0.23)), objs)
+        fo = leaf.object("tree_crowns_far_customs_fig", col, "tree")       # (a tree to the game: the crowns' own material)
+        if fo:
+            cm = bpy.data.materials.get("tree_crowns_far")
+            if cm:
+                fo.data.materials[0] = cm
+            for pl in fo.data.polygons:
+                pl.use_smooth = True
+            objs.append(fo.name)
+        # the river front as the photos have it: a second gabled bay, a dark stone river wall and a railed
+        # boardwalk along the water
+        wallm = mat("customs_riverwall", (0.30, 0.25, 0.20))
+        railm = mat("customs_boardwalk", (0.62, 0.62, 0.60))
+        rw, bw = C.MeshBuf(), C.MeshBuf()
+        for k in (-1, 1):
+            bx, by = mx + ux * k * (ln * 0.36) + nx * 0.8, my + uy * k * (ln * 0.36) + ny * 0.8
+            stone.box(bx, by, g + 1.0, 7.0, 1.6, H + 1.6, e)
+            l3 = 3.5
+            t2 = [(bx - ux * l3 + nx * 0.8, by - uy * l3 + ny * 0.8, zp), (bx + ux * l3 + nx * 0.8, by + uy * l3 + ny * 0.8, zp),
+                  (bx + nx * 0.8, by + ny * 0.8, zp + 3.4),
+                  (bx - ux * l3 - nx * 0.8, by - uy * l3 - ny * 0.8, zp), (bx + ux * l3 - nx * 0.8, by + uy * l3 - ny * 0.8, zp),
+                  (bx - nx * 0.8, by - ny * 0.8, zp + 3.4)]
+            stone.add(t2, [[0, 1, 2], [5, 4, 3], [0, 2, 5, 3], [1, 4, 5, 2], [0, 3, 4, 1]])
+        wl = ln + 46.0
+        wx, wy = mx + ux * 6.0 + nx * 13.0, my + uy * 6.0 + ny * 13.0
+        rw.box(wx, wy, L.RIVER_LEVEL_AHD - 0.5, wl, 1.2, g - L.RIVER_LEVEL_AHD + 0.6, e)
+        bx2, by2 = wx + nx * 3.2, wy + ny * 3.2
+        bw.box(bx2, by2, L.RIVER_LEVEL_AHD + 1.1, wl, 4.0, 0.3, e)                      # boardwalk deck
+        bw.box(bx2 + nx * 1.9, by2 + ny * 1.9, L.RIVER_LEVEL_AHD + 2.35, wl, 0.1, 0.1, e)  # top rail
+        bw.box(bx2 + nx * 1.9, by2 + ny * 1.9, L.RIVER_LEVEL_AHD + 1.9, wl, 0.06, 0.06, e)
+        for i in range(int(wl / 3.0) + 1):
+            u = -wl / 2 + i * 3.0
+            bw.box(bx2 + ux * u + nx * 1.9, by2 + uy * u + ny * 1.9, L.RIVER_LEVEL_AHD - 1.5, 0.3, 0.3, 3.9, e)   # piles and posts
+        # (the colonnade has to read from mid river: pale columns standing in front of a shadowed porch)
+        rec = C.MeshBuf()
+        rec.box(mx + nx * 0.5, my + ny * 0.5, g + 1.0, span + 1.0, 1.4, H, e)
+        for i in range(8):                                   # a pilaster rhythm along the rest of the river front
+            u = -ln * 0.46 + ln * 0.92 * i / 7
+            if abs(u) > span / 2 + 2.0:
+                cols_.box(mx + ux * u + nx * 0.45, my + uy * u + ny * 0.45, g + 1.0, 0.9, 0.5, H, e)
+        put(rec, "customs_porch_shadow", col, mat("customs_porch_shadow", (0.035, 0.03, 0.028)), objs)
+        put(cols_, "customs_columns", col, mat("customs_columns_pale", (0.95, 0.93, 0.86)), objs)
+        put(stone, "customs_portico", col, mat("customs_portico_pale", (0.90, 0.87, 0.78)), objs)
+        put(rw, "customs_riverwall", col, wallm, objs)
+        put(bw, "customs_boardwalk", col, railm, objs)
 
 
 # ---------------------------------------------------------------------------------------------- self-check

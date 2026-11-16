@@ -177,12 +177,36 @@ def toppers(rec, bf, ring, top):
     cx = sum(p[0] for p in ring) / len(ring)
     cy = sum(p[1] for p in ring) / len(ring)
     rmin = min(math.dist((cx, cy), p) for p in ring)
-    if rec.get("dome"):
+    if rec.get("dome") and L.GAME_EXPORT and rec.get("name") == "Customs House":
+        # (from the river the copper dome is the building: about a third of the river front wide, on a
+        # sandstone drum. The plain rule below gave a nub.)
+        r = max(7.6, 0.9 * rmin)
+        k = 12
+        drum = [(cx + r * 1.05 * math.cos(2 * math.pi * i / k), cy + r * 1.05 * math.sin(2 * math.pi * i / k)) for i in range(k)]
+        bf.walls.prism(drum, top - 0.5, top + 4.0)
+        dome(bf.accent, cx, cy, top + 4.0, r)
+        bf.accent.box(cx, cy, top + 4.0 + r - 0.4, 2.2, 2.2, 1.6)          # (a small lantern and a flagpole, not a spike)
+        cone(bf.accent, cx, cy, top + 4.0 + r + 1.2, 0.22, top + 4.0 + r + 6.5, 4)
+    elif rec.get("dome"):
         r = max(2.5, 0.45 * rmin)
         bf.accent.box(cx, cy, top, 2 * r, 2 * r, 1.5)
         dome(bf.accent, cx, cy, top + 1.5, r)
     if rec.get("spike"):
         cone(bf.roof, cx, cy, top, 1.2, top + 18.0, 6)
+    if L.GAME_EXPORT and top > 95.0 and rmin > 6.0 and not (rec.get("dome") or rec.get("spike") or rec.get("crown")):
+        # (the skyline from the river: tall towers end in something. A stepped plant level, and on some a
+        # mast or a sloped cap, picked by where the tower stands so it stays put.)
+        k = int(abs(cx * 7.3 + cy * 3.1)) % 4
+        step = [(cx + (p[0] - cx) * 0.62, cy + (p[1] - cy) * 0.62) for p in ring]
+        if k != 3:
+            bf.roof.prism(step, top, top + 7.0)
+        if k == 0:
+            cone(bf.roof, cx, cy, top + 7.0, 0.9, top + 7.0 + 26.0, 5)                       # mast
+        elif k == 1:
+            small = [(cx + (p[0] - cx) * 0.34, cy + (p[1] - cy) * 0.34) for p in ring]
+            bf.roof.prism(small, top + 7.0, top + 13.0)                                     # second step
+        elif k == 2:
+            cone(bf.roof, cx, cy, top + 7.0, 0.62 * rmin, top + 7.0 + 0.9 * rmin, 4)         # pointed cap
     if rec.get("crown"):
         for p in ring[:: max(1, len(ring) // 6)]:
             bf.roof.box(p[0], p[1], top, 0.5, 0.5, 6.0)
