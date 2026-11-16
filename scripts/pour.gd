@@ -1356,8 +1356,10 @@ var _print_t := 0.0
 ## concrete that's gone off: dry enough not to matter). 1: a print in fresh
 ## concrete that hasn't been screeded yet (the screed will take it out).
 ## 2: a print in the finished, screeded surface: it's spoiled there and the
-## screed has to come back over it.
-func footprint(local: Vector3, yaw: float) -> int:
+## screed has to come back over it. 3: the same, but in finish screeded less
+## than `grace` s ago (the screed came to them): marked and screeded again,
+## but nobody's blamed.
+func footprint(local: Vector3, yaw: float, grace := 0.0) -> int:
 	var ix := int((local.x + bw * 0.5) / dx)
 	var iz := int((local.z + bd * 0.5) / dx)
 	if ix < 0 or ix >= NX or iz < 0 or iz >= NZ:
@@ -1368,6 +1370,8 @@ func footprint(local: Vector3, yaw: float) -> int:
 	var res := 1
 	if scr[i] >= 0.7:
 		res = 2
+		if grace > 0.0 and scr_t[i] >= 0.0 and _t - scr_t[i] < grace:
+			res = 3
 		for c in _cells_in(local, 0.22):
 			if set_h[c] < 0.0:
 				scr[c] = minf(scr[c], 0.45)
@@ -1617,7 +1621,7 @@ func _push_strips() -> void:
 
 ## Pour-local spot of fresh, vibrated, full-depth concrete nobody has screeded,
 ## oldest first (the bit closest to going off). INF if there's none.
-func needs_screed(from: Vector3, avoid: Vector3, avoid_r: float, skip: Array = []) -> Vector3:
+func needs_screed(from: Vector3, avoid: Vector3, avoid_r: float, skip: Array = [], keep_off: Array = [], keep_r := 0.0) -> Vector3:
 	var best := -1e9
 	var out := Vector3(INF, 0, 0)
 	for iz in range(NZ):
@@ -1630,6 +1634,10 @@ func needs_screed(from: Vector3, avoid: Vector3, avoid_r: float, skip: Array = [
 				var skipped := false
 				for sk in skip:
 					if Vector2(c.x - sk.x, c.z - sk.z).length() < 0.6:
+						skipped = true
+						break
+				for k in keep_off:
+					if Vector2(c.x - k.x, c.z - k.z).length() < keep_r:
 						skipped = true
 						break
 				if skipped:
