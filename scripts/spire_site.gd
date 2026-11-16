@@ -634,7 +634,7 @@ static func _game_mat(mat: BaseMaterial3D) -> Material:
 	elif nm.begins_with("area_bldg_"):
 		# (the Spire area's parts of the neighbours: Mantra's blue stripes and balconies, roof plant, the
 		# Customs House portico: plain, and cut away with the walls they're on)
-		col = col.linear_to_srgb()
+		col = col.srgb_to_linear()       # (as below: the look's own colour)
 		if col.v > WALL_MAX:
 			col.v = WALL_MAX
 		var am := F.window_mat(col, 0.0, 0.0, col)
@@ -643,8 +643,10 @@ static func _game_mat(mat: BaseMaterial3D) -> Material:
 		_cut_mats.append(am)
 		out = am
 	elif nm.begins_with("look_") or nm.begins_with("gen_") or nm == "clay_roof":
-		# the neighbours (glTF colours are linear: the game's are sRGB)
-		col = col.linear_to_srgb()
+		# the neighbours. The Blender scene writes each look's hex colour straight in as a linear value,
+		# and the glTF import brightens that once more for the screen: taking the brightening back off
+		# gives the colour the look was written with (Customs House's sandstone, not off-white).
+		col = col.srgb_to_linear()
 		if col.v > WALL_MAX:
 			col.v = WALL_MAX
 		var looks: Dictionary = d.get("looks", {})
