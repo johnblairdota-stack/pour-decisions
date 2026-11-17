@@ -145,3 +145,13 @@ outside `LIDAR_BOX` / the +-700 m square and cuts `far_land` / `far_suburbs` whe
 Skipped for game exports and stage builds. Overview renders: `render_cbd.py` (Cycles, cloud).
 Queen's Wharf's finished towers are not in OSM and the 2019 LiDAR shows its basement dig, so it shows as
 the data does.
+
+## Real river shape (17 Nov 2026)
+
+`python3 tools/sites/river_shape.py <PourDecisions-sites>/data` traces the Brisbane River from the two
+newest wide aerials (CBD bend + Portside) and the 2019 LiDAR (open water has no LiDAR surface): dark smooth
+water, reaches joined under the bridges, ponds and shadows dropped. Writes `reference/sites/spire/river/`
+(2 m water mask, bank loops, both aerials on one grid, 8 m ground). `cbd_ext.build_far` then lays real
+ground over that whole box outside `LIDAR_BOX` and the CBD extension, with the river under the water plane
+and the aerial draped, replacing the `far_land` skirt there and moving `far_suburbs` onto the ground (none in
+the river). Gap: the Newstead reach between the two aerials (no imagery) is still land.

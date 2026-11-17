@@ -55,8 +55,7 @@ def in_lidar_box(x, y, pad=0.0):
     return (x > x0 + pad) & (x < x1 - pad) & (y > y0 + pad) & (y < y1 - pad)
 
 
-def aerial_material(m):
-    name = "cbd_ext_aerial"
+def aerial_material(m, name="cbd_ext_aerial"):
     mat = bpy.data.materials.get(name) or bpy.data.materials.new(name)
     mat["look_done"] = True                       # preview.setup_morning leaves it alone
     mat.use_nodes = True
@@ -205,17 +204,133 @@ def build_trees(col):
     return objs, n
 
 
+# ---------------------------------------------------------------- far ground with the real river (17 Nov)
+RIVER = os.path.join(L.REF, "river")
+FAR_STEP = 6.0
+FAR_Z = 8.0
+
+
+def river_data():
+    m = json.load(open(os.path.join(RIVER, "river.json")))
+    H, W = m["rows"], m["cols"]
+    water = np.frombuffer(gzip.open(os.path.join(RIVER, "water_2m.u8.gz")).read(), "u1").reshape(H, W)
+    g8 = m["ground_8m"]
+    gnd = np.frombuffer(gzip.open(os.path.join(RIVER, "ground_wide_8m.f32.gz")).read(), "<f4").reshape(g8["rows"], g8["cols"])
+    return m, water, gnd
+
+
+def build_far(col):
+    """Real ground + the traced river over the wide aerials' box, outside LIDAR_BOX and the CBD extension:
+    replaces the far_land skirt there (so the river no longer stops at the LiDAR edge)."""
+    import bmesh
+    m, water, gnd = river_data()
+    x0, y0, x1, y1 = m["box_local"]
+    st = m["step_m"]
+    k = int(round(FAR_STEP / st))
+    xs = np.arange(x0, x1 + 0.01, FAR_STEP)
+    ys = np.arange(y1, y0 - 0.01, -FAR_STEP)
+    X, Y = np.meshgrid(xs, ys)
+    # ground: bilinear from the 8 m grid, NaN (no data) -> FAR_Z
+    gs = 2 * st * 2                                                    # 8 m
+    fx = np.clip((X - x0) / gs - 0.5, 0, gnd.shape[1] - 1.001)
+    fy = np.clip((y1 - Y) / gs - 0.5, 0, gnd.shape[0] - 1.001)
+    i0, j0 = fy.astype(int), fx.astype(int)
+    ty, tx = fy - i0, fx - j0
+    g = np.where(np.isnan(gnd), FAR_Z, gnd)
+    Z = (g[i0, j0] * (1 - ty) * (1 - tx) + g[i0, j0 + 1] * (1 - ty) * tx + g[i0 + 1, j0] * ty * (1 - tx) + g[i0 + 1, j0 + 1] * ty * tx)
+    Z = L.box_blur(Z.astype("f4"), 1)
+    # river: water share round each vertex (2 m mask) -> under the water plane; banks stay a bit above it
+    wf = L.box_blur(water.astype("f4"), k)
+    wr = np.clip(((y1 - Y) / st).astype(int), 0, water.shape[0] - 1)
+    wc = np.clip(((X - x0) / st).astype(int), 0, water.shape[1] - 1)
+    share = wf[wr, wc]
+    Z = np.where(share > 0.5, -2.0, np.where(share > 0.05, np.maximum(np.minimum(Z, 1.2), L.RIVER_LEVEL_AHD + 0.4), Z))
+    R, Cn = Z.shape
+    verts = np.stack([X, Y, Z], -1).reshape(-1, 3)
+    idx = np.arange(R * Cn).reshape(R, Cn)
+    faces = np.stack([idx[1:, :-1], idx[1:, 1:], idx[:-1, 1:], idx[:-1, :-1]], -1).reshape(-1, 4)
+    cx = (X[:-1, :-1] + FAR_STEP / 2).ravel()
+    cy = (Y[:-1, :-1] - FAR_STEP / 2).ravel()
+    keep = ~in_lidar_box(cx, cy)
+    em, _, cov = ground_grid()
+    ex0, ey0, ex1, ey1 = em["box_local"]
+    inext = (cx > ex0) & (cx < ex1) & (cy > ey0) & (cy < ey1)
+    er = np.clip((ey1 - cy).astype(int), 0, cov.shape[0] - 1)
+    ec = np.clip((cx - ex0).astype(int), 0, cov.shape[1] - 1)
+    keep &= ~(inext & (cov[er, ec] > 0))
+    faces = faces[keep]
+    ob = C.mesh_fast("far_ground_real", verts, faces, col, "ground")
+    lay = ob.data.uv_layers.new(name="aerial")
+    li = np.empty(len(ob.data.loops), "i4")
+    ob.data.loops.foreach_get("vertex_index", li)
+    uv = np.stack([(verts[li, 0] - x0) / (x1 - x0), (verts[li, 1] - y0) / (y1 - y0)], -1).astype("f4")
+    lay.data.foreach_set("uv", uv.ravel())
+    ob.data.materials[0] = aerial_material({"aerial": {"file": os.path.join("..", "river", "aerial_wide.jpg")}}, "far_aerial")
+    ob.data.shade_smooth()
+
+    def water_at(x, y):
+        c = int((x - x0) / st)
+        r = int((y1 - y) / st)
+        return 0 <= r < water.shape[0] and 0 <= c < water.shape[1] and water[r, c] > 0
+
+    # far_land: split on the box edges, drop what lies inside the box
+    removed = {}
+    fl = bpy.data.objects.get("far_land")
+    if fl is not None:
+        bm = bmesh.new()
+        bm.from_mesh(fl.data)
+        for co, no in (((x0, 0, 0), (1, 0, 0)), ((x1, 0, 0), (1, 0, 0)), ((0, y0, 0), (0, 1, 0)), ((0, y1, 0), (0, 1, 0))):
+            bmesh.ops.bisect_plane(bm, geom=bm.verts[:] + bm.edges[:] + bm.faces[:], plane_co=co, plane_no=no)
+        kill = [f for f in bm.faces if x0 < f.calc_center_median().x < x1 and y0 < f.calc_center_median().y < y1]
+        bmesh.ops.delete(bm, geom=kill, context="FACES")
+        bm.to_mesh(fl.data)
+        bm.free()
+        removed["far_land"] = len(kill)
+    # far suburbs: none in the river; the rest stand on the real ground
+    for name in ("far_suburbs", "far_suburbs_terracotta", "far_suburbs_trees"):
+        o = bpy.data.objects.get(name)
+        if o is None or len(o.data.vertices) % 8:
+            continue
+        n = len(o.data.vertices)
+        co = np.empty(n * 3, "f4")
+        o.data.vertices.foreach_get("co", co)
+        co = co.reshape(-1, 8, 3)
+        c = co[:, :, :2].mean(1)
+        inbox = (c[:, 0] > x0) & (c[:, 0] < x1) & (c[:, 1] > y0) & (c[:, 1] < y1)
+        cfx = np.clip((c[:, 0] - x0) / gs - 0.5, 0, gnd.shape[1] - 1)
+        cfy = np.clip((y1 - c[:, 1]) / gs - 0.5, 0, gnd.shape[0] - 1)
+        gz = g[cfy.astype(int), cfx.astype(int)]
+        dz = np.where(inbox, gz - 0.5 - co[:, :, 2].min(1), 0.0)
+        co[:, :, 2] += dz[:, None]
+        o.data.vertices.foreach_set("co", co.ravel())
+        bad = [i for i in np.nonzero(inbox)[0] if water_at(c[i, 0], c[i, 1])]
+        if bad:
+            bm = bmesh.new()
+            bm.from_mesh(o.data)
+            bm.verts.ensure_lookup_table()
+            bmesh.ops.delete(bm, geom=[bm.verts[8 * i + j] for i in bad for j in range(8)], context="VERTS")
+            bm.to_mesh(o.data)
+            bm.free()
+        o.data.update()
+        removed[name] = len(bad)
+    return ob, int(len(faces)), removed
+
+
 def build():
     global bpy
     import bpy
     if L.GAME_EXPORT or getattr(L, "ACTIVE_STAGE", None) or not os.path.exists(os.path.join(EXT, "ext.json")):
         return {"module": "cbd_ext", "objects": [], "note": "skipped (game export, stage build or no data)"}
     col = C.collection("cbd_ext")
+    far = None
+    if os.path.exists(os.path.join(RIVER, "river.json")):
+        far = build_far(col)
     gob, box, nf = build_ground(col)
     cut = cut_far(box)
     res, nrec = build_buildings()
     tobjs, ntrees = build_trees(col)
-    return {"module": "cbd_ext", "objects": [gob.name] + res["objects"] + tobjs, "ground_faces": nf,
+    return {"module": "cbd_ext", "objects": [gob.name] + res["objects"] + tobjs + ([far[0].name] if far else []),
+            "far_ground": {"faces": far[1], "removed": far[2]} if far else None, "ground_faces": nf,
             "far_faces_removed": cut, "buildings": res["buildings"], "records": nrec, "trees": ntrees,
             "named_recipes": res.get("named_recipes"),
             "source": "reference/sites/spire/ext (tools/sites/clean_ext.py): 2019 LiDAR + OSM + 2022 aerial"}

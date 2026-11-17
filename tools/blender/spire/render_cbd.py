@@ -25,6 +25,12 @@ CAMS = [
      "note": "South Bank side, looking NE over the river at Queen's Wharf and 1 William St"},
     {"id": "cbd_from_spire_roof", "pos": (-60, -150, 230), "look_at": (-330, -1150, 90), "lens": 35,
      "note": "from the Spire roof looking SW down the CBD"},
+    {"id": "river_top", "ortho": 4300.0, "pos": (-150, -650, 3000), "look_at": (-150, -650, 0), "size": (1600, 1600),
+     "note": "straight down over the river bends traced from the aerials"},
+    {"id": "river_high_north", "pos": (300, 1600, 900), "look_at": (-150, -1200, 0), "lens": 26,
+     "note": "high over Fortitude Valley looking south over the CBD bend, Kangaroo Point and the Milton reach"},
+    {"id": "river_downstream", "pos": (1150, -950, 380), "look_at": (1800, 1300, 0), "lens": 26,
+     "note": "high over Kangaroo Point looking NE downstream past New Farm"},
 ]
 
 
