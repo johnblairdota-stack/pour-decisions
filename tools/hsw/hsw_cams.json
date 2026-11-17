@@ -626,7 +626,7 @@
    "file": "overview_aerial/pg_58687c6e.jpg",
    "title": "Drone from the river south of HSW: pier, Felons, Barrel Hall, Rivershed, cliffs",
    "date": "2019-11-20",
-   "time_h": 9.0,
+   "time_h": 11.0,
    "size": [
     1200,
     650
@@ -686,7 +686,7 @@
    },
    "holdout_rms_px": 28.6,
    "note": "",
-   "date_note": "r15: east sun, lattice shadow on the left water (photo p06)"
+   "date_note": "r17: NNE late-morning sun, lattice shadow SW of the bridge (photo)"
   },
   {
    "id": "p07_drone_sw_citycat",
@@ -1079,7 +1079,7 @@
    "file": "from_river/cm_18074505.jpg",
    "title": "From the river south-east of the pier: pier portal, Mr Percival's, Felons on its piles, lift tower",
    "date": "2019-11-20",
-   "time_h": 8.5,
+   "time_h": 10.5,
    "size": [
     1600,
     1200
@@ -1144,7 +1144,7 @@
    },
    "holdout_rms_px": 20.0,
    "note": "round 2 (Wikimedia, Kgbo CC BY-SA 4.0). Lift top (995, 372) and Felons east ridge end (1240, 607) left out: they miss by 120-150 px, so the model lift tower or Felons east end is a few metres off (check next round)",
-   "date_note": "r15: lower east sun, longer bridge shadow on the left water"
+   "date_note": "r17: bridge shadow band at the left (photo)"
   },
   {
    "id": "p13_kp_bank_ferry",
