@@ -1,0 +1,164 @@
+{
+ "id": "queenswharf",
+ "name": "Queen's Wharf Brisbane",
+ "build_years": "2018-2024",
+ "origin": {
+  "lat": -27.4735626,
+  "lon": 153.0254439,
+  "mga56_E": 502513.76,
+  "mga56_N": 6961111.31,
+  "rule": "centroid of the OSM way 514750387 outline"
+ },
+ "frame": "+x east, +y north (MGA56 grid), z metres AHD; data covers x, y in [-400, 400]",
+ "osm_outline": {
+  "type": "way",
+  "id": 514750387,
+  "tags": {
+   "check_date": "2022-02-04",
+   "landuse": "construction",
+   "name": "Queens Wharf Development Brisbane",
+   "opening_date": "2022"
+  },
+  "ring_local": [
+   [
+    -32.45,
+    97.22
+   ],
+   [
+    7.8,
+    50.78
+   ],
+   [
+    7.5,
+    48.56
+   ],
+   [
+    64.4,
+    -16.67
+   ],
+   [
+    91.7,
+    -48.08
+   ],
+   [
+    36.93,
+    -98.21
+   ],
+   [
+    -73.43,
+    25.5
+   ],
+   [
+    -89.98,
+    41.56
+   ],
+   [
+    -93.61,
+    45.52
+   ],
+   [
+    -88.15,
+    50.0
+   ],
+   [
+    -32.45,
+    97.22
+   ]
+  ]
+ },
+ "aerials": {
+  "2012": {
+   "cover_800m": 0.875,
+   "from": [
+    "william1"
+   ]
+  },
+  "2013": {
+   "cover_800m": 0.875,
+   "from": [
+    "william1"
+   ]
+  },
+  "2015": {
+   "cover_800m": 0.895,
+   "from": [
+    "william1",
+    "skytower"
+   ]
+  },
+  "2016": {
+   "cover_800m": 0.895,
+   "from": [
+    "william1",
+    "skytower"
+   ]
+  },
+  "2017": {
+   "cover_800m": 0.992,
+   "from": [
+    "william1",
+    "queenswharf",
+    "skytower"
+   ],
+   "site_crop": {
+    "file": "aerial_2017_site400m.jpg",
+    "m_per_px": 0.25
+   }
+  },
+  "2018": {
+   "cover_800m": 0.836,
+   "from": [
+    "queenswharf",
+    "skytower"
+   ],
+   "site_crop": {
+    "file": "aerial_2018_site400m.jpg",
+    "m_per_px": 0.25
+   }
+  },
+  "2019": {
+   "cover_800m": 0.836,
+   "from": [
+    "queenswharf",
+    "skytower"
+   ],
+   "site_crop": {
+    "file": "aerial_2019_site400m.jpg",
+    "m_per_px": 0.25
+   }
+  },
+  "2020": {
+   "cover_800m": 0.836,
+   "from": [
+    "queenswharf",
+    "skytower"
+   ],
+   "site_crop": {
+    "file": "aerial_2020_site400m.jpg",
+    "m_per_px": 0.25
+   }
+  },
+  "2021": {
+   "cover_800m": 0.699,
+   "from": [
+    "queenswharf"
+   ],
+   "site_crop": {
+    "file": "aerial_2021_site400m.jpg",
+    "m_per_px": 0.25
+   }
+  },
+  "2022": {
+   "cover_800m": 0.992,
+   "from": [
+    "william1",
+    "queenswharf",
+    "skytower"
+   ],
+   "site_crop": {
+    "file": "aerial_2022_site400m.jpg",
+    "m_per_px": 0.25
+   }
+  }
+ }
+}

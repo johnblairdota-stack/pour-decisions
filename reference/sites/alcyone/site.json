@@ -1,0 +1,134 @@
+{
+ "id": "alcyone",
+ "name": "Alcyone Hotel Residences",
+ "build_years": "2015-2017",
+ "origin": {
+  "lat": -27.4397484,
+  "lon": 153.0696457,
+  "mga56_E": 506882.83,
+  "mga56_N": 6964855.12,
+  "rule": "centroid of the OSM way 566453920 outline"
+ },
+ "frame": "+x east, +y north (MGA56 grid), z metres AHD; data covers x, y in [-400, 400]",
+ "osm_outline": {
+  "type": "way",
+  "id": 566453920,
+  "tags": {
+   "building": "apartments",
+   "building:levels": "20",
+   "height": "70 m",
+   "layer": "1",
+   "name": "Alcyone Hotel Residences"
+  },
+  "ring_local": [
+   [
+    -24.56,
+    28.07
+   ],
+   [
+    -17.73,
+    26.15
+   ],
+   [
+    6.79,
+    19.27
+   ],
+   [
+    7.43,
+    21.81
+   ],
+   [
+    45.57,
+    11.03
+   ],
+   [
+    14.7,
+    -25.4
+   ],
+   [
+    12.29,
+    -23.47
+   ],
+   [
+    8.25,
+    -28.06
+   ],
+   [
+    -30.65,
+    -17.26
+   ],
+   [
+    -34.24,
+    -16.21
+   ],
+   [
+    -34.06,
+    -15.79
+   ],
+   [
+    -35.38,
+    -15.44
+   ],
+   [
+    -36.74,
+    -15.09
+   ],
+   [
+    -24.56,
+    28.07
+   ]
+  ]
+ },
+ "aerials": {
+  "2015": {
+   "cover_800m": 0.762,
+   "from": [
+    "alcyone"
+   ],
+   "site_crop": {
+    "file": "aerial_2015_site160m.jpg",
+    "m_per_px": 0.1
+   }
+  },
+  "2016": {
+   "cover_800m": 0.762,
+   "from": [
+    "alcyone"
+   ],
+   "site_crop": {
+    "file": "aerial_2016_site160m.jpg",
+    "m_per_px": 0.1
+   }
+  },
+  "2017": {
+   "cover_800m": 0.762,
+   "from": [
+    "alcyone"
+   ],
+   "site_crop": {
+    "file": "aerial_2017_site160m.jpg",
+    "m_per_px": 0.1
+   }
+  },
+  "2018": {
+   "cover_800m": 0.762,
+   "from": [
+    "alcyone"
+   ],
+   "site_crop": {
+    "file": "aerial_2018_site160m.jpg",
+    "m_per_px": 0.1
+   }
+  },
+  "2022": {
+   "cover_800m": 0.762,
+   "from": [
+    "alcyone"
+   ],
+   "site_crop": {
+    "file": "aerial_2022_site160m.jpg",
+    "m_per_px": 0.1
+   }
+  }
+ }
+}

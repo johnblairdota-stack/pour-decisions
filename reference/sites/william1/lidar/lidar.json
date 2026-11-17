@@ -1,0 +1,49 @@
+{
+ "box_local": [
+  -400,
+  -400,
+  400,
+  400
+ ],
+ "step_m": 1.0,
+ "rows": 800,
+ "cols": 800,
+ "order": "rows north to south, cols west to east; cell centres at (x0+c+0.5, y1-r-0.5)",
+ "class_codes": {
+  "0": "no return",
+  "1": "ground",
+  "2": "vegetation",
+  "3": "building",
+  "4": "other (bridge, cranes...)"
+ },
+ "trees": 2845,
+ "buildings": 158,
+ "site_2019": {
+  "cells": 3461,
+  "ground_min_ahd": -3.53,
+  "ground_median_ahd": 7.74,
+  "ground_max_ahd": 12.36,
+  "top_max_ahd": 266.64,
+  "top_p99_ahd": 229.85,
+  "area_over_6m_m2": 3200,
+  "area_over_50m_m2": 2743,
+  "area_over_150m_m2": 2729,
+  "height_bands_m2": {
+   "0-20": 704,
+   "20-40": 14,
+   "40-60": 1,
+   "80-100": 1,
+   "100-120": 4,
+   "120-140": 7,
+   "140-160": 7,
+   "160-180": 201,
+   "180-200": 963,
+   "200-220": 1553,
+   "220-240": 1,
+   "240-260": 5
+  },
+  "note": "2019 LiDAR (flown Jun-Aug 2019) inside the OSM outline grown 10 %; heights = DSM - ground."
+ },
+ "source": "Brisbane 2019 Project LiDAR (classified point cloud, flown 2019-06/08), ordered from ELVIS, gridded by tools/lidar/grid.js; gaps from the QldDem default mix.",
+ "credit": "(c) State of Queensland (Department of Resources), CC BY 4.0"
+}

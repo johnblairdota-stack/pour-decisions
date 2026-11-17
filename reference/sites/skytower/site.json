@@ -1,0 +1,197 @@
+{
+ "id": "skytower",
+ "name": "Brisbane Skytower",
+ "build_years": "2015-2019",
+ "origin": {
+  "lat": -27.4718484,
+  "lon": 153.028741,
+  "mga56_E": 502839.55,
+  "mga56_N": 6961301.12,
+  "rule": "centroid of the OSM way 683336940 outline"
+ },
+ "frame": "+x east, +y north (MGA56 grid), z metres AHD; data covers x, y in [-400, 400]",
+ "osm_outline": {
+  "type": "way",
+  "id": 683336940,
+  "tags": {
+   "addr:housenumber": "222",
+   "addr:street": "Margaret Street",
+   "building": "apartments",
+   "building:levels": "90",
+   "building:material": "mud",
+   "check_date": "2021-04-21",
+   "height": "269.7",
+   "name": "Brisbane Skytower",
+   "website": "https://www.arisehotels.com.au/properties/brisbane-skytower/",
+   "wikidata": "Q4631224",
+   "wikipedia": "en:Brisbane Skytower"
+  },
+  "ring_local": [
+   [
+    -20.53,
+    3.99
+   ],
+   [
+    -1.25,
+    20.83
+   ],
+   [
+    2.96,
+    23.22
+   ],
+   [
+    7.71,
+    23.49
+   ],
+   [
+    11.87,
+    22.16
+   ],
+   [
+    14.98,
+    19.62
+   ],
+   [
+    17.0,
+    16.34
+   ],
+   [
+    17.79,
+    12.43
+   ],
+   [
+    19.27,
+    -3.98
+   ],
+   [
+    19.32,
+    -7.98
+   ],
+   [
+    18.11,
+    -11.84
+   ],
+   [
+    15.51,
+    -15.65
+   ],
+   [
+    11.8,
+    -18.5
+   ],
+   [
+    7.22,
+    -20.05
+   ],
+   [
+    1.28,
+    -19.63
+   ],
+   [
+    -16.66,
+    -15.41
+   ],
+   [
+    -20.23,
+    -13.41
+   ],
+   [
+    -22.85,
+    -10.34
+   ],
+   [
+    -24.3,
+    -6.58
+   ],
+   [
+    -24.17,
+    -2.64
+   ],
+   [
+    -22.92,
+    0.99
+   ],
+   [
+    -20.53,
+    3.99
+   ]
+  ]
+ },
+ "aerials": {
+  "2015": {
+   "cover_800m": 0.932,
+   "from": [
+    "skytower",
+    "william1"
+   ],
+   "site_crop": {
+    "file": "aerial_2015_site160m.jpg",
+    "m_per_px": 0.1
+   }
+  },
+  "2016": {
+   "cover_800m": 0.932,
+   "from": [
+    "skytower",
+    "william1"
+   ],
+   "site_crop": {
+    "file": "aerial_2016_site160m.jpg",
+    "m_per_px": 0.1
+   }
+  },
+  "2017": {
+   "cover_800m": 0.935,
+   "from": [
+    "skytower",
+    "william1",
+    "queenswharf"
+   ],
+   "site_crop": {
+    "file": "aerial_2017_site160m.jpg",
+    "m_per_px": 0.1
+   }
+  },
+  "2018": {
+   "cover_800m": 0.872,
+   "from": [
+    "skytower",
+    "queenswharf"
+   ],
+   "site_crop": {
+    "file": "aerial_2018_site160m.jpg",
+    "m_per_px": 0.1
+   }
+  },
+  "2019": {
+   "cover_800m": 0.872,
+   "from": [
+    "skytower",
+    "queenswharf"
+   ],
+   "site_crop": {
+    "file": "aerial_2019_site160m.jpg",
+    "m_per_px": 0.1
+   }
+  },
+  "2020": {
+   "cover_800m": 0.872,
+   "from": [
+    "skytower",
+    "queenswharf"
+   ]
+  },
+  "2022": {
+   "cover_800m": 0.935,
+   "from": [
+    "skytower",
+    "william1",
+    "queenswharf"
+   ],
+   "site_crop": {
+    "file": "aerial_2022_site160m.jpg",
+    "m_per_px": 0.1
+   }
+  }
+ }
+}
