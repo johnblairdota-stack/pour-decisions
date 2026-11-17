@@ -1,0 +1,262 @@
+{
+ "round": 12,
+ "pairs": [
+  {
+   "id": "aerial_ne_dusk",
+   "render_file": "aerial_ne_dusk_render.jpg",
+   "kind": "photo pair (photo is John's, not in git)",
+   "camera": {
+    "pos": [
+     163.0,
+     334.2,
+     352.4
+    ],
+    "heading_deg": 206.4,
+    "pitch_deg": -29.28,
+    "focal_35mm": 27.3
+   },
+   "fit_rms_px": 6.8
+  },
+  {
+   "id": "cathedral_forecourt",
+   "render_file": "cathedral_forecourt_render.jpg",
+   "kind": "photo pair (photo is John's, not in git)",
+   "camera": {
+    "pos": [
+     -149.2,
+     -59.0,
+     27.7
+    ],
+    "heading_deg": 86.1,
+    "pitch_deg": 0.0,
+    "focal_35mm": 26.4
+   },
+   "fit_rms_px": 12.2
+  },
+  {
+   "id": "crane_from_nw",
+   "render_file": "crane_from_nw_render.jpg",
+   "kind": "photo pair (photo is John's, not in git)",
+   "camera": {
+    "pos": [
+     -306.1,
+     -2.0,
+     300.3
+    ],
+    "heading_deg": 89.8,
+    "pitch_deg": -34.52,
+    "focal_35mm": 41.8
+   },
+   "fit_rms_px": 7.0
+  },
+  {
+   "id": "ann_st_far",
+   "render_file": "ann_st_far_render.jpg",
+   "kind": "photo pair (photo is John's, not in git)",
+   "camera": {
+    "pos": [
+     184.6,
+     260.7,
+     26.4
+    ],
+    "heading_deg": 216.2,
+    "pitch_deg": 0.0,
+    "focal_35mm": 59.5
+   },
+   "fit_rms_px": 12.4
+  },
+  {
+   "id": "fly_by_east",
+   "render_file": "fly_by_east_render.jpg",
+   "kind": "photo pair (photo is John's, not in git)",
+   "camera": {
+    "pos": [
+     77.0,
+     190.0,
+     74.5
+    ],
+    "heading_deg": 200.7,
+    "pitch_deg": 0.86,
+    "focal_35mm": 25.3
+   },
+   "fit_rms_px": 15.1
+  },
+  {
+   "id": "crane_from_south",
+   "render_file": "crane_from_south_render.jpg",
+   "kind": "photo pair (photo is John's, not in git)",
+   "camera": {
+    "pos": [
+     -130.9,
+     -143.9,
+     291.3
+    ],
+    "heading_deg": 41.4,
+    "pitch_deg": -41.29,
+    "focal_35mm": 59.7
+   },
+   "fit_rms_px": 0.3
+  },
+  {
+   "id": "queen_st_willahra",
+   "render_file": "queen_st_willahra_render.jpg",
+   "kind": "photo pair (photo is John's, not in git)",
+   "camera": {
+    "pos": [
+     56.0,
+     -9.3,
+     16.9
+    ],
+    "heading_deg": 268.0,
+    "pitch_deg": 38.5,
+    "focal_35mm": 20.8
+   },
+   "fit_rms_px": 7.5
+  },
+  {
+   "id": "orient_front",
+   "render_file": "orient_front_render.jpg",
+   "kind": "photo pair (photo is John's, not in git)",
+   "camera": {
+    "pos": [
+     49.9,
+     60.3,
+     20.5
+    ],
+    "heading_deg": 223.5,
+    "pitch_deg": 37.86,
+    "focal_35mm": 24.7
+   },
+   "fit_rms_px": 24.8
+  },
+  {
+   "id": "ann_queen_corner",
+   "render_file": "ann_queen_corner_render.jpg",
+   "kind": "photo pair (photo is John's, not in git)",
+   "camera": {
+    "pos": [
+     108.9,
+     163.9,
+     22.9
+    ],
+    "heading_deg": 212.5,
+    "pitch_deg": 0.0,
+    "focal_35mm": 27.9
+   },
+   "fit_rms_px": 31.7
+  },
+  {
+   "id": "spire_ann_st_2018",
+   "render_file": "spire_ann_st_2018_render.jpg",
+   "kind": "Commons photo pair (showcase_cams.json)"
+  },
+  {
+   "id": "cathedral_ann_st_2012",
+   "render_file": "cathedral_ann_st_2012_render.jpg",
+   "kind": "Commons photo pair (showcase_cams.json)"
+  },
+  {
+   "id": "cathedral_west_front_2010",
+   "render_file": "cathedral_west_front_2010_render.jpg",
+   "kind": "Commons photo pair (showcase_cams.json)"
+  }
+ ],
+ "heroes": [
+  {
+   "file": "hero_aerial.jpg",
+   "caption": "Over Spring Hill to the river"
+  },
+  {
+   "file": "hero_ann_st_streetscape.jpg",
+   "caption": "Ann St looking north-east from the cathedral corner"
+  },
+  {
+   "file": "hero_annqueen.jpg",
+   "caption": "Ann St at Queen St"
+  },
+  {
+   "file": "hero_annstcath.jpg",
+   "caption": "Ann St outside the cathedral"
+  },
+  {
+   "file": "hero_carpark_eye.jpg",
+   "caption": "St John's Cathedral car park at eye level, looking west along the bays"
+  },
+  {
+   "file": "hero_carpark_raised.jpg",
+   "caption": "Cathedral car park from above the Deanery side"
+  },
+  {
+   "file": "hero_cathedral_from_carpark.jpg",
+   "caption": "The cathedral's north side and chancel from the car park"
+  },
+  {
+   "file": "hero_cathedral_grounds.jpg",
+   "caption": "Cathedral grounds: west front, drive, lawn and beds"
+  },
+  {
+   "file": "hero_cathedral_lawn_eye.jpg",
+   "caption": "Cathedral lawn and beds by the west front"
+  },
+  {
+   "file": "hero_church_house_webber.jpg",
+   "caption": "Church House and Webber House across Ann St"
+  },
+  {
+   "file": "hero_crane.jpg",
+   "caption": "Near top-out, 2017"
+  },
+  {
+   "file": "hero_customs_house.jpg",
+   "caption": "Customs House from Queen St"
+  },
+  {
+   "file": "hero_customs_house_river.jpg",
+   "caption": "Customs House colonnade and dome from the river walk"
+  },
+  {
+   "file": "hero_deanery.jpg",
+   "caption": "The Deanery over its car park"
+  },
+  {
+   "file": "hero_flyby.jpg",
+   "caption": "Petrie Bight from the east"
+  },
+  {
+   "file": "hero_forecourt.jpg",
+   "caption": "Cathedral forecourt, Ann St"
+  },
+  {
+   "file": "hero_mantra.jpg",
+   "caption": "Mantra on Queen from the Boundary St junction"
+  },
+  {
+   "file": "hero_orient.jpg",
+   "caption": "Orient Hotel from the Ann/Queen corner"
+  },
+  {
+   "file": "hero_orient_hotel.jpg",
+   "caption": "Orient Hotel from the Ann/Queen junction"
+  },
+  {
+   "file": "hero_petrie_bight_towers.jpg",
+   "caption": "Petrie Bight towers: Macrossan, Skyline, Admiralty Quays"
+  },
+  {
+   "file": "hero_queen_st_streetscape.jpg",
+   "caption": "Queen St looking north towards Spire"
+  },
+  {
+   "file": "hero_roof.jpg",
+   "caption": "Spire roof"
+  },
+  {
+   "file": "hero_westfront.jpg",
+   "caption": "St John's west front"
+  },
+  {
+   "file": "hero_willahra_admiralty.jpg",
+   "caption": "Queen St looking south: Willahra, Marriott, Admiralty"
+  }
+ ]
+}
