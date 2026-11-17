@@ -18,6 +18,7 @@ import ground, streets, buildings, spire, core, landmarks, cathedral, hsw, trees
 MODULES = [ground, streets, buildings, spire, core, landmarks, cathedral, hsw, trees, logistics, site_plant, streetscape]
 MODULES.append(__import__("area_hero"))   # Spire-area thread: everything around the site, built last
 MODULES.append(__import__("cbd_ext"))     # tower-data thread: the CBD south-west of the square (Skytower, 1 William St)
+MODULES.append(__import__("city_wide"))   # tower-data thread: every OSM building over the whole LiDAR download
 MODULES.append(__import__("far_roads"))   # tower-data thread: OSM roads, rail and bridges outside the LiDAR box
 
 

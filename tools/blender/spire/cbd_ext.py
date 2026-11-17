@@ -25,6 +25,7 @@ import layout as L
 import common as C
 
 EXT = os.path.join(L.REF, "ext")
+RIVER = os.path.join(L.REF, "river")
 GRIDS = {}       # built ground height grids (for far_roads.py): name -> (x of col 0, y of row 0, step, z[, cover])
 STEP = 2
 
@@ -90,6 +91,14 @@ def build_ground(col):
     cs = cov[np.ix_(rows, cols)] > 0
     X, Y = np.meshgrid(bx0 + cols + 0.5, by1 - rows - 0.5)
     sub = np.where((sub < 1.6) & (sub > L.RIVER_LEVEL_AHD - 2.0), np.minimum(sub, -1.2), sub)   # as ground.py: flats go under
+    if os.path.exists(os.path.join(RIVER, "river.json")):
+        # the traced river is the authority on water: moored boats, pontoons and gap-fill artefacts in the
+        # LiDAR ground stood in the river as land masses (John, 17 Nov)
+        rm, water, _ = river_data()
+        wd = L.box_blur(water.astype("f4"), 3) > 1e-3                    # 6 m out from the traced water
+        wr = np.clip(((rm["box_local"][3] - Y) / rm["step_m"]).astype(int), 0, water.shape[0] - 1)
+        wc = np.clip(((X - rm["box_local"][0]) / rm["step_m"]).astype(int), 0, water.shape[1] - 1)
+        sub = np.where((water[wr, wc] > 0) | (wd[wr, wc] & (sub < 4.5)), -2.0, sub)
     GRIDS["ext"] = (bx0 + 0.5, by1 - 0.5, STEP, sub, cs)
     R, Cn = sub.shape
     verts = np.stack([X, Y, sub], -1).reshape(-1, 3)
@@ -147,10 +156,11 @@ def cut_far(box):
     return removed
 
 
-def build_buildings():
+def build_buildings(recs=None, zone=None, collection="cbd_ext", suffix="_ext"):
     import buildings as B
     import looks as LK
-    recs = json.load(open(os.path.join(EXT, "buildings_ext.json")))["buildings"]
+    if recs is None:
+        recs = json.load(open(os.path.join(EXT, "buildings_ext.json")))["buildings"]
     o = L.osm()
     added = []
     for r in recs:                                  # tags for look_for (the Spire OSM crop does not hold these ways)
@@ -162,7 +172,7 @@ def build_buildings():
     keep = B.records
     B.records = lambda: recs
     try:
-        res = B.build(zone=tuple(meta()["box_local"]), collection="cbd_ext", only={r["osm"] for r in recs}, suffix="_ext")
+        res = B.build(zone=zone or tuple(meta()["box_local"]), collection=collection, only={r["osm"] for r in recs}, suffix=suffix)
     finally:
         B.records = keep
         for k in added:
@@ -172,12 +182,13 @@ def build_buildings():
 
 def build_trees(col):
     import trees as T
+    import far_roads as FR
     trunks, crowns, palms = C.MeshBuf(), C.MeshBuf(), C.MeshBuf()
     n = 0
     with open(os.path.join(EXT, "tree_points_ext.csv"), encoding="utf-8") as f:
         for r in csv.DictReader(f):
             x, y, h, g = float(r["x_local"]), float(r["y_local"]), float(r["height_m"]), float(r["ground_ahd"])
-            if h < 3.0 or h > 40.0:
+            if FR.on_road(x, y) or h < 3.0 or h > 40.0:
                 continue
             s = T.species(x, y, h)
             if s == "palm":
@@ -207,7 +218,6 @@ def build_trees(col):
 
 
 # ---------------------------------------------------------------- far ground with the real river (17 Nov)
-RIVER = os.path.join(L.REF, "river")
 FAR_STEP = 6.0
 FAR_Z = 8.0
 
@@ -319,6 +329,28 @@ def build_far(col):
     return ob, int(len(faces)), removed
 
 
+def sink_river_land():
+    """No land masses in the river (John, 17 Nov): ground vertices of the master LiDAR ground that stand above
+    the water where the aerial trace says open river (4 m in from the banks) go under. They were moored
+    boats, pontoons and mud the LiDAR ground kept."""
+    ob = bpy.data.objects.get("ground_lidar2019_smooth")
+    if ob is None:
+        return 0
+    rm, water, _ = river_data()
+    deep = L.box_blur(water.astype("f4"), 2) > 1 - 1e-3
+    n = len(ob.data.vertices)
+    co = np.empty(n * 3, "f4")
+    ob.data.vertices.foreach_get("co", co)
+    co = co.reshape(-1, 3)
+    r = np.clip(((rm["box_local"][3] - co[:, 1]) / rm["step_m"]).astype(int), 0, water.shape[0] - 1)
+    c = np.clip(((co[:, 0] - rm["box_local"][0]) / rm["step_m"]).astype(int), 0, water.shape[1] - 1)
+    bad = deep[r, c] & (co[:, 2] > L.RIVER_LEVEL_AHD - 0.5)
+    co[bad, 2] = -2.0
+    ob.data.vertices.foreach_set("co", co.ravel())
+    ob.data.update()
+    return int(bad.sum())
+
+
 def build():
     global bpy
     import bpy
@@ -328,6 +360,8 @@ def build():
     far = None
     if os.path.exists(os.path.join(RIVER, "river.json")):
         far = build_far(col)
+        sunk = sink_river_land()
+        print("cbd_ext: river land sunk inside the LiDAR box: %d vertices" % sunk)
     gob, box, nf = build_ground(col)
     cut = cut_far(box)
     res, nrec = build_buildings()

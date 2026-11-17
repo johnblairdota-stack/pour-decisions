@@ -64,59 +64,10 @@ def already_built(cx, cy):
     return x0 + 5 < cx < x1 - 5 and y0 + 5 < cy < y1 - 5 and abs(cx) <= lim and abs(cy) <= lim
 
 
-def main():
-    packs = [load_pack(p) for p in PACKS]
-    # box: the union of the packs in Spire local metres, whole metres
-    bx0 = min(math.floor(p["off"][0] + p["box"][0]) for p in packs)
-    by0 = min(math.floor(p["off"][1] + p["box"][1]) for p in packs)
-    bx1 = max(math.ceil(p["off"][0] + p["box"][2]) for p in packs)
-    by1 = max(math.ceil(p["off"][1] + p["box"][3]) for p in packs)
-    box = (bx0, by0, bx1, by1)
-    H, W = by1 - by0, bx1 - bx0
-    cx_ = bx0 + np.arange(W) + 0.5
-    cy_ = by1 - np.arange(H) - 0.5
-    X, Y = np.meshgrid(cx_, cy_)
-    gnd = np.full((H, W), np.nan, "f4")
-    dsm = np.full((H, W), np.nan, "f4")
-    cls = np.zeros((H, W), "u1")
-    best = np.full((H, W), np.inf)
-    for p in packs:                                   # nearest pack origin wins (its own data is most central)
-        ox, oy = p["off"]
-        px0, py0, px1, py1 = p["box"]
-        lx, ly = X - ox, Y - oy
-        c = np.floor(lx - px0).astype(int)
-        r = np.floor(py1 - ly).astype(int)
-        ok = (c >= 0) & (c < px1 - px0) & (r >= 0) & (r < py1 - py0)
-        d = np.hypot(lx, ly)
-        take = ok & (d < best)
-        rr, cc = r[take], c[take]
-        gnd[take] = p["gnd"][rr, cc]
-        dsm[take] = p["dsm"][rr, cc]
-        cls[take] = p["cls"][rr, cc]
-        best[take] = d[take]
-    cover = np.isfinite(gnd)
-    g = np.where(cover, gnd, np.nanmedian(gnd))
-    # the river: no LiDAR return (class 0) on low ground is water; the gap fill put its surface at +1.6 to
-    # +3.6 m, above the scene's water plane, so it goes under (as ground.py does for the mud flats)
-    water = cover & (cls == 0) & (g < 5.0)
-    water = L.box_blur(water.astype("f4"), 2) > 0.5           # no single-cell specks
-    g = np.where(water, -2.0, g)
-    gs =L.box_blur(L.box_blur(g, 2), 2).astype("f4")      # same smoothing idea as lidar('ground_smooth')
-    os.makedirs(OUT, exist_ok=True)
-    gzip.open(os.path.join(OUT, "ground_1m.f32.gz"), "wb").write(gs.astype("<f4").tobytes())
-    gzip.open(os.path.join(OUT, "cover_1m.u8.gz"), "wb").write(cover.astype("u1").tobytes())
-
-    # ---- buildings (OSM from every pack, merged by way id)
-    nodes, ways = {}, {}
-    for p in packs:
-        ox, oy = p["off"]
-        raw = json.load(gzip.open(os.path.join(p["dir"], "osm_%s_800m.json.gz" % p["id"]), "rt", encoding="utf-8"))
-        for el in raw["elements"]:
-            if el["type"] == "node" and el["id"] not in nodes:
-                x, y = L.to_local(el["lat"], el["lon"])
-                nodes[el["id"]] = (x, y)
-            elif el["type"] == "way":
-                ways.setdefault(el["id"], el)
+def shape_buildings(ways, nodes, box, gnd, dsm, cls, cover, already_built):
+    """prep_clean.py's rules over any LiDAR mosaic: one record per OSM building (tiers, gable, spires, family).
+    ways {id: OSM way}, nodes {id: (x, y) local}; gnd/dsm/cls/cover are 1 m grids over box."""
+    bx0, by0, bx1, by1 = box
     out, skipped, built_already = [], 0, 0
     for wid, w in ways.items():
         t = w.get("tags", {})
@@ -228,6 +179,63 @@ def main():
     for b in out:
         b.pop("_mask", None)
     print("overlap cuts", cut)
+    return out, skipped, built_already
+
+
+def main():
+    packs = [load_pack(p) for p in PACKS]
+    # box: the union of the packs in Spire local metres, whole metres
+    bx0 = min(math.floor(p["off"][0] + p["box"][0]) for p in packs)
+    by0 = min(math.floor(p["off"][1] + p["box"][1]) for p in packs)
+    bx1 = max(math.ceil(p["off"][0] + p["box"][2]) for p in packs)
+    by1 = max(math.ceil(p["off"][1] + p["box"][3]) for p in packs)
+    box = (bx0, by0, bx1, by1)
+    H, W = by1 - by0, bx1 - bx0
+    cx_ = bx0 + np.arange(W) + 0.5
+    cy_ = by1 - np.arange(H) - 0.5
+    X, Y = np.meshgrid(cx_, cy_)
+    gnd = np.full((H, W), np.nan, "f4")
+    dsm = np.full((H, W), np.nan, "f4")
+    cls = np.zeros((H, W), "u1")
+    best = np.full((H, W), np.inf)
+    for p in packs:                                   # nearest pack origin wins (its own data is most central)
+        ox, oy = p["off"]
+        px0, py0, px1, py1 = p["box"]
+        lx, ly = X - ox, Y - oy
+        c = np.floor(lx - px0).astype(int)
+        r = np.floor(py1 - ly).astype(int)
+        ok = (c >= 0) & (c < px1 - px0) & (r >= 0) & (r < py1 - py0)
+        d = np.hypot(lx, ly)
+        take = ok & (d < best)
+        rr, cc = r[take], c[take]
+        gnd[take] = p["gnd"][rr, cc]
+        dsm[take] = p["dsm"][rr, cc]
+        cls[take] = p["cls"][rr, cc]
+        best[take] = d[take]
+    cover = np.isfinite(gnd)
+    g = np.where(cover, gnd, np.nanmedian(gnd))
+    # the river: no LiDAR return (class 0) on low ground is water; the gap fill put its surface at +1.6 to
+    # +3.6 m, above the scene's water plane, so it goes under (as ground.py does for the mud flats)
+    water = cover & (cls == 0) & (g < 5.0)
+    water = L.box_blur(water.astype("f4"), 2) > 0.5           # no single-cell specks
+    g = np.where(water, -2.0, g)
+    gs =L.box_blur(L.box_blur(g, 2), 2).astype("f4")      # same smoothing idea as lidar('ground_smooth')
+    os.makedirs(OUT, exist_ok=True)
+    gzip.open(os.path.join(OUT, "ground_1m.f32.gz"), "wb").write(gs.astype("<f4").tobytes())
+    gzip.open(os.path.join(OUT, "cover_1m.u8.gz"), "wb").write(cover.astype("u1").tobytes())
+
+    # ---- buildings (OSM from every pack, merged by way id)
+    nodes, ways = {}, {}
+    for p in packs:
+        ox, oy = p["off"]
+        raw = json.load(gzip.open(os.path.join(p["dir"], "osm_%s_800m.json.gz" % p["id"]), "rt", encoding="utf-8"))
+        for el in raw["elements"]:
+            if el["type"] == "node" and el["id"] not in nodes:
+                x, y = L.to_local(el["lat"], el["lon"])
+                nodes[el["id"]] = (x, y)
+            elif el["type"] == "way":
+                ways.setdefault(el["id"], el)
+    out, skipped, built_already = shape_buildings(ways, nodes, box, gnd, dsm, cls, cover, already_built)
     json.dump({"note": "CBD extension of buildings_clean.json (same rules, prep_clean.py), Spire local metres. "
                        "Made by tools/sites/clean_ext.py from the prep_site.py packs.", "buildings": out},
               open(os.path.join(OUT, "buildings_ext.json"), "w"), separators=(",", ":"))

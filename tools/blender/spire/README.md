@@ -170,3 +170,21 @@ named river bridges from published figures: William Jolly (3 x 72.5 m arches), M
 arch), Goodwill (102 m x 15 m arch), Kurilpa (20 masts + canopy), Neville Bonner (75 m mast, two 60 m
 arches), Kangaroo Point (single mast: height 78 m and position are estimates). Roads inside `LIDAR_BOX`
 stay with `streets.py`; the Story Bridge stays with `landmarks.py`. Tunnels are left out.
+
+## The whole LiDAR area (city_wide)
+
+`python3 tools/sites/clean_wide.py <PourDecisions-sites>/data` mosaics every 2019 LiDAR tile under
+`data/cbd/elvis/grid2019` (currently 4 x 4 km, E501000-505000 x N6960000-6964000) and shapes every OSM
+building the scene doesn't already have with the same rules as `clean_ext.py` (`shape_buildings`): height
+tiers, gables and spires from the LiDAR. It also pulls LiDAR tree points and the OSM traffic signals, street
+lamps, motorway junctions and area features (parking, parks, pitches, stadiums). Output:
+`reference/sites/spire/wide/`. Add more LiDAR tiles and re-run to grow the area.
+
+`city_wide.py` (before `far_roads` in `build_all.MODULES`) builds those buildings and trees, gives small low
+houses with no measured ridge a best-guess gable (`roof_guess`), drops crane-like spires over 30 m and removes
+the fake far-suburb boxes inside the LiDAR area. `cbd_ext.sink_river_land()` lowers any ground vertex of
+`ground_lidar2019_smooth` that the traced river mask says is water (build time only, no land in the river).
+
+`far_roads.py` also paints lane lines, centre lines and edge lines, stands street light columns along the
+main roads, traffic signals at the OSM signal nodes and green sign gantries before each motorway junction.
+Trees are kept off the road surfaces (`far_roads.on_road`).

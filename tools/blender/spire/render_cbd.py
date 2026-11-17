@@ -39,6 +39,20 @@ CAMS = [
      "note": "from over Kangaroo Point looking NW along the Kangaroo Point Bridge to the city"},
     {"id": "roads_top", "ortho": 2600.0, "pos": (-900, -1000, 3000), "look_at": (-900, -1000, 0), "size": (1600, 1600),
      "note": "straight down over the south-west: roads, rail and bridges on the aerial"},
+    {"id": "city_top", "ortho": 4200.0, "pos": (-46, -279, 3000), "look_at": (-46, -279, 0), "size": (1600, 1600),
+     "note": "straight down over the whole 4 x 4 km LiDAR area"},
+    {"id": "city_from_north", "pos": (-900, 1900, 420), "look_at": (-350, -600, 30), "lens": 28,
+     "note": "from over Herston looking south: Spring Hill, the CBD and the river beyond"},
+    {"id": "city_from_west", "pos": (-2300, -500, 300), "look_at": (-400, -800, 40), "lens": 28,
+     "note": "from over Paddington looking east: Suncorp Stadium, Roma Street, the CBD"},
+    {"id": "city_from_south", "pos": (-300, -2700, 330), "look_at": (-350, -900, 40), "lens": 28,
+     "note": "from over Woolloongabba looking north: the Gabba, Kangaroo Point, South Bank, the CBD"},
+    {"id": "road_riverside_expressway", "pos": (-600, -1295, 21), "look_at": (-505, -1440, 10), "lens": 28,
+     "note": "over the Riverside Expressway deck by 1 William St: lane lines, lights, parapets"},
+    {"id": "road_stanley_street", "pos": (455, -2600, 28), "look_at": (330, -2568, 6), "lens": 28,
+     "note": "over Stanley St, Woolloongabba: markings, signals, street lights, house roofs"},
+    {"id": "city_street_west_end", "pos": (-1500, -1450, 60), "look_at": (-700, -1000, 60), "lens": 30,
+     "note": "low over West End roofs looking NE to the CBD"},
 ]
 
 

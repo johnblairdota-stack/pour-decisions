@@ -186,6 +186,13 @@ def main():
     lab2 = label_coarse(river)
     ids2, cnt2 = np.unique(lab2[lab2 >= 0], return_counts=True)
     river = np.isin(lab2, ids2[cnt2 * STEP * STEP >= MIN_REACH_M2])
+    # there are no islands in these reaches: "land" inside the river under 5 ha is a boat, pontoon, wake,
+    # bridge pier or shadow the classifier missed, so it is water
+    land = label_coarse(~river)
+    ids3, cnt3 = np.unique(land[land >= 0], return_counts=True)
+    holes = np.isin(land, ids3[cnt3 * STEP * STEP < 50000])
+    river |= holes
+    print("holes filled (ha)", round(float(holes.sum()) * STEP * STEP / 1e4, 2))
 
     os.makedirs(OUT, exist_ok=True)
     gzip.open(os.path.join(OUT, "water_2m.u8.gz"), "wb").write(river.astype("u1").tobytes())

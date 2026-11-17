@@ -27,7 +27,35 @@ SKIP_NAMES = {"Bradfield Highway", "Story Bridge"}
 PIER_EVERY = 35.0
 COL = {"asphalt": (0.085, 0.085, 0.09), "motorway": (0.13, 0.13, 0.135), "rail": (0.27, 0.24, 0.21),
        "deck": (0.5, 0.49, 0.46), "concrete": (0.6, 0.58, 0.54), "steel_white": (0.86, 0.86, 0.84),
-       "jolly_cream": (0.8, 0.74, 0.6), "steel_grey": (0.42, 0.44, 0.46), "canopy": (0.75, 0.75, 0.73)}
+       "jolly_cream": (0.8, 0.74, 0.6), "steel_grey": (0.42, 0.44, 0.46), "canopy": (0.75, 0.75, 0.73), "paint": (0.85, 0.85, 0.82), "pole": (0.5, 0.51, 0.52),
+       "lamp": (0.9, 0.88, 0.8), "signal": (0.03, 0.03, 0.03), "lens_red": (0.6, 0.03, 0.02), "lens_amber": (0.7, 0.4, 0.02),
+       "lens_green": (0.03, 0.5, 0.15), "sign_green": (0.02, 0.22, 0.11)}
+
+
+_ROAD_CELLS = None
+
+
+def on_road(x, y):
+    """True within a road, rail line or bridge deck (plus 1.5 m) of roads.json: trees keep off them."""
+    global _ROAD_CELLS
+    if _ROAD_CELLS is None:
+        _ROAD_CELLS = set()
+        if os.path.exists(ROADS):
+            for w in json.load(open(ROADS))["ways"]:
+                if w["kind"] == "path" and not w["bridge"]:
+                    continue
+                h = w["width"] / 2 + 1.5
+                pts = w["pts"]
+                for i, (px, py) in enumerate(pts):
+                    a, b = pts[max(i - 1, 0)], pts[min(i + 1, len(pts) - 1)]
+                    dx, dy = b[0] - a[0], b[1] - a[1]
+                    ln = math.hypot(dx, dy) or 1.0
+                    nx, ny = -dy / ln, dx / ln
+                    k = int(h // 2) + 1
+                    for j in range(-k, k + 1):
+                        o = h * j / k
+                        _ROAD_CELLS.add((int((px + nx * o) // 2), int((py + ny * o) // 2)))
+    return (int(x // 2), int(y // 2)) in _ROAD_CELLS
 
 
 class Ground:
@@ -85,6 +113,120 @@ def ribbon(buf, pts, wd, G, lift):
     n = len(pts)
     verts = [(left[i][0], left[i][1], float(z[i])) for i in range(n)] + [(right[i][0], right[i][1], float(z[i])) for i in range(n)]
     buf.add(verts, [[i, n + i, n + i + 1, i + 1] for i in range(n - 1)])
+    return [float(v) for v in z]
+
+
+MAJOR = ("motorway", "trunk", "primary", "secondary")
+
+
+def stripe(buf, pts, zs, off, dashed, w=0.14, lift=0.05):
+    """Painted line `off` metres left of the centre line; dashed = 4 m on, 8 m off."""
+    a, b = C.offset_line(pts, off + w / 2), C.offset_line(pts, off - w / 2)
+    n = len(pts)
+    verts = [(a[i][0], a[i][1], zs[i] + lift) for i in range(n)] + [(b[i][0], b[i][1], zs[i] + lift) for i in range(n)]
+    buf.add(verts, [[i, n + i, n + i + 1, i + 1] for i in range(n - 1) if not dashed or i % 3 == 0])
+
+
+def markings(buf, w, pts, zs):
+    """Line marking from the OSM class, lanes and oneway (Queensland practice: dashed lane lines, solid
+    centre line on main roads, edge lines on motorways). Service roads and lanes under 5.5 m: none."""
+    cls, wd = w["cls"], w["width"]
+    if cls in ("service", "living_street", "busway") or wd < 5.5 or len(pts) < 3:
+        return 0
+    lanes = int(w.get("lanes") or 0) or max(1 if w["oneway"] else 2, int(wd // 3.4))
+    lw = wd / lanes
+    for k in range(1, lanes):
+        off = -wd / 2 + k * lw
+        centre = (not w["oneway"]) and lanes % 2 == 0 and k == lanes // 2
+        if centre and cls.startswith(MAJOR):
+            stripe(buf, pts, zs, off + 0.12, False)
+            stripe(buf, pts, zs, off - 0.12, False)
+        else:
+            stripe(buf, pts, zs, off, True)
+    if cls.startswith(("motorway", "trunk")):
+        stripe(buf, pts, zs, wd / 2 - 0.3, False)
+        stripe(buf, pts, zs, -wd / 2 + 0.3, False)
+    return lanes
+
+
+def lights(bufs, w, pts, zs, every=12):
+    """Street lights on the main roads: 10.5 m column, 2.5 m outreach, alternate sides every ~48 m (a guess
+    at the usual Brisbane spacing; OSM maps almost none)."""
+    if not w["cls"].startswith(MAJOR) or len(pts) < every:
+        return 0
+    n = 0
+    start = (w["id"] % every)
+    for i in range(start, len(pts) - 1, every):
+        tx, ty, nx, ny = frame(pts, i)
+        sd = 1 if (i // every + w["id"]) % 2 else -1
+        o = w["width"] / 2 + 1.4
+        x, y, z = pts[i][0] + nx * o * sd, pts[i][1] + ny * o * sd, zs[i]
+        bufs["pole"].beam((x, y, z - 0.5), (x, y, z + 10.5), 0.2)
+        hx, hy = x - nx * sd * 2.5, y - ny * sd * 2.5
+        bufs["pole"].beam((x, y, z + 10.4), (hx, hy, z + 10.7), 0.12)
+        bufs["lamp"].box(hx, hy, z + 10.55, 0.75, 0.3, 0.14, math.atan2(ny, nx))
+        n += 1
+    return n
+
+
+def signals(bufs, feats, G, ways):
+    """Traffic signals at the OSM signal nodes outside the LiDAR box: a post with a head each side of the
+    junction and a mast arm over the road (direction from the nearest road)."""
+    pts = np.array([p for w in ways if w["kind"] == "road" and not w["bridge"] for p in w["pts"][::2]] or [(0, 0)])
+    n = 0
+    for x, y in feats.get("traffic_signals", []):
+        if in_box(x, y):
+            continue
+        d = np.hypot(pts[:, 0] - x, pts[:, 1] - y)
+        j = int(np.argmin(d))
+        if d[j] > 25:
+            continue
+        k = int(np.argmin(np.where(np.arange(len(d)) == j, 1e9, d)))
+        ang = math.atan2(pts[k][1] - pts[j][1], pts[k][0] - pts[j][0])
+        z = float(G.z([x], [y])[0])
+        for sd in (1, -1):
+            c, s = math.cos(ang), math.sin(ang)
+            px, py = x + (-s) * 6.5 * sd + c * 5.0 * sd, y + c * 6.5 * sd + s * 5.0 * sd
+            bufs["pole"].beam((px, py, z), (px, py, z + 6.2), 0.16)
+            ax, ay = px + s * 4.5 * sd, py - c * 4.5 * sd                      # mast arm out over the road
+            bufs["pole"].beam((px, py, z + 6.0), (ax, ay, z + 6.2), 0.12)
+            for hx, hy, hz in ((px, py, z + 3.2), (ax, ay, z + 5.6)):
+                bufs["signal"].box(hx, hy, hz, 0.36, 0.3, 1.1, ang)
+                for q, key in enumerate(("lens_green", "lens_amber", "lens_red")):
+                    bufs[key].box(hx - c * 0.17 * sd, hy - s * 0.17 * sd, hz + 0.12 + q * 0.34, 0.06, 0.2, 0.2, ang)
+            n += 1
+    return n
+
+
+def gantries(bufs, feats, ways):
+    """Green direction-sign gantry across the carriageway at each OSM motorway junction (exit) node."""
+    mw = [(p, w, i) for w in ways if w["cls"].startswith(("motorway", "trunk")) for i, p in enumerate(w["pts"])]
+    if not mw:
+        return 0
+    arr = np.array([p for p, _, _ in mw])
+    n = 0
+    for x, y, ref, name in feats.get("motorway_junctions", []):
+        d = np.hypot(arr[:, 0] - x, arr[:, 1] - y)
+        j = int(np.argmin(d))
+        if d[j] > 30:
+            continue
+        _, w, i = mw[j]
+        back = max(i - 20, 0)                                               # the sign stands ~80 m before the exit
+        pts = [tuple(p) for p in w["pts"]]
+        if in_box(pts[back][0], pts[back][1]):
+            continue
+        z = w["deck"][back] if w["bridge"] else GROUND.z([pts[back][0]], [pts[back][1]])[0] + 0.5
+        tx, ty, nx, ny = frame(pts, back)
+        o = w["width"] / 2 + 1.6
+        a = (pts[back][0] + nx * o, pts[back][1] + ny * o)
+        b = (pts[back][0] - nx * o, pts[back][1] - ny * o)
+        for q in (a, b):
+            bufs["pole"].beam((q[0], q[1], z - 0.5), (q[0], q[1], z + 8.2), 0.35)
+        for dz in (6.3, 8.0):
+            bufs["pole"].beam((a[0], a[1], z + dz), (b[0], b[1], z + dz), 0.25)
+        bufs["sign_green"].box(pts[back][0] - tx * 0.3, pts[back][1] - ty * 0.3, z + 6.1, 0.12, min(2 * o - 2.0, 9.0), 2.4, math.atan2(ty, tx))
+        n += 1
+    return n
 
 
 def deck(bufs, w, G, piers=True):
@@ -286,8 +428,12 @@ def build():
     d = json.load(open(ROADS))
     G, W = Ground(), Water()
     col = C.collection("far_roads")
+    global GROUND
+    GROUND = G
     bufs = {k: C.MeshBuf() for k in list(COL) + ["cables"]}
-    n = {"road_m": 0.0, "rail_m": 0.0, "bridges": 0, "piers": 0, "skipped_in_box": 0}
+    n = {"road_m": 0.0, "rail_m": 0.0, "bridges": 0, "piers": 0, "skipped_in_box": 0, "marked": 0, "lights": 0}
+    fp = os.path.join(L.REF, "wide", "features.json")
+    feats = json.load(open(fp)) if os.path.exists(fp) else {}
     for w in d["ways"]:
         pts = [tuple(p) for p in w["pts"]]
         if w["bridge"]:
@@ -298,6 +444,9 @@ def build():
                 continue
             n["piers"] += deck(bufs, w, G)
             n["bridges"] += 1
+            if w["kind"] == "road":
+                n["marked"] += 1 if markings(bufs["paint"], w, pts, [z + 0.03 for z in w["deck"]]) else 0
+                n["lights"] += lights(bufs, w, pts, w["deck"])
             continue
         if w["kind"] == "path":
             continue
@@ -308,9 +457,13 @@ def build():
             else:
                 key = "motorway" if w["cls"].startswith(("motorway", "trunk")) else "asphalt"
                 lift = 0.5 if key == "motorway" else (0.42 if w["cls"] in ("primary", "secondary", "busway") else 0.36)
-                ribbon(bufs[key], run, w["width"], G, lift)
+                zs = ribbon(bufs[key], run, w["width"], G, lift)
                 n["road_m"] += 4.0 * len(run)
+                n["marked"] += 1 if markings(bufs["paint"], w, run, zs) else 0
+                n["lights"] += lights(bufs, w, run, zs)
     made = structures(bufs, d["ways"], W)
+    nsig = signals(bufs, feats, G, d["ways"])
+    ngan = gantries(bufs, feats, d["ways"])
     objs = []
     for k, buf in bufs.items():
         ob = buf.object("far_roads_" + k, col, "road")
@@ -318,5 +471,6 @@ def build():
             ob.data.materials[0] = C.material_rgb("far_roads_" + k, COL.get(k, (0.2, 0.2, 0.21)))
             objs.append(ob.name)
     return {"module": "far_roads", "objects": objs, "road_km": round(n["road_m"] / 1000, 1), "rail_km": round(n["rail_m"] / 1000, 1),
-            "bridge_ways": n["bridges"], "piers": n["piers"], "bridge_ways_left_to_the_box": n["skipped_in_box"],
+            "bridge_ways": n["bridges"], "piers": n["piers"], "ways_with_line_marking": n["marked"],
+            "street_lights": n["lights"], "traffic_signal_posts": nsig, "sign_gantries": ngan, "bridge_ways_left_to_the_box": n["skipped_in_box"],
             "structures": made, "source": "OSM (osm_all) + 2019 LiDAR deck heights; bridge figures: Wikipedia"}
