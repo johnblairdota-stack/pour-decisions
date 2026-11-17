@@ -230,9 +230,9 @@ HSW.update({
               "path": (0.515, 0.33, 0.24),   # r4: sand-pink ~ sRGB 190,155,135
                "path_w_m": 3.2, "deck": (0.36, 0.27, 0.19)},
     # 5 river: olive-brown, fine ripples, no mirror hot spot (photos p06, p01)
-    "sun_angle_deg": 1.6,
-    "river": {"rgb": (0.13, 0.12, 0.06),   # r10: olive-yellow-green near field
-              "rough": 0.16, "spec": 0.25, "swell_scale": 0.06, "wave_scale": 0.18,
+    "sun_angle_deg": 0.8,   # r16: harder shadow edge with a small penumbra
+    "river": {"rgb": (0.20, 0.18, 0.085),   # r16: opaque olive body so shadows darken it (critic r15)
+              "rough": 0.36, "spec": 0.12, "swell_scale": 0.06, "wave_scale": 0.18,
               "chop_scale": 1.6, "bump": 0.55, "bump_dist": 0.15},   # r4: glossy, ripples at 3 scales
     # 7 north main pier: arch crown 8.2 m under the pier top (photo p09: 120 px at 14.6 px/m), dark inside
     "pier_arch_crown_below_top_m": 8.2,
