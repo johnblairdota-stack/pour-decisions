@@ -74,6 +74,31 @@ def shoot(p, out, width):
     yaw = math.atan2(d.y, d.x) + math.atan((p["at"][0] - 0.5) * sw / p["f35"])
     pitch = math.atan2(d.z, math.hypot(d.x, d.y)) - math.atan((0.5 - p["at"][1]) * sh / p["f35"])
     look = Vector((math.cos(pitch) * math.cos(yaw), math.cos(pitch) * math.sin(yaw), math.sin(pitch)))
+    if p.get("level"):                                     # perspective-corrected photo: level camera, shifted lens
+        cam.data.shift_y = (p["f35"] * d.z / math.hypot(d.x, d.y) - (0.5 - p["at"][1]) * sh) / sw
+        pitch = 0.0
+        look = Vector((math.cos(yaw), math.sin(yaw), 0.0))
+    else:
+        cam.data.shift_y = 0.0
+    if p.get("no_masts"):                                  # photo older than a bridge between camera and tower
+        for o in bpy.data.objects:
+            if o.type == "MESH" and not o.name.startswith("hero_"):
+                import bmesh
+                bm = bmesh.new()
+                bm.from_mesh(o.data)
+                M = o.matrix_world
+                dead = []
+                for v in bm.verts:                         # anything tall standing in the lane between camera and tower
+                    q = M @ v.co
+                    t = (q.x - x) * d.x + (q.y - y) * d.y
+                    t /= (d.x * d.x + d.y * d.y)
+                    off = abs((q.x - x) * d.y - (q.y - y) * d.x) / math.hypot(d.x, d.y)
+                    if q.z > 26.0 and 0.0 < t < 0.78 and off < 60.0:
+                        dead.append(v)
+                if dead:
+                    bmesh.ops.delete(bm, geom=dead, context="VERTS")
+                    bm.to_mesh(o.data)
+                bm.free()
     cam.location = pos
     cam.rotation_euler = look.to_track_quat("-Z", "Y").to_euler()
     if p.get("clear"):                                       # "clear": half width (m) of a tree-free lane to the target
@@ -118,21 +143,22 @@ def main():
     if river:
         for nd in river.node_tree.nodes:
             if nd.type == "MIX" and nd.inputs[6].default_value[0] > nd.inputs[6].default_value[2]:
-                nd.inputs[6].default_value, nd.inputs[7].default_value = (0.07, 0.085, 0.06, 1), (0.095, 0.11, 0.075, 1)
+                nd.inputs[6].default_value, nd.inputs[7].default_value = (0.105, 0.11, 0.07, 1), (0.135, 0.135, 0.085, 1)
     if river:
         river.node_tree.nodes["Principled BSDF"].inputs["Roughness"].default_value = 0.3     # no mirror streaks
+        river.node_tree.nodes["Principled BSDF"].inputs["Specular IOR Level"].default_value = 0.12   # less sky blue
     leaf = bpy.data.materials.get("tree_crowns_far")       # critic round 3: dark, uneven canopy, not mint balls
     if leaf and leaf.node_tree:
         nt = leaf.node_tree
         bs = nt.nodes.get("Principled BSDF")
         geo = nt.nodes.new("ShaderNodeNewGeometry")
         ns = nt.nodes.new("ShaderNodeTexNoise")
-        ns.inputs["Scale"].default_value = 0.12
+        ns.inputs["Scale"].default_value = 0.07
         ns.inputs["Detail"].default_value = 6.0
         nt.links.new(geo.outputs["Position"], ns.inputs["Vector"])
         rp = nt.nodes.new("ShaderNodeValToRGB")
-        rp.color_ramp.elements[0].position, rp.color_ramp.elements[0].color = 0.35, (0.012, 0.04, 0.010, 1)
-        rp.color_ramp.elements[1].position, rp.color_ramp.elements[1].color = 0.70, (0.055, 0.13, 0.035, 1)
+        rp.color_ramp.elements[0].position, rp.color_ramp.elements[0].color = 0.35, (0.022, 0.07, 0.018, 1)
+        rp.color_ramp.elements[1].position, rp.color_ramp.elements[1].color = 0.70, (0.11, 0.21, 0.05, 1)
         nt.links.new(ns.outputs["Fac"], rp.inputs["Fac"])
         nt.links.new(rp.outputs["Color"], bs.inputs["Base Color"])
         fine = nt.nodes.new("ShaderNodeTexNoise")

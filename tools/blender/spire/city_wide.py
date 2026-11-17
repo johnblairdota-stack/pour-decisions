@@ -175,7 +175,7 @@ def build_trees(col):
             if FR.over_deck(x, y, rr):
                 continue
             T.tube(trunks, (x, y, g - 0.3), (x, y, g + h * 0.55), 0.22, 0.14, 5)
-            T.blob(crowns, x, y, g + h * 0.56, rr * 1.15, h * 0.46)     # full crown down to near the ground (critics: lollipops)
+            T.blob(crowns, x, y, g + h * 0.62, rr * 0.9, h * 0.38)     # full crown down to near the ground (critics: lollipops)
             n += 1
     objs = []
     for buf, name, mname, rgb in ((trunks, "wide_tree_trunks", "tree_trunks", (0.11, 0.095, 0.08)),
