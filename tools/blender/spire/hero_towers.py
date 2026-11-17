@@ -23,7 +23,7 @@ MATS = {   # name: (rgb, roughness, metallic)
     "sky_glass": ((0.022, 0.036, 0.075), 0.06, 0.55), "sky_line": ((0.035, 0.055, 0.11), 0.3, 0.0),
     "sky_ring": ((0.78, 0.83, 0.90), 0.5, 0.0), "sky_band": ((0.012, 0.016, 0.026), 0.5, 0.0),
     "sky_crown": ((0.035, 0.045, 0.065), 0.4, 0.0), "sky_lobby": ((0.02, 0.035, 0.06), 0.05, 0.0),
-    "wil_glass": ((0.17, 0.20, 0.27), 0.10, 0.75), "wil_line": ((0.16, 0.12, 0.085), 0.4, 0.2),
+    "wil_glass": ((0.13, 0.13, 0.17), 0.14, 0.45), "wil_line": ((0.16, 0.12, 0.085), 0.4, 0.2),
     "wil_white": ((0.85, 0.86, 0.86), 0.45, 0.0), "wil_deck": ((0.02, 0.014, 0.012), 0.8, 0.0),
     "wil_lobby": ((0.03, 0.05, 0.07), 0.05, 0.0),
 }
@@ -46,13 +46,14 @@ def skytower(b, bufs):
     floor = 3.05
     bufs["sky_glass"].prism(ring, g - 1.0, top)
     rings(bufs["sky_line"], ring, g + 12.0, top - 2.0, floor, 0.16, 0.03)
-    band = g + 0.70 * H                                            # critic round 2: plant bands 29% and 60% down
-    for a in (0.905, 0.725, 0.635):                                # critic round 3: clusters of 5 thin rings by the bands, bare glass between
+    band = g + 0.725 * H                                           # critic round 2: plant bands 29% and 60% down
+    rings(bufs["sky_line"], ring, g + 0.45 * H, band - 22.0, 4 * floor, 0.14, 0.10)    # sparse faint rings lower down
+    for a in (0.905, 0.75, 0.66):                                # critic round 3: clusters of 5 thin rings by the bands, bare glass between
         rings(bufs["sky_ring"], ring, g + a * H, g + a * H + 5 * floor - 0.5, floor, 0.32, 0.12)
     bufs["sky_band"].prism(B.offset(ring, 0.05), band, band + 3.3)
     bufs["sky_band"].prism(B.offset(ring, 0.05), g + 0.40 * H, g + 0.40 * H + 2.4)     # lower plant and amenity floor
     bufs["sky_crown"].prism(B.offset(ring, 0.12), top - 1.0, top + 0.4)             # crown lip
-    bufs["sky_ring"].prism(B.offset(ring, 0.16), top + 0.4, top + 0.8)              # thin pale rim
+    bufs["sky_ring"].prism(B.offset(ring, 0.16), top + 0.4, top + 0.6)              # thin pale rim
     bufs["sky_crown"].prism(B.offset(ring, -2.5), top, top + 4.0)                   # roof plant behind the lip
     bufs["sky_lobby"].prism(B.offset(ring, 0.12), g - 0.5, g + 9.0)
     bufs["sky_ring"].prism(B.offset(ring, 1.6), g + 9.0, g + 9.5)                   # entrance canopy line
@@ -63,6 +64,10 @@ def william1(b, bufs):
     import buildings as B
     pod, tw = b["tiers"][0], b["tiers"][-1]
     ring = S.ccw([tuple(p) for p in tw["ring"]])
+    for _ in range(2):                                             # corner cutting: a smooth rounded shaft, no facets
+        ring = [q for i in range(len(ring)) for q in (
+            (0.75 * ring[i][0] + 0.25 * ring[(i + 1) % len(ring)][0], 0.75 * ring[i][1] + 0.25 * ring[(i + 1) % len(ring)][1]),
+            (0.25 * ring[i][0] + 0.75 * ring[(i + 1) % len(ring)][0], 0.25 * ring[i][1] + 0.75 * ring[(i + 1) % len(ring)][1]))]
     g, top = 7.7, tw["top_ahd"]
     cx, cy = sum(p[0] for p in ring) / len(ring), sum(p[1] for p in ring) / len(ring)
     top = 186.0                                                    # the glass shaft ends where the crown slope starts
@@ -86,9 +91,9 @@ def william1(b, bufs):
     px, py = ring[k][0] + ux * 0.4, ring[k][1] + uy * 0.4
     for s in (-2.0, 2.0):                                          # twin rails 4 m apart (critic round 3)
         bufs["wil_white"].beam((px - uy * s, py + ux * s, g), (px - uy * s, py + ux * s, zt[k]), 0.6, 0.8)
-    zb = g + 0.27 * (top - g)                                      # dark louvre band low on the shaft
-    bufs["wil_lobby"].prism(B.offset(ring, 0.06), zb, zb + 3.6)
-    bufs["wil_white"].beam((cx, cy, 214.0), (cx, cy, 266.6), 0.6)  # mast (LiDAR tip 266.6 m AHD)
+    zb = g + 0.36 * (top - g)                                      # dark louvre band low on the shaft
+    bufs["wil_line"].prism(B.offset(ring, 0.06), zb, zb + 2.6)
+    bufs["wil_white"].beam((cx, cy, 214.0), (cx, cy, 258.0), 0.6)  # mast (LiDAR tip 266.6 m AHD)
     return ["glass skin", "floor lines", "podium lobby", "sloped crown", "white rim and spine", "mast"]
 
 

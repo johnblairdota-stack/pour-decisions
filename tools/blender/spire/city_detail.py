@@ -370,6 +370,51 @@ def speed_signs(bufs, n):
                 n["speed_signs"] += 1
 
 
+SEAWALL_BOX = (-1300.0, -2100.0, 900.0, -900.0)      # City Botanic Gardens, South Bank and Kangaroo Point reaches
+SEAWALL_TOP = 2.4
+
+
+def seawall(col):
+    """Pale stone river wall with a sandy path strip behind it along the banks south of the LiDAR box (critic
+    rounds 2 to 4: the bank read as bare mud). Follows the traced water edge, 2 m steps; height guessed."""
+    import numpy as np
+    import cbd_ext as CE
+    if not os.path.exists(os.path.join(CE.RIVER, "river.json")):
+        return None
+    m, water, _ = CE.river_data()
+    x0, y0, x1, y1 = m["box_local"]
+    st = m["step_m"]
+    wet = L.box_blur(water.astype("f4"), 3) > 1e-3        # the ground is sunk this far out from the trace
+    bx0, by0, bx1, by1 = SEAWALL_BOX
+    c0, c1 = max(int((bx0 - x0) / st), 1), min(int((bx1 - x0) / st), wet.shape[1] - 2)
+    r0, r1 = max(int((y1 - by1) / st), 1), min(int((y1 - by0) / st), wet.shape[0] - 2)
+    verts, wall, strip = [], [], []
+    w = wet[r0:r1, c0:c1]
+    rr, cc = np.nonzero(w)
+    for dr, dc in ((0, 1), (0, -1), (1, 0), (-1, 0)):      # water cell with land on this side
+        land = ~wet[r0 + dr:r1 + dr, c0 + dc:c1 + dc][rr, cc]
+        for r, c in zip(rr[land] + r0, cc[land] + c0):
+            xa, ya = x0 + (c + 0.5) * st, y1 - (r + 0.5) * st          # cell centre
+            ex, ey = dc * st / 2, -dr * st / 2                         # to the shared edge
+            tx, ty = -ey, ex                                           # along the edge (half length)
+            a = (xa + ex - tx, ya + ey - ty)
+            b = (xa + ex + tx, ya + ey + ty)
+            ox, oy = dc * 6.0, -dr * 6.0                               # landward
+            i = len(verts)
+            verts += [(a[0], a[1], -1.0), (b[0], b[1], -1.0), (b[0], b[1], SEAWALL_TOP), (a[0], a[1], SEAWALL_TOP),
+                      (b[0] + ox, b[1] + oy, SEAWALL_TOP), (a[0] + ox, a[1] + oy, SEAWALL_TOP)]
+            wall.append((i, i + 1, i + 2, i + 3))
+            strip.append((i + 3, i + 2, i + 4, i + 5))
+    if not wall:
+        return None
+    out = []
+    for name, faces, rgb in (("city_detail_seawall", wall, (0.56, 0.53, 0.46)), ("city_detail_bank_path", strip, (0.58, 0.50, 0.36))):
+        ob = C.mesh_fast(name, verts, faces, col, "roof")
+        ob.data.materials[0] = C.material_rgb(name, rgb)
+        out.append(ob.name)
+    return out
+
+
 def build():
     import bpy  # noqa: F401
     import city_wide as CW
@@ -406,6 +451,7 @@ def build():
                 m.roughness = 0.08
             ob.data.materials[0] = m
             objs.append(ob.name)
+    objs += seawall(col) or []
     return {"module": "city_detail", "objects": objs, "counts": n,
             "source": "best guesses from use, size and height (roofs); OSM areas in wide/features.json (ground)",
             "note": "Roof plant, solar, stall layouts and sign positions are inferred, not surveyed."}

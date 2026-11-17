@@ -95,7 +95,14 @@ def assign_looks(recs):
         out[osm] = (key, dict(rec, roof=tuple(c * ROOF_GAIN for c in ROOFS[ri]), src="city_wide.assign_looks (use + height; roof colour from the aerial)"))
         kind = key[6:].split("_r")[0].rstrip("0123456789")
         count[kind] = count.get(kind, 0) + 1
+    for osm, (name, over) in NAMED.items():                # towers the photo critics could name
+        if osm in out:
+            out[osm] = ("gen_w_%s_r0" % name, dict(LK.GENERIC["office"], roof=out[osm][1]["roof"], src="city_wide.NAMED (Commons photos)",
+                                                **{k: LK.hx(v) for k, v in over.items()}))
     return out, count
+
+
+NAMED = {481145058: ("abian", {"wall": "2a3340", "glass": "0c1420", "spandrel": "0a1018"})}    # dark mirror glass by the gardens
 
 
 def guess_roofs(recs):
@@ -175,7 +182,7 @@ def build_trees(col):
             if FR.over_deck(x, y, rr):
                 continue
             T.tube(trunks, (x, y, g - 0.3), (x, y, g + h * 0.55), 0.22, 0.14, 5)
-            T.blob(crowns, x, y, g + h * 0.62, rr * 0.9, h * 0.38)     # full crown down to near the ground (critics: lollipops)
+            T.blob(crowns, x, y, g + h * 0.54, rr * 1.0, h * 0.44)     # full crown down to near the ground (critics: lollipops)
             n += 1
     objs = []
     for buf, name, mname, rgb in ((trunks, "wide_tree_trunks", "tree_trunks", (0.11, 0.095, 0.08)),

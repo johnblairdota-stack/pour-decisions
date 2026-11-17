@@ -41,7 +41,7 @@ def blue_sky(strength=1.5):
     nt.links.new(geo.outputs["Incoming"], sep.inputs[0])
     ramp = nt.nodes.new("ShaderNodeValToRGB")
     e = ramp.color_ramp.elements
-    e[0].position, e[0].color = 0.0, (0.36, 0.58, 0.88, 1)      # horizon
+    e[0].position, e[0].color = 0.0, (0.30, 0.52, 0.88, 1)      # horizon
     e[1].position, e[1].color = 0.55, (0.045, 0.16, 0.56, 1)    # overhead
     mid = ramp.color_ramp.elements.new(0.12)
     mid.color = (0.10, 0.30, 0.78, 1)
@@ -147,6 +147,14 @@ def main():
     if river:
         river.node_tree.nodes["Principled BSDF"].inputs["Roughness"].default_value = 0.3     # no mirror streaks
         river.node_tree.nodes["Principled BSDF"].inputs["Specular IOR Level"].default_value = 0.12   # less sky blue
+    if river:                                              # round 5: still read grey-lilac, so a plain olive river
+        nt = river.node_tree
+        bs = nt.nodes["Principled BSDF"]
+        for ln in list(bs.inputs["Base Color"].links):
+            nt.links.remove(ln)
+        bs.inputs["Base Color"].default_value = (0.15, 0.16, 0.10, 1)
+        bs.inputs["Roughness"].default_value = 0.45
+        bs.inputs["Specular IOR Level"].default_value = 0.08
     leaf = bpy.data.materials.get("tree_crowns_far")       # critic round 3: dark, uneven canopy, not mint balls
     if leaf and leaf.node_tree:
         nt = leaf.node_tree
@@ -157,8 +165,8 @@ def main():
         ns.inputs["Detail"].default_value = 6.0
         nt.links.new(geo.outputs["Position"], ns.inputs["Vector"])
         rp = nt.nodes.new("ShaderNodeValToRGB")
-        rp.color_ramp.elements[0].position, rp.color_ramp.elements[0].color = 0.35, (0.022, 0.07, 0.018, 1)
-        rp.color_ramp.elements[1].position, rp.color_ramp.elements[1].color = 0.70, (0.11, 0.21, 0.05, 1)
+        rp.color_ramp.elements[0].position, rp.color_ramp.elements[0].color = 0.35, (0.03, 0.09, 0.02, 1)
+        rp.color_ramp.elements[1].position, rp.color_ramp.elements[1].color = 0.70, (0.15, 0.26, 0.06, 1)
         nt.links.new(ns.outputs["Fac"], rp.inputs["Fac"])
         nt.links.new(rp.outputs["Color"], bs.inputs["Base Color"])
         fine = nt.nodes.new("ShaderNodeTexNoise")

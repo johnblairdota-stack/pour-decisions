@@ -208,7 +208,7 @@ def build_trees(col):
                 if FR.over_deck(x, y, rr * 1.25):
                     continue
                 T.trunk(trunks, x, y, g, 0.25, h * 0.55, 0)
-                T.blob(crowns, x, y, g + h * 0.62, rr * 0.9, h * 0.38)   # full crown down to near the ground (critics: lollipops)
+                T.blob(crowns, x, y, g + h * 0.54, rr * 1.0, h * 0.44)   # full crown down to near the ground (critics: lollipops)
             n += 1
     objs = []
     for buf, name, key, rgb in ((trunks, "cbd_ext_tree_trunks", "bark", (0.11, 0.095, 0.08)),
