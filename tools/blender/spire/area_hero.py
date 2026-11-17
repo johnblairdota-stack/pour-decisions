@@ -774,7 +774,7 @@ NEIGHBOUR_WALLS = {        # critic round 0 (photos): own albedo per building, s
     26386571: "E2B9A0", 26386543: "E2B9A0",   # Admiralty I / II: r9 critics: peach-pink #e2b9a0
     224320345: "D9AE88",   # Macrossan: Petrie Bight peach
 }
-CATHEDRAL_LOOK = {"ashlar": ["9A8A72", "A3927A", "8A8088", "B09C80", "6F6458", "8A8088", "A89070", "C0A88A", "948470", "8A8088"], "dressing": "D8C8A0",   # r12: ~30 % grey-mauve #8a8088, pale cream dressings;   # r10: warm golden-tan, grey-brown darks (r9 violet read lilac);   # r8: + a dark and a light block (+/-12 %), same mean;   # r5: r4 + half the step to the 2010 photo wall average #AE9378
+CATHEDRAL_LOOK = {"ashlar": ["9A8A72", "A3927A", "8A8088", "B09C80", "6F6458", "8A8088", "A89070", "C0A88A", "948470", "8A8088"], "dressing": "D2C9B4",   # r13: dressings / pinnacles read saturated yellow;   # r12: ~30 % grey-mauve #8a8088, pale cream dressings;   # r10: warm golden-tan, grey-brown darks (r9 violet read lilac);   # r8: + a dark and a light block (+/-12 %), same mean;   # r5: r4 + half the step to the 2010 photo wall average #AE9378
                   "tile": "A8452C", "spire": "2E2E33", "slate": "5A5A60"}
 HALL_OSM = 1210526673      # brick block in the forecourt view: LiDAR top includes trees; photo shows a low gabled hall
 
@@ -855,8 +855,12 @@ def mantra_fin(col, b, rings, stripe_xy, objs, report):
             # r12 (critic zooms): from the NE cameras the first ~5 m of the flag hide behind the tower's NE corner,
             # so it read 7.5 % of the tower width against ~20 % in the photo, and its top sat below the parapet:
             # outreach 11 m, top 3 m above the roof plane (the parapet line), concave outer edge
-            fl, hgt, th, lift = P("mantra_crest_flare", 11.0), P("mantra_crest_h", 13.0), 0.4, P("mantra_crest_lift", 3.0)
+            # r13 (critics): a plane facing one way goes edge-on from the NE and S cameras: it now BISECTS the
+            # corner (east + south, 45 deg) so it reads as a broad sheet from every side; top back at the parapet
+            fl, hgt, th, lift = P("mantra_crest_flare", 11.0), P("mantra_crest_h", 13.0), 0.4, P("mantra_crest_lift", 0.8)
             ax, ay = px + nx * O, py + ny * O
+            dx_, dy_ = P("mantra_crest_dir", (0.7071, -0.7071))
+            nx, ny, ux, uy = dx_, dy_, -dy_, dx_
             prof = [(0.0, top - hgt), (0.0, top + lift), (fl, top + lift)]
             for k in range(1, 8):                                   # concave edge back to the corner
                 t = k / 8
@@ -873,7 +877,7 @@ def mantra_fin(col, b, rings, stripe_xy, objs, report):
             fin.add(q, faces)
     # r10: dark blue lowercase "mantra" (#1b5fa8); top-floor balcony slabs / rails within 8 m of the sign go
     sx, sy, snx, sny = P("mantra_sign", (11.85, 93.2, 0.506, 0.861))
-    put(fin, "mantra_blue_fin", col, mat("mantra_blue", lin("1E8FD0")), objs)
+    put(fin, "mantra_blue_fin", col, mat("mantra_blue", lin(P("mantra_blue_hex", "1A6CC0"))), objs)   # r13: photo #1E78C8, r12 read pale cyan
     # r11 (critics: letters doubled, painted over the windows): a SOLID one-storey cream parapet band on that face,
     # standing in front of the windows, and one text object 2.5 cm proud of it
     band = C.MeshBuf()
@@ -952,7 +956,7 @@ def neighbours(col, guard, objs, report):
             m.diffuse_color = (*hx(CATHEDRAL_LOOK[key]), 1)
     # r2 (critic): roof read orange (#c8553a) -> photo #7f4535..#8a4a38; dressings read sage -> warm sandstone
     for name, rgb in (("cathedral_terracotta", P("cath_tile_lin", lin("6E3426"))),
-                      ("cathedral_sandstone", P("cath_dress_lin", lin("D8C8A0")))):
+                      ("cathedral_sandstone", P("cath_dress_lin", lin("D2C9B4")))):
         m = bpy.data.materials.get(name)
         if m:
             m.diffuse_color = (*rgb, 1)
@@ -992,6 +996,28 @@ def neighbours(col, guard, objs, report):
                  for r in rings]
         gone = drop_where(bpy.data.objects.get("bldg_look_568836537_roof"),
                           lambda X, Y, Z: (Z > top + 1.5) & in_rings_np(X, Y, grown))
+        # r13 (probe: the "void" in crane_from_nw sits on the 110.6 m roof plate): Mantra's two OSM outlines
+        # (568836537 + 189779738) each bring a roof plate at 110.6 m, plus downward-facing box bottoms at the same
+        # height; Cycles picks the coplanar back faces and shades them black. Keep one plate (189779738, the
+        # bigger outline) and drop every downward face above the roof line.
+        import numpy as np
+        for nm_ in ("bldg_look_568836537_roof", "bldg_look_189779738_roof"):
+            ob_ = bpy.data.objects.get(nm_)
+            if ob_ is None or not ob_.data.polygons:
+                continue
+            nrm = np.empty(len(ob_.data.polygons) * 3, "f4")
+            ob_.data.polygons.foreach_get("normal", nrm)
+            nz_ = nrm.reshape(-1, 3)[:, 2]
+            plate = nm_.startswith("bldg_look_568836537")
+            k_ = {"i": 0}
+
+            def dead(X, Y, Z, nz_=nz_, plate=plate):
+                ins = in_rings_np(X, Y, grown)
+                d = ins & (Z > top + 0.5) & (nz_ < -0.5)
+                if plate:
+                    d |= ins & (np.abs(Z - (top + 0.9)) < 0.2) & (np.abs(nz_) > 0.9)
+                return d
+            report.append("Mantra roof: %s %d coplanar / back faces dropped" % (nm_, drop_where(ob_, dead)))
         cap = C.MeshBuf()                                           # r12: the spike drop left a black hole seen from above
         for t in b["tiers"]:
             if t["top_ahd"] >= top - 0.5:
@@ -1655,7 +1681,10 @@ def frustum_kill(guard, report):
         ("carpark_eye", 1600, 1000, 370, 80, 280, 150), ("carpark_eye", 1600, 1000, 390, 185, 100, 195),
         ("customs_house_river", 1600, 1000, 1550, 330, 45, 145), ("queen_st_streetscape", 1600, 1000, 1350, 20, 250, 200),
         ("customs_house", 1600, 1000, 1180, 490, 160, 110), ("cathedral_grounds", 1600, 1000, 840, 640, 25, 360),
-        ("cathedral_forecourt", 1600, 1200, 0, 0, 60, 260),
+        # r13: the cathedral_forecourt box (0,0,60,260) went: it left a bald gap where the photo has a big canopy
+        ("ann_st_far", 1316, 1600, 1100, 285, 216, 240, 120.0), ("ann_st_far", 1316, 1600, 1065, 1100, 35, 500, 300.0),
+        ("ann_st_far", 1316, 1600, 1240, 1200, 45, 380, 300.0), ("cathedral_grounds", 1600, 1000, 1395, 715, 205, 285),
+        ("customs_house", 1600, 1000, 1265, 505, 80, 95), ("cathedral_from_carpark", 1600, 1000, 0, 230, 180, 310),
     ])
     here = os.path.join(os.path.dirname(L.HERE), "..", "spire_area")
     src = open(os.path.join(here, "render_area.py"), encoding="utf-8").read().replace("\nmain()\n", "\n")
@@ -2320,7 +2349,10 @@ def restyle():
             tile_courses(nt, bsdf)
         if m.get("diag"):
             diag_stripes(nt, bsdf)
-        if m.name == "cathedral_slate" or m.name == "cathedral_spire_slate":
+        if m.name == "cathedral_spire_slate":
+            bsdf.inputs["Base Color"].default_value = (*lin("2E2E33"), 1)
+            slate_scales(nt, bsdf)                                        # r13: fine fish-scale slates
+        elif m.name == "cathedral_slate":
             tile_courses(nt, bsdf, course=0.22, dark=0.7)
         if m.name == "cathedral_slate" and not bsdf.inputs["Base Color"].is_linked:
             bsdf.inputs["Base Color"].default_value = (*lin("3C3C42"), 1)   # r12: crossing tower roof read pale grey
@@ -2329,7 +2361,7 @@ def restyle():
         if m.name == "cathedral_sandstone":                          # r11: matt sandstone, not lemon plastic
             bsdf.inputs["Roughness"].default_value = 0.8
             if not bsdf.inputs["Base Color"].is_linked:
-                bsdf.inputs["Base Color"].default_value = (*lin("D8C8A0"), 1)
+                bsdf.inputs["Base Color"].default_value = (*lin("D2C9B4"), 1)   # r13: 30 % less yellow
         if m.name == "cathedral_tuff_ashlar" and not m.get("r11_joints"):
             m["r11_joints"] = True                                    # r11: dark recessed joints that shadow
             for n_ in nt.nodes:
@@ -2541,6 +2573,39 @@ def roof_tones(nt, bsdf):
     bsdf.inputs["Roughness"].default_value = 0.9
 
 
+def slate_scales(nt, bsdf):
+    """r13 (critics): spires read as flat dark cones: fine fish-scale slates, rounded tails, staggered courses."""
+    geo = nt.nodes.new("ShaderNodeNewGeometry")
+    sep = nt.nodes.new("ShaderNodeSeparateXYZ")
+    nt.links.new(geo.outputs["Position"], sep.inputs[0])
+    ang = nt.nodes.new("ShaderNodeMath")                                # u round the cone in metres-ish
+    ang.operation = "ADD"
+    nt.links.new(sep.outputs["X"], ang.inputs[0])
+    nt.links.new(sep.outputs["Y"], ang.inputs[1])
+    cv = nt.nodes.new("ShaderNodeCombineXYZ")
+    nt.links.new(ang.outputs[0], cv.inputs[0])
+    nt.links.new(sep.outputs["Z"], cv.inputs[1])
+    br = nt.nodes.new("ShaderNodeTexBrick")
+    br.offset = 0.5
+    br.offset_frequency = 2
+    nt.links.new(cv.outputs[0], br.inputs["Vector"])
+    br.inputs["Scale"].default_value = 1.0
+    br.inputs["Brick Width"].default_value = 0.24
+    br.inputs["Row Height"].default_value = 0.16
+    br.inputs["Mortar Size"].default_value = 0.018
+    br.inputs["Mortar Smooth"].default_value = 0.6
+    br.inputs["Bias"].default_value = 0.0
+    br.inputs["Color1"].default_value = (*lin("2E2E33"), 1)
+    br.inputs["Color2"].default_value = (*lin("3A3A40"), 1)
+    br.inputs["Mortar"].default_value = (*lin("17171A"), 1)
+    nt.links.new(br.outputs["Color"], bsdf.inputs["Base Color"])
+    bump = nt.nodes.new("ShaderNodeBump")
+    bump.inputs["Strength"].default_value = 0.6
+    nt.links.new(br.outputs["Fac"], bump.inputs["Height"])
+    nt.links.new(bump.outputs["Normal"], bsdf.inputs["Normal"])
+    bsdf.inputs["Roughness"].default_value = 0.55
+
+
 def tile_courses(nt, bsdf, course=0.28, dark=0.72):
     """r2: visible tile / slate courses (horizontal lines every course in world z) and tile-to-tile tone."""
     geo = nt.nodes.new("ShaderNodeNewGeometry")
@@ -2599,7 +2664,7 @@ def flat_up(nt, bsdf):
 def asphalt(m, bsdf):
     """Mid-grey worn asphalt (critic: too dark and blue): recolour the ramp / base, keep the speckle."""
     nt = m.node_tree
-    lo, hi = P("asphalt_lo", (0.042, 0.042, 0.045)), P("asphalt_hi", (0.100, 0.098, 0.100))   # r12: real ~#4a4a50
+    lo, hi = P("asphalt_lo", (0.026, 0.026, 0.029)), P("asphalt_hi", (0.058, 0.057, 0.060))   # r13: streets still read #888-#9a9690 in sun; photos #3c3c40-#4a4a50
     ramp = next((n for n in nt.nodes if n.bl_idname == "ShaderNodeValToRGB"), None)
     if ramp is not None:
         ramp.color_ramp.elements[0].color = (*lo, 1)
@@ -2694,7 +2759,7 @@ SKY_MODE = None    # r8: per view (area_cams.json "sky"): "deep" clear blue or "
 SKY_DEEP = [(0.0, "B6D0EC"), (0.12, "8FB8E0"), (0.42, "4F86C8"), (1.0, "1F5FB0")]   # r10: a real gradient
 SKY_NAVY = [(0.0, "A4C0E2"), (0.12, "7AA2D6"), (0.42, "3466B4"), (1.0, "1A3F8F")]
 SKY_PALEBLUE = [(0.0, "EEF1F3"), (0.15, "D8E2EC"), (0.45, "B4C8DE"), (1.0, "8AA8CE")]
-SKY_PALEDUSK = [(0.0, "ECE6E0"), (0.18, "E0E0E4"), (0.5, "D0DAE8"), (1.0, "BCCDE4")]   # r11: ann_queen_corner
+SKY_PALEDUSK = [(0.0, "E8E4E0"), (0.15, "DCDEE2"), (0.4, "C8D4E4"), (1.0, "A8BEDC")]   # r13: critic #e8e4e0 horizon -> #c8d4e4 high
 SKY_PALE = [(0.0, "E2E5E8"), (0.10, "D3DAE2"), (0.35, "B9C6D4"), (1.0, "8FA8C8")]
 SKY_DUSK = [(0.0, "E8A890"), (0.16, "E8A890"), (0.30, "9C7CA8"), (0.62, "6E73A0"), (1.0, "4E5C8E")]   # r5 PINNED: peach band #e8a890 under lilac #9c7ca8
 
@@ -2803,8 +2868,8 @@ def sky(dusk):
         nt.links.new(sh.outputs["Color"], cm_.inputs[7])
     sh = nt.nodes["AREA_CLOUD_SHADE"].color_ramp.elements
     sh[1].color = (1.0, 0.86, 0.80, 1) if dusk else (1.0, 1.0, 1.0, 1)
-    nt.nodes["AREA_CLOUD"].inputs["To Max"].default_value = 0.55 if dusk else {"deep": 0.85, "pale": 0.25, "navy": 0.4, "paleblue": 0.95, "paledusk": 0.5}.get(SKY_MODE, P("cloud_cover", 0.97))
-    nt.nodes["AREA_SKY_BG"].inputs["Strength"].default_value = P("sky_cam_dusk", 1.3) if dusk else P("sky_cam_day", 1.55)
+    nt.nodes["AREA_CLOUD"].inputs["To Max"].default_value = 0.55 if dusk else {"deep": 0.85, "pale": 0.25, "navy": 0.4, "paleblue": 0.95, "paledusk": 0.15}.get(SKY_MODE, P("cloud_cover", 0.97))
+    nt.nodes["AREA_SKY_BG"].inputs["Strength"].default_value = P("sky_cam_dusk", 1.3) if dusk else P("sky_cam_day", 1.55) * (1.3 if SKY_MODE == "paledusk" else 1.0)   # r13: paledusk rendered #b6bfc9, target #c8d4e4-#e8e4e0
 
 
 def far_ridge(dusk):
