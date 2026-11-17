@@ -155,3 +155,18 @@ water, reaches joined under the bridges, ponds and shadows dropped. Writes `refe
 ground over that whole box outside `LIDAR_BOX` and the CBD extension, with the river under the water plane
 and the aerial draped, replacing the `far_land` skirt there and moving `far_suburbs` onto the ground (none in
 the river). Gap: the Newstead reach between the two aerials (no imagery) is still land.
+
+## Roads, rail and bridges outside the LiDAR box (17 Nov 2026)
+
+`python3 tools/sites/roads_wide.py <PourDecisions-sites>/data` reads every OSM road, busway, rail line
+and bridge over the river box (3,900 ways) and measures each bridge deck from the 2019 LiDAR DSM (lowest of
+three lines across the deck, rolling 30th percentile along it). Bridges built after 2019 (Neville Bonner,
+Kangaroo Point) use the published river clearance; decks under a canopy or arch bracing (Kurilpa, Merivale)
+are capped. Output: `reference/sites/spire/roads/roads.json`.
+
+`far_roads.py` (after `cbd_ext` in `build_all.MODULES`) drapes the roads and rail on the far ground at
+their OSM widths, builds every bridge deck with parapets and piers, and adds the main structures of the
+named river bridges from published figures: William Jolly (3 x 72.5 m arches), Merivale (132 m through
+arch), Goodwill (102 m x 15 m arch), Kurilpa (20 masts + canopy), Neville Bonner (75 m mast, two 60 m
+arches), Kangaroo Point (single mast: height 78 m and position are estimates). Roads inside `LIDAR_BOX`
+stay with `streets.py`; the Story Bridge stays with `landmarks.py`. Tunnels are left out.

@@ -31,6 +31,14 @@ CAMS = [
      "note": "high over Fortitude Valley looking south over the CBD bend, Kangaroo Point and the Milton reach"},
     {"id": "river_downstream", "pos": (1150, -950, 380), "look_at": (1800, 1300, 0), "lens": 26,
      "note": "high over Kangaroo Point looking NE downstream past New Farm"},
+    {"id": "bridges_south_bank", "pos": (-1450, -2050, 260), "look_at": (-900, -900, 10), "lens": 24,
+     "note": "from over West End looking NE: Goodwill, Captain Cook, Neville Bonner, Victoria, Kurilpa"},
+    {"id": "bridges_milton_reach", "pos": (-1900, -300, 220), "look_at": (-1050, -750, 10), "lens": 26,
+     "note": "from over Milton looking SE: Go Between, Merivale, William Jolly, Kurilpa, Victoria"},
+    {"id": "bridges_kp_green", "pos": (480, -1380, 95), "look_at": (190, -940, 25), "lens": 26,
+     "note": "from over Kangaroo Point looking NW along the Kangaroo Point Bridge to the city"},
+    {"id": "roads_top", "ortho": 2600.0, "pos": (-900, -1000, 3000), "look_at": (-900, -1000, 0), "size": (1600, 1600),
+     "note": "straight down over the south-west: roads, rail and bridges on the aerial"},
 ]
 
 

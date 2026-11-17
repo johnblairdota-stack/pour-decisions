@@ -25,6 +25,7 @@ import layout as L
 import common as C
 
 EXT = os.path.join(L.REF, "ext")
+GRIDS = {}       # built ground height grids (for far_roads.py): name -> (x of col 0, y of row 0, step, z[, cover])
 STEP = 2
 
 TOWER_LOOKS = {   # from the Commons photo sheets (visuals/sites/research-16nov/sheets/*_photos.jpg)
@@ -89,6 +90,7 @@ def build_ground(col):
     cs = cov[np.ix_(rows, cols)] > 0
     X, Y = np.meshgrid(bx0 + cols + 0.5, by1 - rows - 0.5)
     sub = np.where((sub < 1.6) & (sub > L.RIVER_LEVEL_AHD - 2.0), np.minimum(sub, -1.2), sub)   # as ground.py: flats go under
+    GRIDS["ext"] = (bx0 + 0.5, by1 - 0.5, STEP, sub, cs)
     R, Cn = sub.shape
     verts = np.stack([X, Y, sub], -1).reshape(-1, 3)
     idx = np.arange(R * Cn).reshape(R, Cn)
@@ -245,6 +247,7 @@ def build_far(col):
     wc = np.clip(((X - x0) / st).astype(int), 0, water.shape[1] - 1)
     share = wf[wr, wc]
     Z = np.where(share > 0.5, -2.0, np.where(share > 0.05, np.maximum(np.minimum(Z, 1.2), L.RIVER_LEVEL_AHD + 0.4), Z))
+    GRIDS["far"] = (x0, y1, FAR_STEP, Z)
     R, Cn = Z.shape
     verts = np.stack([X, Y, Z], -1).reshape(-1, 3)
     idx = np.arange(R * Cn).reshape(R, Cn)
