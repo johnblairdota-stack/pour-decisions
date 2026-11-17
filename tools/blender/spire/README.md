@@ -188,3 +188,19 @@ the fake far-suburb boxes inside the LiDAR area. `cbd_ext.sink_river_land()` low
 `far_roads.py` also paints lane lines, centre lines and edge lines, stands street light columns along the
 main roads, traffic signals at the OSM signal nodes and green sign gantries before each motorway junction.
 Trees are kept off the road surfaces (`far_roads.on_road`).
+
+### City detail (city_detail)
+
+`python3 tools/sites/roof_colours.py` reads the median 2022 aerial pixel inside every city_wide footprint
+(`wide/roof_colours.json`). `city_wide.assign_looks` then deals each building a facade recipe from its OSM
+use, measured height and footprint (houses, brick walk-ups with balconies, sheds, schools, mid-rise
+apartments and offices in several colour mixes) with its roof snapped to the nearest of seven roof colours.
+Wall colours are a best guess: the aerial can't see them.
+
+`city_detail.py` (last in `build_all.MODULES`) adds what the data can't resolve but a city has: lift overruns,
+AC condensers, cooling towers, louvre screens and comms masts on flat roofs, vents and solar arrays on big
+low roofs, solar panels on about a third of the houses; and from the OSM areas in `wide/features.json`:
+swimming pools (on the roof when mapped over a building), car park stall lines, pitch markings with nets,
+goals, posts and hoops, playground shade sails, and speed signs along the main roads. Positions of roof
+plant, stalls and signs are inferred, not surveyed. Trees whose crown would reach over a bridge deck are
+dropped (`far_roads.over_deck`), and the made-up far suburbs are removed by mesh island inside the area.

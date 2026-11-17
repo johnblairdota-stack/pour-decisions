@@ -33,6 +33,8 @@ COL = {"asphalt": (0.085, 0.085, 0.09), "motorway": (0.13, 0.13, 0.135), "rail":
 
 
 _ROAD_CELLS = None
+_DECK_CELLS = set()
+GROUND = None                                               # the far ground sampler, set by build()
 
 
 def on_road(x, y):
@@ -55,7 +57,20 @@ def on_road(x, y):
                     for j in range(-k, k + 1):
                         o = h * j / k
                         _ROAD_CELLS.add((int((px + nx * o) // 2), int((py + ny * o) // 2)))
+                        if w["bridge"]:
+                            _DECK_CELLS.add((int((px + nx * o) // 2), int((py + ny * o) // 2)))
     return (int(x // 2), int(y // 2)) in _ROAD_CELLS
+
+
+def over_deck(x, y, r):
+    """True if a crown of radius r at (x, y) would reach over (or up through) a bridge deck."""
+    on_road(x, y)
+    for k in (0.5, 1.0):
+        for i in range(8):
+            a = math.pi * i / 4
+            if (int((x + r * k * math.cos(a)) // 2), int((y + r * k * math.sin(a)) // 2)) in _DECK_CELLS:
+                return True
+    return False
 
 
 class Ground:

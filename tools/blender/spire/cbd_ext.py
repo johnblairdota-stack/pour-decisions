@@ -198,6 +198,8 @@ def build_trees(col):
                     palms.beam((x, y, g + h - 1.2), (x + 3.0 * math.cos(a), y + 3.0 * math.sin(a), g + h - 2.6), 0.5, 0.12)
             else:
                 rr = (0.42 if s == "fig" else 0.3) * h
+                if FR.over_deck(x, y, rr * 1.25):
+                    continue
                 T.trunk(trunks, x, y, g, 0.25, h * 0.55, 0)
                 T.crown(crowns, x, y, g + h - rr * 0.6, rr, 0.6, 4)
             n += 1

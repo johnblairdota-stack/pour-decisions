@@ -53,6 +53,16 @@ CAMS = [
      "note": "over Stanley St, Woolloongabba: markings, signals, street lights, house roofs"},
     {"id": "city_street_west_end", "pos": (-1500, -1450, 60), "look_at": (-700, -1000, 60), "lens": 30,
      "note": "low over West End roofs looking NE to the CBD"},
+    {"id": "detail_west_end_houses", "pos": (-1650, -1750, 70), "look_at": (-1450, -1550, 10), "lens": 35,
+     "note": "West End houses: roof colours from the aerial, solar panels, pools"},
+    {"id": "detail_south_brisbane", "pos": (-1050, -1750, 120), "look_at": (-800, -1450, 25), "lens": 35,
+     "note": "South Brisbane mid-rise: balconies, roof plant"},
+    {"id": "detail_spring_hill_courts", "pos": (-760, 650, 90), "look_at": (-600, 830, 15), "lens": 35,
+     "note": "Spring Hill: tennis courts, Centenary Pool"},
+    {"id": "detail_car_park", "pos": (-1660, -1100, 70), "look_at": (-1562, -988, 5), "lens": 30,
+     "note": "a surface car park with stall lines"},
+    {"id": "detail_valley_roofs", "pos": (520, 760, 150), "look_at": (250, 1050, 20), "lens": 35,
+     "note": "Fortitude Valley roofs: plant, AC units, sheds"},
 ]
 
 

@@ -20,6 +20,7 @@ MODULES.append(__import__("area_hero"))   # Spire-area thread: everything around
 MODULES.append(__import__("cbd_ext"))     # tower-data thread: the CBD south-west of the square (Skytower, 1 William St)
 MODULES.append(__import__("city_wide"))   # tower-data thread: every OSM building over the whole LiDAR download
 MODULES.append(__import__("far_roads"))   # tower-data thread: OSM roads, rail and bridges outside the LiDAR box
+MODULES.append(__import__("city_detail")) # tower-data thread: roof plant, solar, pools, car parks, pitches, signs
 
 
 def clear():
