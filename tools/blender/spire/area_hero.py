@@ -277,8 +277,8 @@ def carparks(col, guard, objs, report):
             cpm = src_.copy() if src_ else mat("carpark_asphalt", (0.1, 0.1, 0.1))
             cpm.name = "area_carpark_bitumen"
             cpm["asphalt"] = True
-            cpm["asphalt_lo"] = [0.026, 0.026, 0.029]               # r13 values: critics call the car park right
-            cpm["asphalt_hi"] = [0.058, 0.057, 0.060]
+            cpm["asphalt_lo"] = [0.042, 0.042, 0.046]                # r15: read #1c1c20, photo ~#3a3a3e               # r13 values: critics call the car park right
+            cpm["asphalt_hi"] = [0.093, 0.091, 0.096]
         ob_.data.materials.append(cpm)
         objs.append(ob_.name)
         note(cx0, cy0, "carpark")
@@ -782,7 +782,8 @@ NEIGHBOUR_WALLS = {        # critic round 0 (photos): own albedo per building, s
     26386571: "E2B9A0", 26386543: "E2B9A0",   # Admiralty I / II: r9 critics: peach-pink #e2b9a0
     224320345: "D9AE88",   # Macrossan: Petrie Bight peach
 }
-CATHEDRAL_LOOK = {"ashlar": ["9A8A72", "A3927A", "8A8088", "B09C80", "6F6458", "8A8088", "A89070", "C0A88A", "948470", "8A8088"], "dressing": "D6C296",   # r13: dressings / pinnacles read saturated yellow;   # r12: ~30 % grey-mauve #8a8088, pale cream dressings;   # r10: warm golden-tan, grey-brown darks (r9 violet read lilac);   # r8: + a dark and a light block (+/-12 %), same mean;   # r5: r4 + half the step to the 2010 photo wall average #AE9378
+# r15: ashlar measured (2010 photo / render, linear 1.03/0.95/0.87), block spread x1.5 (critic: uniform tan); dressings measured
+CATHEDRAL_LOOK = {"ashlar": ["9C8766", "A99272", "827885", "BCA07A", "4F4639", "827885", "B18F63", "D2B088", "937E63", "827885"], "dressing": "CCB7A2",
                   "tile": "A8452C", "spire": "2E2E33", "slate": "5A5A60"}
 HALL_OSM = 1210526673      # brick block in the forecourt view: LiDAR top includes trees; photo shows a low gabled hall
 
@@ -887,7 +888,8 @@ def mantra_fin(col, b, rings, stripe_xy, objs, report):
             fin.add(q, faces)
     # r10: dark blue lowercase "mantra" (#1b5fa8); top-floor balcony slabs / rails within 8 m of the sign go
     sx, sy, snx, sny = P("mantra_sign", (11.85, 93.2, 0.506, 0.861))
-    put(fin, "mantra_blue_fin", col, mat("mantra_blue", lin(P("mantra_blue_hex", "2E8FD6"))), objs)   # r13: photo #1E78C8, r12 read pale cyan
+    fob = put(fin, "mantra_blue_fin", col, mat("mantra_blue", lin(P("mantra_blue_hex", "1871CF"))), objs)
+    flag_material(fob)   # r13: photo #1E78C8, r12 read pale cyan
     # r11 (critics: letters doubled, painted over the windows): a SOLID one-storey cream parapet band on that face,
     # standing in front of the windows, and one text object 2.5 cm proud of it
     band = C.MeshBuf()
@@ -905,6 +907,25 @@ def mantra_fin(col, b, rings, stripe_xy, objs, report):
     ob.data.offset = 0.06                                           # r12: bold strokes (photo ~70 % of the band)
     _STATE["mantra_sign"] = (sx, sy, top)
     report.append("Mantra: 2 azure stripes (SE corner + north face) %.0f m, wedge crest, horizontal sign" % (top - base))
+
+
+def flag_material(ob):
+    """r15 (critics: #2e8fd6 rendered translucent pale cyan #4fb3dd): the area material had no node tree. An
+    explicit opaque Principled BSDF: alpha 1, no transmission, no emission, satin painted metal. Base from the
+    measured render/target ratio (0.35, 0.61, 0.93 linear) applied to #2e8fd6."""
+    if ob is None:
+        return
+    m = bpy.data.materials.new("area_mantra_blue_paint")
+    m.use_nodes = True
+    b = m.node_tree.nodes.get("Principled BSDF")
+    b.inputs["Base Color"].default_value = (*lin(P("mantra_blue_hex", "1871CF")), 1)
+    b.inputs["Roughness"].default_value = 0.45
+    b.inputs["Alpha"].default_value = 1.0
+    for k in ("Transmission Weight", "Transmission", "Emission Strength", "Subsurface Weight"):
+        if k in b.inputs:
+            b.inputs[k].default_value = 0.0
+    ob.data.materials.clear()
+    ob.data.materials.append(m)
 
 
 def mantra_slabs(col, recs, objs, report):
@@ -966,7 +987,7 @@ def neighbours(col, guard, objs, report):
             m.diffuse_color = (*hx(CATHEDRAL_LOOK[key]), 1)
     # r2 (critic): roof read orange (#c8553a) -> photo #7f4535..#8a4a38; dressings read sage -> warm sandstone
     for name, rgb in (("cathedral_terracotta", P("cath_tile_lin", lin("6E3426"))),
-                      ("cathedral_sandstone", P("cath_dress_lin", lin("D6C296")))):
+                      ("cathedral_sandstone", P("cath_dress_lin", lin("CCB7A2")))):
         m = bpy.data.materials.get(name)
         if m:
             m.diffuse_color = (*rgb, 1)
@@ -1585,7 +1606,11 @@ def pixel_kill(guard, report):
     every tree hit. Run before round8_trees, whose checks then clear any remnant."""
     import numpy as np
     boxes = P("pixel_kill", [
-        ("spire_ann_st_2018", 1199, 1600, 630, 770, 215, 295),
+        # r15: the old spire_ann_st_2018 box (630,770,215,295) sat on the photo's fig crown (x618-1190, y755-1373)
+        # and thinned it to dots over bare limbs: gone
+        ("annstcath", 1600, 1000, 762, 118, 44, 44), ("customs_house", 1600, 1000, 1122, 488, 46, 74),
+        ("deanery", 1600, 1000, 560, 750, 25, 220, 1.5), ("deanery", 1600, 1000, 950, 760, 25, 240, 1.5),
+        ("ann_st_far", 1316, 1600, 1062, 1100, 36, 490, 1.5),
         ("cathedral_ann_st_2012", 1200, 1600, 1035, 108, 165, 87), ("cathedral_ann_st_2012", 1200, 1600, 735, 430, 135, 110),
         ("cathedral_ann_st_2012", 1200, 1600, 930, 875, 215, 75), ("cathedral_ann_st_2012", 1200, 1600, 160, 1340, 55, 210),
         ("cathedral_ann_st_2012", 1200, 1600, 0, 1250, 120, 350),
@@ -1698,7 +1723,7 @@ def frustum_kill(guard, report):
         ("customs_house", 1600, 1000, 1265, 505, 80, 95), ("cathedral_from_carpark", 1600, 1000, 0, 230, 180, 310),
         # r14: the customs_house "plates" are tree_crowns_far lumps ~120 m out (probe), past the default reach
         ("customs_house", 1600, 1000, 1180, 480, 190, 130, 200.0), ("customs_house_river", 1600, 1000, 800, 780, 80, 70),
-        ("annstcath", 1600, 1000, 130, 330, 510, 170, 40.0),
+        # r15: the annstcath box (130,330,510,170) felled the street trees and left blank walls: gone
     ])
     here = os.path.join(os.path.dirname(L.HERE), "..", "spire_area")
     src = open(os.path.join(here, "render_area.py"), encoding="utf-8").read().replace("\nmain()\n", "\n")
@@ -1769,6 +1794,44 @@ def frustum_kill(guard, report):
         if o.name in bpy.data.objects:
             n_ += drop_where(o, lambda X, Y, Z: ((X[:, None] - M_[:, 0]) ** 2 + (Y[:, None] - M_[:, 1]) ** 2 < rad * rad).any(1))
     report.append("frustum kill: %d marks, %d tree faces dropped" % (len(M_), n_))
+
+
+def annqueen_fig(col, guard, objs, report):
+    """r15 (ann_queen_corner photo): a big fig fills the top right of the frame, on the footpath right of the
+    camera, and hides Mantra's flag. One buttressed trunk, a dense broad crown (~14 m tall, ~7 m radius)."""
+    import foliage as FO
+    import trees as T
+    cx, cy, hd = 108.9, 163.9, math.radians(212.5)                    # photo_cams ann_queen_corner
+    fx, fy = math.sin(hd), math.cos(hd)
+    rx, ry = math.cos(hd), -math.sin(hd)
+    ahead, right = P("annqueen_fig_at", (13.0, 8.0))
+    x, y = cx + fx * ahead + rx * right, cy + fy * ahead + ry * right
+    rg = T.RoadGuard(pad=0.8)
+    spot = rg.fix(x, y)
+    if spot is None or guard.keepout(*spot):
+        report.append("Ann/Queen fig: no clear spot near (%.1f, %.1f)" % (x, y))
+        return
+    x, y = spot
+    g = gz(x, y)
+    h, r = P("annqueen_fig_h", 14.0), P("annqueen_fig_r", 7.0)
+    trunks = C.MeshBuf()
+    T.fig_trunk(trunks, x, y, g - 0.2, h * 0.42, 0.45)
+    for k in range(5):                                               # thick limbs into the crown
+        a = 0.7 + k * 2 * math.pi / 5
+        T.tube(trunks, (x, y, g + h * 0.38), (x + math.cos(a) * r * 0.55, y + math.sin(a) * r * 0.55, g + h * 0.66), 0.28, 0.12, 8)
+    leaves = FO.Foliage(seed=1501)
+    lod, FO.LOD = FO.LOD, (lambda c: (1.0, 1.0))                    # r15 test: the far-crown LOD left a few dots
+    for k in range(7):                                               # broad, dense, a little flat-topped
+        a = k * 2.39
+        d = r * (0.0 if k == 0 else 0.55)
+        leaves.cloud((x + math.cos(a) * d, y + math.sin(a) * d, g + h - r * 0.62), (r * 0.62, r * 0.62, r * 0.42),
+                     int(7000 if k == 0 else 4000), 0.42, shell=0.3, top_bias=0.15)
+    FO.LOD = lod
+    put(trunks, "annqueen_fig_trunk", col, mat("bark_fig", hx("6E6658")), objs)
+    ob = leaves.object("area_annqueen_fig_leaves", col, (0.018, 0.038, 0.016), (0.045, 0.08, 0.03))   # photo: dark glossy fig
+    if ob:
+        objs.append(ob.name)
+    report.append("Ann/Queen fig at (%.1f, %.1f), %.0f m tall" % (x, y, h))
 
 
 def round8_trees(guard, report):
@@ -2263,6 +2326,7 @@ def build():
     pixel_kill(guard, report)
     frustum_kill(guard, report)
     round8_trees(guard, report)
+    annqueen_fig(col, guard, objs, report)
     smooth_surfaces(report)
     orient(col, guard, objs, report)
     annqueen_poles(col, guard, objs, report)
@@ -2301,8 +2365,8 @@ def restyle():
             lk = next((l for l in nt.links if l.to_socket == bsdf.inputs["Base Color"]), None)
             if lk is not None and lk.from_node.bl_idname == "ShaderNodeValToRGB":
                 el = lk.from_node.color_ramp.elements
-                el[0].color = (*lin(P("lawn_lo", "4F7A35")), 1)
-                el[-1].color = (*lin(P("lawn_hi", "6B8F45")), 1)
+                el[0].color = (*lin(P("lawn_lo", "566E40")), 1)   # r15: neon -> muted
+                el[-1].color = (*lin(P("lawn_hi", "6E8452")), 1)
         if m.get("asphalt") or m.name in ("clay_road",):
             asphalt(m, bsdf)
         if m.name in ("clay_road", "street_red") or m.get("asphalt"):
@@ -2376,7 +2440,7 @@ def restyle():
         if m.name == "cathedral_sandstone":                          # r11: matt sandstone, not lemon plastic
             bsdf.inputs["Roughness"].default_value = 0.8
             if not bsdf.inputs["Base Color"].is_linked:
-                bsdf.inputs["Base Color"].default_value = (*lin("D6C296"), 1)   # r13: 30 % less yellow
+                bsdf.inputs["Base Color"].default_value = (*lin("CCB7A2"), 1)   # r13: 30 % less yellow
         if m.name == "cathedral_tuff_ashlar" and not m.get("r11_joints"):
             m["r11_joints"] = True                                    # r11: dark recessed joints that shadow
             for n_ in nt.nodes:
@@ -2785,10 +2849,10 @@ def lit_windows(m, nt, bsdf):
 
 SKY_DAY = [(0.0, "DCE6EE"), (0.07, "C4D8EA"), (0.25, "8FB5DE"), (1.0, "2F6FC0")]   # r3: pale horizon band
 SKY_MODE = None    # r8: per view (area_cams.json "sky"): "deep" clear blue or "pale" grey-white, matched to its photo
-SKY_DEEP = [(0.0, "B6D0EC"), (0.12, "8FB8E0"), (0.42, "4F86C8"), (1.0, "1F5FB0")]   # r10: a real gradient
+SKY_DEEP = [(0.0, "A8C6E8"), (0.12, "7AA8DA"), (0.42, "3474C0"), (1.0, "0C4C9E")]   # r15: deeper zenith (2010 photo top #044d9a)   # r10: a real gradient
 SKY_NAVY = [(0.0, "A4C0E2"), (0.12, "7AA2D6"), (0.42, "3466B4"), (1.0, "1A3F8F")]
 SKY_PALEBLUE = [(0.0, "EEF1F3"), (0.15, "D8E2EC"), (0.45, "B4C8DE"), (1.0, "8AA8CE")]
-SKY_PALEDUSK = [(0.0, "B4C0D6"), (0.3, "9EAECA"), (0.6, "8496BA"), (1.0, "6E84AA")]   # r14: measured from the photo: #b1bdd3 low -> #798dae top (r13 read neutral #c0c8d2)
+SKY_PALEDUSK = [(0.0, "E8E4E0"), (0.12, "E2E6F0"), (0.3, "CAD2E5"), (0.6, "A9B6D3"), (1.0, "8DA0C1")]   # r15: measured photo/render sky 1.72/1.53/1.33; horizon near-white   # r14: measured from the photo: #b1bdd3 low -> #798dae top (r13 read neutral #c0c8d2)
 SKY_PALE = [(0.0, "E2E5E8"), (0.10, "D3DAE2"), (0.35, "B9C6D4"), (1.0, "8FA8C8")]
 SKY_DUSK = [(0.0, "E8A890"), (0.16, "E8A890"), (0.30, "9C7CA8"), (0.62, "6E73A0"), (1.0, "4E5C8E")]   # r5 PINNED: peach band #e8a890 under lilac #9c7ca8
 
@@ -2897,7 +2961,7 @@ def sky(dusk):
         nt.links.new(sh.outputs["Color"], cm_.inputs[7])
     sh = nt.nodes["AREA_CLOUD_SHADE"].color_ramp.elements
     sh[1].color = (1.0, 0.86, 0.80, 1) if dusk else (1.0, 1.0, 1.0, 1)
-    nt.nodes["AREA_CLOUD"].inputs["To Max"].default_value = 0.55 if dusk else {"deep": 0.55, "pale": 0.25, "navy": 0.3, "paleblue": 0.95, "paledusk": 0.15}.get(SKY_MODE, P("cloud_cover", 0.97))   # r14: daylight pairs milky vs cobalt photos
+    nt.nodes["AREA_CLOUD"].inputs["To Max"].default_value = 0.55 if dusk else {"deep": 0.3, "pale": 0.25, "navy": 0.3, "paleblue": 0.95, "paledusk": 0.15}.get(SKY_MODE, P("cloud_cover", 0.97))   # r14: daylight pairs milky vs cobalt photos
     nt.nodes["AREA_SKY_BG"].inputs["Strength"].default_value = P("sky_cam_dusk", 1.3) if dusk else P("sky_cam_day", 1.55)
 
 
