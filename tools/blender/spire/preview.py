@@ -238,7 +238,7 @@ def setup_morning():
             fmix.data_type = "RGBA"
             nt.links.new(fk.outputs[0], fmix.inputs["Factor"])
             nt.links.new(tmix.outputs[2], fmix.inputs[6])
-            fmix.inputs[7].default_value = (0.26, 0.31, 0.36, 1)
+            fmix.inputs[7].default_value = Rv.get("sky_rgb", (0.26, 0.31, 0.36)) + (1,)   # r18: real sky blue at grazing
             nt.links.new(fmix.outputs[2], bsdf.inputs["Base Color"])
             # HSW r4: ripples sized to read at 50-300 m: swell ~16 m, wind waves ~5 m, chop ~1 m
             hsum = None
