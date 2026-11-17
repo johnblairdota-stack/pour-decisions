@@ -1,0 +1,29 @@
+{
+ "box_local": [
+  -2264,
+  -2664,
+  5456,
+  4216
+ ],
+ "step_m": 2.0,
+ "rows": 3440,
+ "cols": 3860,
+ "ground_8m": {
+  "rows": 860,
+  "cols": 965,
+  "step_m": 8.0,
+  "order": "rows north to south from y1, cell centres (x0 + (4c+0.5)*2, y1 - (4r+0.5)*2)"
+ },
+ "order": "rows north to south, cell centres at (x0+(c+0.5)*step, y1-(r+0.5)*step)",
+ "river_area_ha": 337.3,
+ "reaches_kept": 8,
+ "loops": 3,
+ "aerial_cover": 0.52,
+ "lidar_cover": 0.301,
+ "sources": {
+  "aerial": "Qld AerialOrtho newest (area_newest_wide.jpg, cbd + portside)",
+  "lidar": "Brisbane 2019 LiDAR grid2019 (dsm NaN = water)",
+  "dem": "QldDem default 1 m"
+ },
+ "credit": "(c) State of Queensland (Department of Resources) CC BY 4.0"
+}

@@ -134,3 +134,73 @@ Rule from here on: the LiDAR is for measuring only. No mesh made straight from p
 - Hotel and Mr Percival's heights fixed: roofs now use building points only (the bridge sits above them).
 - Renders: `*_morning.png` (bridge + HSW, cathedral, Ann/Queen corner, Queen St, Spire facade close-up),
   `hsw2017_overview_*`, `hsw2017_dig_*`. Matching photos (John's, not in git) are named in layout.py.
+
+## CBD extension (17 Nov 2026)
+
+`cbd_ext.py` (last in `build_all.MODULES`) adds the city south-west of the model square: Brisbane Skytower,
+1 William St and the Queen's Wharf site at their 2019 LiDAR heights, on the real LiDAR ground draped with
+the 2022 aerial, plus LiDAR tree tops. Data: `reference/sites/spire/ext/`, made by
+`python3 tools/sites/clean_ext.py` from the per-tower packs (`tools/sites/prep_site.py`). It builds only
+outside `LIDAR_BOX` / the +-700 m square and cuts `far_land` / `far_suburbs` where the real ground is.
+Skipped for game exports and stage builds. Overview renders: `render_cbd.py` (Cycles, cloud).
+Queen's Wharf's finished towers are not in OSM and the 2019 LiDAR shows its basement dig, so it shows as
+the data does.
+
+## Real river shape (17 Nov 2026)
+
+`python3 tools/sites/river_shape.py <PourDecisions-sites>/data` traces the Brisbane River from the two
+newest wide aerials (CBD bend + Portside) and the 2019 LiDAR (open water has no LiDAR surface): dark smooth
+water, reaches joined under the bridges, ponds and shadows dropped. Writes `reference/sites/spire/river/`
+(2 m water mask, bank loops, both aerials on one grid, 8 m ground). `cbd_ext.build_far` then lays real
+ground over that whole box outside `LIDAR_BOX` and the CBD extension, with the river under the water plane
+and the aerial draped, replacing the `far_land` skirt there and moving `far_suburbs` onto the ground (none in
+the river). Gap: the Newstead reach between the two aerials (no imagery) is still land.
+
+## Roads, rail and bridges outside the LiDAR box (17 Nov 2026)
+
+`python3 tools/sites/roads_wide.py <PourDecisions-sites>/data` reads every OSM road, busway, rail line
+and bridge over the river box (3,900 ways) and measures each bridge deck from the 2019 LiDAR DSM (lowest of
+three lines across the deck, rolling 30th percentile along it). Bridges built after 2019 (Neville Bonner,
+Kangaroo Point) use the published river clearance; decks under a canopy or arch bracing (Kurilpa, Merivale)
+are capped. Output: `reference/sites/spire/roads/roads.json`.
+
+`far_roads.py` (after `cbd_ext` in `build_all.MODULES`) drapes the roads and rail on the far ground at
+their OSM widths, builds every bridge deck with parapets and piers, and adds the main structures of the
+named river bridges from published figures: William Jolly (3 x 72.5 m arches), Merivale (132 m through
+arch), Goodwill (102 m x 15 m arch), Kurilpa (20 masts + canopy), Neville Bonner (75 m mast, two 60 m
+arches), Kangaroo Point (single mast: height 78 m and position are estimates). Roads inside `LIDAR_BOX`
+stay with `streets.py`; the Story Bridge stays with `landmarks.py`. Tunnels are left out.
+
+## The whole LiDAR area (city_wide)
+
+`python3 tools/sites/clean_wide.py <PourDecisions-sites>/data` mosaics every 2019 LiDAR tile under
+`data/cbd/elvis/grid2019` (currently 4 x 4 km, E501000-505000 x N6960000-6964000) and shapes every OSM
+building the scene doesn't already have with the same rules as `clean_ext.py` (`shape_buildings`): height
+tiers, gables and spires from the LiDAR. It also pulls LiDAR tree points and the OSM traffic signals, street
+lamps, motorway junctions and area features (parking, parks, pitches, stadiums). Output:
+`reference/sites/spire/wide/`. Add more LiDAR tiles and re-run to grow the area.
+
+`city_wide.py` (before `far_roads` in `build_all.MODULES`) builds those buildings and trees, gives small low
+houses with no measured ridge a best-guess gable (`roof_guess`), drops crane-like spires over 30 m and removes
+the fake far-suburb boxes inside the LiDAR area. `cbd_ext.sink_river_land()` lowers any ground vertex of
+`ground_lidar2019_smooth` that the traced river mask says is water (build time only, no land in the river).
+
+`far_roads.py` also paints lane lines, centre lines and edge lines, stands street light columns along the
+main roads, traffic signals at the OSM signal nodes and green sign gantries before each motorway junction.
+Trees are kept off the road surfaces (`far_roads.on_road`).
+
+### City detail (city_detail)
+
+`python3 tools/sites/roof_colours.py` reads the median 2022 aerial pixel inside every city_wide footprint
+(`wide/roof_colours.json`). `city_wide.assign_looks` then deals each building a facade recipe from its OSM
+use, measured height and footprint (houses, brick walk-ups with balconies, sheds, schools, mid-rise
+apartments and offices in several colour mixes) with its roof snapped to the nearest of seven roof colours.
+Wall colours are a best guess: the aerial can't see them.
+
+`city_detail.py` (last in `build_all.MODULES`) adds what the data can't resolve but a city has: lift overruns,
+AC condensers, cooling towers, louvre screens and comms masts on flat roofs, vents and solar arrays on big
+low roofs, solar panels on about a third of the houses; and from the OSM areas in `wide/features.json`:
+swimming pools (on the roof when mapped over a building), car park stall lines, pitch markings with nets,
+goals, posts and hoops, playground shade sails, and speed signs along the main roads. Positions of roof
+plant, stalls and signs are inferred, not surveyed. Trees whose crown would reach over a bridge deck are
+dropped (`far_roads.over_deck`), and the made-up far suburbs are removed by mesh island inside the area.

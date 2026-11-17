@@ -1,0 +1,44 @@
+{
+ "box_local": [
+  -933,
+  -1745,
+  193,
+  -577
+ ],
+ "rows": 1168,
+ "cols": 1126,
+ "step_m": 1.0,
+ "order": "rows north to south, cols west to east; cell centres at (x0+c+0.5, y1-r-0.5)",
+ "packs": {
+  "skytower": {
+   "offset_local": [
+    -207.02,
+    -977.93
+   ]
+  },
+  "william1": {
+   "offset_local": [
+    -494.04,
+    -1344.64
+   ]
+  },
+  "queenswharf": {
+   "offset_local": [
+    -532.81,
+    -1167.74
+   ]
+  }
+ },
+ "aerial": {
+  "file": "aerial_2022_ext.jpg",
+  "m_per_px": 0.5,
+  "cover": 0.738
+ },
+ "buildings": 242,
+ "already_in_scene": 34,
+ "skipped": 28,
+ "trees": 3784,
+ "lidar_cover": 0.867,
+ "rule": "build buildings whose OSM centroid is outside buildings_clean.json's reach (LIDAR_BOX) or outside buildings.build's +-700 m square; ground only outside LIDAR_BOX",
+ "credit": "2019 LiDAR (c) State of Queensland CC BY 4.0; OSM (c) OpenStreetMap contributors ODbL; aerial (c) State of Queensland / Brisbane City Council (see reference/sites/<pack>/CREDITS.md)"
+}
