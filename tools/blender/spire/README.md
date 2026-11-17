@@ -134,3 +134,14 @@ Rule from here on: the LiDAR is for measuring only. No mesh made straight from p
 - Hotel and Mr Percival's heights fixed: roofs now use building points only (the bridge sits above them).
 - Renders: `*_morning.png` (bridge + HSW, cathedral, Ann/Queen corner, Queen St, Spire facade close-up),
   `hsw2017_overview_*`, `hsw2017_dig_*`. Matching photos (John's, not in git) are named in layout.py.
+
+## CBD extension (17 Nov 2026)
+
+`cbd_ext.py` (last in `build_all.MODULES`) adds the city south-west of the model square: Brisbane Skytower,
+1 William St and the Queen's Wharf site at their 2019 LiDAR heights, on the real LiDAR ground draped with
+the 2022 aerial, plus LiDAR tree tops. Data: `reference/sites/spire/ext/`, made by
+`python3 tools/sites/clean_ext.py` from the per-tower packs (`tools/sites/prep_site.py`). It builds only
+outside `LIDAR_BOX` / the +-700 m square and cuts `far_land` / `far_suburbs` where the real ground is.
+Skipped for game exports and stage builds. Overview renders: `render_cbd.py` (Cycles, cloud).
+Queen's Wharf's finished towers are not in OSM and the 2019 LiDAR shows its basement dig, so it shows as
+the data does.

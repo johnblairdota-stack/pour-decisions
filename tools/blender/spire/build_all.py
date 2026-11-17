@@ -17,6 +17,7 @@ import ground, streets, buildings, spire, core, landmarks, cathedral, hsw, trees
 
 MODULES = [ground, streets, buildings, spire, core, landmarks, cathedral, hsw, trees, logistics, site_plant, streetscape]
 MODULES.append(__import__("area_hero"))   # Spire-area thread: everything around the site, built last
+MODULES.append(__import__("cbd_ext"))     # tower-data thread: the CBD south-west of the square (Skytower, 1 William St)
 
 
 def clear():
