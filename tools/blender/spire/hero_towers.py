@@ -18,12 +18,13 @@ import common as C
 import shapes as S
 
 SKY, WIL = 683336940, 521115344
+WIL_PART = 1104813702                                           # OSM building:part on the river face; read as a pasted panel
 MATS = {   # name: (rgb, roughness, metallic)
-    "sky_glass": ((0.045, 0.095, 0.26), 0.08, 0.7), "sky_line": ((0.035, 0.055, 0.11), 0.3, 0.0),
-    "sky_ring": ((0.80, 0.83, 0.86), 0.5, 0.0), "sky_band": ((0.012, 0.014, 0.018), 0.6, 0.0),
-    "sky_crown": ((0.03, 0.04, 0.06), 0.4, 0.0), "sky_lobby": ((0.02, 0.035, 0.06), 0.05, 0.0),
-    "wil_glass": ((0.10, 0.15, 0.24), 0.08, 0.7), "wil_line": ((0.16, 0.12, 0.085), 0.4, 0.2),
-    "wil_white": ((0.85, 0.86, 0.86), 0.45, 0.0), "wil_deck": ((0.02, 0.02, 0.022), 0.7, 0.0),
+    "sky_glass": ((0.022, 0.036, 0.075), 0.06, 0.55), "sky_line": ((0.035, 0.055, 0.11), 0.3, 0.0),
+    "sky_ring": ((0.42, 0.50, 0.62), 0.5, 0.0), "sky_band": ((0.012, 0.014, 0.018), 0.6, 0.0),
+    "sky_crown": ((0.035, 0.045, 0.065), 0.4, 0.0), "sky_lobby": ((0.02, 0.035, 0.06), 0.05, 0.0),
+    "wil_glass": ((0.075, 0.085, 0.11), 0.10, 0.6), "wil_line": ((0.16, 0.12, 0.085), 0.4, 0.2),
+    "wil_white": ((0.85, 0.86, 0.86), 0.45, 0.0), "wil_deck": ((0.02, 0.014, 0.012), 0.8, 0.0),
     "wil_lobby": ((0.03, 0.05, 0.07), 0.05, 0.0),
 }
 
@@ -45,11 +46,11 @@ def skytower(b, bufs):
     floor = 3.05
     bufs["sky_glass"].prism(ring, g - 1.0, top)
     rings(bufs["sky_line"], ring, g + 12.0, top - 2.0, floor, 0.16, 0.03)
-    band = g + 0.65 * H
-    for a, z in ((0.30, 0.60), (0.71, 0.95)):                      # white slab rings, every 4th floor
-        rings(bufs["sky_ring"], ring, g + a * H, g + z * H, 4 * floor, 0.42, 0.14)
+    band = g + 0.70 * H                                            # critic round 2: plant bands 29% and 60% down
+    for a, z, k in ((0.10, 0.36, 5), (0.47, 0.69, 2), (0.74, 0.97, 3)):   # thin pale slab rings, tight under each band
+        rings(bufs["sky_ring"], ring, g + a * H, g + z * H, k * floor, 0.16, 0.10)
     bufs["sky_band"].prism(B.offset(ring, 0.08), band, band + 5.5)
-    bufs["sky_band"].prism(B.offset(ring, 0.08), g + 0.42 * H, g + 0.42 * H + 3.2)     # L40 amenity floor
+    bufs["sky_band"].prism(B.offset(ring, 0.08), g + 0.40 * H, g + 0.40 * H + 3.6)     # lower plant and amenity floor
     bufs["sky_crown"].prism(B.offset(ring, 0.18), top - 1.4, top + 0.8)             # crown lip
     bufs["sky_crown"].prism(B.offset(ring, -2.5), top, top + 4.0)                   # roof plant behind the lip
     bufs["sky_lobby"].prism(B.offset(ring, 0.12), g - 0.5, g + 9.0)
@@ -63,15 +64,15 @@ def william1(b, bufs):
     ring = S.ccw([tuple(p) for p in tw["ring"]])
     g, top = 7.7, tw["top_ahd"]
     cx, cy = sum(p[0] for p in ring) / len(ring), sum(p[1] for p in ring) / len(ring)
-    top = 196.0                                                    # the glass shaft ends where the crown slope starts
+    top = 198.0                                                    # the glass shaft ends where the crown slope starts
     bufs["wil_glass"].prism(ring, g - 1.0, top)
     bufs["wil_lobby"].prism(S.ccw([tuple(p) for p in pod["ring"]]), g - 1.0, pod["top_ahd"])
     rings(bufs["wil_line"], ring, pod["top_ahd"] + 2.0, top, 3.9, 0.22, 0.04)
     # crown: the glass carries on up to a sloped roof, low to the river (south-west), high behind
-    ux, uy = -0.92, -0.39                                          # towards the river (west-south-west)
+    ux, uy = -math.sqrt(0.5), -math.sqrt(0.5)                      # towards the river (the broad 70 m face)
     d = [(p[0] - cx) * ux + (p[1] - cy) * uy for p in ring]
     lo, hi = min(d), max(d)
-    zt = [234.0 - 34.0 * (v - lo) / (hi - lo) for v in d]          # LiDAR roof cells: about 200 m at the river edge, 234 m behind
+    zt = [204.0 + 30.0 * (hi - v) / (hi - lo) for v in d]          # LiDAR roof cells: about 204 m at the river edge, 234 m behind
     n = len(ring)
     verts = [(p[0], p[1], top) for p in ring] + [(p[0], p[1], z) for p, z in zip(ring, zt)]
     bufs["wil_glass"].add(verts, [[i, (i + 1) % n, n + (i + 1) % n, n + i] for i in range(n)])
@@ -95,7 +96,7 @@ def build():
     recs = {b["osm"]: b for b in json.load(open(fp))["buildings"] if b["osm"] in (SKY, WIL)}
     gone = []
     for o in list(bpy.data.objects):                               # the generic recipe meshes of the two towers
-        if o.name.startswith(("bldg_look_%d_" % SKY, "bldg_look_%d_" % WIL)):
+        if o.name.startswith(("bldg_look_%d_" % SKY, "bldg_look_%d_" % WIL, "bldg_look_%d_" % WIL_PART)):
             gone.append(o.name)
             bpy.data.objects.remove(o, do_unlink=True)
     bufs = {k: C.MeshBuf() for k in MATS}

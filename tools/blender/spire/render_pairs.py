@@ -4,7 +4,7 @@
 
 pairs.json: [{"id", "lat", "lon" (camera, e.g. the photo's GPS), "f35" (35 mm equivalent lens), "size": [w, h] of the
 photo, "target": [x, y, z] (a point in the Spire frame, z m AHD) and "at": [u, v] (where that point sits in the
-photo, 0-1 from the top left), optional "eye" (m above ground or water, default 1.7) or "z" (absolute AHD), optional "dist" (m from the
+photo, 0-1 from the top left), optional "eye" (m above ground or water, default 1.7) or "z" (absolute AHD), optional "pos" ([x, y] in the Spire frame, in place of a GPS fix that is plainly wrong), optional "dist" (m from the
 target, along the GPS bearing: for photos whose GPS fix is plainly too near or too far)}].
 The camera stands at the GPS spot and is turned so the target lands on the same pixel. Writes <id>.png.
 """
@@ -54,7 +54,7 @@ def blue_sky(strength=1.5):
 
 
 def shoot(p, out, width):
-    x, y = L.to_local(p["lat"], p["lon"])
+    x, y = p["pos"] if "pos" in p else L.to_local(p["lat"], p["lon"])
     if p.get("dist"):
         tx, ty = p["target"][0], p["target"][1]
         k = p["dist"] / (math.hypot(x - tx, y - ty) or 1.0)
@@ -94,6 +94,11 @@ def main():
     P.apply_light(az, el)
     blue_sky()
     bpy.context.scene.view_settings.exposure += 0.8       # critic round 1: renders read a stop darker than the photos
+    river = bpy.data.materials.get("clay_water")           # critic round 2: grey-green, not beige
+    if river:
+        for nd in river.node_tree.nodes:
+            if nd.type == "MIX" and nd.inputs[6].default_value[0] > nd.inputs[6].default_value[2]:
+                nd.inputs[6].default_value, nd.inputs[7].default_value = (0.085, 0.115, 0.085, 1), (0.12, 0.145, 0.105, 1)
     RC.setup_cycles(int(os.environ.get("CYC_SAMPLES", "32")))
     done = [shoot(p, out, width) for p in pairs if not only or p["id"] in only]
     json.dump(done, open(os.path.join(out, "cams.json"), "w"), indent=1)
