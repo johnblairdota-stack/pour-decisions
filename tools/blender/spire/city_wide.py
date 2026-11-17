@@ -182,10 +182,10 @@ def build_trees(col):
             if FR.over_deck(x, y, rr):
                 continue
             T.tube(trunks, (x, y, g - 0.3), (x, y, g + h * 0.55), 0.22, 0.14, 5)
-            T.blob(crowns, x, y, g + h * 0.54, rr * 1.0, h * 0.44)     # full crown down to near the ground (critics: lollipops)
-            for k2 in range(2):                           # two side lobes: a ragged clump, not a ball (critic round 6)
+            T.blob(crowns, x, y, g + h * 0.5, rr * 1.2, h * 0.34)     # full crown down to near the ground (critics: lollipops)
+            for k2 in range(4):                           # two side lobes: a ragged clump, not a ball (critic round 6)
                 a2 = (x * 12.9898 + y * 78.233 + k2 * 2.4) % 6.2832
-                T.blob(crowns, x + math.cos(a2) * rr * 0.6, y + math.sin(a2) * rr * 0.6, g + h * (0.42 + 0.12 * k2), rr * 0.7, h * 0.3)
+                T.blob(crowns, x + math.cos(a2) * rr * 0.8, y + math.sin(a2) * rr * 0.8, g + h * (0.34 + 0.07 * k2), rr * (0.55 + 0.12 * k2), h * 0.24)
             n += 1
     objs = []
     for buf, name, mname, rgb in ((trunks, "wide_tree_trunks", "tree_trunks", (0.11, 0.095, 0.08)),

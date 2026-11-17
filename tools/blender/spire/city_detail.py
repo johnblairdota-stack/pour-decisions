@@ -372,6 +372,7 @@ def speed_signs(bufs, n):
 
 SEAWALL_BOX = (-1300.0, -2100.0, 900.0, -900.0)      # City Botanic Gardens, South Bank and Kangaroo Point reaches
 SEAWALL_TOP = 2.4
+GARDENS_BOX = (-450.0, -1500.0, 250.0, -950.0)       # City Botanic Gardens bank: lawn behind the path, mooring piles off it
 
 
 def seawall(col):
@@ -388,7 +389,7 @@ def seawall(col):
     bx0, by0, bx1, by1 = SEAWALL_BOX
     c0, c1 = max(int((bx0 - x0) / st), 1), min(int((bx1 - x0) / st), wet.shape[1] - 2)
     r0, r1 = max(int((y1 - by1) / st), 1), min(int((y1 - by0) / st), wet.shape[0] - 2)
-    verts, wall, strip = [], [], []
+    verts, wall, strip, lawn, piles, k = [], [], [], [], C.MeshBuf(), 0
     w = wet[r0:r1, c0:c1]
     rr, cc = np.nonzero(w)
     for dr, dc in ((0, 1), (0, -1), (1, 0), (-1, 0)):      # water cell with land on this side
@@ -405,12 +406,26 @@ def seawall(col):
                       (b[0] + ox, b[1] + oy, SEAWALL_TOP), (a[0] + ox, a[1] + oy, SEAWALL_TOP)]
             wall.append((i, i + 1, i + 2, i + 3))
             strip.append((i + 3, i + 2, i + 4, i + 5))
+            if GARDENS_BOX[0] < xa < GARDENS_BOX[2] and GARDENS_BOX[1] < ya < GARDENS_BOX[3]:
+                j = len(verts)
+                verts += [(b[0] + ox * 4.5, b[1] + oy * 4.5, SEAWALL_TOP + 0.05), (a[0] + ox * 4.5, a[1] + oy * 4.5, SEAWALL_TOP + 0.05)]
+                lawn.append((i + 5, i + 4, j, j + 1))
+                k += 1
+                if k % 10 == 0:                            # a mooring pile every 20 m, 18 m off the wall
+                    piles.beam((xa - dc * 18.0, ya + dr * 18.0, -1.5), (xa - dc * 18.0, ya + dr * 18.0, 3.4), 0.5)
     if not wall:
         return None
     out = []
-    for name, faces, rgb in (("city_detail_seawall", wall, (0.56, 0.53, 0.46)), ("city_detail_bank_path", strip, (0.58, 0.50, 0.36))):
+    for name, faces, rgb in (("city_detail_seawall", wall, (0.56, 0.53, 0.46)), ("city_detail_bank_path", strip, (0.58, 0.50, 0.36)),
+                             ("city_detail_bank_lawn", lawn, (0.20, 0.27, 0.09))):
+        if not faces:
+            continue
         ob = C.mesh_fast(name, verts, faces, col, "roof")
         ob.data.materials[0] = C.material_rgb(name, rgb)
+        out.append(ob.name)
+    ob = piles.object("city_detail_mooring_piles", col, "roof")
+    if ob:
+        ob.data.materials[0] = C.material_rgb("city_detail_mooring_piles", (0.10, 0.09, 0.08))
         out.append(ob.name)
     return out
 

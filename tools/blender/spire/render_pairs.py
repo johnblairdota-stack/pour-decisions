@@ -41,8 +41,8 @@ def blue_sky(strength=1.5):
     nt.links.new(geo.outputs["Incoming"], sep.inputs[0])
     ramp = nt.nodes.new("ShaderNodeValToRGB")
     e = ramp.color_ramp.elements
-    e[0].position, e[0].color = 0.0, (0.30, 0.52, 0.88, 1)      # horizon
-    e[1].position, e[1].color = 0.55, (0.045, 0.16, 0.56, 1)    # overhead
+    e[0].position, e[0].color = 0.0, (0.46, 0.67, 0.92, 1)      # horizon
+    e[1].position, e[1].color = 0.45, (0.03, 0.13, 0.55, 1)    # overhead
     mid = ramp.color_ramp.elements.new(0.12)
     mid.color = (0.10, 0.30, 0.78, 1)
     ab = nt.nodes.new("ShaderNodeMath")
@@ -152,7 +152,7 @@ def main():
         bs = nt.nodes["Principled BSDF"]
         for ln in list(bs.inputs["Base Color"].links):
             nt.links.remove(ln)
-        bs.inputs["Base Color"].default_value = (0.16, 0.175, 0.115, 1)
+        bs.inputs["Base Color"].default_value = (0.17, 0.19, 0.135, 1)
         bs.inputs["Roughness"].default_value = 0.22
         bs.inputs["Specular IOR Level"].default_value = 0.22
         for ln in list(bs.inputs["Normal"].links):
@@ -166,7 +166,7 @@ def main():
         nt.links.new(g2.outputs["Position"], sc.inputs["Vector"])
         nt.links.new(sc.outputs["Vector"], rip.inputs["Vector"])
         rb = nt.nodes.new("ShaderNodeBump")
-        rb.inputs["Strength"].default_value = 0.35
+        rb.inputs["Strength"].default_value = 0.7
         rb.inputs["Distance"].default_value = 0.25
         nt.links.new(rip.outputs["Fac"], rb.inputs["Height"])
         nt.links.new(rb.outputs["Normal"], bs.inputs["Normal"])
@@ -176,11 +176,11 @@ def main():
         bs = nt.nodes.get("Principled BSDF")
         geo = nt.nodes.new("ShaderNodeNewGeometry")
         ns = nt.nodes.new("ShaderNodeTexNoise")
-        ns.inputs["Scale"].default_value = 0.07
+        ns.inputs["Scale"].default_value = 0.045
         ns.inputs["Detail"].default_value = 6.0
         nt.links.new(geo.outputs["Position"], ns.inputs["Vector"])
         rp = nt.nodes.new("ShaderNodeValToRGB")
-        rp.color_ramp.elements[0].position, rp.color_ramp.elements[0].color = 0.35, (0.03, 0.09, 0.02, 1)
+        rp.color_ramp.elements[0].position, rp.color_ramp.elements[0].color = 0.32, (0.018, 0.06, 0.014, 1)
         rp.color_ramp.elements[1].position, rp.color_ramp.elements[1].color = 0.70, (0.15, 0.26, 0.06, 1)
         nt.links.new(ns.outputs["Fac"], rp.inputs["Fac"])
         nt.links.new(rp.outputs["Color"], bs.inputs["Base Color"])

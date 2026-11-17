@@ -21,10 +21,10 @@ SKY, WIL = 683336940, 521115344
 WIL_PART = 1104813702                                           # OSM building:part on the river face; read as a pasted panel
 MATS = {   # name: (rgb, roughness, metallic)
     "sky_glass": ((0.022, 0.036, 0.075), 0.06, 0.55), "sky_line": ((0.035, 0.055, 0.11), 0.3, 0.0),
-    "sky_ring": ((0.78, 0.83, 0.90), 0.5, 0.0), "sky_band": ((0.012, 0.016, 0.026), 0.5, 0.0),
+    "sky_ring": ((0.58, 0.64, 0.74), 0.5, 0.0), "sky_band": ((0.012, 0.016, 0.026), 0.5, 0.0),
     "sky_crown": ((0.035, 0.045, 0.065), 0.4, 0.0), "sky_lobby": ((0.02, 0.035, 0.06), 0.05, 0.0),
-    "wil_glass": ((0.085, 0.09, 0.115), 0.2, 0.15), "wil_line": ((0.16, 0.12, 0.085), 0.4, 0.2),
-    "wil_white": ((0.85, 0.86, 0.86), 0.45, 0.0), "wil_deck": ((0.02, 0.014, 0.012), 0.8, 0.0),
+    "wil_glass": ((0.10, 0.115, 0.18), 0.3, 0.1), "wil_line": ((0.075, 0.058, 0.045), 0.5, 0.2),
+    "wil_white": ((0.85, 0.86, 0.86), 0.45, 0.0), "wil_deck": ((0.05, 0.043, 0.036), 0.8, 0.0),
     "wil_lobby": ((0.03, 0.05, 0.07), 0.05, 0.0),
 }
 
@@ -54,7 +54,7 @@ def skytower(b, bufs):
     bufs["sky_band"].prism(B.offset(ring, 0.05), g + 0.40 * H, g + 0.40 * H + 2.4)     # lower plant and amenity floor
     bufs["sky_crown"].prism(B.offset(ring, 0.12), top - 1.0, top + 0.4)             # crown lip
     bufs["sky_ring"].prism(B.offset(ring, 0.16), top + 0.4, top + 0.6)              # thin pale rim
-    bufs["sky_crown"].prism(B.offset(ring, -2.5), top, top + 4.0)                   # roof plant behind the lip
+    bufs["sky_crown"].prism(B.offset(ring, -2.5), top, top + 1.6)                   # roof plant behind the lip
     bufs["sky_lobby"].prism(B.offset(ring, 0.12), g - 0.5, g + 9.0)
     bufs["sky_ring"].prism(B.offset(ring, 1.6), g + 9.0, g + 9.5)                   # entrance canopy line
     return ["glass skin", "floor lines", "white rings", "plant bands", "crown", "lobby"]
@@ -70,6 +70,13 @@ def william1(b, bufs):
             (0.25 * ring[i][0] + 0.75 * ring[(i + 1) % len(ring)][0], 0.25 * ring[i][1] + 0.75 * ring[(i + 1) % len(ring)][1]))]
     g, top = 7.7, tw["top_ahd"]
     cx, cy = sum(p[0] for p in ring) / len(ring), sum(p[1] for p in ring) / len(ring)
+    rv = math.sqrt(0.5)                                            # the slot down the river face: the heart's notch
+    kn = min((i for i in range(len(ring)) if (ring[i][0] - cx) * -rv + (ring[i][1] - cy) * -rv > 0),
+             key=lambda i: abs((ring[i][0] - cx) * -rv - (ring[i][1] - cy) * -rv))
+    for o in range(-5, 6):
+        i = (kn + o) % len(ring)
+        f = 1.0 - 0.16 * (0.5 + 0.5 * math.cos(math.pi * o / 6.0))
+        ring[i] = (cx + (ring[i][0] - cx) * f, cy + (ring[i][1] - cy) * f)
     top = 186.0                                                    # the glass shaft ends where the crown slope starts
     bufs["wil_glass"].prism(ring, g - 1.0, top)
     bufs["wil_lobby"].prism(S.ccw([tuple(p) for p in pod["ring"]]), g - 1.0, pod["top_ahd"])
@@ -86,14 +93,16 @@ def william1(b, bufs):
     bufs["wil_deck"].add([(p[0], p[1], z - 0.5) for p, z in zip(inner, zt)], [list(range(n))])
     for i in range(n):                                             # white rim round the sloped top
         j = (i + 1) % n
-        bufs["wil_white"].beam((ring[i][0], ring[i][1], zt[i]), (ring[j][0], ring[j][1], zt[j]), 1.8, 1.2)
+        bufs["wil_white"].beam((ring[i][0], ring[i][1], zt[i]), (ring[j][0], ring[j][1], zt[j]), 2.4, 1.4)
     k = min((i for i in range(n) if d[i] > 0), key=lambda i: abs((ring[i][0] - cx) * uy - (ring[i][1] - cy) * ux))   # the spine: centre of the river face
-    for i in range(0, n, 2):                                       # fine bronze mullions round the shaft
-        bufs["wil_line"].beam((ring[i][0], ring[i][1], pod["top_ahd"]), (ring[i][0], ring[i][1], zt[i]), 0.16)
+    for i in range(n):                                             # fine bronze mullions round the shaft
+        bufs["wil_line"].beam((ring[i][0], ring[i][1], pod["top_ahd"]), (ring[i][0], ring[i][1], zt[i]), 0.34)
     px, py = ring[k][0] + ux * 0.4, ring[k][1] + uy * 0.4
     for s in (-2.5, 2.5):                                          # twin rails 4 m apart (critic round 3)
         bufs["wil_white"].beam((px - uy * s, py + ux * s, g), (px - uy * s, py + ux * s, zt[k]), 0.95, 0.8)
-    zb = g + 0.36 * (top - g)                                      # dark louvre band low on the shaft
+    for s in (-1.0, 1.0):                                          # the rails flare out to the entrance
+        bufs["wil_white"].beam((px - uy * s * 2.5, py + ux * s * 2.5, g + 24.0), (px - uy * s * 11.0, py + ux * s * 11.0, g + 5.0), 0.95, 0.8)
+    zb = g + 0.40 * (top - g)                                      # dark louvre band low on the shaft
     bufs["wil_line"].prism(B.offset(ring, 0.06), zb, zb + 2.6)
     bufs["wil_white"].beam((cx, cy, 214.0), (cx, cy, 254.0), 0.6)  # mast (LiDAR tip 266.6 m AHD)
     return ["glass skin", "floor lines", "podium lobby", "sloped crown", "white rim and spine", "mast"]
