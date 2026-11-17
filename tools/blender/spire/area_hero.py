@@ -774,16 +774,16 @@ def hx(s):
 
 NEIGHBOUR_WALLS = {        # critic round 0 (photos): own albedo per building, sRGB
     568836537: "E3D8BC",   # Mantra on Queen: cream
-    26253094: "D8BC94",    # Marriott: buff (r4: a step warmer, photo; r7 critics: a touch more peach)
+    26253094: "E8C49A",    # r16: Marriott orange-cream (read grey). Marriott: buff (r4: a step warmer, photo; r7 critics: a touch more peach)
     236155564: "8C969E",   # Skyline (Meriton): dark glass tower, grey frame
     236155562: "8C969E",
-    26253098: "E6DCC4",    # Willahra: off-white (r4, photo; r7 critics: cream)
+    26253098: "E6B8A0",    # r16: Willahra salmon (calib: wall 4x darker than the photo). Willahra: off-white (r4, photo; r7 critics: cream)
     186586595: "CFAE8E",   # r10: still too yellow: warm tan, less yellow. Orient Hotel: ochre render (r7, orient_front photo; exception "orient")
     26386571: "E2B9A0", 26386543: "E2B9A0",   # Admiralty I / II: r9 critics: peach-pink #e2b9a0
     224320345: "D9AE88",   # Macrossan: Petrie Bight peach
 }
-# r15: ashlar measured (2010 photo / render, linear 1.03/0.95/0.87), block spread x1.5 (critic: uniform tan); dressings measured
-CATHEDRAL_LOOK = {"ashlar": ["9C8766", "A99272", "827885", "BCA07A", "4F4639", "827885", "B18F63", "D2B088", "937E63", "827885"], "dressing": "CCB7A2",
+# r16: block spread cut to ~0.55 of the original (critics: x1.5 read as a chequerboard), same measured hue. r15: ashlar measured (2010 photo / render, linear 1.03/0.95/0.87), block spread x1.5 (critic: uniform tan); dressings measured
+CATHEDRAL_LOOK = {"ashlar": ["9C876F", "A18B73", "94827A", "A99176", "877463", "94827A", "A48A6E", "B3987B", "99846E", "94827A"], "dressing": "CCB7A2",
                   "tile": "A8452C", "spire": "2E2E33", "slate": "5A5A60"}
 HALL_OSM = 1210526673      # brick block in the forecourt view: LiDAR top includes trees; photo shows a low gabled hall
 
@@ -888,8 +888,8 @@ def mantra_fin(col, b, rings, stripe_xy, objs, report):
             fin.add(q, faces)
     # r10: dark blue lowercase "mantra" (#1b5fa8); top-floor balcony slabs / rails within 8 m of the sign go
     sx, sy, snx, sny = P("mantra_sign", (11.85, 93.2, 0.506, 0.861))
-    fob = put(fin, "mantra_blue_fin", col, mat("mantra_blue", lin(P("mantra_blue_hex", "1871CF"))), objs)
-    flag_material(fob)   # r13: photo #1E78C8, r12 read pale cyan
+    fob = put(fin, "mantra_blue_fin", col, mat("mantra_blue", lin(P("mantra_blue_hex", "135CC6"))), objs)
+    flag_material(fob)   # r16: base #135cc6 = r15 lit face #4e91bf scaled to the critic's photo #3f78b8 (0.65/0.66/0.92)   # r13: photo #1E78C8, r12 read pale cyan
     # r11 (critics: letters doubled, painted over the windows): a SOLID one-storey cream parapet band on that face,
     # standing in front of the windows, and one text object 2.5 cm proud of it
     band = C.MeshBuf()
@@ -918,8 +918,8 @@ def flag_material(ob):
     m = bpy.data.materials.new("area_mantra_blue_paint")
     m.use_nodes = True
     b = m.node_tree.nodes.get("Principled BSDF")
-    b.inputs["Base Color"].default_value = (*lin(P("mantra_blue_hex", "1871CF")), 1)
-    m.diffuse_color = (*lin(P("mantra_blue_hex", "1871CF")), 1)      # r15 hotfix: the later material pass copies diffuse_color in (default white)
+    b.inputs["Base Color"].default_value = (*lin(P("mantra_blue_hex", "135CC6")), 1)
+    m.diffuse_color = (*lin(P("mantra_blue_hex", "135CC6")), 1)      # r15 hotfix: the later material pass copies diffuse_color in (default white)
     b.inputs["Roughness"].default_value = 0.45
     b.inputs["Alpha"].default_value = 1.0
     for k in ("Transmission Weight", "Transmission", "Emission Strength", "Subsurface Weight"):
@@ -1607,8 +1607,8 @@ def pixel_kill(guard, report):
     every tree hit. Run before round8_trees, whose checks then clear any remnant."""
     import numpy as np
     boxes = P("pixel_kill", [
-        # r15: the old spire_ann_st_2018 box (630,770,215,295) sat on the photo's fig crown (x618-1190, y755-1373)
-        # and thinned it to dots over bare limbs: gone
+        # r16: back (critic + crop: without it a trunkless leaf spray hangs over the Spire facade there)
+        ("spire_ann_st_2018", 1199, 1600, 630, 770, 215, 295),
         ("annstcath", 1600, 1000, 762, 118, 44, 44), ("customs_house", 1600, 1000, 1122, 488, 46, 74),
         ("deanery", 1600, 1000, 560, 750, 25, 220, 1.5), ("deanery", 1600, 1000, 950, 760, 25, 240, 1.5),
         ("ann_st_far", 1316, 1600, 1062, 1100, 36, 490, 1.5),
@@ -1822,14 +1822,24 @@ def annqueen_fig(col, guard, objs, report):
         T.tube(trunks, (x, y, g + h * 0.38), (x + math.cos(a) * r * 0.55, y + math.sin(a) * r * 0.55, g + h * 0.66), 0.28, 0.12, 8)
     leaves = FO.Foliage(seed=1501)
     lod, FO.LOD = FO.LOD, (lambda c: (1.0, 1.0))                    # r15 test: the far-crown LOD left a few dots
-    for k in range(7):                                               # broad, dense, a little flat-topped
+    for k in range(9):                                               # r16: 3-4x the cards, bigger: a dense crown
         a = k * 2.39
-        d = r * (0.0 if k == 0 else 0.55)
-        leaves.cloud((x + math.cos(a) * d, y + math.sin(a) * d, g + h - r * 0.62), (r * 0.62, r * 0.62, r * 0.42),
-                     int(7000 if k == 0 else 4000), 0.42, shell=0.3, top_bias=0.15)
+        d = r * (0.0 if k == 0 else 0.6)
+        leaves.cloud((x + math.cos(a) * d, y + math.sin(a) * d, g + h - r * 0.62), (r * 0.62, r * 0.62, r * 0.45),
+                     int(24000 if k == 0 else 14000), 0.55, shell=0.25, top_bias=0.1)
     FO.LOD = lod
+    under = C.MeshBuf()                                              # r16: dark under-canopy mass (no sky through it)
+    T.blob(under, x, y, g + h - r * 0.75, r * 0.95, r * 0.38)
+    for k in range(5):
+        a = k * 2.39 + 0.4
+        T.blob(under, x + math.cos(a) * r * 0.55, y + math.sin(a) * r * 0.55, g + h - r * 0.7, r * 0.5, r * 0.32)
+    put(under, "annqueen_fig_mass", col, mat("fig_mass", lin("1E2E1A")), objs)
+    # r16: 2-3 heavy limbs reaching from the right of the photo frame (camera right) towards the street
+    for k, (dl, dz) in enumerate(((-4.5, 0.0), (-6.5, 1.2), (-3.0, 2.0))):
+        tx, ty = x - rx * (r * 0.9) + fx * dl * 0.3, y - ry * (r * 0.9) + fy * dl * 0.3
+        T.tube(trunks, (x, y, g + h * 0.4), (tx, ty, g + h * 0.55 + dz), 0.45 - 0.07 * k, 0.22, 10)
     put(trunks, "annqueen_fig_trunk", col, mat("bark_fig", hx("6E6658")), objs)
-    ob = leaves.object("area_annqueen_fig_leaves", col, (0.018, 0.038, 0.016), (0.045, 0.08, 0.03))   # photo: dark glossy fig
+    ob = leaves.object("area_annqueen_fig_leaves", col, lin("2F4A2A"), lin("4F6B3A"), translucency=0.05)   # r16: critic two-tone
     if ob:
         objs.append(ob.name)
     report.append("Ann/Queen fig at (%.1f, %.1f), %.0f m tall" % (x, y, h))
@@ -2442,6 +2452,29 @@ def restyle():
             bsdf.inputs["Roughness"].default_value = 0.8
             if not bsdf.inputs["Base Color"].is_linked:
                 bsdf.inputs["Base Color"].default_value = (*lin("CCB7A2"), 1)   # r13: 30 % less yellow
+        if m.name == "cathedral_tuff_ashlar" and not m.get("r16_weather"):
+            m["r16_weather"] = True                                   # r16: per-block noise + soft weathering
+            lk_ = next((l for l in nt.links if l.to_socket == bsdf.inputs["Base Color"]), None)
+            if lk_ is not None:
+                src = lk_.from_socket
+                geo_ = nt.nodes.new("ShaderNodeNewGeometry")
+                nz_ = nt.nodes.new("ShaderNodeTexNoise")
+                nz_.inputs["Scale"].default_value = 2.2
+                nz_.inputs["Detail"].default_value = 8.0
+                nt.links.new(geo_.outputs["Position"], nz_.inputs["Vector"])
+                mr_ = nt.nodes.new("ShaderNodeMapRange")
+                nt.links.new(nz_.outputs["Fac"], mr_.inputs["Value"])
+                mr_.inputs["To Min"].default_value, mr_.inputs["To Max"].default_value = 0.86, 1.06
+                mx_ = nt.nodes.new("ShaderNodeMix")
+                mx_.data_type = "RGBA"
+                mx_.blend_type = "MULTIPLY"
+                mx_.inputs["Factor"].default_value = 1.0
+                cc_ = nt.nodes.new("ShaderNodeCombineColor")
+                for k_ in range(3):
+                    nt.links.new(mr_.outputs["Result"], cc_.inputs[k_])
+                nt.links.new(src, mx_.inputs[6])
+                nt.links.new(cc_.outputs[0], mx_.inputs[7])
+                nt.links.new(mx_.outputs[2], bsdf.inputs["Base Color"])
         if m.name == "cathedral_tuff_ashlar" and not m.get("r11_joints"):
             m["r11_joints"] = True                                    # r11: dark recessed joints that shadow
             for n_ in nt.nodes:
@@ -2545,8 +2578,8 @@ def leading(nt, bsdf):
     br.inputs["Row Height"].default_value = 0.45
     br.inputs["Mortar Size"].default_value = 0.025
     br.offset = 0.0
-    br.inputs["Color1"].default_value = (*lin("1B222C"), 1)          # r14: read flat black: #1b222c, glossy
-    br.inputs["Color2"].default_value = (*lin("232C38"), 1)
+    br.inputs["Color1"].default_value = (*lin("3A4654"), 1)          # r16: still flat black in shade: lifted
+    br.inputs["Color2"].default_value = (*lin("4A5666"), 1)
     br.inputs["Mortar"].default_value = (0.012, 0.012, 0.012, 1)
     nt.links.new(br.outputs["Color"], bsdf.inputs["Base Color"])
     bsdf.inputs["Roughness"].default_value = 0.1
@@ -2849,11 +2882,12 @@ def lit_windows(m, nt, bsdf):
 
 
 SKY_DAY = [(0.0, "DCE6EE"), (0.07, "C4D8EA"), (0.25, "8FB5DE"), (1.0, "2F6FC0")]   # r3: pale horizon band
+SKY_VIEW = None    # r16: the view id; per-camera sky gain / cloud from area_cams.json "sky_gain" / "sky_cloud"
 SKY_MODE = None    # r8: per view (area_cams.json "sky"): "deep" clear blue or "pale" grey-white, matched to its photo
 SKY_DEEP = [(0.0, "A8C6E8"), (0.12, "7AA8DA"), (0.42, "3474C0"), (1.0, "0C4C9E")]   # r15: deeper zenith (2010 photo top #044d9a)   # r10: a real gradient
 SKY_NAVY = [(0.0, "A4C0E2"), (0.12, "7AA2D6"), (0.42, "3466B4"), (1.0, "1A3F8F")]
 SKY_PALEBLUE = [(0.0, "EEF1F3"), (0.15, "D8E2EC"), (0.45, "B4C8DE"), (1.0, "8AA8CE")]
-SKY_PALEDUSK = [(0.0, "E8E4E0"), (0.12, "E2E6F0"), (0.3, "CAD2E5"), (0.6, "A9B6D3"), (1.0, "8DA0C1")]   # r15: measured photo/render sky 1.72/1.53/1.33; horizon near-white   # r14: measured from the photo: #b1bdd3 low -> #798dae top (r13 read neutral #c0c8d2)
+SKY_PALEDUSK = [(0.0, "E8E4E0"), (0.12, "D8DCE4"), (0.3, "9AA4B6"), (0.6, "7A8598"), (1.0, "636E82")]   # r16: top 30% measured #a5aebf vs photo #707b8c; near-white bottom kept   # r15: measured photo/render sky 1.72/1.53/1.33; horizon near-white   # r14: measured from the photo: #b1bdd3 low -> #798dae top (r13 read neutral #c0c8d2)
 SKY_PALE = [(0.0, "E2E5E8"), (0.10, "D3DAE2"), (0.35, "B9C6D4"), (1.0, "8FA8C8")]
 SKY_DUSK = [(0.0, "E8A890"), (0.16, "E8A890"), (0.30, "9C7CA8"), (0.62, "6E73A0"), (1.0, "4E5C8E")]   # r5 PINNED: peach band #e8a890 under lilac #9c7ca8
 
@@ -2862,6 +2896,19 @@ def lin(h):
     h = h.lstrip("#")
     c = [int(h[i:i + 2], 16) / 255 for i in (0, 2, 4)]
     return tuple(x / 12.92 if x <= 0.04045 else ((x + 0.055) / 1.055) ** 2.4 for x in c)
+
+
+def _sky_cfg():
+    """r16: per-camera sky calibration (area_cams.json): "sky_gain" {view: linear rgb gain on the painted sky,
+    measured photo / render on a sky mask}, "sky_cloud" {view: cloud amount}."""
+    if "sky_cfg" not in _STATE:
+        here = os.path.join(os.path.dirname(L.HERE), "..", "spire_area", "area_cams.json")
+        try:
+            A_ = json.load(open(here, encoding="utf-8"))
+        except Exception:
+            A_ = {}
+        _STATE["sky_cfg"] = {"sky_gain": A_.get("sky_gain", {}), "sky_cloud": A_.get("sky_cloud", {})}
+    return _STATE["sky_cfg"]
 
 
 def sky(dusk):
@@ -2948,10 +2995,13 @@ def sky(dusk):
     el = ramp.elements
     while len(el) > 1:                                              # r4: rebuild exactly, one element per stop
         el.remove(el[-1])
-    el[0].position, el[0].color = stops[0][0], (*lin(stops[0][1]), 1)
+    cfg = _sky_cfg()
+    gain = cfg.get("sky_gain", {}).get(SKY_VIEW, (1.0, 1.0, 1.0)) if not dusk else (1.0, 1.0, 1.0)
+    gl = lambda h: tuple(c * g for c, g in zip(lin(h), gain))
+    el[0].position, el[0].color = stops[0][0], (*gl(stops[0][1]), 1)
     for pos, h in stops[1:]:
         e = el.new(pos)
-        e.color = (*lin(h), 1)
+        e.color = (*gl(h), 1)
     cm_ = nt.nodes["AREA_CLOUD_MIX"]
     if not cm_.inputs[7].is_linked:                                 # r4: heaped cumulus: grey bases, white tops
         sh = nt.nodes.new("ShaderNodeValToRGB")
@@ -2962,7 +3012,7 @@ def sky(dusk):
         nt.links.new(sh.outputs["Color"], cm_.inputs[7])
     sh = nt.nodes["AREA_CLOUD_SHADE"].color_ramp.elements
     sh[1].color = (1.0, 0.86, 0.80, 1) if dusk else (1.0, 1.0, 1.0, 1)
-    nt.nodes["AREA_CLOUD"].inputs["To Max"].default_value = 0.55 if dusk else {"deep": 0.3, "pale": 0.25, "navy": 0.3, "paleblue": 0.95, "paledusk": 0.15}.get(SKY_MODE, P("cloud_cover", 0.97))   # r14: daylight pairs milky vs cobalt photos
+    nt.nodes["AREA_CLOUD"].inputs["To Max"].default_value = 0.55 if dusk else cfg.get("sky_cloud", {}).get(SKY_VIEW) if SKY_VIEW in cfg.get("sky_cloud", {}) else {"deep": 0.06, "pale": 0.25, "navy": 0.06, "paleblue": 0.95, "paledusk": 0.15}.get(SKY_MODE, P("cloud_cover", 0.97))   # r14: daylight pairs milky vs cobalt photos
     nt.nodes["AREA_SKY_BG"].inputs["Strength"].default_value = P("sky_cam_dusk", 1.3) if dusk else P("sky_cam_day", 1.55)
 
 

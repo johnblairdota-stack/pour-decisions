@@ -1,51 +1,338 @@
 {
  "note": "Spire-area render cameras. heroes: pos / look_at are (x, y, height above ground at that x, y) in the local frame (x east, y north, Spire at 0, 0). 'layout' = a camera from layout.CAMERAS / HERO_CAMERAS (pos z above ground). 'photo_day' = a solved photo camera (photo_cams.json) rendered in day light as a hero. 'pairs' = solved photo cameras rendered for the real-photo pairs. Lit as a clear morning unless 'date'/'hour' given.",
  "showcase": [
-  {"id": "aerial", "photo_day": "aerial_ne_dusk", "hour": 9.0, "caption": "Over Spring Hill to the river"},
-  {"id": "forecourt", "photo_day": "cathedral_forecourt", "caption": "Cathedral forecourt, Ann St"},
-  {"id": "westfront", "layout": "hero_cathedral_west_front", "caption": "St John's west front"},
-  {"id": "annqueen", "layout": "street_ann_queen", "caption": "Ann St at Queen St"},
-  {"id": "crane", "photo_day": "crane_from_nw", "caption": "Near top-out, 2017"},
-  {"id": "flyby", "photo_day": "fly_by_east", "caption": "Petrie Bight from the east"},
-  {"id": "roof", "layout": "hero_spire_roof", "caption": "Spire roof"},
-  {"id": "annstcath", "layout": "street_ann_cathedral", "caption": "Ann St outside the cathedral"},
-  {"id": "orient", "layout": "cam_ann_queen_corner", "caption": "Orient Hotel from the Ann/Queen corner"}
+  {
+   "id": "aerial",
+   "photo_day": "aerial_ne_dusk",
+   "hour": 9.0,
+   "caption": "Over Spring Hill to the river"
+  },
+  {
+   "id": "forecourt",
+   "photo_day": "cathedral_forecourt",
+   "caption": "Cathedral forecourt, Ann St"
+  },
+  {
+   "id": "westfront",
+   "layout": "hero_cathedral_west_front",
+   "caption": "St John's west front"
+  },
+  {
+   "id": "annqueen",
+   "layout": "street_ann_queen",
+   "caption": "Ann St at Queen St"
+  },
+  {
+   "id": "crane",
+   "photo_day": "crane_from_nw",
+   "caption": "Near top-out, 2017"
+  },
+  {
+   "id": "flyby",
+   "photo_day": "fly_by_east",
+   "caption": "Petrie Bight from the east"
+  },
+  {
+   "id": "roof",
+   "layout": "hero_spire_roof",
+   "caption": "Spire roof"
+  },
+  {
+   "id": "annstcath",
+   "layout": "street_ann_cathedral",
+   "caption": "Ann St outside the cathedral"
+  },
+  {
+   "id": "orient",
+   "layout": "cam_ann_queen_corner",
+   "caption": "Orient Hotel from the Ann/Queen corner"
+  }
  ],
  "heroes": [
-  {"id": "carpark_eye", "pos": [-27.0, -61.0, 1.6], "look_at": [-68.0, -72.0, 2.0], "lens_mm": 22.0,
-   "caption": "St John's Cathedral car park at eye level, looking west along the bays"},
-  {"id": "carpark_raised", "pos": [-5.0, -40.0, 32.0], "look_at": [-58.0, -72.0, 0.0], "lens_mm": 26.0,
-   "caption": "Cathedral car park from above the Deanery side"},
-  {"id": "cathedral_from_carpark", "pos": [-44.0, -68.0, 1.6], "look_at": [-72.0, -104.0, 12.0], "lens_mm": 22.0,
-   "caption": "The cathedral's north side and chancel from the car park"},
-  {"id": "cathedral_grounds", "pos": [-142.0, -42.0, 14.0], "look_at": [-98.0, -82.0, 2.0], "lens_mm": 26.0,
-   "caption": "Cathedral grounds: west front, drive, lawn and beds"},
-  {"id": "cathedral_lawn_eye", "pos": [-118.0, -64.0, 1.6], "look_at": [-96.0, -80.0, 6.0], "lens_mm": 22.0,
-   "caption": "Cathedral lawn and beds by the west front"},
-  {"id": "orient_hotel", "pos": [53.8, 62.0, 1.6], "look_at": [10.1, 39.0, 6.0], "lens_mm": 24.0,
-   "caption": "Orient Hotel from the Ann/Queen junction"},
-  {"id": "willahra_admiralty", "pos": [46.0, 5.0, 1.6], "look_at": [62.0, -60.0, 34.0], "lens_mm": 22.0,
-   "caption": "Queen St looking south: Willahra, Marriott, Admiralty"},
-  {"id": "church_house_webber", "pos": [-55.0, -2.0, 1.6], "look_at": [-60.0, -40.0, 6.0], "lens_mm": 22.0,
-   "caption": "Church House and Webber House across Ann St"},
-  {"id": "deanery", "pos": [8.0, -116.0, 24.0], "look_at": [-18.0, -89.0, 2.0], "lens_mm": 24.0,
-   "caption": "The Deanery over its car park"},
-  {"id": "mantra", "pos": [62.0, 140.0, 20.0], "look_at": [6.0, 86.0, 45.0], "lens_mm": 26.0,
-   "caption": "Mantra on Queen from the Boundary St junction"},
-  {"id": "petrie_bight_towers", "pos": [62.0, 118.0, 55.0], "look_at": [185.0, 30.0, 40.0], "lens_mm": 26.0,
-   "caption": "Petrie Bight towers: Macrossan, Skyline, Admiralty Quays"},
-  {"id": "ann_st_streetscape", "pos": [-150.0, -90.0, 1.6], "look_at": [-80.0, -28.0, 5.0], "lens_mm": 24.0, "hour": 11.5,
-   "caption": "Ann St looking north-east from the cathedral corner"},
-  {"id": "queen_st_streetscape", "pos": [58.0, -110.0, 1.6], "look_at": [44.0, -20.0, 5.0], "lens_mm": 24.0, "hour": 11.5,
-   "caption": "Queen St looking north towards Spire"},
-  {"id": "customs_house_river", "pos": [72.0, -302.0, 4.0], "look_at": [31.0, -262.0, 10.0], "lens_mm": 26.0,
-   "caption": "Customs House colonnade and dome from the river walk"},
-  {"id": "customs_house", "pos": [46.0, -212.0, 1.6], "look_at": [27.0, -262.0, 9.0], "lens_mm": 24.0,
-   "caption": "Customs House from Queen St"}
+  {
+   "id": "carpark_eye",
+   "pos": [
+    -27.0,
+    -61.0,
+    1.6
+   ],
+   "look_at": [
+    -68.0,
+    -72.0,
+    2.0
+   ],
+   "lens_mm": 22.0,
+   "caption": "St John's Cathedral car park at eye level, looking west along the bays"
+  },
+  {
+   "id": "carpark_raised",
+   "pos": [
+    -5.0,
+    -40.0,
+    32.0
+   ],
+   "look_at": [
+    -58.0,
+    -72.0,
+    0.0
+   ],
+   "lens_mm": 26.0,
+   "caption": "Cathedral car park from above the Deanery side"
+  },
+  {
+   "id": "cathedral_from_carpark",
+   "pos": [
+    -44.0,
+    -68.0,
+    1.6
+   ],
+   "look_at": [
+    -72.0,
+    -104.0,
+    12.0
+   ],
+   "lens_mm": 22.0,
+   "caption": "The cathedral's north side and chancel from the car park"
+  },
+  {
+   "id": "cathedral_grounds",
+   "pos": [
+    -142.0,
+    -42.0,
+    14.0
+   ],
+   "look_at": [
+    -98.0,
+    -82.0,
+    2.0
+   ],
+   "lens_mm": 26.0,
+   "caption": "Cathedral grounds: west front, drive, lawn and beds"
+  },
+  {
+   "id": "cathedral_lawn_eye",
+   "pos": [
+    -118.0,
+    -64.0,
+    1.6
+   ],
+   "look_at": [
+    -96.0,
+    -80.0,
+    6.0
+   ],
+   "lens_mm": 22.0,
+   "caption": "Cathedral lawn and beds by the west front"
+  },
+  {
+   "id": "orient_hotel",
+   "pos": [
+    53.8,
+    62.0,
+    1.6
+   ],
+   "look_at": [
+    10.1,
+    39.0,
+    6.0
+   ],
+   "lens_mm": 24.0,
+   "caption": "Orient Hotel from the Ann/Queen junction"
+  },
+  {
+   "id": "willahra_admiralty",
+   "pos": [
+    46.0,
+    5.0,
+    1.6
+   ],
+   "look_at": [
+    62.0,
+    -60.0,
+    34.0
+   ],
+   "lens_mm": 22.0,
+   "caption": "Queen St looking south: Willahra, Marriott, Admiralty"
+  },
+  {
+   "id": "church_house_webber",
+   "pos": [
+    -55.0,
+    -2.0,
+    1.6
+   ],
+   "look_at": [
+    -60.0,
+    -40.0,
+    6.0
+   ],
+   "lens_mm": 22.0,
+   "caption": "Church House and Webber House across Ann St"
+  },
+  {
+   "id": "deanery",
+   "pos": [
+    8.0,
+    -116.0,
+    24.0
+   ],
+   "look_at": [
+    -18.0,
+    -89.0,
+    2.0
+   ],
+   "lens_mm": 24.0,
+   "caption": "The Deanery over its car park"
+  },
+  {
+   "id": "mantra",
+   "pos": [
+    62.0,
+    140.0,
+    20.0
+   ],
+   "look_at": [
+    6.0,
+    86.0,
+    45.0
+   ],
+   "lens_mm": 26.0,
+   "caption": "Mantra on Queen from the Boundary St junction"
+  },
+  {
+   "id": "petrie_bight_towers",
+   "pos": [
+    62.0,
+    118.0,
+    55.0
+   ],
+   "look_at": [
+    185.0,
+    30.0,
+    40.0
+   ],
+   "lens_mm": 26.0,
+   "caption": "Petrie Bight towers: Macrossan, Skyline, Admiralty Quays"
+  },
+  {
+   "id": "ann_st_streetscape",
+   "pos": [
+    -150.0,
+    -90.0,
+    1.6
+   ],
+   "look_at": [
+    -80.0,
+    -28.0,
+    5.0
+   ],
+   "lens_mm": 24.0,
+   "hour": 11.5,
+   "caption": "Ann St looking north-east from the cathedral corner"
+  },
+  {
+   "id": "queen_st_streetscape",
+   "pos": [
+    58.0,
+    -110.0,
+    1.6
+   ],
+   "look_at": [
+    44.0,
+    -20.0,
+    5.0
+   ],
+   "lens_mm": 24.0,
+   "hour": 11.5,
+   "caption": "Queen St looking north towards Spire"
+  },
+  {
+   "id": "customs_house_river",
+   "pos": [
+    72.0,
+    -302.0,
+    4.0
+   ],
+   "look_at": [
+    31.0,
+    -262.0,
+    10.0
+   ],
+   "lens_mm": 26.0,
+   "caption": "Customs House colonnade and dome from the river walk"
+  },
+  {
+   "id": "customs_house",
+   "pos": [
+    46.0,
+    -212.0,
+    1.6
+   ],
+   "look_at": [
+    27.0,
+    -262.0,
+    9.0
+   ],
+   "lens_mm": 24.0,
+   "caption": "Customs House from Queen St"
+  }
  ],
- "sky": {"fly_by_east": "deep", "spire_ann_st_2018": "navy", "flyby": "deep", "ann_queen_corner": "paledusk", "orient_front": "paleblue",
-         "cathedral_forecourt": "deep", "ann_st_far": "deep", "cathedral_west_front_2010": "deep", "forecourt": "deep"},
- "pairs": ["aerial_ne_dusk", "cathedral_forecourt", "crane_from_nw", "ann_st_far", "fly_by_east", "crane_from_south",
-           "queen_st_willahra", "orient_front", "ann_queen_corner"],
- "commons_pairs": ["spire_ann_st_2018", "cathedral_ann_st_2012", "cathedral_west_front_2010"]
+ "sky": {
+  "fly_by_east": "deep",
+  "spire_ann_st_2018": "navy",
+  "flyby": "deep",
+  "ann_queen_corner": "paledusk",
+  "orient_front": "paleblue",
+  "cathedral_forecourt": "deep",
+  "ann_st_far": "pale",
+  "cathedral_west_front_2010": "deep",
+  "forecourt": "deep"
+ },
+ "pairs": [
+  "aerial_ne_dusk",
+  "cathedral_forecourt",
+  "crane_from_nw",
+  "ann_st_far",
+  "fly_by_east",
+  "crane_from_south",
+  "queen_st_willahra",
+  "orient_front",
+  "ann_queen_corner"
+ ],
+ "commons_pairs": [
+  "spire_ann_st_2018",
+  "cathedral_ann_st_2012",
+  "cathedral_west_front_2010"
+ ],
+ "sky_gain": {
+  "queen_st_willahra": [
+   0.86,
+   0.8,
+   0.9
+  ],
+  "cathedral_forecourt": [
+   2.071,
+   0.958,
+   0.862
+  ],
+  "forecourt": [
+   2.071,
+   0.958,
+   0.862
+  ],
+  "orient_front": [
+   1.051,
+   1.089,
+   1.264
+  ],
+  "orient": [
+   1.051,
+   1.089,
+   1.264
+  ]
+ },
+ "sky_cloud": {
+  "ann_st_far": 0.75
+ },
+ "_sky_note": "r16: sky_gain = measured photo / render linear sky-mask means (tools/spire_area/calib_compare.py); sky_cloud overrides the cloud amount per view; r16 second pass: gains times the re-measured ratio (cirrus removal made the deep sky too saturated)"
 }

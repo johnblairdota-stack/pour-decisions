@@ -35,13 +35,14 @@ except ImportError:
     AH = None
 
 
-def light(date, hour, dusk=False, kind="street", sky=None):
+def light(date, hour, dusk=False, kind="street", sky=None, view=None):
     """Sun + sky for one view: preview's look, then the area round's changes when area_hero is built.
     sky: "deep" / "pale" (area_cams.json "sky", r8: matched to each pair's photo), else the default day sky."""
     az, el = L.sun_position(date or "2024-04-15", hour)
     P.apply_light(az, el, "dusk" if dusk else "day")
     if AH is not None:
         AH.SKY_MODE = sky
+        AH.SKY_VIEW = view                       # r16: per-camera sky gain / cloud (area_cams.json)
         AH.light(az, el, dusk, kind)
 
 
@@ -142,7 +143,7 @@ def main():
             P.hide(["logistics"], stage in ("as_built", "pre_spire") and not c.get("show_logistics"))
             if kind == "agl":
                 w, h = place_agl(cam, c, c.get("size"))
-                light(c.get("date"), c.get("hour", 9.0), False, "street" if c["pos"][2] < 3 else "aerial", SKYMAP.get(jid))
+                light(c.get("date"), c.get("hour", 9.0), False, "street" if c["pos"][2] < 3 else "aerial", SKYMAP.get(jid), jid)
                 path = os.path.join(out, "hero_%s.png" % jid)
             else:
                 w, h, where = photo_cam(cam, c)
@@ -150,7 +151,7 @@ def main():
                 hour = float(c.get("time_h") or (17.4 if dusk else 12.0))
                 if not dusk:
                     hour = min(max(hour, 8.5), 15.5)
-                light(c.get("date", ""), hour, dusk, where, SKYMAP.get(jid))
+                light(c.get("date", ""), hour, dusk, where, SKYMAP.get(jid), jid)
                 path = os.path.join(out, ("hero_%s.png" % jid) if kind == "photo_day" else ("%s_render.png" % jid))
             P.render(path, int(w * scale), int(h * scale))
             done.append(os.path.basename(path))
