@@ -171,10 +171,17 @@ def build_buildings(recs=None, zone=None, collection="cbd_ext", suffix="_ext"):
         LK.LOOKS.setdefault(k, v)
     keep = B.records
     B.records = lambda: recs
+    if collection == "cbd_ext":                     # the same per-building mixes as city_wide (critic round 1:
+        import city_wide as CW                      # the skyline read as a wall of identical white towers)
+        mixed, _ = CW.assign_looks(recs)
+        plain = B.look_for
+        B.look_for = lambda osm, tags, h, family: mixed.get(osm) or plain(osm, tags, h, family)
     try:
         res = B.build(zone=zone or tuple(meta()["box_local"]), collection=collection, only={r["osm"] for r in recs}, suffix=suffix)
     finally:
         B.records = keep
+        if collection == "cbd_ext":
+            B.look_for = plain
         for k in added:
             o["ways"].pop(k, None)
     return res, len(recs)
@@ -205,7 +212,7 @@ def build_trees(col):
             n += 1
     objs = []
     for buf, name, key, rgb in ((trunks, "cbd_ext_tree_trunks", "bark", (0.11, 0.095, 0.08)),
-                                (crowns, "cbd_ext_tree_crowns", "tree", (0.035, 0.075, 0.03)),
+                                (crowns, "cbd_ext_tree_crowns", "tree", (0.06, 0.14, 0.045)),
                                 (palms, "cbd_ext_palm_fronds", "palm", (0.06, 0.12, 0.04))):
         ob = buf.object(name, col, key)
         if ob:

@@ -31,6 +31,28 @@ def ground(x, y):
     return float(FR.GROUND.z([x], [y])[0]) if FR.GROUND else 5.0
 
 
+def blue_sky(strength=1.5):
+    """Clear summer sky for the pairs: saturated blue overhead, paler at the horizon (critic round 1: the
+    physical sky read as flat grey haze beside the photos)."""
+    nt = bpy.context.scene.world.node_tree
+    bg = nt.nodes.get("Background")
+    geo = nt.nodes.new("ShaderNodeNewGeometry")
+    sep = nt.nodes.new("ShaderNodeSeparateXYZ")
+    nt.links.new(geo.outputs["Incoming"], sep.inputs[0])
+    ramp = nt.nodes.new("ShaderNodeValToRGB")
+    e = ramp.color_ramp.elements
+    e[0].position, e[0].color = 0.0, (0.42, 0.62, 0.86, 1)      # horizon
+    e[1].position, e[1].color = 0.55, (0.045, 0.16, 0.56, 1)    # overhead
+    mid = ramp.color_ramp.elements.new(0.12)
+    mid.color = (0.16, 0.36, 0.78, 1)
+    ab = nt.nodes.new("ShaderNodeMath")
+    ab.operation = "ABSOLUTE"
+    nt.links.new(sep.outputs["Z"], ab.inputs[0])
+    nt.links.new(ab.outputs[0], ramp.inputs["Fac"])
+    nt.links.new(ramp.outputs["Color"], bg.inputs["Color"])
+    bg.inputs["Strength"].default_value = strength
+
+
 def shoot(p, out, width):
     x, y = L.to_local(p["lat"], p["lon"])
     if p.get("dist"):
@@ -46,7 +68,7 @@ def shoot(p, out, width):
     cam.data.sensor_fit = "HORIZONTAL"
     cam.data.sensor_width = sw
     cam.data.lens = p["f35"]
-    cam.data.clip_start, cam.data.clip_end = 0.5, 9000
+    cam.data.clip_start, cam.data.clip_end = p.get("clip", 0.5), 9000      # "clip": skip things nearer than this (m)
     pos, tgt = Vector((x, y, z)), Vector(p["target"])
     d = tgt - pos
     yaw = math.atan2(d.y, d.x) + math.atan((p["at"][0] - 0.5) * sw / p["f35"])
@@ -68,6 +90,10 @@ def main():
     width = int(next((a[6:] for a in argv if a.startswith("width=")), 1000))
     build_all.build_all(None, write_meta=False)
     P.setup_morning()
+    az, el = L.sun_position("2019-01", 11.5)               # the photos are clear late-morning summer days
+    P.apply_light(az, el)
+    blue_sky()
+    bpy.context.scene.view_settings.exposure += 0.8       # critic round 1: renders read a stop darker than the photos
     RC.setup_cycles(int(os.environ.get("CYC_SAMPLES", "32")))
     done = [shoot(p, out, width) for p in pairs if not only or p["id"] in only]
     json.dump(done, open(os.path.join(out, "cams.json"), "w"), indent=1)

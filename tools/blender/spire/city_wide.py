@@ -179,7 +179,7 @@ def build_trees(col):
             n += 1
     objs = []
     for buf, name, mname, rgb in ((trunks, "wide_tree_trunks", "tree_trunks", (0.11, 0.095, 0.08)),
-                                  (crowns, "wide_tree_crowns", "tree_crowns_far", (0.035, 0.075, 0.03))):
+                                  (crowns, "wide_tree_crowns", "tree_crowns_far", (0.06, 0.14, 0.045))):
         ob = buf.object(name, col, "tree")
         if ob:
             ob.data.materials[0] = C.material_rgb(mname, rgb)
