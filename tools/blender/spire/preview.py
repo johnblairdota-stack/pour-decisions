@@ -242,7 +242,10 @@ def setup_morning():
             nt.links.new(fmix.outputs[2], bsdf.inputs["Base Color"])
             # HSW r4: ripples sized to read at 50-300 m: swell ~16 m, wind waves ~5 m, chop ~1 m
             hsum = None
-            for kind, scale, weight in (("noise", 0.015, 1.2), ("noise", Rv["swell_scale"], 1.0), ("wave", Rv["wave_scale"], 0.25), ("noise", Rv["chop_scale"], 0.3)):
+            for kind, scale, weight in (("noise", 0.015, 1.2), ("noise", Rv["swell_scale"], 1.0), ("wave", Rv["wave_scale"], 0.25), ("noise", Rv["chop_scale"], 0.3),
+                                       ("noise", Rv.get("fine_scale", 0.0), Rv.get("fine_w", 0.0))):   # r19: fine ripples
+                if not scale:
+                    continue
                 if kind == "noise":
                     t_ = nt.nodes.new("ShaderNodeTexNoise")
                     t_.inputs["Detail"].default_value = 4.0

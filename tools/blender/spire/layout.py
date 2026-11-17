@@ -231,10 +231,11 @@ HSW.update({
                "path_w_m": 3.2, "deck": (0.36, 0.27, 0.19)},
     # 5 river: olive-brown, fine ripples, no mirror hot spot (photos p06, p01)
     "sun_angle_deg": 0.8,   # r16: harder shadow edge with a small penumbra
-    "river": {"rgb": (0.25, 0.21, 0.12), "sky_rgb": (0.20, 0.36, 0.64),   # r18: red over green (p06), blue sky mix
+    "river": {"rgb": (0.23, 0.20, 0.105), "sky_rgb": (0.20, 0.36, 0.64),   # r18: red over green (p06), blue sky mix
               "rough": 0.24, "spec": 0.10,   # r18: smaller sun blob (p01/p10)
               "swell_scale": 0.06, "wave_scale": 0.18,
-              "chop_scale": 1.6, "bump": 0.55, "bump_dist": 0.15},   # r4: glossy, ripples at 3 scales
+              "chop_scale": 1.6, "bump": 0.8, "bump_dist": 0.15,
+              "fine_scale": 4.0, "fine_w": 0.35},   # r19: 25 cm ripples that survive at grazing angles   # r4: glossy, ripples at 3 scales
     # 7 north main pier: arch crown 8.2 m under the pier top (photo p09: 120 px at 14.6 px/m), dark inside
     "pier_arch_crown_below_top_m": 8.2,
     # 10 lift tower: slimmer, oxide red (photo p06/p10)
