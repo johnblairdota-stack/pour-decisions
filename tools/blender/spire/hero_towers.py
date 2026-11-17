@@ -21,9 +21,9 @@ SKY, WIL = 683336940, 521115344
 WIL_PART = 1104813702                                           # OSM building:part on the river face; read as a pasted panel
 MATS = {   # name: (rgb, roughness, metallic)
     "sky_glass": ((0.022, 0.036, 0.075), 0.06, 0.55), "sky_line": ((0.035, 0.055, 0.11), 0.3, 0.0),
-    "sky_ring": ((0.42, 0.50, 0.62), 0.5, 0.0), "sky_band": ((0.012, 0.014, 0.018), 0.6, 0.0),
+    "sky_ring": ((0.42, 0.50, 0.62), 0.5, 0.0), "sky_band": ((0.012, 0.016, 0.026), 0.5, 0.0),
     "sky_crown": ((0.035, 0.045, 0.065), 0.4, 0.0), "sky_lobby": ((0.02, 0.035, 0.06), 0.05, 0.0),
-    "wil_glass": ((0.075, 0.085, 0.11), 0.10, 0.6), "wil_line": ((0.16, 0.12, 0.085), 0.4, 0.2),
+    "wil_glass": ((0.10, 0.13, 0.19), 0.10, 0.7), "wil_line": ((0.16, 0.12, 0.085), 0.4, 0.2),
     "wil_white": ((0.85, 0.86, 0.86), 0.45, 0.0), "wil_deck": ((0.02, 0.014, 0.012), 0.8, 0.0),
     "wil_lobby": ((0.03, 0.05, 0.07), 0.05, 0.0),
 }
@@ -47,10 +47,10 @@ def skytower(b, bufs):
     bufs["sky_glass"].prism(ring, g - 1.0, top)
     rings(bufs["sky_line"], ring, g + 12.0, top - 2.0, floor, 0.16, 0.03)
     band = g + 0.70 * H                                            # critic round 2: plant bands 29% and 60% down
-    for a, z, k in ((0.10, 0.36, 5), (0.47, 0.69, 2), (0.74, 0.97, 3)):   # thin pale slab rings, tight under each band
-        rings(bufs["sky_ring"], ring, g + a * H, g + z * H, k * floor, 0.16, 0.10)
-    bufs["sky_band"].prism(B.offset(ring, 0.08), band, band + 5.5)
-    bufs["sky_band"].prism(B.offset(ring, 0.08), g + 0.40 * H, g + 0.40 * H + 3.6)     # lower plant and amenity floor
+    for a in (0.905, 0.725, 0.635, 0.425):                         # critic round 3: clusters of 5 thin rings by the bands, bare glass between
+        rings(bufs["sky_ring"], ring, g + a * H, g + a * H + 5 * floor - 0.5, floor, 0.14, 0.10)
+    bufs["sky_band"].prism(B.offset(ring, 0.05), band, band + 3.3)
+    bufs["sky_band"].prism(B.offset(ring, 0.05), g + 0.40 * H, g + 0.40 * H + 2.4)     # lower plant and amenity floor
     bufs["sky_crown"].prism(B.offset(ring, 0.18), top - 1.4, top + 0.8)             # crown lip
     bufs["sky_crown"].prism(B.offset(ring, -2.5), top, top + 4.0)                   # roof plant behind the lip
     bufs["sky_lobby"].prism(B.offset(ring, 0.12), g - 0.5, g + 9.0)
@@ -80,10 +80,13 @@ def william1(b, bufs):
     bufs["wil_deck"].add([(p[0], p[1], z - 1.2) for p, z in zip(inner, zt)], [list(range(n))])
     for i in range(n):                                             # white rim round the sloped top
         j = (i + 1) % n
-        bufs["wil_white"].beam((ring[i][0], ring[i][1], zt[i]), (ring[j][0], ring[j][1], zt[j]), 2.6, 1.0)
+        bufs["wil_white"].beam((ring[i][0], ring[i][1], zt[i]), (ring[j][0], ring[j][1], zt[j]), 3.4, 1.2)
     k = max(range(n), key=lambda i: d[i])                          # the spine up the river face
     px, py = ring[k][0] + ux * 0.4, ring[k][1] + uy * 0.4
-    bufs["wil_white"].beam((px, py, g), (px, py, zt[k]), 1.6, 0.9)
+    for s in (-2.0, 2.0):                                          # twin rails 4 m apart (critic round 3)
+        bufs["wil_white"].beam((px - uy * s, py + ux * s, g), (px - uy * s, py + ux * s, zt[k]), 0.6, 0.8)
+    zb = g + 0.27 * (top - g)                                      # dark louvre band low on the shaft
+    bufs["wil_deck"].prism(B.offset(ring, 0.06), zb, zb + 4.5)
     bufs["wil_white"].beam((cx, cy, 214.0), (cx, cy, 266.6), 0.6)  # mast (LiDAR tip 266.6 m AHD)
     return ["glass skin", "floor lines", "podium lobby", "sloped crown", "white rim and spine", "mast"]
 

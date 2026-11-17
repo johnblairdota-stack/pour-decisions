@@ -41,10 +41,10 @@ def blue_sky(strength=1.5):
     nt.links.new(geo.outputs["Incoming"], sep.inputs[0])
     ramp = nt.nodes.new("ShaderNodeValToRGB")
     e = ramp.color_ramp.elements
-    e[0].position, e[0].color = 0.0, (0.42, 0.62, 0.86, 1)      # horizon
+    e[0].position, e[0].color = 0.0, (0.36, 0.58, 0.88, 1)      # horizon
     e[1].position, e[1].color = 0.55, (0.045, 0.16, 0.56, 1)    # overhead
     mid = ramp.color_ramp.elements.new(0.12)
-    mid.color = (0.16, 0.36, 0.78, 1)
+    mid.color = (0.10, 0.30, 0.78, 1)
     ab = nt.nodes.new("ShaderNodeMath")
     ab.operation = "ABSOLUTE"
     nt.links.new(sep.outputs["Z"], ab.inputs[0])
@@ -76,6 +76,26 @@ def shoot(p, out, width):
     look = Vector((math.cos(pitch) * math.cos(yaw), math.cos(pitch) * math.sin(yaw), math.sin(pitch)))
     cam.location = pos
     cam.rotation_euler = look.to_track_quat("-Z", "Y").to_euler()
+    if p.get("clear"):                                       # "clear": half width (m) of a tree-free lane to the target
+        import bmesh
+        ax, ay = tgt.x - x, tgt.y - y
+        ln = math.hypot(ax, ay)
+        ax, ay = ax / ln, ay / ln
+        for o in bpy.data.objects:
+            if o.type == "MESH" and ("tree" in o.name or "palm" in o.name):
+                bm = bmesh.new()
+                bm.from_mesh(o.data)
+                M = o.matrix_world
+                dead = []
+                for v in bm.verts:
+                    wp = M @ v.co
+                    t = (wp.x - x) * ax + (wp.y - y) * ay
+                    if -5 < t < ln and abs(-(wp.x - x) * ay + (wp.y - y) * ax) < p["clear"] * (0.35 + 0.65 * t / ln) + 3:
+                        dead.append(v)
+                if dead:
+                    bmesh.ops.delete(bm, geom=dead, context="VERTS")
+                    bm.to_mesh(o.data)
+                bm.free()
     P.hide(["logistics"], True)
     P.render(os.path.join(out, p["id"] + ".png"), width, round(width * h / w))
     return {"id": p["id"], "pos": [round(x, 1), round(y, 1), round(z, 1)]}
@@ -98,7 +118,33 @@ def main():
     if river:
         for nd in river.node_tree.nodes:
             if nd.type == "MIX" and nd.inputs[6].default_value[0] > nd.inputs[6].default_value[2]:
-                nd.inputs[6].default_value, nd.inputs[7].default_value = (0.085, 0.115, 0.085, 1), (0.12, 0.145, 0.105, 1)
+                nd.inputs[6].default_value, nd.inputs[7].default_value = (0.07, 0.085, 0.06, 1), (0.095, 0.11, 0.075, 1)
+    if river:
+        river.node_tree.nodes["Principled BSDF"].inputs["Roughness"].default_value = 0.3     # no mirror streaks
+    leaf = bpy.data.materials.get("tree_crowns_far")       # critic round 3: dark, uneven canopy, not mint balls
+    if leaf and leaf.node_tree:
+        nt = leaf.node_tree
+        bs = nt.nodes.get("Principled BSDF")
+        geo = nt.nodes.new("ShaderNodeNewGeometry")
+        ns = nt.nodes.new("ShaderNodeTexNoise")
+        ns.inputs["Scale"].default_value = 0.12
+        ns.inputs["Detail"].default_value = 6.0
+        nt.links.new(geo.outputs["Position"], ns.inputs["Vector"])
+        rp = nt.nodes.new("ShaderNodeValToRGB")
+        rp.color_ramp.elements[0].position, rp.color_ramp.elements[0].color = 0.35, (0.012, 0.04, 0.010, 1)
+        rp.color_ramp.elements[1].position, rp.color_ramp.elements[1].color = 0.70, (0.055, 0.13, 0.035, 1)
+        nt.links.new(ns.outputs["Fac"], rp.inputs["Fac"])
+        nt.links.new(rp.outputs["Color"], bs.inputs["Base Color"])
+        fine = nt.nodes.new("ShaderNodeTexNoise")
+        fine.inputs["Scale"].default_value = 1.4
+        fine.inputs["Detail"].default_value = 8.0
+        nt.links.new(geo.outputs["Position"], fine.inputs["Vector"])
+        bp = nt.nodes.new("ShaderNodeBump")
+        bp.inputs["Strength"].default_value = 1.0
+        bp.inputs["Distance"].default_value = 1.2
+        nt.links.new(fine.outputs["Fac"], bp.inputs["Height"])
+        nt.links.new(bp.outputs["Normal"], bs.inputs["Normal"])
+        bs.inputs["Roughness"].default_value = 0.9
     RC.setup_cycles(int(os.environ.get("CYC_SAMPLES", "32")))
     done = [shoot(p, out, width) for p in pairs if not only or p["id"] in only]
     json.dump(done, open(os.path.join(out, "cams.json"), "w"), indent=1)
