@@ -919,6 +919,7 @@ def flag_material(ob):
     m.use_nodes = True
     b = m.node_tree.nodes.get("Principled BSDF")
     b.inputs["Base Color"].default_value = (*lin(P("mantra_blue_hex", "1871CF")), 1)
+    m.diffuse_color = (*lin(P("mantra_blue_hex", "1871CF")), 1)      # r15 hotfix: the later material pass copies diffuse_color in (default white)
     b.inputs["Roughness"].default_value = 0.45
     b.inputs["Alpha"].default_value = 1.0
     for k in ("Transmission Weight", "Transmission", "Emission Strength", "Subsurface Weight"):
