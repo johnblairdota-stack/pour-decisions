@@ -233,7 +233,7 @@ def setup_morning():
             fk = nt.nodes.new("ShaderNodeMath")
             fk.operation = "MULTIPLY"
             nt.links.new(fres.outputs["Fresnel"], fk.inputs[0])
-            fk.inputs[1].default_value = 0.22                            # r12: less mirror (critic r11)
+            fk.inputs[1].default_value = 0.30                            # r17: silvery-blue at grazing angles (p13/p12)
             fmix = nt.nodes.new("ShaderNodeMix")
             fmix.data_type = "RGBA"
             nt.links.new(fk.outputs[0], fmix.inputs["Factor"])

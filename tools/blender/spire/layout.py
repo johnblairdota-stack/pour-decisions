@@ -212,7 +212,7 @@ HSW.update({
 # ---------------------------------------------------------------- HSW round 2 (critic's ranked list, 15 Nov 2026)
 HSW.update({
     # 1 cliff: warm tan-ochre Brisbane tuff, fractured near-vertical faces, mostly bare (photos p06, p10, gg_11228e1b)
-    "cliff": {"tuff": ((0.35, 0.31, 0.26), (0.53, 0.47, 0.38), (0.52, 0.33, 0.17)), "bench_m": 4.0,   # r8: grey-buff
+    "cliff": {"tuff": ((0.27, 0.25, 0.21), (0.42, 0.39, 0.33), (0.44, 0.30, 0.17)),   # r17: darker grey-tan "bench_m": 4.0,   # r8: grey-buff
               "shrubs": 1500, "seed": 11, "slabs": 0, "rim_rocks": 0,
               "source": "photos p06/p10: tan-ochre rock with orange iron stain, dark joints, overhangs, "
                         "tufts on ledges, figs and vines hanging off the rim"},
@@ -230,9 +230,9 @@ HSW.update({
               "path": (0.515, 0.33, 0.24),   # r4: sand-pink ~ sRGB 190,155,135
                "path_w_m": 3.2, "deck": (0.36, 0.27, 0.19)},
     # 5 river: olive-brown, fine ripples, no mirror hot spot (photos p06, p01)
-    "sun_angle_deg": 1.6,
-    "river": {"rgb": (0.13, 0.12, 0.06),   # r10: olive-yellow-green near field
-              "rough": 0.16, "spec": 0.25, "swell_scale": 0.06, "wave_scale": 0.18,
+    "sun_angle_deg": 0.8,   # r16: harder shadow edge with a small penumbra
+    "river": {"rgb": (0.24, 0.22, 0.11),   # r17: body ~20 % lighter (critic r16 pixel checks)
+              "rough": 0.24, "spec": 0.16, "swell_scale": 0.06, "wave_scale": 0.18,
               "chop_scale": 1.6, "bump": 0.55, "bump_dist": 0.15},   # r4: glossy, ripples at 3 scales
     # 7 north main pier: arch crown 8.2 m under the pier top (photo p09: 120 px at 14.6 px/m), dark inside
     "pier_arch_crown_below_top_m": 8.2,
@@ -246,7 +246,7 @@ HSW.update({
     # 2 river halves of these sheds stand on piles over water (photos p09, p12, p13)
     "over_water_sheds": [58693374, 58693380, 679146315], "pile_grid_m": 2.6, "riverwalk_piles_x": (395.0, 670.0),
     # 3 bridge steel: dark charcoal grey-green (photos p13, p09), not pale sage
-    "bridge_steel": (0.15, 0.155, 0.168),   # r13: neutral mid-grey ~#6b6f78 (critic r12: navy)
+    "bridge_steel": (0.19, 0.195, 0.205),   # r13: neutral mid-grey ~#6b6f78 (critic r12: navy)
     # 7 pier: warm cream render, mid-dark arch with a lit back wall
     "pier_render": (0.78, 0.70, 0.55),   # r13: cream-pink #E4D9C2 (p09)
     "pier_arch_back": (0.30, 0.26, 0.20),   # r5: lit back wall, not a void
