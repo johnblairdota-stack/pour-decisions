@@ -152,9 +152,24 @@ def main():
         bs = nt.nodes["Principled BSDF"]
         for ln in list(bs.inputs["Base Color"].links):
             nt.links.remove(ln)
-        bs.inputs["Base Color"].default_value = (0.15, 0.16, 0.10, 1)
-        bs.inputs["Roughness"].default_value = 0.45
-        bs.inputs["Specular IOR Level"].default_value = 0.08
+        bs.inputs["Base Color"].default_value = (0.16, 0.175, 0.115, 1)
+        bs.inputs["Roughness"].default_value = 0.22
+        bs.inputs["Specular IOR Level"].default_value = 0.22
+        for ln in list(bs.inputs["Normal"].links):
+            nt.links.remove(ln)
+        g2 = nt.nodes.new("ShaderNodeNewGeometry")           # round 6: small wind ripples so it reads as water
+        rip = nt.nodes.new("ShaderNodeTexNoise")
+        rip.inputs["Scale"].default_value = 0.9
+        rip.inputs["Detail"].default_value = 4.0
+        sc = nt.nodes.new("ShaderNodeMapping")
+        sc.inputs["Scale"].default_value = (1.0, 0.35, 1.0)
+        nt.links.new(g2.outputs["Position"], sc.inputs["Vector"])
+        nt.links.new(sc.outputs["Vector"], rip.inputs["Vector"])
+        rb = nt.nodes.new("ShaderNodeBump")
+        rb.inputs["Strength"].default_value = 0.35
+        rb.inputs["Distance"].default_value = 0.25
+        nt.links.new(rip.outputs["Fac"], rb.inputs["Height"])
+        nt.links.new(rb.outputs["Normal"], bs.inputs["Normal"])
     leaf = bpy.data.materials.get("tree_crowns_far")       # critic round 3: dark, uneven canopy, not mint balls
     if leaf and leaf.node_tree:
         nt = leaf.node_tree

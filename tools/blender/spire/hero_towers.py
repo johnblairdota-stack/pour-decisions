@@ -23,7 +23,7 @@ MATS = {   # name: (rgb, roughness, metallic)
     "sky_glass": ((0.022, 0.036, 0.075), 0.06, 0.55), "sky_line": ((0.035, 0.055, 0.11), 0.3, 0.0),
     "sky_ring": ((0.78, 0.83, 0.90), 0.5, 0.0), "sky_band": ((0.012, 0.016, 0.026), 0.5, 0.0),
     "sky_crown": ((0.035, 0.045, 0.065), 0.4, 0.0), "sky_lobby": ((0.02, 0.035, 0.06), 0.05, 0.0),
-    "wil_glass": ((0.13, 0.13, 0.17), 0.14, 0.45), "wil_line": ((0.16, 0.12, 0.085), 0.4, 0.2),
+    "wil_glass": ((0.085, 0.09, 0.115), 0.2, 0.15), "wil_line": ((0.16, 0.12, 0.085), 0.4, 0.2),
     "wil_white": ((0.85, 0.86, 0.86), 0.45, 0.0), "wil_deck": ((0.02, 0.014, 0.012), 0.8, 0.0),
     "wil_lobby": ((0.03, 0.05, 0.07), 0.05, 0.0),
 }
@@ -47,7 +47,7 @@ def skytower(b, bufs):
     bufs["sky_glass"].prism(ring, g - 1.0, top)
     rings(bufs["sky_line"], ring, g + 12.0, top - 2.0, floor, 0.16, 0.03)
     band = g + 0.725 * H                                           # critic round 2: plant bands 29% and 60% down
-    rings(bufs["sky_line"], ring, g + 0.45 * H, band - 22.0, 4 * floor, 0.14, 0.10)    # sparse faint rings lower down
+    rings(bufs["sky_ring"], ring, g + 0.45 * H, band - 22.0, 4 * floor, 0.12, 0.10)    # sparse faint rings lower down
     for a in (0.905, 0.75, 0.66):                                # critic round 3: clusters of 5 thin rings by the bands, bare glass between
         rings(bufs["sky_ring"], ring, g + a * H, g + a * H + 5 * floor - 0.5, floor, 0.32, 0.12)
     bufs["sky_band"].prism(B.offset(ring, 0.05), band, band + 3.3)
@@ -86,14 +86,16 @@ def william1(b, bufs):
     bufs["wil_deck"].add([(p[0], p[1], z - 0.5) for p, z in zip(inner, zt)], [list(range(n))])
     for i in range(n):                                             # white rim round the sloped top
         j = (i + 1) % n
-        bufs["wil_white"].beam((ring[i][0], ring[i][1], zt[i]), (ring[j][0], ring[j][1], zt[j]), 3.4, 1.2)
-    k = max(range(n), key=lambda i: d[i])                          # the spine up the river face
+        bufs["wil_white"].beam((ring[i][0], ring[i][1], zt[i]), (ring[j][0], ring[j][1], zt[j]), 1.8, 1.2)
+    k = min((i for i in range(n) if d[i] > 0), key=lambda i: abs((ring[i][0] - cx) * uy - (ring[i][1] - cy) * ux))   # the spine: centre of the river face
+    for i in range(0, n, 2):                                       # fine bronze mullions round the shaft
+        bufs["wil_line"].beam((ring[i][0], ring[i][1], pod["top_ahd"]), (ring[i][0], ring[i][1], zt[i]), 0.16)
     px, py = ring[k][0] + ux * 0.4, ring[k][1] + uy * 0.4
-    for s in (-2.0, 2.0):                                          # twin rails 4 m apart (critic round 3)
-        bufs["wil_white"].beam((px - uy * s, py + ux * s, g), (px - uy * s, py + ux * s, zt[k]), 0.6, 0.8)
+    for s in (-2.5, 2.5):                                          # twin rails 4 m apart (critic round 3)
+        bufs["wil_white"].beam((px - uy * s, py + ux * s, g), (px - uy * s, py + ux * s, zt[k]), 0.95, 0.8)
     zb = g + 0.36 * (top - g)                                      # dark louvre band low on the shaft
     bufs["wil_line"].prism(B.offset(ring, 0.06), zb, zb + 2.6)
-    bufs["wil_white"].beam((cx, cy, 214.0), (cx, cy, 258.0), 0.6)  # mast (LiDAR tip 266.6 m AHD)
+    bufs["wil_white"].beam((cx, cy, 214.0), (cx, cy, 254.0), 0.6)  # mast (LiDAR tip 266.6 m AHD)
     return ["glass skin", "floor lines", "podium lobby", "sloped crown", "white rim and spine", "mast"]
 
 
