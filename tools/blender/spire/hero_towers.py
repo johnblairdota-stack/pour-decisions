@@ -21,14 +21,14 @@ SKY, WIL = 683336940, 521115344
 WIL_PART = 1104813702                                           # OSM building:part on the river face; read as a pasted panel
 MATS = {   # name: (rgb, roughness, metallic)
     "sky_glass": ((0.035, 0.06, 0.10), 0.10, 0.5), "sky_line": ((0.035, 0.055, 0.11), 0.3, 0.0),
-    "sky_ring": ((0.42, 0.52, 0.70), 0.5, 0.0), "sky_band": ((0.028, 0.036, 0.055), 0.5, 0.0),
+    "sky_ring": ((0.36, 0.54, 0.66), 0.5, 0.0), "sky_band": ((0.028, 0.036, 0.055), 0.5, 0.0),
     "sky_crown": ((0.035, 0.045, 0.065), 0.4, 0.0), "sky_lobby": ((0.02, 0.035, 0.06), 0.05, 0.0),
-    "wil_glass": ((0.09, 0.125, 0.20), 0.10, 0.2), "wil_band": ((0.06, 0.055, 0.05), 0.5, 0.3), "wil_fin": ((0.46, 0.39, 0.28), 0.4, 0.6), "wil_line": ((0.20, 0.16, 0.11), 0.45, 0.3),
+    "wil_glass": ((0.16, 0.21, 0.30), 0.08, 0.2), "wil_band": ((0.08, 0.07, 0.06), 0.5, 0.3), "wil_fin": ((0.46, 0.39, 0.28), 0.4, 0.6), "wil_line": ((0.20, 0.16, 0.11), 0.45, 0.3),
     "wil_white": ((0.82, 0.80, 0.74), 0.45, 0.0), "wil_deck": ((0.05, 0.043, 0.036), 0.8, 0.0),
     "wil_lobby": ((0.03, 0.05, 0.07), 0.05, 0.0),
-    "qw_gold": ((0.075, 0.062, 0.045), 0.08, 0.8), "qw_line": ((0.42, 0.36, 0.22), 0.4, 0.4),
+    "qw_gold": ((0.11, 0.085, 0.055), 0.08, 0.8), "qw_line": ((0.42, 0.36, 0.22), 0.4, 0.4),
     "qw_dark": ((0.035, 0.05, 0.075), 0.12, 0.5), "qw_dline": ((0.10, 0.13, 0.17), 0.4, 0.0),
-    "qw_podium": ((0.05, 0.047, 0.042), 0.2, 0.4), "qw_deck": ((0.80, 0.80, 0.78), 0.5, 0.0), "qw_fin": ((0.085, 0.066, 0.04), 0.35, 0.6), "qw_green": ((0.10, 0.20, 0.06), 0.9, 0.0),
+    "qw_podium": ((0.05, 0.047, 0.042), 0.2, 0.4), "qw_deck": ((0.80, 0.80, 0.78), 0.5, 0.0), "qw_fin": ((0.17, 0.12, 0.07), 0.35, 0.6), "qw_green": ((0.10, 0.20, 0.06), 0.9, 0.0),
 }
 QW_O = (-532.81, -1167.73)                                        # Queen's Wharf pack origin in the Spire frame
 QW_ARC = (-34.5, -60.0, 33.0, 53.0)                               # Star Grand arc: centre x, y, inner and outer radius (2022 aerial)
@@ -54,10 +54,10 @@ def skytower(b, bufs):
     bufs["sky_glass"].prism(ring, g - 1.0, top)
     rings(bufs["sky_line"], ring, g + 12.0, top - 2.0, floor, 0.16, 0.03)
     band = g + 0.725 * H                                           # critic round 2: plant bands 29% and 60% down
-    for a in (0.905, 0.76, 0.64, 0.43, 0.33):                                # critic round 9: clusters of 3 rings two floors apart (5 a floor apart read as a white block)
+    for a in (0.905, 0.76, 0.64, 0.36):                                # critic round 9: clusters of 3 rings two floors apart (5 a floor apart read as a white block)
         rings(bufs["sky_ring"], ring, g + a * H, g + a * H + 6 * floor - 0.5, 1.5 * floor, 0.24, 0.12)
-    bufs["sky_band"].prism(B.offset(ring, 0.05), band, band + 6.0)
-    bufs["sky_band"].prism(B.offset(ring, 0.05), g + 0.40 * H, g + 0.40 * H + 5.0)     # lower plant and amenity floor
+    bufs["sky_band"].prism(B.offset(ring, 0.05), band, band + 4.0)
+    bufs["sky_band"].prism(B.offset(ring, 0.05), g + 0.40 * H, g + 0.40 * H + 3.5)     # lower plant and amenity floor
     bufs["sky_crown"].prism(B.offset(ring, 0.12), top - 1.0, top + 0.4)             # crown lip
     bufs["sky_ring"].prism(B.offset(ring, 0.16), top + 0.4, top + 0.6)              # thin pale rim
     bufs["sky_crown"].prism(B.offset(ring, -2.5), top, top + 1.6)                   # roof plant behind the lip
@@ -120,10 +120,8 @@ def william1(b, bufs):
         bufs["wil_white"].beam((qx, qy, g + 22.0), (qx - uy * s * 3.5, qy + ux * s * 3.5, g + 4.0), 1.8, 1.2)   # flare to the entrance arch
         bufs["wil_white"].beam((qx - uy * s * 3.5, qy + ux * s * 3.5, g + 4.0), (qx - uy * s * 3.5, qy + ux * s * 3.5, g), 1.8, 1.2)
     ko = min(range(n), key=lambda i: d[i] + 0.3 * abs(lat[i]))     # back of the roof, on the axis
-    for qx, qy in rib:                                             # the ribs carry on over the roof as two thin bars
-        bufs["wil_white"].beam((qx, qy, zt[k] + 0.2), (ring[ko][0] + qx - ring[k][0] - ux * 0.5, ring[ko][1] + qy - ring[k][1] - uy * 0.5, zt[ko] + 0.2), 1.8, 1.2)
     zb = g + 0.40 * (top - g)                                      # dark louvre band low on the shaft
-    bufs["wil_band"].prism(B.offset(ring, 0.3), zb, zb + 6.0)
+    bufs["wil_band"].prism(B.offset(ring, 0.3), zb, zb + 4.0)
     bufs["wil_white"].beam((cx, cy, 214.0), (cx, cy, 254.0), 0.6)  # mast (LiDAR tip 266.6 m AHD)
     return ["glass skin", "floor lines", "podium lobby", "sloped crown", "white rim and spine", "mast"]
 
@@ -157,7 +155,7 @@ def queenswharf(bufs):
             z += 7.2
     bufs["qw_gold"].prism(sector(200.0, 250.0, ri - 2.0, ro + 1.5), deck0 + 10.0, top)                    # Sky Deck bridging the gap
     bufs["qw_fin"].prism(sector(200.0, 250.0, ri - 2.5, ro + 2.0), deck0 + 9.4, deck0 + 10.0)
-    bufs["qw_green"].prism(sector(0.0, 360.0, ro + 2.0, ro + 7.6), 30.6, 32.0)                              # planted podium terrace
+    bufs["qw_green"].prism(sector(0.0, 360.0, ro + 1.0, ro + 7.8), 30.6, 33.5)                              # planted podium terrace
     bufs["qw_deck"].prism(sector(120.0, 330.0, ri - 1.5, ro + 2.0), top, top + 2.4)                         # pale overhanging roof ring
     a = 121.0
     while a < 329.0:                                               # vertical bronze-black fins round the drum
