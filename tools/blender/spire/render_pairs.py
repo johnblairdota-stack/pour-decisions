@@ -289,8 +289,8 @@ def main():
         ns.inputs["Detail"].default_value = 6.0
         nt.links.new(geo.outputs["Position"], ns.inputs["Vector"])
         rp = nt.nodes.new("ShaderNodeValToRGB")
-        rp.color_ramp.elements[0].position, rp.color_ramp.elements[0].color = 0.32, (0.018, 0.06, 0.014, 1)
-        rp.color_ramp.elements[1].position, rp.color_ramp.elements[1].color = 0.70, (0.15, 0.26, 0.06, 1)
+        rp.color_ramp.elements[0].position, rp.color_ramp.elements[0].color = 0.30, (0.010, 0.038, 0.012, 1)
+        rp.color_ramp.elements[1].position, rp.color_ramp.elements[1].color = 0.72, (0.10, 0.19, 0.04, 1)
         nt.links.new(ns.outputs["Fac"], rp.inputs["Fac"])
         nt.links.new(rp.outputs["Color"], bs.inputs["Base Color"])
         fine = nt.nodes.new("ShaderNodeTexNoise")

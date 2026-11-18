@@ -476,6 +476,55 @@ def clear_column(jobs):
     return n
 
 
+def landmarks(bufs):
+    """Critic rounds 19 to 23: Victoria Bridge as the white haunched box girder on two blade piers (the road layer only
+    gives a thin deck), and the Wheel of Brisbane on the South Bank side. Positions from roads.json and the 2022 aerial;
+    girder depths and the 60 m wheel are read off photos."""
+    a, b = (-822.0, -955.0), (-1090.0, -1118.0)
+    ln = math.hypot(b[0] - a[0], b[1] - a[1])
+    ux, uy = (b[0] - a[0]) / ln, (b[1] - a[1]) / ln
+    px, py = -uy, ux
+    piers = (0.27, 0.73)
+    n = 48
+    verts, faces = [], []
+    for i in range(n + 1):
+        t = i / n
+        zt = 14.0 + (10.6 - 14.0) * t + 6.6 * t * (1.0 - t) - 0.9          # just under the road deck
+        dp = 2.4 + 5.2 * max(math.exp(-((t - q) / 0.07) ** 2) for q in piers)
+        cx, cy = a[0] + ux * ln * t, a[1] + uy * ln * t
+        for sw, zz in ((-11.5, zt), (11.5, zt), (8.0, zt - dp), (-8.0, zt - dp)):
+            verts.append((cx + px * sw, cy + py * sw, zz))
+        if i:
+            o = 4 * (i - 1)
+            faces += [[o + k, o + (k + 1) % 4, o + 4 + (k + 1) % 4, o + 4 + k] for k in range(4)]
+    bufs["qw_deck"].add(verts, faces)
+    for q in piers:
+        cx, cy = a[0] + ux * ln * q, a[1] + uy * ln * q
+        zt = 14.0 + (10.6 - 14.0) * q + 6.6 * q * (1.0 - q) - 0.9 - 7.0
+        bufs["qw_deck"].prism(S.ccw([(cx + ux * 1.8 + px * 9.0, cy + uy * 1.8 + py * 9.0), (cx - ux * 1.8 + px * 9.0, cy - uy * 1.8 + py * 9.0),
+                                     (cx - ux * 1.8 - px * 9.0, cy - uy * 1.8 - py * 9.0), (cx + ux * 1.8 - px * 9.0, cy + uy * 1.8 - py * 9.0)]), -3.0, zt + 0.5)
+    wx, wy, wr = -972.0, -1360.0, 28.0                              # Wheel of Brisbane, 60 m
+    hub = 6.0 + wr + 5.0
+    dl = math.hypot(118.0, -242.0)
+    qx, qy = 118.0 / dl, -242.0 / dl                                # wheel plane runs along the bank
+    ox, oy = -qy, qx
+
+    def rim(k, r, off=0.0):
+        an = 2 * math.pi * k / 42
+        return (wx + qx * r * math.cos(an) + ox * off, wy + qy * r * math.cos(an) + oy * off, hub + r * math.sin(an))
+    for k in range(42):
+        for off in (-1.2, 1.2):
+            bufs["qw_deck"].beam(rim(k, wr, off), rim(k + 1, wr, off), 0.45, 0.45)
+        bufs["qw_deck"].beam(rim(k, wr, -1.2), rim(k, wr, 1.2), 0.25, 0.25)
+        bufs["qw_deck"].beam((wx, wy, hub), rim(k, wr), 0.12, 0.12)
+        c = rim(k, wr + 1.6)
+        bufs["qw_deck"].beam((c[0] - qx * 1.3, c[1] - qy * 1.3, c[2]), (c[0] + qx * 1.3, c[1] + qy * 1.3, c[2]), 2.0, 2.2)     # gondola
+    for sgn in (-1.0, 1.0):
+        for off in (-4.0, 4.0):
+            bufs["qw_deck"].beam((wx + ox * off * 0.3, wy + oy * off * 0.3, hub), (wx + qx * sgn * 13.0 + ox * off, wy + qy * sgn * 13.0 + oy * off, 5.0), 0.9, 0.9)
+    return ["Victoria Bridge girder and piers", "Wheel of Brisbane"]
+
+
 def fill_tree_gaps(col):
     """The tower data packs leave holes in the ext box (the river edge of the City Botanic Gardens has no pack, and
     the city-wide trees skip the whole box), so the bank showed as a bare grey patch from Kangaroo Point. Plant
@@ -574,6 +623,7 @@ def build():
     sink_polys([B_.offset(S.ccw([tuple(p) for p in x["ring"]]), 2.0) for b in erecs.values() for x in b["tiers"]] + [B_.offset(S.ccw(TREASURY), 2.0)])
     parts["Eagle St towers"] = eagle_street(erecs, bufs)
     parts["Treasury Casino"] = treasury(bufs)
+    parts["River landmarks"] = landmarks(bufs)
     col = C.collection("hero_towers")
     objs = []
     for k, buf in bufs.items():
