@@ -119,6 +119,9 @@ def shoot(p, out, width):
             co[hit, 2] -= 80.0
             o.data.vertices.foreach_set("co", co.ravel())
             o.data.update()
+    river = bpy.data.materials.get("clay_water")           # "river": the water colour on the photo's day (brown after rain, blue on a clear evening)
+    if river:
+        river.node_tree.nodes["Principled BSDF"].inputs["Base Color"].default_value = (*p.get("river", (0.17, 0.19, 0.135)), 1)
     cam.location = pos
     cam.rotation_euler = look.to_track_quat("-Z", "Y").to_euler()
     if p.get("clear"):                                       # "clear": half width (m) of a tree-free lane to the target
