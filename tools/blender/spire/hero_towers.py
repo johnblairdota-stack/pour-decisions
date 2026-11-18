@@ -20,18 +20,18 @@ import shapes as S
 SKY, WIL = 683336940, 521115344
 WIL_PART = 1104813702                                           # OSM building:part on the river face; read as a pasted panel
 MATS = {   # name: (rgb, roughness, metallic)
-    "sky_glass": ((0.06, 0.085, 0.125), 0.08, 0.5), "sky_line": ((0.035, 0.055, 0.11), 0.3, 0.0),
+    "sky_glass": ((0.045, 0.07, 0.11), 0.08, 0.5), "sky_line": ((0.035, 0.055, 0.11), 0.3, 0.0),
     "sky_ring": ((0.50, 0.72, 0.84), 0.4, 0.0), "sky_band": ((0.018, 0.022, 0.032), 0.5, 0.0),
     "sky_crown": ((0.035, 0.045, 0.065), 0.4, 0.0), "sky_lobby": ((0.02, 0.035, 0.06), 0.05, 0.0),
     "wil_glass": ((0.17, 0.195, 0.235), 0.06, 0.7), "wil_glow": ((0.80, 0.68, 0.42), 0.4, 0.0), "wil_band": ((0.08, 0.07, 0.06), 0.5, 0.3), "wil_fin": ((0.42, 0.30, 0.16), 0.35, 0.7), "wil_line": ((0.20, 0.16, 0.11), 0.45, 0.3),
-    "wil_white": ((0.82, 0.80, 0.74), 0.45, 0.0), "wil_deck": ((0.10, 0.09, 0.08), 0.8, 0.0),
+    "wil_white": ((0.82, 0.80, 0.74), 0.45, 0.0), "wil_deck": ((0.05, 0.04, 0.03), 0.8, 0.0),
     "wil_lobby": ((0.03, 0.05, 0.07), 0.05, 0.0),
     # Eagle St towers and the Treasury Casino (John 18 Nov)
     "eag_dark": ((0.04, 0.055, 0.07), 0.12, 0.3), "eag_white": ((0.86, 0.85, 0.80), 0.5, 0.0), "eag_cream": ((0.74, 0.70, 0.60), 0.6, 0.0),
     "eag_blue": ((0.05, 0.12, 0.24), 0.08, 0.5), "eag_teal": ((0.05, 0.16, 0.19), 0.08, 0.5), "eag_tline": ((0.30, 0.42, 0.42), 0.4, 0.0),
     "tre_stone": ((0.43, 0.29, 0.14), 0.9, 0.0), "tre_pale": ((0.52, 0.38, 0.20), 0.85, 0.0), "tre_dark": ((0.025, 0.02, 0.016), 0.9, 0.0),
     "tre_roof": ((0.30, 0.32, 0.33), 0.6, 0.2),
-    "qw_gold": ((0.06, 0.05, 0.045), 0.03, 0.5), "qw_line": ((0.42, 0.36, 0.22), 0.4, 0.4),
+    "qw_gold": ((0.24, 0.24, 0.265), 0.03, 1.0), "qw_line": ((0.10, 0.10, 0.11), 0.3, 0.6),
     "qw_dark": ((0.06, 0.075, 0.09), 0.08, 0.5), "qw_dline": ((0.10, 0.13, 0.17), 0.4, 0.0),
     "qw_podium": ((0.05, 0.047, 0.042), 0.2, 0.4), "qw_deck": ((0.80, 0.80, 0.78), 0.5, 0.0), "qw_fin": ((0.10, 0.075, 0.05), 0.35, 0.6), "qw_green": ((0.07, 0.16, 0.045), 0.9, 0.0),
 }
@@ -110,7 +110,7 @@ def william1(b, bufs):
     bufs["wil_deck"].add([(p[0], p[1], z - 0.5) for p, z in zip(inner, zt)] + [(cx, cy, 190.0 + 46.0 * hi / (hi - lo) - 0.5)], [[n, i, (i + 1) % n] for i in range(n)])
     for i in range(n):                                             # white rim round the sloped top
         j = (i + 1) % n
-        bufs["wil_white"].beam((ring[i][0], ring[i][1], zt[i]), (ring[j][0], ring[j][1], zt[j]), 1.7, 1.5)
+        bufs["wil_white"].beam((ring[i][0], ring[i][1], zt[i]), (ring[j][0], ring[j][1], zt[j]), 1.2, 1.0)
     k = min((i for i in range(n) if d[i] > 0), key=lambda i: abs((ring[i][0] - cx) * uy - (ring[i][1] - cy) * ux))   # the spine: centre of the river face
     for i in range(n):                                             # fine bronze mullions round the shaft
         j = (i + 1) % n
@@ -176,11 +176,11 @@ def queenswharf(bufs):
     for a0, a1, z0, z1 in ((120.0, 201.0, 30.0, top), (249.0, 330.0, 30.0, top)):
         for b_ in range(8):                                        # critic round 18: a bowed barrel, not a straight cylinder
             za, zb_ = z0 + (z1 - z0) * b_ / 8.0, z0 + (z1 - z0) * (b_ + 1) / 8.0
-            bufs["qw_gold"].prism(sector(a0, a1, ri, ro + 3.0 * math.sin(math.pi * (b_ + 0.5) / 8.0)), za, zb_)
+            bufs["qw_gold"].prism(sector(a0, a1, ri, ro + 4.0 * math.sin(math.pi * (b_ + 0.5) / 8.0)), za, zb_)
         z = z0 + 3.6
         while z < z1 - 1.0:                                        # pale floor lines every second floor
-            bufs["qw_line"].prism(sector(a0, a1, ri - 0.05, ro + 0.05), z, z + 0.2)
-            z += 7.2
+            bufs["qw_line"].prism(sector(a0, a1, ri - 0.05, ro + 0.08 + 4.0 * math.sin(math.pi * (z - z0) / (z1 - z0))), z, z + 0.35)
+            z += 3.6
     bufs["qw_gold"].prism(sector(200.0, 250.0, ri - 2.0, ro + 1.5), deck0 + 10.0, top)                    # Sky Deck bridging the gap
     bufs["qw_fin"].prism(sector(200.0, 250.0, ri - 2.5, ro + 2.0), deck0 + 9.4, deck0 + 10.0)
     for st, (rr, zz) in enumerate(((ro + 8.0, 21.0), (ro + 5.5, 25.5), (ro + 3.0, 30.0))):                   # three planted terraces stepping in up the podium
@@ -191,7 +191,7 @@ def queenswharf(bufs):
     while a < 329.0:                                               # vertical bronze-black fins round the drum
         if not 201.0 < a < 249.0:
             for b_ in range(8):                                    # fins follow the barrel and step half a bay every band
-                bulge = 3.0 * math.sin(math.pi * (b_ + 0.5) / 8.0)
+                bulge = 4.0 * math.sin(math.pi * (b_ + 0.5) / 8.0)
                 a_ = a + (1.1 if b_ % 2 else 0.0)
                 bufs["qw_fin"].prism(sector(a_, a_ + 0.5, ro + bulge, ro + bulge + 0.3, 0.5), 30.0 + (top - 30.0) * b_ / 8.0, 30.0 + (top - 30.0) * (b_ + 1) / 8.0)
         a += 2.2
