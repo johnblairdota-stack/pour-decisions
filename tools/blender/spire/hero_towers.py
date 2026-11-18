@@ -20,19 +20,19 @@ import shapes as S
 SKY, WIL = 683336940, 521115344
 WIL_PART = 1104813702                                           # OSM building:part on the river face; read as a pasted panel
 MATS = {   # name: (rgb, roughness, metallic)
-    "sky_glass": ((0.04, 0.07, 0.14), 0.14, 0.4), "sky_line": ((0.035, 0.055, 0.11), 0.3, 0.0),
+    "sky_glass": ((0.03, 0.045, 0.075), 0.10, 0.5), "sky_line": ((0.035, 0.055, 0.11), 0.3, 0.0),
     "sky_ring": ((0.42, 0.52, 0.70), 0.5, 0.0), "sky_band": ((0.028, 0.036, 0.055), 0.5, 0.0),
     "sky_crown": ((0.035, 0.045, 0.065), 0.4, 0.0), "sky_lobby": ((0.02, 0.035, 0.06), 0.05, 0.0),
-    "wil_glass": ((0.15, 0.17, 0.215), 0.42, 0.0), "wil_line": ((0.095, 0.078, 0.06), 0.5, 0.2),
+    "wil_glass": ((0.15, 0.17, 0.215), 0.42, 0.0), "wil_line": ((0.20, 0.16, 0.11), 0.45, 0.3),
     "wil_white": ((0.70, 0.71, 0.72), 0.45, 0.0), "wil_deck": ((0.05, 0.043, 0.036), 0.8, 0.0),
     "wil_lobby": ((0.03, 0.05, 0.07), 0.05, 0.0),
-    "qw_gold": ((0.075, 0.062, 0.045), 0.14, 0.6), "qw_line": ((0.42, 0.36, 0.22), 0.4, 0.4),
+    "qw_gold": ((0.075, 0.062, 0.045), 0.08, 0.8), "qw_line": ((0.42, 0.36, 0.22), 0.4, 0.4),
     "qw_dark": ((0.035, 0.05, 0.075), 0.12, 0.5), "qw_dline": ((0.10, 0.13, 0.17), 0.4, 0.0),
-    "qw_podium": ((0.05, 0.047, 0.042), 0.2, 0.4), "qw_deck": ((0.80, 0.80, 0.78), 0.5, 0.0),
+    "qw_podium": ((0.05, 0.047, 0.042), 0.2, 0.4), "qw_deck": ((0.80, 0.80, 0.78), 0.5, 0.0), "qw_fin": ((0.11, 0.09, 0.06), 0.35, 0.5),
 }
 QW_O = (-532.81, -1167.73)                                        # Queen's Wharf pack origin in the Spire frame
 QW_ARC = (-34.5, -60.0, 33.0, 53.0)                               # Star Grand arc: centre x, y, inner and outer radius (2022 aerial)
-QW_OVAL = (-30.0, 30.0, 27.0, 14.0, 45.0)                        # Dorsett and Rosewood oval tower: centre, semi-axes, turn (deg)
+QW_OVAL = (-30.0, 30.0, 22.0, 12.0, 45.0)                        # Dorsett and Rosewood oval tower: centre, semi-axes, turn (deg)
 QW_RES = (47.0, -55.0, 14.0)                                      # Queen's Wharf Residences tube: centre, radius
 
 
@@ -143,18 +143,23 @@ def queenswharf(bufs):
 
     g, ri, ro = 3.0, QW_ARC[2], QW_ARC[3]
     top, deck0 = 102.0, 86.0
-    bufs["qw_podium"].prism(oval(QW_ARC[0], QW_ARC[1], ro + 8.0, ro + 8.0), g, 24.0)                       # podium over the expressway
+    bufs["qw_podium"].prism(oval(QW_ARC[0], QW_ARC[1], ro + 8.0, ro + 8.0), g, 30.0)                       # podium over the expressway
     bufs["qw_podium"].prism([(ox - 29.0, oy - 36.0), (ox + 51.0, oy - 36.0), (ox + 51.0, oy + 29.0), (ox - 29.0, oy + 29.0)], g, 30.0)
-    for a0, a1, z0, z1 in ((120.0, 212.0, 24.0, top), (238.0, 330.0, 24.0, top), (212.0, 238.0, 24.0, 50.0)):
+    for a0, a1, z0, z1 in ((120.0, 207.0, 30.0, top), (243.0, 330.0, 30.0, top), (207.0, 243.0, 30.0, 52.0)):
         bufs["qw_gold"].prism(sector(a0, a1, ri, ro), z0, z1)
         z = z0 + 3.6
         while z < z1 - 1.0:                                        # pale floor lines every second floor
             bufs["qw_line"].prism(sector(a0, a1, ri - 0.12, ro + 0.12), z, z + 0.3)
             z += 7.2
-    bufs["qw_gold"].prism(sector(210.0, 240.0, ri - 2.0, ro + 1.5), deck0, top)                    # Sky Deck bridging the gap
-    bufs["qw_deck"].prism(sector(210.0, 240.0, ri - 2.5, ro + 2.0), deck0 - 0.8, deck0)
-    bufs["qw_deck"].prism(sector(120.0, 330.0, ri - 0.3, ro + 0.3), top, top + 0.8)                         # roof edge
-    bufs["qw_deck"].prism(oval(QW_ARC[0], QW_ARC[1], ro + 8.3, ro + 8.3), 24.0, 24.6)                       # podium terrace edge
+    bufs["qw_gold"].prism(sector(205.0, 245.0, ri - 2.0, ro + 1.5), deck0, top)                    # Sky Deck bridging the gap
+    bufs["qw_deck"].prism(sector(205.0, 245.0, ri - 2.5, ro + 2.0), deck0 - 0.8, deck0)
+    bufs["qw_deck"].prism(sector(120.0, 330.0, ri - 1.5, ro + 2.0), top, top + 2.4)                         # pale overhanging roof ring
+    a = 121.0
+    while a < 329.0:                                               # vertical bronze-black fins round the drum
+        if not 207.0 < a < 243.0:
+            bufs["qw_fin"].prism(sector(a, a + 0.5, ro, ro + 0.45, 0.5), 30.0, top)
+        a += 4.4
+    bufs["qw_deck"].prism(oval(QW_ARC[0], QW_ARC[1], ro + 8.3, ro + 8.3), 30.0, 30.6)                       # podium terrace edge
     bufs["qw_deck"].beam((ox + QW_ARC[0] - 30.0, oy + QW_ARC[1] + 38.0, top - 4.0), (ox + QW_OVAL[0] - 6.0, oy + QW_OVAL[1] - 8.0, top - 4.0), 4.0, 3.0)   # skybridge to the hotel tower
     for (cx, cy, a, b, turn, z1) in ((QW_OVAL[0], QW_OVAL[1], QW_OVAL[2], QW_OVAL[3], QW_OVAL[4], 165.0), (QW_RES[0], QW_RES[1], QW_RES[2], QW_RES[2], 0.0, 225.0)):
         ring = oval(cx, cy, a, b, turn)

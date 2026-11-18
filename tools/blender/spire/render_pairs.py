@@ -41,10 +41,10 @@ def blue_sky(strength=1.5):
     nt.links.new(geo.outputs["Incoming"], sep.inputs[0])
     ramp = nt.nodes.new("ShaderNodeValToRGB")
     e = ramp.color_ramp.elements
-    e[0].position, e[0].color = 0.0, (0.46, 0.67, 0.92, 1)      # horizon
-    e[1].position, e[1].color = 0.45, (0.03, 0.13, 0.55, 1)    # overhead
+    e[0].position, e[0].color = 0.0, (0.60, 0.76, 0.92, 1)      # horizon
+    e[1].position, e[1].color = 0.45, (0.06, 0.19, 0.60, 1)    # overhead
     mid = ramp.color_ramp.elements.new(0.12)
-    mid.color = (0.10, 0.30, 0.78, 1)
+    mid.color = (0.19, 0.40, 0.82, 1)
     ab = nt.nodes.new("ShaderNodeMath")
     ab.operation = "ABSOLUTE"
     nt.links.new(sep.outputs["Z"], ab.inputs[0])
