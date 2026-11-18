@@ -77,27 +77,27 @@ def palms(x, y, yaw, count):
     g0 = ground(x, y)
     quad("lawn", [(x + 130.0 * math.cos(a), y + 130.0 * math.sin(a), g0 + 0.4) for a in (math.tau * i / 40 for i in range(40))])
     for _ in range(count):
-        t, s = rnd.uniform(22.0, 95.0), rnd.choice((-1, 1)) * rnd.uniform(5.0, 42.0)
+        t, s = rnd.uniform(45.0, 120.0), rnd.choice((-1, 1)) * rnd.uniform(4.0, 48.0)
         px, py = x + fx * t - fy * s, y + fy * t + fx * s
-        gz, ht = ground(px, py), rnd.uniform(12.0, 17.0)
+        gz, ht = ground(px, py), rnd.uniform(16.0, 22.0)
         for i in range(8):                                   # trunk
             a0, a1 = math.tau * i / 8, math.tau * (i + 1) / 8
-            quad("trunk", [(px + 0.28 * math.cos(a0), py + 0.28 * math.sin(a0), gz), (px + 0.28 * math.cos(a1), py + 0.28 * math.sin(a1), gz),
-                           (px + 0.2 * math.cos(a1), py + 0.2 * math.sin(a1), gz + ht), (px + 0.2 * math.cos(a0), py + 0.2 * math.sin(a0), gz + ht)])
-        for i in range(13):                                  # drooping feather fronds
+            quad("trunk", [(px + 0.42 * math.cos(a0), py + 0.42 * math.sin(a0), gz), (px + 0.42 * math.cos(a1), py + 0.42 * math.sin(a1), gz),
+                           (px + 0.3 * math.cos(a1), py + 0.3 * math.sin(a1), gz + ht), (px + 0.3 * math.cos(a0), py + 0.3 * math.sin(a0), gz + ht)])
+        for i in range(22):                                  # drooping feather fronds
             a = math.tau * i / 13 + rnd.uniform(-0.2, 0.2)
             lift = rnd.uniform(-0.2, 0.9)
             cx_, cy_ = math.cos(a), math.sin(a)
             prev = None
             for k in range(5):
                 u = k / 4.0
-                rr, zz = 4.6 * u, ht + 1.2 + 3.2 * u * lift - 3.6 * u * u
-                wd = 0.75 * math.sin(math.pi * min(1.0, u + 0.15))
+                rr, zz = 6.5 * u, ht + 1.2 + 4.0 * u * lift - 5.5 * u * u
+                wd = 1.1 * math.sin(math.pi * min(1.0, u + 0.15))
                 cur = ((px + cx_ * rr - cy_ * wd, py + cy_ * rr + cx_ * wd, gz + zz), (px + cx_ * rr + cy_ * wd, py + cy_ * rr - cx_ * wd, gz + zz))
                 if prev:
                     quad("frond", [prev[0], prev[1], cur[1], cur[0]])
                 prev = cur
-    cols = {"trunk": ((0.62, 0.60, 0.52), 0.8), "frond": ((0.10, 0.22, 0.05), 0.6), "lawn": ((0.36, 0.38, 0.10), 0.95)}
+    cols = {"trunk": ((0.62, 0.60, 0.52), 0.8), "frond": ((0.10, 0.22, 0.05), 0.6), "lawn": ((0.40, 0.48, 0.13), 0.95)}
     for key, (v, f) in parts.items():
         me = bpy.data.meshes.new("pair_royal_" + key)
         me.from_pydata(v, [], f)
