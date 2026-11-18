@@ -457,7 +457,9 @@ def build():
                 continue
             if len(pts) < 2:
                 continue
-            n["piers"] += deck(bufs, w, G)
+            mp = w["pts"][len(w["pts"]) // 2]                # Victoria Bridge: hero_towers.landmarks builds its girder and two blade piers
+            vic = abs((mp[0] + 956.0) * 0.52 - (mp[1] + 1036.5) * 0.854) < 22.0 and abs((mp[0] + 956.0) * 0.854 + (mp[1] + 1036.5) * 0.52) < 140.0
+            n["piers"] += deck(bufs, w, G, piers=not vic)
             n["bridges"] += 1
             if w["kind"] == "road":
                 n["marked"] += 1 if markings(bufs["paint"], w, pts, [z + 0.03 for z in w["deck"]]) else 0

@@ -171,10 +171,17 @@ def build_buildings(recs=None, zone=None, collection="cbd_ext", suffix="_ext"):
         LK.LOOKS.setdefault(k, v)
     keep = B.records
     B.records = lambda: recs
+    if collection == "cbd_ext":                     # the same per-building mixes as city_wide (critic round 1:
+        import city_wide as CW                      # the skyline read as a wall of identical white towers)
+        mixed, _ = CW.assign_looks(recs)
+        plain = B.look_for
+        B.look_for = lambda osm, tags, h, family: mixed.get(osm) or plain(osm, tags, h, family)
     try:
         res = B.build(zone=zone or tuple(meta()["box_local"]), collection=collection, only={r["osm"] for r in recs}, suffix=suffix)
     finally:
         B.records = keep
+        if collection == "cbd_ext":
+            B.look_for = plain
         for k in added:
             o["ways"].pop(k, None)
     return res, len(recs)
@@ -201,11 +208,14 @@ def build_trees(col):
                 if FR.over_deck(x, y, rr * 1.25):
                     continue
                 T.trunk(trunks, x, y, g, 0.25, h * 0.55, 0)
-                T.crown(crowns, x, y, g + h - rr * 0.6, rr, 0.6, 4)
+                T.blob(crowns, x, y, g + h * 0.5, rr * 1.2, h * 0.34)   # full crown down to near the ground (critics: lollipops)
+                for k2 in range(4):                           # two side lobes: a ragged clump, not a ball (critic round 6)
+                    a2 = (x * 12.9898 + y * 78.233 + k2 * 2.4) % 6.2832
+                    T.blob(crowns, x + math.cos(a2) * rr * 0.8, y + math.sin(a2) * rr * 0.8, g + h * (0.34 + 0.07 * k2), rr * (0.55 + 0.12 * k2), h * 0.24)
             n += 1
     objs = []
     for buf, name, key, rgb in ((trunks, "cbd_ext_tree_trunks", "bark", (0.11, 0.095, 0.08)),
-                                (crowns, "cbd_ext_tree_crowns", "tree", (0.035, 0.075, 0.03)),
+                                (crowns, "cbd_ext_tree_crowns", "tree", (0.06, 0.14, 0.045)),
                                 (palms, "cbd_ext_palm_fronds", "palm", (0.06, 0.12, 0.04))):
         ob = buf.object(name, col, key)
         if ob:

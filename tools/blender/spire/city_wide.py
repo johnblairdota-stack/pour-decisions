@@ -95,7 +95,14 @@ def assign_looks(recs):
         out[osm] = (key, dict(rec, roof=tuple(c * ROOF_GAIN for c in ROOFS[ri]), src="city_wide.assign_looks (use + height; roof colour from the aerial)"))
         kind = key[6:].split("_r")[0].rstrip("0123456789")
         count[kind] = count.get(kind, 0) + 1
+    for osm, (name, over) in NAMED.items():                # towers the photo critics could name
+        if osm in out:
+            out[osm] = ("gen_w_%s_r0" % name, dict(LK.GENERIC["office"], roof=out[osm][1]["roof"], src="city_wide.NAMED (Commons photos)",
+                                                **{k: LK.hx(v) for k, v in over.items()}))
     return out, count
+
+
+NAMED = {481145058: ("abian", {"wall": "2a3340", "glass": "0c1420", "spandrel": "0a1018"})}    # dark mirror glass by the gardens
 
 
 def guess_roofs(recs):
@@ -175,11 +182,14 @@ def build_trees(col):
             if FR.over_deck(x, y, rr):
                 continue
             T.tube(trunks, (x, y, g - 0.3), (x, y, g + h * 0.55), 0.22, 0.14, 5)
-            T.blob(crowns, x, y, g + h - rr * 0.62, rr, rr * 0.62)
+            T.blob(crowns, x, y, g + h * 0.5, rr * 1.2, h * 0.34)     # full crown down to near the ground (critics: lollipops)
+            for k2 in range(4):                           # two side lobes: a ragged clump, not a ball (critic round 6)
+                a2 = (x * 12.9898 + y * 78.233 + k2 * 2.4) % 6.2832
+                T.blob(crowns, x + math.cos(a2) * rr * 0.8, y + math.sin(a2) * rr * 0.8, g + h * (0.34 + 0.07 * k2), rr * (0.55 + 0.12 * k2), h * 0.24)
             n += 1
     objs = []
     for buf, name, mname, rgb in ((trunks, "wide_tree_trunks", "tree_trunks", (0.11, 0.095, 0.08)),
-                                  (crowns, "wide_tree_crowns", "tree_crowns_far", (0.035, 0.075, 0.03))):
+                                  (crowns, "wide_tree_crowns", "tree_crowns_far", (0.06, 0.14, 0.045))):
         ob = buf.object(name, col, "tree")
         if ob:
             ob.data.materials[0] = C.material_rgb(mname, rgb)

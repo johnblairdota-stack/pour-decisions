@@ -21,6 +21,7 @@ MODULES.append(__import__("cbd_ext"))     # tower-data thread: the CBD south-wes
 MODULES.append(__import__("city_wide"))   # tower-data thread: every OSM building over the whole LiDAR download
 MODULES.append(__import__("far_roads"))   # tower-data thread: OSM roads, rail and bridges outside the LiDAR box
 MODULES.append(__import__("city_detail")) # tower-data thread: roof plant, solar, pools, car parks, pitches, signs
+MODULES.append(__import__("hero_towers")) # tower-data thread: Skytower and 1 William St skins, crowns, parts
 
 
 def clear():
