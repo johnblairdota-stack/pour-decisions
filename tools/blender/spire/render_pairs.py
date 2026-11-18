@@ -100,25 +100,25 @@ def shoot(p, out, width):
                     bm.to_mesh(o.data)
                 bm.free()
     for x0, y0, x1, y1, hw, zmin in p.get("drop", []):       # "drop": things newer than the photo, as capsules [x0, y0, x1, y1, half width, above z]
-        import bmesh
+        import numpy as np
         ex, ey = x1 - x0, y1 - y0
         el = ex * ex + ey * ey
         for o in bpy.data.objects:
-            if o.type == "MESH" and not o.name.startswith("hero_"):
-                bm = bmesh.new()
-                bm.from_mesh(o.data)
-                M = o.matrix_world
-                dead = []
-                for v in bm.verts:
-                    q = M @ v.co
-                    if q.z > zmin:
-                        t = max(0.0, min(1.0, ((q.x - x0) * ex + (q.y - y0) * ey) / el))
-                        if math.hypot(q.x - x0 - t * ex, q.y - y0 - t * ey) < hw:
-                            dead.append(v)
-                if dead:
-                    bmesh.ops.delete(bm, geom=dead, context="VERTS")
-                    bm.to_mesh(o.data)
-                bm.free()
+            if o.type != "MESH" or o.name.startswith("hero_") or not len(o.data.vertices):
+                continue
+            co = np.empty(len(o.data.vertices) * 3, dtype=np.float32)
+            o.data.vertices.foreach_get("co", co)
+            co = co.reshape(-1, 3) @ np.array(o.matrix_world.to_3x3(), dtype=np.float32).T + np.array(o.matrix_world.translation, dtype=np.float32)
+            t = np.clip(((co[:, 0] - x0) * ex + (co[:, 1] - y0) * ey) / el, 0.0, 1.0)
+            hit = (co[:, 2] > zmin) & (np.hypot(co[:, 0] - x0 - t * ex, co[:, 1] - y0 - t * ey) < hw)
+            if not hit.any():
+                continue
+            co = np.empty(len(o.data.vertices) * 3, dtype=np.float32)   # sink them (deleting through bmesh ran out of memory on the big meshes)
+            o.data.vertices.foreach_get("co", co)
+            co = co.reshape(-1, 3)
+            co[hit, 2] -= 80.0
+            o.data.vertices.foreach_set("co", co.ravel())
+            o.data.update()
     cam.location = pos
     cam.rotation_euler = look.to_track_quat("-Z", "Y").to_euler()
     if p.get("clear"):                                       # "clear": half width (m) of a tree-free lane to the target
