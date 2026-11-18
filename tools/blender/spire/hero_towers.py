@@ -23,9 +23,9 @@ MATS = {   # name: (rgb, roughness, metallic)
     "sky_glass": ((0.045, 0.07, 0.11), 0.08, 0.5), "sky_line": ((0.035, 0.055, 0.11), 0.3, 0.0),
     "sky_ring": ((0.50, 0.72, 0.84), 0.4, 0.0), "sky_band": ((0.018, 0.022, 0.032), 0.5, 0.0),
     "sky_crown": ((0.035, 0.045, 0.065), 0.4, 0.0), "sky_lobby": ((0.02, 0.035, 0.06), 0.05, 0.0),
-    "wil_glass": ((0.17, 0.195, 0.235), 0.06, 0.7), "wil_glow": ((0.80, 0.68, 0.42), 0.4, 0.0), "wil_band": ((0.08, 0.07, 0.06), 0.5, 0.3), "wil_fin": ((0.42, 0.30, 0.16), 0.35, 0.7), "wil_line": ((0.20, 0.16, 0.11), 0.45, 0.3),
+    "wil_glass": ((0.17, 0.185, 0.21), 0.06, 0.7), "wil_glow": ((0.80, 0.68, 0.42), 0.4, 0.0), "wil_band": ((0.08, 0.07, 0.06), 0.5, 0.3), "wil_fin": ((0.42, 0.30, 0.16), 0.35, 0.7), "wil_line": ((0.20, 0.16, 0.11), 0.45, 0.3),
     "wil_white": ((0.82, 0.80, 0.74), 0.45, 0.0), "wil_deck": ((0.022, 0.023, 0.026), 0.8, 0.0),
-    "wil_lobby": ((0.03, 0.05, 0.07), 0.05, 0.0),
+    "wil_lobby": ((0.03, 0.05, 0.07), 0.05, 0.0), "wil_louvre": ((0.036, 0.027, 0.021), 0.75, 0.1),
     # Eagle St towers and the Treasury Casino (John 18 Nov)
     "eag_dark": ((0.04, 0.055, 0.07), 0.12, 0.3), "eag_white": ((0.86, 0.85, 0.80), 0.5, 0.0), "eag_cream": ((0.74, 0.70, 0.60), 0.6, 0.0),
     "eag_blue": ((0.05, 0.12, 0.24), 0.08, 0.5), "eag_teal": ((0.05, 0.16, 0.19), 0.08, 0.5), "eag_tline": ((0.30, 0.42, 0.42), 0.4, 0.0),
@@ -132,7 +132,7 @@ def william1(b, bufs):
         prev = (qx, qy, g + 17.0)
         for f, zz in ((0.12, 14.0), (0.38, 11.0), (0.72, 7.5), (0.95, 4.0), (1.0, 0.0)):       # the ribs curve out into an arch about 12 m wide round the lobby
             cur = (qx - uy * s * 1.35 * f, qy + ux * s * 1.35 * f, g + zz)
-            bufs["wil_white"].beam(prev, cur, 1.0, 1.0)
+            bufs["wil_white"].beam(prev, cur, 1.5, 1.5)             # critic round 24: the entrance portal was too thin to read
             prev = cur
     ko = min(range(n), key=lambda i: d[i] + 0.3 * abs(lat[i]))     # back of the roof, on the axis
     zr = lambda px, py: 190.0 + 46.0 * (hi - ((px - cx) * ux + (py - cy) * uy)) / (hi - lo)
@@ -141,6 +141,26 @@ def william1(b, bufs):
         i = min((i for i in range(n) if d[i] > 0), key=lambda i: abs(lat[i] - lat[k] - s))
         bufs["wil_white"].beam((inner[i][0], inner[i][1], zt[i] - 0.25), (cx - uy * s * 0.5, cy + ux * s * 0.5, zc), 1.0, 0.5)
         bufs["wil_white"].beam((cx - uy * s * 0.5, cy + ux * s * 0.5, zc), (inner[ko][0] - uy * s * 0.5, inner[ko][1] + ux * s * 0.5, zt[ko] - 0.25), 1.0, 0.5)
+    lmin, lmax = min(lat), max(lat)                                # critic rounds 21 to 24: two raised, white-rimmed louvre lobes either side of the slot
+    for s in (-1.0, 1.0):
+        dc, lc = 0.5 * (lo + hi), 0.5 * (lmin + lmax) + s * 0.27 * (lmax - lmin)
+        ad, al = 0.36 * (hi - lo), 0.17 * (lmax - lmin)
+        pts = []
+        for q in range(32):
+            an = 2 * math.pi * q / 32
+            dd, ll = dc + ad * math.cos(an), lc + al * math.sin(an) * (1.0 - 0.25 * math.cos(an))      # kidney: fuller towards the back
+            px_, py_ = cx + ux * dd - uy * ll, cy + uy * dd + ux * ll
+            pts.append((px_, py_, zr(px_, py_)))
+        m_ = len(pts)
+        ccx, ccy = sum(q[0] for q in pts) / m_, sum(q[1] for q in pts) / m_
+        bufs["wil_louvre"].add([(q[0], q[1], q[2] - 0.6) for q in pts] + [(q[0], q[1], q[2] + 0.9) for q in pts] + [(ccx, ccy, zr(ccx, ccy) + 0.9)],
+                               [[i, (i + 1) % m_, m_ + (i + 1) % m_, m_ + i] for i in range(m_)] + [[2 * m_, m_ + i, m_ + (i + 1) % m_] for i in range(m_)])
+        for i in range(m_):
+            bufs["wil_white"].beam((pts[i][0], pts[i][1], pts[i][2] + 1.0), (pts[(i + 1) % m_][0], pts[(i + 1) % m_][1], pts[(i + 1) % m_][2] + 1.0), 0.7, 0.7)
+        for q in range(1, 16):                                     # louvre lines across the lobe
+            p0, p1 = pts[q], pts[32 - q]
+            if q % 2 == 0:
+                bufs["wil_deck"].beam((p0[0], p0[1], p0[2] + 0.95), (p1[0], p1[1], p1[2] + 0.95), 0.5, 0.12)
     lx, ly = -uy, ux                                               # glazed, warm-lit lobby inside the arch
     c0 = (ring[k][0] + ux * 0.4, ring[k][1] + uy * 0.4)
     bufs["wil_glow"].prism(S.ccw([(c0[0] - lx * 5.0, c0[1] - ly * 5.0), (c0[0] + lx * 5.0, c0[1] + ly * 5.0),
