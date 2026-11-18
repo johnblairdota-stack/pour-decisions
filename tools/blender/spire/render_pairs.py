@@ -119,6 +119,9 @@ def shoot(p, out, width):
             co[hit, 2] -= 80.0
             o.data.vertices.foreach_set("co", co.ravel())
             o.data.update()
+    for o in bpy.data.objects:                             # "year": Queen's Wharf (2024) is left out of older photos
+        if o.name.startswith("hero_qw_"):
+            o.hide_render = p.get("year", 9999) < 2023
     river = bpy.data.materials.get("clay_water")           # "river": the water colour on the photo's day (brown after rain, blue on a clear evening)
     if river:
         river.node_tree.nodes["Principled BSDF"].inputs["Base Color"].default_value = (*p.get("river", (0.17, 0.19, 0.135)), 1)

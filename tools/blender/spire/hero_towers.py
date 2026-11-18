@@ -26,7 +26,14 @@ MATS = {   # name: (rgb, roughness, metallic)
     "wil_glass": ((0.15, 0.17, 0.215), 0.42, 0.0), "wil_line": ((0.095, 0.078, 0.06), 0.5, 0.2),
     "wil_white": ((0.70, 0.71, 0.72), 0.45, 0.0), "wil_deck": ((0.05, 0.043, 0.036), 0.8, 0.0),
     "wil_lobby": ((0.03, 0.05, 0.07), 0.05, 0.0),
+    "qw_gold": ((0.075, 0.062, 0.045), 0.14, 0.6), "qw_line": ((0.42, 0.36, 0.22), 0.4, 0.4),
+    "qw_dark": ((0.035, 0.05, 0.075), 0.12, 0.5), "qw_dline": ((0.10, 0.13, 0.17), 0.4, 0.0),
+    "qw_podium": ((0.05, 0.047, 0.042), 0.2, 0.4), "qw_deck": ((0.80, 0.80, 0.78), 0.5, 0.0),
 }
+QW_O = (-532.81, -1167.73)                                        # Queen's Wharf pack origin in the Spire frame
+QW_ARC = (-34.5, -60.0, 33.0, 53.0)                               # Star Grand arc: centre x, y, inner and outer radius (2022 aerial)
+QW_OVAL = (-30.0, 30.0, 27.0, 14.0, 45.0)                        # Dorsett and Rosewood oval tower: centre, semi-axes, turn (deg)
+QW_RES = (47.0, -55.0, 14.0)                                      # Queen's Wharf Residences tube: centre, radius
 
 
 def rings(buf, ring, z0, z1, step, h, out):
@@ -117,6 +124,75 @@ def william1(b, bufs):
     return ["glass skin", "floor lines", "podium lobby", "sloped crown", "white rim and spine", "mast"]
 
 
+def queenswharf(bufs):
+    """Queen's Wharf (opened 2024) is in no OSM, LiDAR or public aerial as finished towers: footprints are traced
+    from the 2022 construction aerial, heights and skins from 2024-25 photos. Star Grand is a 180 degree arc of
+    gold glass with a gap facing the river, bridged at the top by the Sky Deck (100 m up)."""
+    ox, oy = QW_O
+
+    def sector(a0, a1, ri, ro, step=6.0):
+        n = max(2, int(abs(a1 - a0) / step))
+        an = [math.radians(a0 + (a1 - a0) * i / n) for i in range(n + 1)]
+        cx, cy = ox + QW_ARC[0], oy + QW_ARC[1]
+        return S.ccw([(cx + ro * math.cos(a), cy + ro * math.sin(a)) for a in an] + [(cx + ri * math.cos(a), cy + ri * math.sin(a)) for a in reversed(an)])
+
+    def oval(cx, cy, a, b, turn=0.0, n=40):
+        t = math.radians(turn)
+        return S.ccw([(ox + cx + a * math.cos(u) * math.cos(t) - b * math.sin(u) * math.sin(t), oy + cy + a * math.cos(u) * math.sin(t) + b * math.sin(u) * math.cos(t))
+                      for u in (2 * math.pi * i / n for i in range(n))])
+
+    g, ri, ro = 3.0, QW_ARC[2], QW_ARC[3]
+    top, deck0 = 102.0, 86.0
+    bufs["qw_podium"].prism(oval(QW_ARC[0], QW_ARC[1], ro + 8.0, ro + 8.0), g, 24.0)                       # podium over the expressway
+    bufs["qw_podium"].prism([(ox - 29.0, oy - 36.0), (ox + 51.0, oy - 36.0), (ox + 51.0, oy + 29.0), (ox - 29.0, oy + 29.0)], g, 30.0)
+    for a0, a1, z0, z1 in ((120.0, 212.0, 24.0, top), (238.0, 330.0, 24.0, top), (212.0, 238.0, 24.0, 50.0)):
+        bufs["qw_gold"].prism(sector(a0, a1, ri, ro), z0, z1)
+        z = z0 + 3.6
+        while z < z1 - 1.0:                                        # pale floor lines every second floor
+            bufs["qw_line"].prism(sector(a0, a1, ri - 0.12, ro + 0.12), z, z + 0.3)
+            z += 7.2
+    bufs["qw_gold"].prism(sector(210.0, 240.0, ri - 2.0, ro + 1.5), deck0, top)                    # Sky Deck bridging the gap
+    bufs["qw_deck"].prism(sector(210.0, 240.0, ri - 2.5, ro + 2.0), deck0 - 0.8, deck0)
+    bufs["qw_deck"].prism(sector(120.0, 330.0, ri - 0.3, ro + 0.3), top, top + 0.8)                         # roof edge
+    bufs["qw_deck"].prism(oval(QW_ARC[0], QW_ARC[1], ro + 8.3, ro + 8.3), 24.0, 24.6)                       # podium terrace edge
+    bufs["qw_deck"].beam((ox + QW_ARC[0] - 30.0, oy + QW_ARC[1] + 38.0, top - 4.0), (ox + QW_OVAL[0] - 6.0, oy + QW_OVAL[1] - 8.0, top - 4.0), 4.0, 3.0)   # skybridge to the hotel tower
+    for (cx, cy, a, b, turn, z1) in ((QW_OVAL[0], QW_OVAL[1], QW_OVAL[2], QW_OVAL[3], QW_OVAL[4], 165.0), (QW_RES[0], QW_RES[1], QW_RES[2], QW_RES[2], 0.0, 225.0)):
+        ring = oval(cx, cy, a, b, turn)
+        bufs["qw_dark"].prism(ring, g, z1)
+        bufs["qw_dark"].prism(oval(cx, cy, a * 0.8, b * 0.8, turn), z1, z1 + 3.0)                            # stepped rounded top
+        z = 34.0
+        while z < z1 - 2.0:
+            bufs["qw_dline"].prism(oval(cx, cy, a + 0.1, b + 0.1, turn), z, z + 0.25)
+            z += 7.0
+    return ["podium over the expressway", "Star Grand arc (two wings)", "Sky Deck", "Dorsett and Rosewood oval tower", "Residences tube"]
+
+
+def clear_queenswharf():
+    """Sink the generic building blocks standing where Queen's Wharf goes (numpy only: bmesh runs out of memory here)."""
+    import bpy
+    import numpy as np
+    ox, oy = QW_O
+    discs = [(ox + QW_ARC[0], oy + QW_ARC[1], QW_ARC[3] + 8.0), (ox + QW_OVAL[0], oy + QW_OVAL[1], QW_OVAL[2] + 5.0), (ox + QW_RES[0], oy + QW_RES[1], QW_RES[2] + 12.0), (ox + 11.0, oy - 3.5, 46.0)]
+    n = 0
+    for o in bpy.data.objects:
+        if o.type != "MESH" or not o.name.startswith("bldg") or not len(o.data.vertices):
+            continue
+        co = np.empty(len(o.data.vertices) * 3, dtype=np.float32)
+        o.data.vertices.foreach_get("co", co)
+        co = co.reshape(-1, 3)
+        w = co + np.array(o.location, dtype=np.float32)
+        hit = np.zeros(len(co), bool)
+        for x, y, r in discs:
+            hit |= (np.hypot(w[:, 0] - x, w[:, 1] - y) < r) & (w[:, 2] > 5.0)
+        if hit.any():
+            co[hit, 2] -= 400.0
+            o.data.vertices.foreach_set("co", co.ravel())
+            o.data.update()
+            n += int(hit.sum())
+    print("hero_towers: sank", n, "generic verts at Queen's Wharf")
+    return n
+
+
 def clear_column(jobs):
     """Other modules' leftovers on the two towers (toppers, roof plant, masts in shared meshes): every vertex
     inside a tower's outline box and above its podium goes."""
@@ -167,6 +243,8 @@ def build():
         parts["Brisbane Skytower"] = skytower(recs[SKY], bufs)
     if WIL in recs:
         parts["1 William St"] = william1(recs[WIL], bufs)
+    clear_queenswharf()
+    parts["Queen's Wharf"] = queenswharf(bufs)
     col = C.collection("hero_towers")
     objs = []
     for k, buf in bufs.items():
