@@ -99,6 +99,26 @@ def shoot(p, out, width):
                     bmesh.ops.delete(bm, geom=dead, context="VERTS")
                     bm.to_mesh(o.data)
                 bm.free()
+    for x0, y0, x1, y1, hw, zmin in p.get("drop", []):       # "drop": things newer than the photo, as capsules [x0, y0, x1, y1, half width, above z]
+        import bmesh
+        ex, ey = x1 - x0, y1 - y0
+        el = ex * ex + ey * ey
+        for o in bpy.data.objects:
+            if o.type == "MESH" and not o.name.startswith("hero_"):
+                bm = bmesh.new()
+                bm.from_mesh(o.data)
+                M = o.matrix_world
+                dead = []
+                for v in bm.verts:
+                    q = M @ v.co
+                    if q.z > zmin:
+                        t = max(0.0, min(1.0, ((q.x - x0) * ex + (q.y - y0) * ey) / el))
+                        if math.hypot(q.x - x0 - t * ex, q.y - y0 - t * ey) < hw:
+                            dead.append(v)
+                if dead:
+                    bmesh.ops.delete(bm, geom=dead, context="VERTS")
+                    bm.to_mesh(o.data)
+                bm.free()
     cam.location = pos
     cam.rotation_euler = look.to_track_quat("-Z", "Y").to_euler()
     if p.get("clear"):                                       # "clear": half width (m) of a tree-free lane to the target
