@@ -53,6 +53,59 @@ def blue_sky(strength=1.5):
     bg.inputs["Strength"].default_value = strength
 
 
+def palms(x, y, yaw, count):
+    """Royal palms (pale trunk, feather crown) scattered over a yellow-green lawn in the fan ahead of the camera."""
+    import random
+    rnd = random.Random(7)
+    fx, fy = math.cos(yaw), math.sin(yaw)
+
+    def mat(name, col, rough):
+        m = bpy.data.materials.get(name) or bpy.data.materials.new(name)
+        m.use_nodes = True
+        bs = m.node_tree.nodes["Principled BSDF"]
+        bs.inputs["Base Color"].default_value = (*col, 1)
+        bs.inputs["Roughness"].default_value = rough
+        return m
+
+    parts = {"trunk": ([], []), "frond": ([], []), "lawn": ([], [])}
+
+    def quad(key, pts):
+        v, f = parts[key]
+        f.append(list(range(len(v), len(v) + len(pts))))
+        v.extend(pts)
+
+    g0 = ground(x, y)
+    quad("lawn", [(x + 130.0 * math.cos(a), y + 130.0 * math.sin(a), g0 + 0.4) for a in (math.tau * i / 40 for i in range(40))])
+    for _ in range(count):
+        t, s = rnd.uniform(22.0, 95.0), rnd.choice((-1, 1)) * rnd.uniform(5.0, 42.0)
+        px, py = x + fx * t - fy * s, y + fy * t + fx * s
+        gz, ht = ground(px, py), rnd.uniform(12.0, 17.0)
+        for i in range(8):                                   # trunk
+            a0, a1 = math.tau * i / 8, math.tau * (i + 1) / 8
+            quad("trunk", [(px + 0.28 * math.cos(a0), py + 0.28 * math.sin(a0), gz), (px + 0.28 * math.cos(a1), py + 0.28 * math.sin(a1), gz),
+                           (px + 0.2 * math.cos(a1), py + 0.2 * math.sin(a1), gz + ht), (px + 0.2 * math.cos(a0), py + 0.2 * math.sin(a0), gz + ht)])
+        for i in range(13):                                  # drooping feather fronds
+            a = math.tau * i / 13 + rnd.uniform(-0.2, 0.2)
+            lift = rnd.uniform(-0.2, 0.9)
+            cx_, cy_ = math.cos(a), math.sin(a)
+            prev = None
+            for k in range(5):
+                u = k / 4.0
+                rr, zz = 4.6 * u, ht + 1.2 + 3.2 * u * lift - 3.6 * u * u
+                wd = 0.75 * math.sin(math.pi * min(1.0, u + 0.15))
+                cur = ((px + cx_ * rr - cy_ * wd, py + cy_ * rr + cx_ * wd, gz + zz), (px + cx_ * rr + cy_ * wd, py + cy_ * rr - cx_ * wd, gz + zz))
+                if prev:
+                    quad("frond", [prev[0], prev[1], cur[1], cur[0]])
+                prev = cur
+    cols = {"trunk": ((0.62, 0.60, 0.52), 0.8), "frond": ((0.10, 0.22, 0.05), 0.6), "lawn": ((0.36, 0.38, 0.10), 0.95)}
+    for key, (v, f) in parts.items():
+        me = bpy.data.meshes.new("pair_royal_" + key)
+        me.from_pydata(v, [], f)
+        ob = bpy.data.objects.new("pair_royal_" + key, me)
+        ob.data.materials.append(mat("pair_royal_" + key, *cols[key]))
+        bpy.context.scene.collection.objects.link(ob)
+
+
 def shoot(p, out, width):
     x, y = p["pos"] if "pos" in p else L.to_local(p["lat"], p["lon"])
     if p.get("dist"):
@@ -127,13 +180,17 @@ def shoot(p, out, width):
         river.node_tree.nodes["Principled BSDF"].inputs["Base Color"].default_value = (*p.get("river", (0.17, 0.19, 0.135)), 1)
     cam.location = pos
     cam.rotation_euler = look.to_track_quat("-Z", "Y").to_euler()
+    for o in [o for o in bpy.data.objects if o.name.startswith("pair_royal")]:
+        bpy.data.objects.remove(o)
+    if p.get("palms"):                                       # "palms": royal palms and a mown lawn in front of the camera (Botanic Gardens)
+        palms(x, y, math.atan2(d.y, d.x), p["palms"])
     if p.get("clear"):                                       # "clear": half width (m) of a tree-free lane to the target
         import bmesh
         ax, ay = tgt.x - x, tgt.y - y
         ln = math.hypot(ax, ay)
         ax, ay = ax / ln, ay / ln
         for o in bpy.data.objects:
-            if o.type == "MESH" and ("tree" in o.name or "palm" in o.name):
+            if o.type == "MESH" and ("tree" in o.name or "palm" in o.name or o.name.startswith(("leaves_", "blooms_"))):
                 bm = bmesh.new()
                 bm.from_mesh(o.data)
                 M = o.matrix_world

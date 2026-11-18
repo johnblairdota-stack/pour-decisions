@@ -20,19 +20,19 @@ import shapes as S
 SKY, WIL = 683336940, 521115344
 WIL_PART = 1104813702                                           # OSM building:part on the river face; read as a pasted panel
 MATS = {   # name: (rgb, roughness, metallic)
-    "sky_glass": ((0.03, 0.045, 0.075), 0.10, 0.5), "sky_line": ((0.035, 0.055, 0.11), 0.3, 0.0),
+    "sky_glass": ((0.02, 0.03, 0.045), 0.10, 0.5), "sky_line": ((0.035, 0.055, 0.11), 0.3, 0.0),
     "sky_ring": ((0.42, 0.52, 0.70), 0.5, 0.0), "sky_band": ((0.028, 0.036, 0.055), 0.5, 0.0),
     "sky_crown": ((0.035, 0.045, 0.065), 0.4, 0.0), "sky_lobby": ((0.02, 0.035, 0.06), 0.05, 0.0),
-    "wil_glass": ((0.15, 0.17, 0.215), 0.42, 0.0), "wil_line": ((0.20, 0.16, 0.11), 0.45, 0.3),
-    "wil_white": ((0.70, 0.71, 0.72), 0.45, 0.0), "wil_deck": ((0.05, 0.043, 0.036), 0.8, 0.0),
+    "wil_glass": ((0.14, 0.14, 0.14), 0.25, 0.0), "wil_fin": ((0.46, 0.39, 0.28), 0.4, 0.6), "wil_line": ((0.20, 0.16, 0.11), 0.45, 0.3),
+    "wil_white": ((0.82, 0.80, 0.74), 0.45, 0.0), "wil_deck": ((0.05, 0.043, 0.036), 0.8, 0.0),
     "wil_lobby": ((0.03, 0.05, 0.07), 0.05, 0.0),
     "qw_gold": ((0.075, 0.062, 0.045), 0.08, 0.8), "qw_line": ((0.42, 0.36, 0.22), 0.4, 0.4),
     "qw_dark": ((0.035, 0.05, 0.075), 0.12, 0.5), "qw_dline": ((0.10, 0.13, 0.17), 0.4, 0.0),
-    "qw_podium": ((0.05, 0.047, 0.042), 0.2, 0.4), "qw_deck": ((0.80, 0.80, 0.78), 0.5, 0.0), "qw_fin": ((0.11, 0.09, 0.06), 0.35, 0.5),
+    "qw_podium": ((0.05, 0.047, 0.042), 0.2, 0.4), "qw_deck": ((0.80, 0.80, 0.78), 0.5, 0.0), "qw_fin": ((0.025, 0.022, 0.018), 0.4, 0.4), "qw_green": ((0.10, 0.20, 0.06), 0.9, 0.0),
 }
 QW_O = (-532.81, -1167.73)                                        # Queen's Wharf pack origin in the Spire frame
 QW_ARC = (-34.5, -60.0, 33.0, 53.0)                               # Star Grand arc: centre x, y, inner and outer radius (2022 aerial)
-QW_OVAL = (-30.0, 30.0, 22.0, 12.0, 45.0)                        # Dorsett and Rosewood oval tower: centre, semi-axes, turn (deg)
+QW_OVAL = (-30.0, 30.0, 32.0, 11.0, 45.0)                        # Dorsett and Rosewood oval tower: centre, semi-axes, turn (deg)
 QW_RES = (47.0, -55.0, 14.0)                                      # Queen's Wharf Residences tube: centre, radius
 
 
@@ -103,23 +103,28 @@ def william1(b, bufs):
         bufs["wil_white"].beam((ring[i][0], ring[i][1], zt[i]), (ring[j][0], ring[j][1], zt[j]), 0.9, 0.8)
     k = min((i for i in range(n) if d[i] > 0), key=lambda i: abs((ring[i][0] - cx) * uy - (ring[i][1] - cy) * ux))   # the spine: centre of the river face
     for i in range(n):                                             # fine bronze mullions round the shaft
-        bufs["wil_line"].beam((ring[i][0], ring[i][1], pod["top_ahd"]), (ring[i][0], ring[i][1], zt[i]), 0.2)
+        j = (i + 1) % n
+        m = max(1, int(math.hypot(ring[j][0] - ring[i][0], ring[j][1] - ring[i][1]) / 1.6))
+        for q in range(m):                                         # critic round 13: bronze mullions dense enough to read from the river
+            t = q / m
+            mx, my = ring[i][0] + (ring[j][0] - ring[i][0]) * t, ring[i][1] + (ring[j][1] - ring[i][1]) * t
+            bufs["wil_fin"].beam((mx, my, pod["top_ahd"]), (mx, my, zt[i] + (zt[j] - zt[i]) * t), 0.4)
     lat = [(ring[i][0] - cx) * -uy + (ring[i][1] - cy) * ux for i in range(n)]     # sideways position along the river face
     rib = []
-    for s in (-2.0, 2.0):                                          # two thin ribs 4 m apart with glass between (critic round 11: one fat bar read as a sticker)
+    for s in (-2.6, 2.6):                                          # two thin ribs 4 m apart with glass between (critic round 11: one fat bar read as a sticker)
         i = min((i for i in range(n) if d[i] > 0), key=lambda i: abs(lat[i] - lat[k] - s))
         qx, qy = ring[k][0] - uy * s + ux * 0.5, ring[k][1] + ux * s + uy * 0.5
         if (qx - cx) * ux + (qy - cy) * uy < d[i] + 0.5:           # never buried in the glass
             qx, qy = qx + ux * (d[i] + 0.5 - ((qx - cx) * ux + (qy - cy) * uy)), qy + uy * (d[i] + 0.5 - ((qx - cx) * ux + (qy - cy) * uy))
         rib.append((qx, qy))
-        bufs["wil_white"].beam((qx, qy, g + 22.0), (qx, qy, zt[k]), 0.6, 0.6)
-        bufs["wil_white"].beam((qx, qy, g + 22.0), (qx - uy * s * 3.5, qy + ux * s * 3.5, g + 4.0), 0.6, 0.6)   # flare to the entrance arch
-        bufs["wil_white"].beam((qx - uy * s * 3.5, qy + ux * s * 3.5, g + 4.0), (qx - uy * s * 3.5, qy + ux * s * 3.5, g), 0.6, 0.6)
+        bufs["wil_white"].beam((qx, qy, g + 22.0), (qx, qy, zt[k]), 0.9, 0.9)
+        bufs["wil_white"].beam((qx, qy, g + 22.0), (qx - uy * s * 3.5, qy + ux * s * 3.5, g + 4.0), 0.9, 0.9)   # flare to the entrance arch
+        bufs["wil_white"].beam((qx - uy * s * 3.5, qy + ux * s * 3.5, g + 4.0), (qx - uy * s * 3.5, qy + ux * s * 3.5, g), 0.9, 0.9)
     ko = min(range(n), key=lambda i: d[i] + 0.3 * abs(lat[i]))     # back of the roof, on the axis
     for qx, qy in rib:                                             # the ribs carry on over the roof as two thin bars
-        bufs["wil_white"].beam((qx, qy, zt[k] + 0.2), (ring[ko][0] + qx - ring[k][0] - ux * 0.5, ring[ko][1] + qy - ring[k][1] - uy * 0.5, zt[ko] + 0.2), 0.6, 0.6)
+        bufs["wil_white"].beam((qx, qy, zt[k] + 0.2), (ring[ko][0] + qx - ring[k][0] - ux * 0.5, ring[ko][1] + qy - ring[k][1] - uy * 0.5, zt[ko] + 0.2), 0.9, 0.9)
     zb = g + 0.40 * (top - g)                                      # dark louvre band low on the shaft
-    bufs["wil_line"].prism(B.offset(ring, 0.06), zb, zb + 5.0)
+    bufs["wil_line"].prism(B.offset(ring, 0.06), zb, zb + 3.2)
     bufs["wil_white"].beam((cx, cy, 214.0), (cx, cy, 254.0), 0.6)  # mast (LiDAR tip 266.6 m AHD)
     return ["glass skin", "floor lines", "podium lobby", "sloped crown", "white rim and spine", "mast"]
 
@@ -145,20 +150,21 @@ def queenswharf(bufs):
     top, deck0 = 102.0, 86.0
     bufs["qw_podium"].prism(oval(QW_ARC[0], QW_ARC[1], ro + 8.0, ro + 8.0), g, 30.0)                       # podium over the expressway
     bufs["qw_podium"].prism([(ox - 29.0, oy - 36.0), (ox + 51.0, oy - 36.0), (ox + 51.0, oy + 29.0), (ox - 29.0, oy + 29.0)], g, 30.0)
-    for a0, a1, z0, z1 in ((120.0, 207.0, 30.0, top), (243.0, 330.0, 30.0, top), (207.0, 243.0, 30.0, 52.0)):
+    for a0, a1, z0, z1 in ((120.0, 201.0, 30.0, top), (249.0, 330.0, 30.0, top), (201.0, 249.0, 30.0, 46.0)):
         bufs["qw_gold"].prism(sector(a0, a1, ri, ro), z0, z1)
         z = z0 + 3.6
         while z < z1 - 1.0:                                        # pale floor lines every second floor
-            bufs["qw_line"].prism(sector(a0, a1, ri - 0.12, ro + 0.12), z, z + 0.3)
-            z += 7.2
-    bufs["qw_gold"].prism(sector(205.0, 245.0, ri - 2.0, ro + 1.5), deck0, top)                    # Sky Deck bridging the gap
-    bufs["qw_deck"].prism(sector(205.0, 245.0, ri - 2.5, ro + 2.0), deck0 - 0.8, deck0)
+            bufs["qw_line"].prism(sector(a0, a1, ri - 0.05, ro + 0.05), z, z + 0.15)
+            z += 14.4
+    bufs["qw_gold"].prism(sector(200.0, 250.0, ri - 2.0, ro + 1.5), deck0 + 6.0, top)                    # Sky Deck bridging the gap
+    bufs["qw_fin"].prism(sector(200.0, 250.0, ri - 2.5, ro + 2.0), deck0 + 5.2, deck0 + 6.0)
+    bufs["qw_green"].prism(sector(0.0, 360.0, ro + 2.0, ro + 7.6), 30.6, 32.0)                              # planted podium terrace
     bufs["qw_deck"].prism(sector(120.0, 330.0, ri - 1.5, ro + 2.0), top, top + 2.4)                         # pale overhanging roof ring
     a = 121.0
     while a < 329.0:                                               # vertical bronze-black fins round the drum
-        if not 207.0 < a < 243.0:
-            bufs["qw_fin"].prism(sector(a, a + 0.5, ro, ro + 0.45, 0.5), 30.0, top)
-        a += 4.4
+        if not 201.0 < a < 249.0:
+            bufs["qw_fin"].prism(sector(a, a + 0.5, ro, ro + 0.9, 0.5), 30.0, top)
+        a += 2.2
     bufs["qw_deck"].prism(oval(QW_ARC[0], QW_ARC[1], ro + 8.3, ro + 8.3), 30.0, 30.6)                       # podium terrace edge
     bufs["qw_deck"].beam((ox + QW_ARC[0] - 30.0, oy + QW_ARC[1] + 38.0, top - 4.0), (ox + QW_OVAL[0] - 6.0, oy + QW_OVAL[1] - 8.0, top - 4.0), 4.0, 3.0)   # skybridge to the hotel tower
     for (cx, cy, a, b, turn, z1) in ((QW_OVAL[0], QW_OVAL[1], QW_OVAL[2], QW_OVAL[3], QW_OVAL[4], 165.0), (QW_RES[0], QW_RES[1], QW_RES[2], QW_RES[2], 0.0, 225.0)):
@@ -168,6 +174,8 @@ def queenswharf(bufs):
         z = 34.0
         while z < z1 - 2.0:
             bufs["qw_dline"].prism(oval(cx, cy, a + 0.1, b + 0.1, turn), z, z + 0.25)
+            if a != b and int((z - 34.0) / 7.0) % 2 == 0:              # the hotel blade's white ring bands
+                bufs["qw_deck"].prism(oval(cx, cy, a + 0.35, b + 0.35, turn), z + 3.0, z + 3.7)
             z += 7.0
     return ["podium over the expressway", "Star Grand arc (two wings)", "Sky Deck", "Dorsett and Rosewood oval tower", "Residences tube"]
 
