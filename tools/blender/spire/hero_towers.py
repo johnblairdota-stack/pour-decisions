@@ -20,20 +20,20 @@ import shapes as S
 SKY, WIL = 683336940, 521115344
 WIL_PART = 1104813702                                           # OSM building:part on the river face; read as a pasted panel
 MATS = {   # name: (rgb, roughness, metallic)
-    "sky_glass": ((0.035, 0.06, 0.10), 0.10, 0.5), "sky_line": ((0.035, 0.055, 0.11), 0.3, 0.0),
+    "sky_glass": ((0.06, 0.085, 0.125), 0.08, 0.5), "sky_line": ((0.035, 0.055, 0.11), 0.3, 0.0),
     "sky_ring": ((0.50, 0.72, 0.84), 0.4, 0.0), "sky_band": ((0.018, 0.022, 0.032), 0.5, 0.0),
     "sky_crown": ((0.035, 0.045, 0.065), 0.4, 0.0), "sky_lobby": ((0.02, 0.035, 0.06), 0.05, 0.0),
-    "wil_glass": ((0.14, 0.185, 0.25), 0.06, 0.7), "wil_glow": ((0.80, 0.68, 0.42), 0.4, 0.0), "wil_band": ((0.08, 0.07, 0.06), 0.5, 0.3), "wil_fin": ((0.42, 0.30, 0.16), 0.35, 0.7), "wil_line": ((0.20, 0.16, 0.11), 0.45, 0.3),
-    "wil_white": ((0.82, 0.80, 0.74), 0.45, 0.0), "wil_deck": ((0.032, 0.03, 0.028), 0.8, 0.0),
+    "wil_glass": ((0.17, 0.195, 0.235), 0.06, 0.7), "wil_glow": ((0.80, 0.68, 0.42), 0.4, 0.0), "wil_band": ((0.08, 0.07, 0.06), 0.5, 0.3), "wil_fin": ((0.42, 0.30, 0.16), 0.35, 0.7), "wil_line": ((0.20, 0.16, 0.11), 0.45, 0.3),
+    "wil_white": ((0.82, 0.80, 0.74), 0.45, 0.0), "wil_deck": ((0.10, 0.09, 0.08), 0.8, 0.0),
     "wil_lobby": ((0.03, 0.05, 0.07), 0.05, 0.0),
     # Eagle St towers and the Treasury Casino (John 18 Nov)
     "eag_dark": ((0.04, 0.055, 0.07), 0.12, 0.3), "eag_white": ((0.86, 0.85, 0.80), 0.5, 0.0), "eag_cream": ((0.74, 0.70, 0.60), 0.6, 0.0),
     "eag_blue": ((0.05, 0.12, 0.24), 0.08, 0.5), "eag_teal": ((0.05, 0.16, 0.19), 0.08, 0.5), "eag_tline": ((0.30, 0.42, 0.42), 0.4, 0.0),
     "tre_stone": ((0.43, 0.29, 0.14), 0.9, 0.0), "tre_pale": ((0.52, 0.38, 0.20), 0.85, 0.0), "tre_dark": ((0.025, 0.02, 0.016), 0.9, 0.0),
     "tre_roof": ((0.30, 0.32, 0.33), 0.6, 0.2),
-    "qw_gold": ((0.21, 0.145, 0.075), 0.1, 0.85), "qw_line": ((0.42, 0.36, 0.22), 0.4, 0.4),
-    "qw_dark": ((0.035, 0.05, 0.075), 0.12, 0.5), "qw_dline": ((0.10, 0.13, 0.17), 0.4, 0.0),
-    "qw_podium": ((0.05, 0.047, 0.042), 0.2, 0.4), "qw_deck": ((0.80, 0.80, 0.78), 0.5, 0.0), "qw_fin": ((0.30, 0.21, 0.11), 0.35, 0.7), "qw_green": ((0.13, 0.30, 0.07), 0.9, 0.0),
+    "qw_gold": ((0.06, 0.05, 0.045), 0.03, 0.5), "qw_line": ((0.42, 0.36, 0.22), 0.4, 0.4),
+    "qw_dark": ((0.06, 0.075, 0.09), 0.08, 0.5), "qw_dline": ((0.10, 0.13, 0.17), 0.4, 0.0),
+    "qw_podium": ((0.05, 0.047, 0.042), 0.2, 0.4), "qw_deck": ((0.80, 0.80, 0.78), 0.5, 0.0), "qw_fin": ((0.10, 0.075, 0.05), 0.35, 0.6), "qw_green": ((0.07, 0.16, 0.045), 0.9, 0.0),
 }
 QW_O = (-532.81, -1167.73)                                        # Queen's Wharf pack origin in the Spire frame
 QW_ARC = (-34.5, -60.0, 33.0, 53.0)                               # Star Grand arc: centre x, y, inner and outer radius (2022 aerial)
@@ -193,7 +193,7 @@ def queenswharf(bufs):
             for b_ in range(8):                                    # fins follow the barrel and step half a bay every band
                 bulge = 3.0 * math.sin(math.pi * (b_ + 0.5) / 8.0)
                 a_ = a + (1.1 if b_ % 2 else 0.0)
-                bufs["qw_fin"].prism(sector(a_, a_ + 0.5, ro + bulge, ro + bulge + 0.6, 0.5), 30.0 + (top - 30.0) * b_ / 8.0, 30.0 + (top - 30.0) * (b_ + 1) / 8.0)
+                bufs["qw_fin"].prism(sector(a_, a_ + 0.5, ro + bulge, ro + bulge + 0.3, 0.5), 30.0 + (top - 30.0) * b_ / 8.0, 30.0 + (top - 30.0) * (b_ + 1) / 8.0)
         a += 2.2
     bufs["qw_deck"].prism(oval(QW_ARC[0], QW_ARC[1], ro + 4.3, ro + 4.3), 30.0, 30.6)                       # podium terrace edge
     bufs["qw_deck"].beam((ox + QW_ARC[0] - 30.0, oy + QW_ARC[1] + 38.0, top - 4.0), (ox + QW_OVAL[0] - 6.0, oy + QW_OVAL[1] - 8.0, top - 4.0), 4.0, 3.0)   # skybridge to the hotel tower
@@ -475,6 +475,74 @@ def clear_column(jobs):
     return n
 
 
+def fill_tree_gaps(col):
+    """The tower data packs leave holes in the ext box (the river edge of the City Botanic Gardens has no pack, and
+    the city-wide trees skip the whole box), so the bank showed as a bare grey patch from Kangaroo Point. Plant
+    garden trees there: a jittered 10 m grid, only on dry ground clear of roads, buildings and the river."""
+    import bpy
+    import gzip
+    import numpy as np
+    import trees as T
+    import far_roads as FR
+    m = json.load(open(os.path.join(L.REF, "ext", "ext.json")))
+    x0, y0, x1, y1 = m["box_local"]
+    cov = np.frombuffer(gzip.open(os.path.join(L.REF, "ext", "cover_1m.u8.gz")).read(), "u1").reshape(m["rows"], m["cols"])
+    rv = json.load(open(os.path.join(L.REF, "river", "river.json")))
+    wat = np.frombuffer(gzip.open(os.path.join(L.REF, "river", "water_2m.u8.gz")).read(), "u1").reshape(rv["rows"], rv["cols"])
+    rx0, ry0, rx1, ry1 = rv["box_local"]
+    polys = []
+    for fp in (("wide", "buildings_wide.json"), ("ext", "buildings_ext.json"), ("lidar", "buildings_clean.json")):
+        for bd in json.load(open(os.path.join(L.REF, *fp)))["buildings"]:
+            for t in bd["tiers"]:
+                rg = t["ring"]
+                bx = (min(q[0] for q in rg) - 5.0, min(q[1] for q in rg) - 5.0, max(q[0] for q in rg) + 5.0, max(q[1] for q in rg) + 5.0)
+                if bx[2] > x0 and bx[0] < x1 and bx[3] > y0 and bx[1] < y1:
+                    polys.append(bx)
+
+    def wet(x, y):
+        c2, r2 = int((x - rx0) / rv["step_m"]), int((ry1 - y) / rv["step_m"])
+        return 0 <= r2 < rv["rows"] and 0 <= c2 < rv["cols"] and wat[max(0, r2 - 2):r2 + 3, max(0, c2 - 2):c2 + 3].any()
+    trunks, crowns = C.MeshBuf(), C.MeshBuf()
+    n = 0
+    gx = x0 + 5.0
+    while gx < x1:
+        gy = y0 + 5.0
+        while gy < y1:
+            hsh = math.sin(gx * 12.9898 + gy * 78.233) * 43758.5453
+            j1, j2 = hsh - math.floor(hsh), (hsh * 7.13) - math.floor(hsh * 7.13)
+            x, y = gx + (j1 - 0.5) * 7.0, gy + (j2 - 0.5) * 7.0
+            c, r = int(x - x0), int(y1 - y)
+            gy += 10.0
+            if not (0 <= r < m["rows"] and 0 <= c < m["cols"]) or cov[r, c] or FR.on_road(x, y) or x < -94.0 or y > -1378.0:   # only the gardens corner no pack reaches
+                continue
+            if wet(x, y) or any(q[0] < x < q[2] and q[1] < y < q[3] for q in polys):
+                continue
+            g = float(FR.GROUND.z([x], [y])[0]) if FR.GROUND else 4.0
+            if g < 1.6:
+                continue
+            h = 9.0 + 9.0 * j2
+            rr = 0.34 * h
+            if FR.over_deck(x, y, rr * 1.25):
+                continue
+            T.trunk(trunks, x, y, g, 0.25, h * 0.55, 0)
+            T.blob(crowns, x, y, g + h * 0.5, rr * 1.2, h * 0.34)
+            for k2 in range(4):
+                a2 = (x * 12.9898 + y * 78.233 + k2 * 2.4) % 6.2832
+                T.blob(crowns, x + math.cos(a2) * rr * 0.8, y + math.sin(a2) * rr * 0.8, g + h * (0.34 + 0.07 * k2), rr * (0.55 + 0.12 * k2), h * 0.24)
+            n += 1
+        gx += 10.0
+    names = []
+    for buf, name, mname in ((trunks, "fill_tree_trunks", "tree_trunks"), (crowns, "fill_tree_crowns", "tree_crowns_far")):
+        ob = buf.object(name, col, "tree")
+        if ob:
+            mat = bpy.data.materials.get(mname)
+            if mat:
+                ob.data.materials.clear()
+                ob.data.materials.append(mat)
+            names.append(ob.name)
+    return names, n
+
+
 def build():
     import bpy
     fp = os.path.join(L.REF, "ext", "buildings_ext.json")
@@ -524,6 +592,9 @@ def build():
         m["look_done"] = True                                      # preview.setup_morning leaves it alone
         ob.data.materials[0] = m
         objs.append(ob.name)
+    fill, nfill = fill_tree_gaps(col)
+    objs += fill
+    parts["Botanic Gardens bank trees (data gap fill)"] = nfill
     return {"module": "hero_towers", "objects": objs, "replaced": gone, "parts": parts,
             "source": "OSM outlines + 2019 LiDAR heights; skins and crowns from Commons photos 2016-2019",
             "note": "Crown slope of 1 William St (200 to 234 m, LiDAR roof cells) and the Skytower ring spacing are read off photos, not surveyed."}
