@@ -42,9 +42,9 @@ def blue_sky(strength=1.5):
     ramp = nt.nodes.new("ShaderNodeValToRGB")
     e = ramp.color_ramp.elements
     e[0].position, e[0].color = 0.0, (0.60, 0.76, 0.92, 1)      # horizon
-    e[1].position, e[1].color = 0.45, (0.06, 0.19, 0.60, 1)    # overhead
+    e[1].position, e[1].color = 0.45, (0.035, 0.14, 0.58, 1)    # overhead
     mid = ramp.color_ramp.elements.new(0.12)
-    mid.color = (0.19, 0.40, 0.82, 1)
+    mid.color = (0.15, 0.36, 0.84, 1)
     ab = nt.nodes.new("ShaderNodeMath")
     ab.operation = "ABSOLUTE"
     nt.links.new(sep.outputs["Z"], ab.inputs[0])
@@ -202,7 +202,7 @@ def shoot(p, out, width):
             o.hide_render = p.get("year", 9999) < 2023
     river = bpy.data.materials.get("clay_water")           # "river": the water colour on the photo's day (brown after rain, blue on a clear evening)
     if river:
-        river.node_tree.nodes["Principled BSDF"].inputs["Base Color"].default_value = (*p.get("river", (0.17, 0.19, 0.135)), 1)
+        river.node_tree.nodes["Principled BSDF"].inputs["Base Color"].default_value = (*p.get("river", (0.20, 0.185, 0.115)), 1)
     cam.location = pos
     cam.rotation_euler = look.to_track_quat("-Z", "Y").to_euler()
     for o in [o for o in bpy.data.objects if o.name.startswith("pair_royal")]:
@@ -275,8 +275,8 @@ def main():
         nt.links.new(g2.outputs["Position"], sc.inputs["Vector"])
         nt.links.new(sc.outputs["Vector"], rip.inputs["Vector"])
         rb = nt.nodes.new("ShaderNodeBump")
-        rb.inputs["Strength"].default_value = 0.7
-        rb.inputs["Distance"].default_value = 0.25
+        rb.inputs["Strength"].default_value = 1.0
+        rb.inputs["Distance"].default_value = 0.4
         nt.links.new(rip.outputs["Fac"], rb.inputs["Height"])
         nt.links.new(rb.outputs["Normal"], bs.inputs["Normal"])
     leaf = bpy.data.materials.get("tree_crowns_far")       # critic round 3: dark, uneven canopy, not mint balls

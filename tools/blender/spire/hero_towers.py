@@ -21,19 +21,19 @@ SKY, WIL = 683336940, 521115344
 WIL_PART = 1104813702                                           # OSM building:part on the river face; read as a pasted panel
 MATS = {   # name: (rgb, roughness, metallic)
     "sky_glass": ((0.035, 0.06, 0.10), 0.10, 0.5), "sky_line": ((0.035, 0.055, 0.11), 0.3, 0.0),
-    "sky_ring": ((0.36, 0.54, 0.66), 0.5, 0.0), "sky_band": ((0.028, 0.036, 0.055), 0.5, 0.0),
+    "sky_ring": ((0.50, 0.72, 0.84), 0.4, 0.0), "sky_band": ((0.018, 0.022, 0.032), 0.5, 0.0),
     "sky_crown": ((0.035, 0.045, 0.065), 0.4, 0.0), "sky_lobby": ((0.02, 0.035, 0.06), 0.05, 0.0),
-    "wil_glass": ((0.07, 0.092, 0.135), 0.08, 0.3), "wil_glow": ((0.80, 0.68, 0.42), 0.4, 0.0), "wil_band": ((0.08, 0.07, 0.06), 0.5, 0.3), "wil_fin": ((0.46, 0.39, 0.28), 0.4, 0.6), "wil_line": ((0.20, 0.16, 0.11), 0.45, 0.3),
+    "wil_glass": ((0.14, 0.185, 0.25), 0.06, 0.7), "wil_glow": ((0.80, 0.68, 0.42), 0.4, 0.0), "wil_band": ((0.08, 0.07, 0.06), 0.5, 0.3), "wil_fin": ((0.42, 0.30, 0.16), 0.35, 0.7), "wil_line": ((0.20, 0.16, 0.11), 0.45, 0.3),
     "wil_white": ((0.82, 0.80, 0.74), 0.45, 0.0), "wil_deck": ((0.032, 0.03, 0.028), 0.8, 0.0),
     "wil_lobby": ((0.03, 0.05, 0.07), 0.05, 0.0),
     # Eagle St towers and the Treasury Casino (John 18 Nov)
     "eag_dark": ((0.04, 0.055, 0.07), 0.12, 0.3), "eag_white": ((0.86, 0.85, 0.80), 0.5, 0.0), "eag_cream": ((0.74, 0.70, 0.60), 0.6, 0.0),
     "eag_blue": ((0.05, 0.12, 0.24), 0.08, 0.5), "eag_teal": ((0.05, 0.16, 0.19), 0.08, 0.5), "eag_tline": ((0.30, 0.42, 0.42), 0.4, 0.0),
-    "tre_stone": ((0.36, 0.26, 0.135), 0.9, 0.0), "tre_pale": ((0.47, 0.36, 0.20), 0.85, 0.0), "tre_dark": ((0.025, 0.02, 0.016), 0.9, 0.0),
+    "tre_stone": ((0.43, 0.29, 0.14), 0.9, 0.0), "tre_pale": ((0.52, 0.38, 0.20), 0.85, 0.0), "tre_dark": ((0.025, 0.02, 0.016), 0.9, 0.0),
     "tre_roof": ((0.30, 0.32, 0.33), 0.6, 0.2),
-    "qw_gold": ((0.055, 0.042, 0.03), 0.1, 0.8), "qw_line": ((0.42, 0.36, 0.22), 0.4, 0.4),
+    "qw_gold": ((0.21, 0.145, 0.075), 0.1, 0.85), "qw_line": ((0.42, 0.36, 0.22), 0.4, 0.4),
     "qw_dark": ((0.035, 0.05, 0.075), 0.12, 0.5), "qw_dline": ((0.10, 0.13, 0.17), 0.4, 0.0),
-    "qw_podium": ((0.05, 0.047, 0.042), 0.2, 0.4), "qw_deck": ((0.80, 0.80, 0.78), 0.5, 0.0), "qw_fin": ((0.17, 0.12, 0.07), 0.35, 0.6), "qw_green": ((0.10, 0.20, 0.06), 0.9, 0.0),
+    "qw_podium": ((0.05, 0.047, 0.042), 0.2, 0.4), "qw_deck": ((0.80, 0.80, 0.78), 0.5, 0.0), "qw_fin": ((0.30, 0.21, 0.11), 0.35, 0.7), "qw_green": ((0.13, 0.30, 0.07), 0.9, 0.0),
 }
 QW_O = (-532.81, -1167.73)                                        # Queen's Wharf pack origin in the Spire frame
 QW_ARC = (-34.5, -60.0, 33.0, 53.0)                               # Star Grand arc: centre x, y, inner and outer radius (2022 aerial)
@@ -102,15 +102,15 @@ def william1(b, bufs):
     lat0 = [(ring[i][0] - cx) * -uy + (ring[i][1] - cy) * ux for i in range(n)]
     for i in range(n):                                             # round 18: the rim dips to a V at the spine on the river face (two bays, like the photo)
         dl = abs(lat0[i] - lat0[k0])
-        if d[i] > 0 and dl < 5.0:                                  # critic round 18: a near-level rim with a narrow slot, not a heart
-            zt[i] -= 2.5 * (0.5 + 0.5 * math.cos(math.pi * dl / 5.0))
+        if d[i] > 0 and dl < 7.0:                                  # critic round 18: a near-level rim with a narrow slot, not a heart
+            zt[i] -= 2.5 * (0.5 + 0.5 * math.cos(math.pi * dl / 7.0))
     verts = [(p[0], p[1], top) for p in ring] + [(p[0], p[1], z) for p, z in zip(ring, zt)]
     bufs["wil_glass"].add(verts, [[i, (i + 1) % n, n + (i + 1) % n, n + i] for i in range(n)])
     inner = [(cx + (p[0] - cx) * 0.96, cy + (p[1] - cy) * 0.96) for p in ring]
     bufs["wil_deck"].add([(p[0], p[1], z - 0.5) for p, z in zip(inner, zt)] + [(cx, cy, 190.0 + 46.0 * hi / (hi - lo) - 0.5)], [[n, i, (i + 1) % n] for i in range(n)])
     for i in range(n):                                             # white rim round the sloped top
         j = (i + 1) % n
-        bufs["wil_white"].beam((ring[i][0], ring[i][1], zt[i]), (ring[j][0], ring[j][1], zt[j]), 1.4, 1.2)
+        bufs["wil_white"].beam((ring[i][0], ring[i][1], zt[i]), (ring[j][0], ring[j][1], zt[j]), 1.7, 1.5)
     k = min((i for i in range(n) if d[i] > 0), key=lambda i: abs((ring[i][0] - cx) * uy - (ring[i][1] - cy) * ux))   # the spine: centre of the river face
     for i in range(n):                                             # fine bronze mullions round the shaft
         j = (i + 1) % n
@@ -145,7 +145,7 @@ def william1(b, bufs):
     bufs["wil_glow"].prism(S.ccw([(c0[0] - lx * 5.0, c0[1] - ly * 5.0), (c0[0] + lx * 5.0, c0[1] + ly * 5.0),
                                   (c0[0] + lx * 5.0 + ux * 0.5, c0[1] + ly * 5.0 + uy * 0.5), (c0[0] - lx * 5.0 + ux * 0.5, c0[1] - ly * 5.0 + uy * 0.5)]), g, g + 9.0)
     zb = g + 0.40 * (top - g)                                      # dark louvre band low on the shaft
-    bufs["wil_band"].prism(B.offset(ring, 0.3), zb, zb + 4.0)
+    bufs["wil_band"].prism(B.offset(ring, 0.3), zb, zb + 2.6)
     bufs["wil_white"].beam((cx, cy, 214.0), (cx, cy, 254.0), 0.6)  # mast (LiDAR tip 266.6 m AHD)
     return ["glass skin", "floor lines", "podium lobby", "sloped crown", "white rim and spine", "mast"]
 
@@ -200,7 +200,19 @@ def queenswharf(bufs):
     for (cx, cy, a, b, turn, z1) in ((QW_OVAL[0], QW_OVAL[1], QW_OVAL[2], QW_OVAL[3], QW_OVAL[4], 165.0), (QW_RES[0], QW_RES[1], QW_RES[2], QW_RES[2], 0.0, 240.0)):
         ring = oval(cx, cy, a, b, turn)
         bufs["qw_dark"].prism(ring, g, z1)
-        bufs["qw_dark"].prism(oval(cx, cy, a * 0.8, b * 0.8, turn), z1, z1 + 3.0)                            # stepped rounded top
+        m = len(ring)                                                  # round 20: slanted, scooped top with a planted strip, not a stepped cap
+        tr = math.radians(turn)
+        sl = [((q[0] - ox - cx) * math.cos(tr) + (q[1] - oy - cy) * math.sin(tr)) / max(a, b) for q in ring]
+        zs = [z1 + 4.5 + 4.5 * max(-1.0, min(1.0, v)) for v in sl]
+        bufs["qw_dark"].add([(q[0], q[1], z1) for q in ring] + [(q[0], q[1], z) for q, z in zip(ring, zs)],
+                            [[i, (i + 1) % m, m + (i + 1) % m, m + i] for i in range(m)])
+        mcx, mcy = sum(q[0] for q in ring) / m, sum(q[1] for q in ring) / m
+        bufs["qw_podium"].add([(mcx + (q[0] - mcx) * 0.97, mcy + (q[1] - mcy) * 0.97, z - 1.2) for q, z in zip(ring, zs)] + [(mcx, mcy, z1 + 2.0)],
+                              [[m, i, (i + 1) % m] for i in range(m)])
+        bufs["qw_green"].add([(mcx + (q[0] - mcx) * 0.55, mcy + (q[1] - mcy) * 0.55, z1 + 2.0 + (z - 1.2 - z1 - 2.0) * 0.55 + 0.3) for q, z in zip(ring, zs)] + [(mcx, mcy, z1 + 2.3)],
+                             [[m, i, (i + 1) % m] for i in range(m)])
+        for i in range(m):
+            bufs["qw_deck"].beam((ring[i][0], ring[i][1], zs[i]), (ring[(i + 1) % m][0], ring[(i + 1) % m][1], zs[(i + 1) % m]), 0.5, 0.5)
         z = 34.0
         while z < z1 - 2.0:
             bufs["qw_dline"].prism(oval(cx, cy, a + 0.1, b + 0.1, turn), z, z + 0.25)
@@ -427,7 +439,7 @@ def treasury(bufs):
                 if fi < 3:                                         # round arch heads, stepped
                     bufs["tre_dark"].prism(quad(t - w * 0.38, t + w * 0.38, proud, proud + 0.12), z0 + 1.0 + h, z0 + 1.0 + h + 0.55)
                     bufs["tre_dark"].prism(quad(t - w * 0.2, t + w * 0.2, proud, proud + 0.12), z0 + 1.55 + h, z0 + 1.9 + h)
-            bufs["tre_pale"].prism(quad(t + step / 2 - 0.4, t + step / 2 + 0.4, proud, proud + 0.5), g + 6.5, eave - 0.6)   # pilaster between bays
+            bufs["tre_pale"].prism(quad(t + step / 2 - 0.5, t + step / 2 + 0.5, proud, proud + 1.0), g, eave - 0.6)   # pilaster between bays
     return ["sandstone block", "arcades", "pavilions", "cornices and balustrade", "roofs and courtyard"]
 
 
