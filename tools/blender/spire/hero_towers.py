@@ -23,10 +23,15 @@ MATS = {   # name: (rgb, roughness, metallic)
     "sky_glass": ((0.035, 0.06, 0.10), 0.10, 0.5), "sky_line": ((0.035, 0.055, 0.11), 0.3, 0.0),
     "sky_ring": ((0.36, 0.54, 0.66), 0.5, 0.0), "sky_band": ((0.028, 0.036, 0.055), 0.5, 0.0),
     "sky_crown": ((0.035, 0.045, 0.065), 0.4, 0.0), "sky_lobby": ((0.02, 0.035, 0.06), 0.05, 0.0),
-    "wil_glass": ((0.09, 0.125, 0.20), 0.08, 0.2), "wil_glow": ((0.80, 0.68, 0.42), 0.4, 0.0), "wil_band": ((0.08, 0.07, 0.06), 0.5, 0.3), "wil_fin": ((0.46, 0.39, 0.28), 0.4, 0.6), "wil_line": ((0.20, 0.16, 0.11), 0.45, 0.3),
-    "wil_white": ((0.82, 0.80, 0.74), 0.45, 0.0), "wil_deck": ((0.05, 0.043, 0.036), 0.8, 0.0),
+    "wil_glass": ((0.07, 0.092, 0.135), 0.08, 0.3), "wil_glow": ((0.80, 0.68, 0.42), 0.4, 0.0), "wil_band": ((0.08, 0.07, 0.06), 0.5, 0.3), "wil_fin": ((0.46, 0.39, 0.28), 0.4, 0.6), "wil_line": ((0.20, 0.16, 0.11), 0.45, 0.3),
+    "wil_white": ((0.82, 0.80, 0.74), 0.45, 0.0), "wil_deck": ((0.032, 0.03, 0.028), 0.8, 0.0),
     "wil_lobby": ((0.03, 0.05, 0.07), 0.05, 0.0),
-    "qw_gold": ((0.11, 0.085, 0.055), 0.08, 0.8), "qw_line": ((0.42, 0.36, 0.22), 0.4, 0.4),
+    # Eagle St towers and the Treasury Casino (John 18 Nov)
+    "eag_dark": ((0.04, 0.055, 0.07), 0.12, 0.3), "eag_white": ((0.86, 0.85, 0.80), 0.5, 0.0), "eag_cream": ((0.74, 0.70, 0.60), 0.6, 0.0),
+    "eag_blue": ((0.05, 0.12, 0.24), 0.08, 0.5), "eag_teal": ((0.05, 0.16, 0.19), 0.08, 0.5), "eag_tline": ((0.30, 0.42, 0.42), 0.4, 0.0),
+    "tre_stone": ((0.36, 0.26, 0.135), 0.9, 0.0), "tre_pale": ((0.47, 0.36, 0.20), 0.85, 0.0), "tre_dark": ((0.025, 0.02, 0.016), 0.9, 0.0),
+    "tre_roof": ((0.30, 0.32, 0.33), 0.6, 0.2),
+    "qw_gold": ((0.055, 0.042, 0.03), 0.1, 0.8), "qw_line": ((0.42, 0.36, 0.22), 0.4, 0.4),
     "qw_dark": ((0.035, 0.05, 0.075), 0.12, 0.5), "qw_dline": ((0.10, 0.13, 0.17), 0.4, 0.0),
     "qw_podium": ((0.05, 0.047, 0.042), 0.2, 0.4), "qw_deck": ((0.80, 0.80, 0.78), 0.5, 0.0), "qw_fin": ((0.17, 0.12, 0.07), 0.35, 0.6), "qw_green": ((0.10, 0.20, 0.06), 0.9, 0.0),
 }
@@ -97,8 +102,8 @@ def william1(b, bufs):
     lat0 = [(ring[i][0] - cx) * -uy + (ring[i][1] - cy) * ux for i in range(n)]
     for i in range(n):                                             # round 18: the rim dips to a V at the spine on the river face (two bays, like the photo)
         dl = abs(lat0[i] - lat0[k0])
-        if d[i] > 0 and dl < 14.0:
-            zt[i] -= 9.0 * (0.5 + 0.5 * math.cos(math.pi * dl / 14.0))
+        if d[i] > 0 and dl < 5.0:                                  # critic round 18: a near-level rim with a narrow slot, not a heart
+            zt[i] -= 2.5 * (0.5 + 0.5 * math.cos(math.pi * dl / 5.0))
     verts = [(p[0], p[1], top) for p in ring] + [(p[0], p[1], z) for p, z in zip(ring, zt)]
     bufs["wil_glass"].add(verts, [[i, (i + 1) % n, n + (i + 1) % n, n + i] for i in range(n)])
     inner = [(cx + (p[0] - cx) * 0.96, cy + (p[1] - cy) * 0.96) for p in ring]
@@ -130,8 +135,11 @@ def william1(b, bufs):
             prev = cur
     ko = min(range(n), key=lambda i: d[i] + 0.3 * abs(lat[i]))     # back of the roof, on the axis
     zr = lambda px, py: 190.0 + 46.0 * (hi - ((px - cx) * ux + (py - cy) * uy)) / (hi - lo)
-    for qx, qy in rib:                                             # each rib runs on up the roof valley as the inner edge of its bay
-        bufs["wil_white"].beam((qx - ux * 0.8, qy - uy * 0.8, zt[k] - 0.2), (cx + (qx - ring[k][0]) * 1.6, cy + (qy - ring[k][1]) * 1.6, zr(cx, cy) - 0.2), 1.0, 0.6)
+    zc = zr(cx, cy) - 0.25
+    for s in (-2.6, 2.6):                                          # critic round 18: the bay edges lie on the roof (no floating slivers) and close a loop round each lobe
+        i = min((i for i in range(n) if d[i] > 0), key=lambda i: abs(lat[i] - lat[k] - s))
+        bufs["wil_white"].beam((inner[i][0], inner[i][1], zt[i] - 0.25), (cx - uy * s * 0.5, cy + ux * s * 0.5, zc), 1.0, 0.5)
+        bufs["wil_white"].beam((cx - uy * s * 0.5, cy + ux * s * 0.5, zc), (inner[ko][0] - uy * s * 0.5, inner[ko][1] + ux * s * 0.5, zt[ko] - 0.25), 1.0, 0.5)
     lx, ly = -uy, ux                                               # glazed, warm-lit lobby inside the arch
     c0 = (ring[k][0] + ux * 0.4, ring[k][1] + uy * 0.4)
     bufs["wil_glow"].prism(S.ccw([(c0[0] - lx * 5.0, c0[1] - ly * 5.0), (c0[0] + lx * 5.0, c0[1] + ly * 5.0),
@@ -161,24 +169,33 @@ def queenswharf(bufs):
 
     g, ri, ro = 3.0, QW_ARC[2], QW_ARC[3]
     top, deck0 = 102.0, 86.0
-    bufs["qw_podium"].prism(oval(QW_ARC[0], QW_ARC[1], ro + 8.0, ro + 8.0), g, 30.0)                       # podium over the expressway
+    bufs["qw_podium"].prism(oval(QW_ARC[0], QW_ARC[1], ro + 9.0, ro + 9.0), g, 21.0)
+    bufs["qw_podium"].prism(oval(QW_ARC[0], QW_ARC[1], ro + 6.5, ro + 6.5), 21.0, 25.5)
+    bufs["qw_podium"].prism(oval(QW_ARC[0], QW_ARC[1], ro + 4.0, ro + 4.0), 25.5, 30.0)                       # podium over the expressway
     bufs["qw_podium"].prism([(ox - 29.0, oy - 36.0), (ox + 51.0, oy - 36.0), (ox + 51.0, oy + 29.0), (ox - 29.0, oy + 29.0)], g, 30.0)
     for a0, a1, z0, z1 in ((120.0, 201.0, 30.0, top), (249.0, 330.0, 30.0, top)):
-        bufs["qw_gold"].prism(sector(a0, a1, ri, ro), z0, z1)
+        for b_ in range(8):                                        # critic round 18: a bowed barrel, not a straight cylinder
+            za, zb_ = z0 + (z1 - z0) * b_ / 8.0, z0 + (z1 - z0) * (b_ + 1) / 8.0
+            bufs["qw_gold"].prism(sector(a0, a1, ri, ro + 3.0 * math.sin(math.pi * (b_ + 0.5) / 8.0)), za, zb_)
         z = z0 + 3.6
         while z < z1 - 1.0:                                        # pale floor lines every second floor
             bufs["qw_line"].prism(sector(a0, a1, ri - 0.05, ro + 0.05), z, z + 0.2)
             z += 7.2
     bufs["qw_gold"].prism(sector(200.0, 250.0, ri - 2.0, ro + 1.5), deck0 + 10.0, top)                    # Sky Deck bridging the gap
     bufs["qw_fin"].prism(sector(200.0, 250.0, ri - 2.5, ro + 2.0), deck0 + 9.4, deck0 + 10.0)
-    bufs["qw_green"].prism(sector(0.0, 360.0, ro + 1.0, ro + 7.8), 30.6, 33.5)                              # planted podium terrace
+    for st, (rr, zz) in enumerate(((ro + 8.0, 21.0), (ro + 5.5, 25.5), (ro + 3.0, 30.0))):                   # three planted terraces stepping in up the podium
+        bufs["qw_green"].prism(sector(0.0, 360.0, rr - 1.6, rr + 0.9), zz + 0.1, zz + 1.5)
+        bufs["qw_fin"].prism(sector(0.0, 360.0, rr + 0.9, rr + 1.3), zz - 4.3, zz + 0.3)
     bufs["qw_deck"].prism(sector(120.0, 330.0, ri - 1.5, ro + 2.0), top, top + 2.4)                         # pale overhanging roof ring
     a = 121.0
     while a < 329.0:                                               # vertical bronze-black fins round the drum
         if not 201.0 < a < 249.0:
-            bufs["qw_fin"].prism(sector(a, a + 0.5, ro, ro + 0.6, 0.5), 30.0, top)
+            for b_ in range(8):                                    # fins follow the barrel and step half a bay every band
+                bulge = 3.0 * math.sin(math.pi * (b_ + 0.5) / 8.0)
+                a_ = a + (1.1 if b_ % 2 else 0.0)
+                bufs["qw_fin"].prism(sector(a_, a_ + 0.5, ro + bulge, ro + bulge + 0.6, 0.5), 30.0 + (top - 30.0) * b_ / 8.0, 30.0 + (top - 30.0) * (b_ + 1) / 8.0)
         a += 2.2
-    bufs["qw_deck"].prism(oval(QW_ARC[0], QW_ARC[1], ro + 8.3, ro + 8.3), 30.0, 30.6)                       # podium terrace edge
+    bufs["qw_deck"].prism(oval(QW_ARC[0], QW_ARC[1], ro + 4.3, ro + 4.3), 30.0, 30.6)                       # podium terrace edge
     bufs["qw_deck"].beam((ox + QW_ARC[0] - 30.0, oy + QW_ARC[1] + 38.0, top - 4.0), (ox + QW_OVAL[0] - 6.0, oy + QW_OVAL[1] - 8.0, top - 4.0), 4.0, 3.0)   # skybridge to the hotel tower
     for (cx, cy, a, b, turn, z1) in ((QW_OVAL[0], QW_OVAL[1], QW_OVAL[2], QW_OVAL[3], QW_OVAL[4], 165.0), (QW_RES[0], QW_RES[1], QW_RES[2], QW_RES[2], 0.0, 240.0)):
         ring = oval(cx, cy, a, b, turn)
@@ -217,6 +234,201 @@ def clear_queenswharf():
             n += int(hit.sum())
     print("hero_towers: sank", n, "generic verts at Queen's Wharf")
     return n
+
+
+EAGLE = {"riparian": 140808831, "oneoneone": 134816032, "riverside": 134816031, "waterfront": 140804995}
+TREASURY = [(-770.0, -944.0), (-713.0, -1009.0), (-661.0, -963.0), (-719.0, -900.0)]     # OSM relation 7772386 (Treasury Building, 27 m), four corners
+
+
+def sink_polys(polys, zmin=5.0):
+    """Generic building blocks standing inside these outlines go under the ground (numpy only, like clear_queenswharf)."""
+    import bpy
+    import numpy as np
+    n = 0
+    for o in bpy.data.objects:
+        if o.type != "MESH" or not o.name.startswith("bldg") or not len(o.data.vertices):
+            continue
+        co = np.empty(len(o.data.vertices) * 3, dtype=np.float32)
+        o.data.vertices.foreach_get("co", co)
+        co = co.reshape(-1, 3)
+        w = co + np.array(o.location, dtype=np.float32)
+        hit = np.zeros(len(co), bool)
+        for poly in polys:
+            xs, ys = [p[0] for p in poly], [p[1] for p in poly]
+            box = (w[:, 0] > min(xs)) & (w[:, 0] < max(xs)) & (w[:, 1] > min(ys)) & (w[:, 1] < max(ys)) & (w[:, 2] > zmin)
+            if not box.any():
+                continue
+            ins = np.zeros(len(co), bool)
+            for i in range(len(poly)):                             # even-odd rule
+                x0, y0 = poly[i]
+                x1, y1 = poly[(i + 1) % len(poly)]
+                if y0 == y1:
+                    continue
+                cr = ((y0 > w[:, 1]) != (y1 > w[:, 1])) & (w[:, 0] < (x1 - x0) * (w[:, 1] - y0) / (y1 - y0) + x0)
+                ins ^= cr
+            hit |= box & ins
+        if hit.any():
+            co[hit, 2] -= 400.0
+            o.data.vertices.foreach_set("co", co.ravel())
+            o.data.update()
+            n += int(hit.sum())
+    print("hero_towers: sank", n, "generic verts under the Eagle St towers and the Treasury")
+    return n
+
+
+def eagle_street(recs, bufs):
+    """Riparian Plaza, One One One Eagle St, Riverside Centre and Waterfront Place on their LiDAR tiers (photos: Petrie
+    Bight from the river, the Story Bridge view)."""
+    import buildings as B
+    made = []
+    b = recs.get(EAGLE["riparian"])
+    if b:                                                          # white bands on dark strip windows below, deeper wavy balconies above, stepped top and the mast
+        t = [x for x in b["tiers"] if len(x["ring"]) > 8]
+        g = b["base_ahd"]
+        z0 = g - 1.0
+        for x in t:
+            ring = S.ccw([tuple(p) for p in x["ring"]])
+            bufs["eag_dark"].prism(ring, z0, x["top_ahd"])
+            z = max(z0 + 4.0, g + 8.0)
+            k = 0
+            while z < x["top_ahd"] - 1.0:
+                res = z > 147.0
+                bufs["eag_white"].prism(B.offset(ring, (1.5 if k % 2 else 0.5) if res else 0.3), z, z + (1.2 if res else 1.5))
+                z += 3.3 if res else 3.9
+                k += 1
+            bufs["eag_white"].prism(B.offset(ring, 0.4), x["top_ahd"] - 0.6, x["top_ahd"] + 0.6)
+            z0 = x["top_ahd"]
+        top = t[-1]["top_ahd"]
+        bufs["eag_white"].beam((-48.4, -573.6, top), (-48.4, -573.6, 252.0), 2.2)
+        bufs["eag_white"].beam((-48.4, -573.6, 252.0), (-48.4, -573.6, 262.0), 0.6)
+        bufs["eag_white"].beam((-40.2, -550.4, top), (-40.2, -550.4, top + 14.0), 1.4)
+        made.append("Riparian Plaza")
+    b = recs.get(EAGLE["oneoneone"])
+    if b:                                                          # blue glass with the white branching columns, white frame at the crown
+        g = b["base_ahd"]
+        z0 = g - 1.0
+        for x in b["tiers"]:
+            ring = S.ccw([tuple(p) for p in x["ring"]])
+            bufs["eag_blue" if len(ring) > 8 else "eag_dark"].prism(ring, z0, x["top_ahd"])
+            z0 = x["top_ahd"]
+        ring = S.ccw([tuple(p) for p in b["tiers"][1]["ring"]])
+        top1 = b["tiers"][1]["top_ahd"]
+        out = B.offset(ring, 0.35)
+        per = [0.0]
+        for i in range(len(out)):
+            j = (i + 1) % len(out)
+            per.append(per[-1] + math.hypot(out[j][0] - out[i][0], out[j][1] - out[i][1]))
+
+        def at(d_):
+            d_ %= per[-1]
+            for i in range(len(out)):
+                if per[i + 1] >= d_:
+                    j = (i + 1) % len(out)
+                    f = (d_ - per[i]) / max(per[i + 1] - per[i], 1e-6)
+                    return out[i][0] + (out[j][0] - out[i][0]) * f, out[i][1] + (out[j][1] - out[i][1]) * f
+            return out[0]
+        nb = max(6, int(per[-1] / 14.0))
+        lv = [g + 16.0 + (top1 - g - 16.0) * q / 4.0 for q in range(5)]
+        for c in range(nb):                                        # leaning columns that branch every quarter of the height
+            d0 = per[-1] * c / nb
+            for q in range(4):
+                sh = (per[-1] / nb) * 0.5
+                a, b_ = at(d0 + (sh if q % 2 else 0.0)), at(d0 + (0.0 if q % 2 else sh))
+                bufs["eag_white"].beam((a[0], a[1], lv[q]), (b_[0], b_[1], lv[q + 1]), 0.7)
+                a, b_ = at(d0 + (sh if q % 2 else 0.0)), at(d0 + (2 * sh if q % 2 else -sh))
+                bufs["eag_white"].beam((a[0], a[1], lv[q]), (b_[0], b_[1], lv[q + 1]), 0.5)
+        z = g + 16.0
+        while z < top1:
+            bufs["eag_tline"].prism(B.offset(ring, 0.05), z, z + 0.15)
+            z += 3.9
+        bufs["eag_white"].prism(B.offset(ring, 0.5), top1 - 0.5, top1 + 0.5)
+        tr = S.ccw([tuple(p) for p in b["tiers"][-1]["ring"]])
+        bufs["eag_white"].prism(B.offset(tr, 0.4), b["tiers"][-1]["top_ahd"] - 0.4, b["tiers"][-1]["top_ahd"] + 0.6)
+        made.append("One One One Eagle St")
+    b = recs.get(EAGLE["riverside"])
+    if b:                                                          # cream precast bands with dark strip windows, flat top, mast
+        g = b["base_ahd"]
+        ring = S.ccw([tuple(p) for p in b["tiers"][-1]["ring"]])
+        top = b["tiers"][0]["top_ahd"]
+        bufs["eag_dark"].prism(ring, g - 1.0, top)
+        z = g + 10.0
+        while z < top - 1.0:
+            bufs["eag_cream"].prism(B.offset(ring, 0.35), z, z + 2.0)
+            z += 3.7
+        bufs["eag_cream"].prism(B.offset(ring, 0.5), top - 1.5, b["tiers"][-1]["top_ahd"])
+        bufs["eag_cream"].prism(B.offset(ring, 0.6), g - 1.0, g + 9.0)
+        for sp in b["spires"]:
+            bufs["eag_white"].beam((sp["x"], sp["y"], sp["base_ahd"]), (sp["x"], sp["y"], sp["top_ahd"]), 1.2)
+        made.append("Riverside Centre")
+    b = recs.get(EAGLE["waterfront"])
+    if b:                                                          # teal mirror glass with fine pale lines and a stepped top
+        g = b["base_ahd"]
+        ring = S.ccw([tuple(p) for p in b["tiers"][-1]["ring"]])
+        top = b["tiers"][-1]["top_ahd"]
+        bufs["eag_teal"].prism(ring, g - 1.0, top - 12.0)
+        bufs["eag_teal"].prism(B.offset(ring, -3.0), top - 12.0, top - 5.0)
+        bufs["eag_teal"].prism(B.offset(ring, -7.0), top - 5.0, top)
+        for zz, off in ((top - 12.0, 0.3), (top - 5.0, -2.7), (top, -6.7)):
+            bufs["eag_white"].prism(B.offset(ring, off), zz - 0.3, zz + 0.5)
+        z = g + 12.0
+        k = 0
+        while z < top - 13.0:
+            bufs["eag_tline"].prism(B.offset(ring, 0.05), z, z + (0.5 if k % 4 == 0 else 0.14))
+            z += 3.8
+            k += 1
+        bufs["eag_cream"].prism(B.offset(ring, 0.5), g - 1.0, g + 10.0)
+        made.append("Waterfront Place")
+    return made
+
+
+def treasury(bufs):
+    """Treasury Casino: four-storey sandstone palazzo round a courtyard, arcaded loggias on every floor, corner
+    pavilions, balustraded parapet. Outline from OSM (relation 7772386), 27 m; arcade rhythm from the 2010 William St photo."""
+    import buildings as B
+    ring = S.ccw(TREASURY)
+    n = len(ring)
+    g, eave = 6.0, 30.0
+    floors = [(g, 12.5), (12.5, 18.5), (18.5, 24.5), (24.5, eave - 1.5)]
+    bufs["tre_stone"].prism(ring, g - 4.0, eave)
+    bufs["tre_roof"].prism(B.offset(ring, -1.5), eave, eave + 1.4)
+    bufs["tre_roof"].prism(B.offset(ring, -6.0), eave + 1.4, eave + 2.6)
+    bufs["tre_dark"].prism(B.offset(ring, -19.0), eave + 2.6, eave + 2.7)     # the courtyard, read from above
+    for z0, z1 in floors:                                          # pale cornice at every floor
+        bufs["tre_pale"].prism(B.offset(ring, 0.7), z1 - 0.5, z1)
+    bufs["tre_pale"].prism(B.offset(ring, 0.9), eave - 0.6, eave + 0.2)
+    bufs["tre_pale"].prism(B.offset(ring, 0.35), eave + 0.2, eave + 1.3)       # balustrade
+    cx, cy = sum(p[0] for p in ring) / n, sum(p[1] for p in ring) / n
+    for i in range(n):
+        a, b = ring[i], ring[(i + 1) % n]
+        ln = math.hypot(b[0] - a[0], b[1] - a[1])
+        u = ((b[0] - a[0]) / ln, (b[1] - a[1]) / ln)
+        nx, ny = u[1], -u[0]
+        if (a[0] + nx - cx) ** 2 + (a[1] + ny - cy) ** 2 < (a[0] - cx) ** 2 + (a[1] - cy) ** 2:
+            nx, ny = -nx, -ny
+
+        def quad(t0, t1, o0, o1):
+            return S.ccw([(a[0] + u[0] * t0 + nx * o0, a[1] + u[1] * t0 + ny * o0), (a[0] + u[0] * t1 + nx * o0, a[1] + u[1] * t1 + ny * o0),
+                          (a[0] + u[0] * t1 + nx * o1, a[1] + u[1] * t1 + ny * o1), (a[0] + u[0] * t0 + nx * o1, a[1] + u[1] * t0 + ny * o1)])
+        for t0, t1 in ((0.0, 10.0), (ln - 10.0, ln), (ln / 2 - 7.0, ln / 2 + 7.0)):     # corner and centre pavilions stand proud and a little taller
+            bufs["tre_stone"].prism(quad(t0, t1, -1.0, 1.3), g - 4.0, eave + 1.6)
+            bufs["tre_pale"].prism(quad(t0 - 0.4, t1 + 0.4, -1.0, 1.8), eave + 1.6, eave + 2.3)
+        bays = max(4, int((ln - 22.0) / 4.3))
+        step = (ln - 22.0) / bays
+        for k in range(bays):
+            t = 11.0 + step * (k + 0.5)
+            if abs(t - ln / 2) < 7.6:
+                proud = 1.3
+            else:
+                proud = 0.0
+            for fi, (z0, z1) in enumerate(floors):
+                w = step * 0.62
+                h = (z1 - z0) - 2.4
+                bufs["tre_dark"].prism(quad(t - w / 2, t + w / 2, proud, proud + 0.12), z0 + 1.0, z0 + 1.0 + h)
+                if fi < 3:                                         # round arch heads, stepped
+                    bufs["tre_dark"].prism(quad(t - w * 0.38, t + w * 0.38, proud, proud + 0.12), z0 + 1.0 + h, z0 + 1.0 + h + 0.55)
+                    bufs["tre_dark"].prism(quad(t - w * 0.2, t + w * 0.2, proud, proud + 0.12), z0 + 1.55 + h, z0 + 1.9 + h)
+            bufs["tre_pale"].prism(quad(t + step / 2 - 0.4, t + step / 2 + 0.4, proud, proud + 0.5), g + 6.5, eave - 0.6)   # pilaster between bays
+    return ["sandstone block", "arcades", "pavilions", "cornices and balustrade", "roofs and courtyard"]
 
 
 def clear_column(jobs):
@@ -271,6 +483,16 @@ def build():
         parts["1 William St"] = william1(recs[WIL], bufs)
     clear_queenswharf()
     parts["Queen's Wharf"] = queenswharf(bufs)
+    efp = os.path.join(L.REF, "lidar", "buildings_clean.json")
+    erecs = {b["osm"]: b for b in json.load(open(efp))["buildings"] if b["osm"] in EAGLE.values()} if os.path.exists(efp) else {}
+    for o in list(bpy.data.objects):                               # Waterfront Place also has a generic mesh of its own
+        if str(EAGLE["waterfront"]) in o.name:
+            gone.append(o.name)
+            bpy.data.objects.remove(o, do_unlink=True)
+    import buildings as B_
+    sink_polys([B_.offset(S.ccw([tuple(p) for p in x["ring"]]), 2.0) for b in erecs.values() for x in b["tiers"]] + [B_.offset(S.ccw(TREASURY), 2.0)])
+    parts["Eagle St towers"] = eagle_street(erecs, bufs)
+    parts["Treasury Casino"] = treasury(bufs)
     col = C.collection("hero_towers")
     objs = []
     for k, buf in bufs.items():

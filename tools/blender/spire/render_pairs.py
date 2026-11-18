@@ -106,6 +106,31 @@ def palms(x, y, yaw, count):
         bpy.context.scene.collection.objects.link(ob)
 
 
+def warm_neighbours():
+    """Critic rounds 10 to 18: the generic towers read as pale blue-white striped boxes. Brisbane's are cream, sandstone,
+    grey and dark glass, so every generic wall and band is tinted one of those (by name, so it is the same each run)."""
+    tints = ((0.86, 0.78, 0.62), (0.78, 0.69, 0.54), (0.62, 0.63, 0.64), (0.80, 0.76, 0.68), (0.34, 0.38, 0.44), (0.70, 0.62, 0.50))
+    for m in bpy.data.materials:
+        if not m.name.startswith("gen_") or not m.use_nodes or m.name.rsplit("_", 1)[-1] not in ("wall", "band"):
+            continue
+        t = tints[sum(ord(c) for c in m.name.rsplit("_", 1)[0]) % len(tints)]
+        bs = m.node_tree.nodes.get("Principled BSDF")
+        if not bs:
+            continue
+        inp = bs.inputs["Base Color"]
+        if inp.links:
+            src = inp.links[0].from_socket
+            mx = m.node_tree.nodes.new("ShaderNodeMix")
+            mx.data_type, mx.blend_type = "RGBA", "MULTIPLY"
+            mx.inputs[0].default_value = 1.0
+            m.node_tree.links.new(src, mx.inputs[6])
+            mx.inputs[7].default_value = (*t, 1)
+            m.node_tree.links.new(mx.outputs[2], inp)
+        else:
+            c = inp.default_value
+            inp.default_value = (c[0] * t[0], c[1] * t[1], c[2] * t[2], 1)
+
+
 def shoot(p, out, width):
     x, y = p["pos"] if "pos" in p else L.to_local(p["lat"], p["lon"])
     if p.get("dist"):
@@ -221,6 +246,7 @@ def main():
     az, el = L.sun_position("2019-01", 11.5)               # the photos are clear late-morning summer days
     P.apply_light(az, el)
     blue_sky()
+    warm_neighbours()
     bpy.context.scene.view_settings.exposure += 0.8       # critic round 1: renders read a stop darker than the photos
     river = bpy.data.materials.get("clay_water")           # critic round 2: grey-green, not beige
     if river:
