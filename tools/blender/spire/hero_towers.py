@@ -23,7 +23,7 @@ MATS = {   # name: (rgb, roughness, metallic)
     "sky_glass": ((0.035, 0.06, 0.10), 0.10, 0.5), "sky_line": ((0.035, 0.055, 0.11), 0.3, 0.0),
     "sky_ring": ((0.36, 0.54, 0.66), 0.5, 0.0), "sky_band": ((0.028, 0.036, 0.055), 0.5, 0.0),
     "sky_crown": ((0.035, 0.045, 0.065), 0.4, 0.0), "sky_lobby": ((0.02, 0.035, 0.06), 0.05, 0.0),
-    "wil_glass": ((0.16, 0.21, 0.30), 0.08, 0.2), "wil_band": ((0.08, 0.07, 0.06), 0.5, 0.3), "wil_fin": ((0.46, 0.39, 0.28), 0.4, 0.6), "wil_line": ((0.20, 0.16, 0.11), 0.45, 0.3),
+    "wil_glass": ((0.09, 0.125, 0.20), 0.08, 0.2), "wil_glow": ((0.80, 0.68, 0.42), 0.4, 0.0), "wil_band": ((0.08, 0.07, 0.06), 0.5, 0.3), "wil_fin": ((0.46, 0.39, 0.28), 0.4, 0.6), "wil_line": ((0.20, 0.16, 0.11), 0.45, 0.3),
     "wil_white": ((0.82, 0.80, 0.74), 0.45, 0.0), "wil_deck": ((0.05, 0.043, 0.036), 0.8, 0.0),
     "wil_lobby": ((0.03, 0.05, 0.07), 0.05, 0.0),
     "qw_gold": ((0.11, 0.085, 0.055), 0.08, 0.8), "qw_line": ((0.42, 0.36, 0.22), 0.4, 0.4),
@@ -81,7 +81,7 @@ def william1(b, bufs):
              key=lambda i: abs((ring[i][0] - cx) * -rv - (ring[i][1] - cy) * -rv))
     for o in range(-5, 6):
         i = (kn + o) % len(ring)
-        f = 1.0 - 0.16 * (0.5 + 0.5 * math.cos(math.pi * o / 6.0))
+        f = 1.0 - 0.05 * (0.5 + 0.5 * math.cos(math.pi * o / 6.0))    # critic round 17: a shallow dip, not a peanut waist
         ring[i] = (cx + (ring[i][0] - cx) * f, cy + (ring[i][1] - cy) * f)
     top = 186.0                                                    # the glass shaft ends where the crown slope starts
     bufs["wil_glass"].prism(ring, g - 1.0, top)
@@ -93,10 +93,16 @@ def william1(b, bufs):
     lo, hi = min(d), max(d)
     zt = [190.0 + 46.0 * (hi - v) / (hi - lo) for v in d]          # steep dark roof face to the river (LiDAR roof cells 188 to 234 m)
     n = len(ring)
+    k0 = min((i for i in range(n) if d[i] > 0), key=lambda i: abs((ring[i][0] - cx) * uy - (ring[i][1] - cy) * ux))
+    lat0 = [(ring[i][0] - cx) * -uy + (ring[i][1] - cy) * ux for i in range(n)]
+    for i in range(n):                                             # round 18: the rim dips to a V at the spine on the river face (two bays, like the photo)
+        dl = abs(lat0[i] - lat0[k0])
+        if d[i] > 0 and dl < 14.0:
+            zt[i] -= 9.0 * (0.5 + 0.5 * math.cos(math.pi * dl / 14.0))
     verts = [(p[0], p[1], top) for p in ring] + [(p[0], p[1], z) for p, z in zip(ring, zt)]
     bufs["wil_glass"].add(verts, [[i, (i + 1) % n, n + (i + 1) % n, n + i] for i in range(n)])
     inner = [(cx + (p[0] - cx) * 0.96, cy + (p[1] - cy) * 0.96) for p in ring]
-    bufs["wil_deck"].add([(p[0], p[1], z - 0.5) for p, z in zip(inner, zt)], [list(range(n))])
+    bufs["wil_deck"].add([(p[0], p[1], z - 0.5) for p, z in zip(inner, zt)] + [(cx, cy, 190.0 + 46.0 * hi / (hi - lo) - 0.5)], [[n, i, (i + 1) % n] for i in range(n)])
     for i in range(n):                                             # white rim round the sloped top
         j = (i + 1) % n
         bufs["wil_white"].beam((ring[i][0], ring[i][1], zt[i]), (ring[j][0], ring[j][1], zt[j]), 1.4, 1.2)
@@ -116,10 +122,20 @@ def william1(b, bufs):
         if (qx - cx) * ux + (qy - cy) * uy < d[i] + 0.5:           # never buried in the glass
             qx, qy = qx + ux * (d[i] + 0.5 - ((qx - cx) * ux + (qy - cy) * uy)), qy + uy * (d[i] + 0.5 - ((qx - cx) * ux + (qy - cy) * uy))
         rib.append((qx, qy))
-        bufs["wil_white"].beam((qx, qy, g + 22.0), (qx, qy, zt[k] - 0.6), 1.8, 1.2)
-        bufs["wil_white"].beam((qx, qy, g + 22.0), (qx - uy * s * 3.5, qy + ux * s * 3.5, g + 4.0), 1.8, 1.2)   # flare to the entrance arch
-        bufs["wil_white"].beam((qx - uy * s * 3.5, qy + ux * s * 3.5, g + 4.0), (qx - uy * s * 3.5, qy + ux * s * 3.5, g), 1.8, 1.2)
+        bufs["wil_white"].beam((qx, qy, g + 17.0), (qx, qy, zt[k] - 0.6), 1.0, 1.0)
+        prev = (qx, qy, g + 17.0)
+        for f, zz in ((0.12, 14.0), (0.38, 11.0), (0.72, 7.5), (0.95, 4.0), (1.0, 0.0)):       # the ribs curve out into an arch about 12 m wide round the lobby
+            cur = (qx - uy * s * 1.35 * f, qy + ux * s * 1.35 * f, g + zz)
+            bufs["wil_white"].beam(prev, cur, 1.0, 1.0)
+            prev = cur
     ko = min(range(n), key=lambda i: d[i] + 0.3 * abs(lat[i]))     # back of the roof, on the axis
+    zr = lambda px, py: 190.0 + 46.0 * (hi - ((px - cx) * ux + (py - cy) * uy)) / (hi - lo)
+    for qx, qy in rib:                                             # each rib runs on up the roof valley as the inner edge of its bay
+        bufs["wil_white"].beam((qx - ux * 0.8, qy - uy * 0.8, zt[k] - 0.2), (cx + (qx - ring[k][0]) * 1.6, cy + (qy - ring[k][1]) * 1.6, zr(cx, cy) - 0.2), 1.0, 0.6)
+    lx, ly = -uy, ux                                               # glazed, warm-lit lobby inside the arch
+    c0 = (ring[k][0] + ux * 0.4, ring[k][1] + uy * 0.4)
+    bufs["wil_glow"].prism(S.ccw([(c0[0] - lx * 5.0, c0[1] - ly * 5.0), (c0[0] + lx * 5.0, c0[1] + ly * 5.0),
+                                  (c0[0] + lx * 5.0 + ux * 0.5, c0[1] + ly * 5.0 + uy * 0.5), (c0[0] - lx * 5.0 + ux * 0.5, c0[1] - ly * 5.0 + uy * 0.5)]), g, g + 9.0)
     zb = g + 0.40 * (top - g)                                      # dark louvre band low on the shaft
     bufs["wil_band"].prism(B.offset(ring, 0.3), zb, zb + 4.0)
     bufs["wil_white"].beam((cx, cy, 214.0), (cx, cy, 254.0), 0.6)  # mast (LiDAR tip 266.6 m AHD)
