@@ -262,13 +262,13 @@ def main():
         for ln in list(bs.inputs["Base Color"].links):
             nt.links.remove(ln)
         bs.inputs["Base Color"].default_value = (0.17, 0.19, 0.135, 1)
-        bs.inputs["Roughness"].default_value = 0.22
-        bs.inputs["Specular IOR Level"].default_value = 0.22
+        bs.inputs["Roughness"].default_value = 0.09
+        bs.inputs["Specular IOR Level"].default_value = 0.6
         for ln in list(bs.inputs["Normal"].links):
             nt.links.remove(ln)
         g2 = nt.nodes.new("ShaderNodeNewGeometry")           # round 6: small wind ripples so it reads as water
         rip = nt.nodes.new("ShaderNodeTexNoise")
-        rip.inputs["Scale"].default_value = 0.9
+        rip.inputs["Scale"].default_value = 0.6
         rip.inputs["Detail"].default_value = 4.0
         sc = nt.nodes.new("ShaderNodeMapping")
         sc.inputs["Scale"].default_value = (1.0, 0.35, 1.0)

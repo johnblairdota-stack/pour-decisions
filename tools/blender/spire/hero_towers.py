@@ -24,7 +24,7 @@ MATS = {   # name: (rgb, roughness, metallic)
     "sky_ring": ((0.50, 0.72, 0.84), 0.4, 0.0), "sky_band": ((0.018, 0.022, 0.032), 0.5, 0.0),
     "sky_crown": ((0.035, 0.045, 0.065), 0.4, 0.0), "sky_lobby": ((0.02, 0.035, 0.06), 0.05, 0.0),
     "wil_glass": ((0.17, 0.195, 0.235), 0.06, 0.7), "wil_glow": ((0.80, 0.68, 0.42), 0.4, 0.0), "wil_band": ((0.08, 0.07, 0.06), 0.5, 0.3), "wil_fin": ((0.42, 0.30, 0.16), 0.35, 0.7), "wil_line": ((0.20, 0.16, 0.11), 0.45, 0.3),
-    "wil_white": ((0.82, 0.80, 0.74), 0.45, 0.0), "wil_deck": ((0.05, 0.04, 0.03), 0.8, 0.0),
+    "wil_white": ((0.82, 0.80, 0.74), 0.45, 0.0), "wil_deck": ((0.022, 0.023, 0.026), 0.8, 0.0),
     "wil_lobby": ((0.03, 0.05, 0.07), 0.05, 0.0),
     # Eagle St towers and the Treasury Casino (John 18 Nov)
     "eag_dark": ((0.04, 0.055, 0.07), 0.12, 0.3), "eag_white": ((0.86, 0.85, 0.80), 0.5, 0.0), "eag_cream": ((0.74, 0.70, 0.60), 0.6, 0.0),
@@ -60,7 +60,8 @@ def skytower(b, bufs):
     rings(bufs["sky_line"], ring, g + 12.0, top - 2.0, floor, 0.16, 0.03)
     band = g + 0.725 * H                                           # critic round 2: plant bands 29% and 60% down
     for a in (0.905, 0.76, 0.64, 0.36):                                # critic round 9: clusters of 3 rings two floors apart (5 a floor apart read as a white block)
-        rings(bufs["sky_ring"], ring, g + a * H, g + a * H + 6 * floor - 0.5, 1.5 * floor, 0.24, 0.12)
+        rings(bufs["sky_ring"], ring, g + a * H, g + a * H + 6 * floor - 0.5, 1.5 * floor, 0.4, 0.14)
+    rings(bufs["sky_ring"], ring, g + 14.0, g + 0.34 * H, 3 * floor, 0.3, 0.12)        # critic round 22: pale ribs carry on down the lower shaft
     bufs["sky_band"].prism(B.offset(ring, 0.05), band, band + 4.0)
     bufs["sky_band"].prism(B.offset(ring, 0.05), g + 0.40 * H, g + 0.40 * H + 3.5)     # lower plant and amenity floor
     bufs["sky_crown"].prism(B.offset(ring, 0.12), top - 1.0, top + 0.4)             # crown lip
