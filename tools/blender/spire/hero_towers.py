@@ -23,8 +23,8 @@ MATS = {   # name: (rgb, roughness, metallic)
     "sky_glass": ((0.04, 0.07, 0.14), 0.14, 0.4), "sky_line": ((0.035, 0.055, 0.11), 0.3, 0.0),
     "sky_ring": ((0.42, 0.52, 0.70), 0.5, 0.0), "sky_band": ((0.028, 0.036, 0.055), 0.5, 0.0),
     "sky_crown": ((0.035, 0.045, 0.065), 0.4, 0.0), "sky_lobby": ((0.02, 0.035, 0.06), 0.05, 0.0),
-    "wil_glass": ((0.12, 0.15, 0.22), 0.3, 0.0), "wil_line": ((0.07, 0.075, 0.09), 0.5, 0.1),
-    "wil_white": ((0.95, 0.95, 0.94), 0.45, 0.0), "wil_deck": ((0.05, 0.043, 0.036), 0.8, 0.0),
+    "wil_glass": ((0.15, 0.17, 0.215), 0.42, 0.0), "wil_line": ((0.095, 0.078, 0.06), 0.5, 0.2),
+    "wil_white": ((0.70, 0.71, 0.72), 0.45, 0.0), "wil_deck": ((0.05, 0.043, 0.036), 0.8, 0.0),
     "wil_lobby": ((0.03, 0.05, 0.07), 0.05, 0.0),
 }
 
@@ -93,19 +93,26 @@ def william1(b, bufs):
     bufs["wil_deck"].add([(p[0], p[1], z - 0.5) for p, z in zip(inner, zt)], [list(range(n))])
     for i in range(n):                                             # white rim round the sloped top
         j = (i + 1) % n
-        bufs["wil_white"].beam((ring[i][0], ring[i][1], zt[i]), (ring[j][0], ring[j][1], zt[j]), 2.4, 1.4)
+        bufs["wil_white"].beam((ring[i][0], ring[i][1], zt[i]), (ring[j][0], ring[j][1], zt[j]), 0.9, 0.8)
     k = min((i for i in range(n) if d[i] > 0), key=lambda i: abs((ring[i][0] - cx) * uy - (ring[i][1] - cy) * ux))   # the spine: centre of the river face
     for i in range(n):                                             # fine bronze mullions round the shaft
         bufs["wil_line"].beam((ring[i][0], ring[i][1], pod["top_ahd"]), (ring[i][0], ring[i][1], zt[i]), 0.2)
-    px, py = ring[k][0] + ux * 1.4, ring[k][1] + uy * 1.4       # proud of the glass so the ribs read from the river
-    for s in (-4.0, 4.0):                                          # twin white ribs 8 m apart, 1.5 m wide (critic round 9)
-        bufs["wil_white"].beam((px - uy * s, py + ux * s, g), (px - uy * s, py + ux * s, zt[k]), 2.0, 1.6)
-    ko = min(range(n), key=lambda i: d[i] + 0.3 * abs((ring[i][0] - cx) * uy - (ring[i][1] - cy) * ux))    # back of the roof, on the axis
-    bufs["wil_white"].beam((ring[k][0], ring[k][1], zt[k] + 0.3), (ring[ko][0], ring[ko][1], zt[ko] + 0.3), 3.0, 1.2)   # ridge between the two roof lobes
-    for s in (-1.0, 1.0):                                          # the rails flare out to the entrance
-        bufs["wil_white"].beam((px - uy * s * 4.0, py + ux * s * 4.0, g + 26.0), (px - uy * s * 13.0, py + ux * s * 13.0, g + 5.0), 2.0, 1.6)
+    lat = [(ring[i][0] - cx) * -uy + (ring[i][1] - cy) * ux for i in range(n)]     # sideways position along the river face
+    rib = []
+    for s in (-2.0, 2.0):                                          # two thin ribs 4 m apart with glass between (critic round 11: one fat bar read as a sticker)
+        i = min((i for i in range(n) if d[i] > 0), key=lambda i: abs(lat[i] - lat[k] - s))
+        qx, qy = ring[k][0] - uy * s + ux * 0.5, ring[k][1] + ux * s + uy * 0.5
+        if (qx - cx) * ux + (qy - cy) * uy < d[i] + 0.5:           # never buried in the glass
+            qx, qy = qx + ux * (d[i] + 0.5 - ((qx - cx) * ux + (qy - cy) * uy)), qy + uy * (d[i] + 0.5 - ((qx - cx) * ux + (qy - cy) * uy))
+        rib.append((qx, qy))
+        bufs["wil_white"].beam((qx, qy, g + 22.0), (qx, qy, zt[k]), 0.6, 0.6)
+        bufs["wil_white"].beam((qx, qy, g + 22.0), (qx - uy * s * 3.5, qy + ux * s * 3.5, g + 4.0), 0.6, 0.6)   # flare to the entrance arch
+        bufs["wil_white"].beam((qx - uy * s * 3.5, qy + ux * s * 3.5, g + 4.0), (qx - uy * s * 3.5, qy + ux * s * 3.5, g), 0.6, 0.6)
+    ko = min(range(n), key=lambda i: d[i] + 0.3 * abs(lat[i]))     # back of the roof, on the axis
+    for qx, qy in rib:                                             # the ribs carry on over the roof as two thin bars
+        bufs["wil_white"].beam((qx, qy, zt[k] + 0.2), (ring[ko][0] + qx - ring[k][0] - ux * 0.5, ring[ko][1] + qy - ring[k][1] - uy * 0.5, zt[ko] + 0.2), 0.6, 0.6)
     zb = g + 0.40 * (top - g)                                      # dark louvre band low on the shaft
-    bufs["wil_line"].prism(B.offset(ring, 0.06), zb, zb + 2.6)
+    bufs["wil_line"].prism(B.offset(ring, 0.06), zb, zb + 5.0)
     bufs["wil_white"].beam((cx, cy, 214.0), (cx, cy, 254.0), 0.6)  # mast (LiDAR tip 266.6 m AHD)
     return ["glass skin", "floor lines", "podium lobby", "sloped crown", "white rim and spine", "mast"]
 
@@ -174,9 +181,6 @@ def build():
         bsdf.inputs["Roughness"].default_value = rough
         bsdf.inputs["Metallic"].default_value = metal
         m.diffuse_color = (*rgb, 1)
-        if k == "wil_white":                                       # the ribs and rim stay white in shade (critic round 10)
-            bsdf.inputs["Emission Color"].default_value = (*rgb, 1)
-            bsdf.inputs["Emission Strength"].default_value = 0.5
         if k == "wil_deck":
             bsdf.inputs["Specular IOR Level"].default_value = 0.0
         m["look_done"] = True                                      # preview.setup_morning leaves it alone
