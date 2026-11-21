@@ -138,6 +138,10 @@ def shoot(p, out, width):
         k = p["dist"] / (math.hypot(x - tx, y - ty) or 1.0)
         x, y = tx + (x - tx) * k, ty + (y - ty) * k
     z = p["z"] if "z" in p else max(ground(x, y), 0.6) + p.get("eye", 1.7)
+    import southbank as SB
+    fix = SB.camera_fix(x, y, p.get("z"))                  # South Bank promenade and forecourt have their own levels
+    if fix:
+        x, y, z = fix
     w, h = p["size"]
     diag = math.hypot(w, h)
     sw, sh = 43.27 * w / diag, 43.27 * h / diag           # the frame with a 35 mm diagonal at the photo's shape

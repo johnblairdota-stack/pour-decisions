@@ -190,12 +190,15 @@ def build_buildings(recs=None, zone=None, collection="cbd_ext", suffix="_ext"):
 def build_trees(col):
     import trees as T
     import far_roads as FR
+    import southbank as SB
     trunks, crowns, palms = C.MeshBuf(), C.MeshBuf(), C.MeshBuf()
     n = 0
     with open(os.path.join(EXT, "tree_points_ext.csv"), encoding="utf-8") as f:
         for r in csv.DictReader(f):
             x, y, h, g = float(r["x_local"]), float(r["y_local"]), float(r["height_m"]), float(r["ground_ahd"])
             if FR.on_road(x, y) or h < 3.0 or h > 40.0:
+                continue
+            if SB.in_zone(x, y):                          # South Bank plants its own (southbank.py)
                 continue
             s = T.species(x, y, h)
             if s == "palm":

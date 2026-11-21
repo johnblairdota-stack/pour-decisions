@@ -666,6 +666,10 @@ def build():
     fill, nfill = fill_tree_gaps(col)
     objs += fill
     parts["Botanic Gardens bank trees (data gap fill)"] = nfill
+    import southbank as SB
+    sb_objs, sb_parts = SB.build()
+    objs += sb_objs
+    parts["South Bank"] = sb_parts
     return {"module": "hero_towers", "objects": objs, "replaced": gone, "parts": parts,
             "source": "OSM outlines + 2019 LiDAR heights; skins and crowns from Commons photos 2016-2019",
             "note": "Crown slope of 1 William St (200 to 234 m, LiDAR roof cells) and the Skytower ring spacing are read off photos, not surveyed."}
