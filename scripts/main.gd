@@ -4384,11 +4384,20 @@ func _tour_route() -> Array:
 	out.append(["truck", LineScript.BAY + Vector3(0, gy + 1.5, 0)])
 	out.append(["hopper", LineScript.HOPPER + Vector3(0, gy + 1.0, 0)])
 	out.append(["pump", LineScript.PUMP_POS + Vector3(0, gy + 1.0, 0)])
-	out.append(["ground", LineScript.riser_at(0.6)])
 	var top := maxf(work_y, 3.0)
 	var n := clampi(int(top / 12.0) + 1, 1, 5)
-	for i in n:
-		out.append(["up", LineScript.riser_at(top * float(i + 1) / n)])
+	if LineScript.PIPE_IN.is_finite():
+		# (the line turns in through the podium and climbs inside, through the slab openings: the camera
+		# can't follow it in there yet, so it watches where it goes in, then rides up the face outside it
+		# to meet it again at the column. Looking inside put the camera in the podium's walls.)
+		var inp: Vector3 = LineScript.PIPE_IN
+		out.append(["ground", Vector3(inp.x, 0.6, inp.z + 0.6)])
+		for i in n:
+			out.append(["up", Vector3(inp.x, top * float(i + 1) / n, inp.z + 0.6)])
+	else:
+		out.append(["ground", LineScript.riser_at(0.6)])
+		for i in n:
+			out.append(["up", LineScript.riser_at(top * float(i + 1) / n)])
 	if head != null:
 		out.append(["column", head.global_position])
 	# (the hose end isn't out over the deck until the boom's working: where the crew are)
