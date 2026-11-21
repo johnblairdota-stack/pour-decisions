@@ -7,6 +7,8 @@ extends Node
 var game
 var _boom_goal := Vector3.ZERO
 var _boom_goal_t := 0.0
+var _reach_t := 0.0     # (how long the tip's sat short of a goal it can't get to)
+var _reach_at := Vector3.ZERO
 var _heap_t := 0.0
 var _boom_ok := true    # the boom bot's own say on pumping now
 var _knocktest: bool = OS.get_cmdline_user_args().has("--knocktest")   # (dev: read once, not every frame of a guide)
@@ -414,6 +416,22 @@ func _boom(p, delta: float) -> void:
 	if to.length() > 2.5 and under > pour.SLAB * 1.3:
 		ok = false
 		why = "pile"
+	# (a goal the boom can't get the tip to: round the jump form from a mast
+	# outside the core, say. Once the tip's stopped short of it, give it up)
+	var tt: Vector3 = g.tip_target
+	if to.length() > 1.5:
+		_reach_t += delta
+		if tt.distance_to(_reach_at) > 0.6:
+			# (still getting there)
+			_reach_t = 0.0
+			_reach_at = tt
+		elif _reach_t > 2.5:
+			_reach_t = 0.0
+			pour.skip_near(_boom_goal, 1.5, 25.0)
+			_boom_goal_t = 0.0
+	else:
+		_reach_t = 0.0
+		_reach_at = tt
 	# (on a big slab's wide splash, never stand building a heap: wait for the
 	# hose to move on to fresh deck)
 	if pour.vol_k > 1.0 and under > pour.SLAB * 1.5:
