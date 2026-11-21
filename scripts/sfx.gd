@@ -15,6 +15,12 @@ const ALERTS := ["bang", "buzz", "sign_alarm", "whistle:emergency"]
 const DUCK := 0.55          # how far the site and band dip under an alert
 const DUCK_T := 1.6         # s it takes them to come back
 var _duck := 0.0
+## The river flights (scripts/flight.gd): `lull` 0..1 holds every loop right down for the float at
+## the top of the arc; `amb_quick` lets the places' beds change that many times faster than a site's
+## slow drift, so a bridge can pass overhead in a second or two.
+var lull := 0.0
+var _lull := 0.0
+var amb_quick := 1.0
 var _g_site := 1.0
 var _g_band := 1.0
 var _g_alert := 1.0
@@ -454,10 +460,11 @@ func _update_mix(delta: float) -> void:
 	_g_site = float(Settings.value("vol_site"))
 	_g_band = float(Settings.value("vol_band"))
 	_g_alert = float(Settings.value("vol_alerts"))
-	var dip := 1.0 - DUCK * _duck
+	_lull = move_toward(_lull, clampf(lull, 0.0, 1.0), delta * 5.0)
+	var dip := (1.0 - DUCK * _duck) * (1.0 - 0.8 * _lull)
 	for id in _loops:
 		var a: Dictionary = _loops[id]
-		a["lv"] = move_toward(float(a["lv"]), float(a["want"]), delta * float(a["fade"]))
+		a["lv"] = move_toward(float(a["lv"]), float(a["want"]), delta * float(a["fade"]) * (amb_quick if (id as String).begins_with("amb/") else 1.0))
 		if a["pl"] != null:
 			_set_db(a["pl"], -80.0 if muted else volume_db + float(a["db"]) + linear_to_db(maxf(0.0001, float(a["lv"]) * _g_site * dip)))
 
