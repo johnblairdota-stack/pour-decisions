@@ -2443,7 +2443,25 @@ func _pick_boat_at(u: float, ahead: float) -> void:
 const HIGH_PIC := "res://assets/open/brisbane_high.jpg"
 const HIGH_HOLD := 8.0        # s on the picture (the title's up from the start, the join code from 6 s)
 const HIGH_FADE := 3.0        # s down onto the river
-static var _high_done := false
+const HIGH_AGAIN := 2.5       # s on it when it's been seen this session (back at the tower pick)
+## SCP's towers in the picture: [name, x, y of the tower's top as a share of the picture (worked out
+## from the render's camera, tools/blender/spire/render_open.py), pin height px, label to the left].
+## A crane light comes on at each in turn and its name with it. Hamilton Reach (Riverlight, Alcyone)
+## is off the picture's right edge.
+const HIGH_MARKS := [
+	["Spire", 0.595, 0.164, 44.0, false],
+	["Howard Smith Wharves", 0.734, 0.226, 58.0, true],
+	["Skytower", 0.54, 0.249, 40.0, false],
+	["1 William St", 0.422, 0.376, 46.0, true],
+	["Queen's Wharf", 0.412, 0.39, 14.0, false],
+	["Hamilton Reach ›", 0.76, 0.07, 0.0, true],
+]
+const HIGH_MARK_T := 1.2      # s till the first light, then one every HIGH_MARK_DT
+const HIGH_MARK_DT := 0.75
+var _high_done := false          # (this visit to the tower pick has had its look)
+static var _high_seen := false
+var _high_hold := HIGH_HOLD
+var _high_marks: Array = []   # [{pin, lamp, name, at}]
 var _high: CanvasLayer
 var _high_t := 0.0
 var _high_a := 0.0            # how much of the picture's still up (the place's sound)
@@ -2455,6 +2473,8 @@ func _high_open(delta: float) -> void:
 		_high_done = true
 		if (autotest and not OS.get_cmdline_user_args().has("--highopen")) or not ResourceLoader.exists(HIGH_PIC):
 			return
+		# (the whole of it once a session; a short look again each time they're back at the tower pick)
+		_high_hold = HIGH_AGAIN if _high_seen else HIGH_HOLD
 		_high = CanvasLayer.new()
 		_high.layer = -2
 		add_child(_high)
@@ -2462,7 +2482,6 @@ func _high_open(delta: float) -> void:
 		pic.texture = load(HIGH_PIC)
 		pic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		pic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-		pic.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		pic.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		_high.add_child(pic)
 		var g := Gradient.new()
@@ -2482,27 +2501,73 @@ func _high_open(delta: float) -> void:
 			band.stretch_mode = TextureRect.STRETCH_SCALE
 			band.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			_high.add_child(band)
+		_high_marks = []
+		for m in HIGH_MARKS:
+			var e := {"at": Vector2(float(m[1]), float(m[2])), "len": float(m[3]), "left": bool(m[4])}
+			var pin := ColorRect.new()
+			pin.color = Color(1, 1, 1, 0.85)
+			pin.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			pic.add_child(pin)
+			var lamp := ColorRect.new()
+			lamp.color = Color("ff3b30")
+			lamp.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			pic.add_child(lamp)
+			var nm := UI.label(String(m[0]), 22, UI.WHITE, 6)
+			pic.add_child(nm)
+			e["pin"] = pin
+			e["lamp"] = lamp
+			e["name"] = nm
+			_high_marks.append(e)
 		_high_t = 0.0
 	if _human_a and _high_t > 0.6:
-		_high_t = maxf(_high_t, HIGH_HOLD)
+		_high_t = maxf(_high_t, _high_hold)
 	_high_t += minf(delta, 0.1)
 	var vs: Vector2 = get_viewport().get_visible_rect().size
-	_high_a = 1.0 - smoothstep(HIGH_HOLD, HIGH_HOLD + HIGH_FADE, _high_t)
+	_high_a = 1.0 - smoothstep(_high_hold, _high_hold + HIGH_FADE, _high_t)
 	var pic := _high.get_child(0) as TextureRect
 	# (a slow push in on the river's bend below the city, quickening as it goes down to the water)
-	var u := _high_t / (HIGH_HOLD + HIGH_FADE)
-	pic.pivot_offset = vs * Vector2(0.4, 0.62)
-	pic.scale = Vector2.ONE * (1.0 + 0.1 * u + 0.5 * pow(maxf(0.0, (_high_t - HIGH_HOLD) / HIGH_FADE), 2.0))
+	var u := _high_t / (_high_hold + HIGH_FADE)
+	# (fitted to cover the screen and kept to its right-hand side: the towers stand right of the
+	# picture's middle, and the join panel covers the screen's right, so the city sits left of that)
+	var tex_size: Vector2 = pic.texture.get_size()
+	var fit := maxf(vs.x / tex_size.x, vs.y / tex_size.y)
+	pic.size = tex_size * fit
+	pic.position = Vector2(vs.x - pic.size.x, (vs.y - pic.size.y) * 0.5)
+	pic.pivot_offset = vs * Vector2(0.65, 0.62) - pic.position
+	pic.scale = Vector2.ONE * (1.0 + 0.1 * u + 0.5 * pow(maxf(0.0, (_high_t - _high_hold) / HIGH_FADE), 2.0))
 	pic.modulate.a = _high_a
+	# (the towers' crane lights and names: placed on the picture as it's fitted to the screen, so they
+	# ride the push in with it)
+	for i in _high_marks.size():
+		var e: Dictionary = _high_marks[i]
+		var on := 1.0 if _high_seen else smoothstep(0.0, 0.35, _high_t - HIGH_MARK_T - HIGH_MARK_DT * i)
+		var top: Vector2 = (e["at"] as Vector2) * tex_size * fit
+		var up: float = e["len"]
+		var pin := e["pin"] as ColorRect
+		pin.size = Vector2(2.0, up * on)
+		pin.position = top + Vector2(-1.0, -up * on)
+		pin.visible = up > 0.0 and on > 0.0
+		var lamp := e["lamp"] as ColorRect
+		lamp.size = Vector2(10.0, 10.0)
+		lamp.position = top + Vector2(-5.0, -up * on - 10.0)
+		lamp.visible = up > 0.0 and on > 0.0
+		# (a slow aviation-light blink, each tower out of step with the next)
+		lamp.modulate.a = 0.45 + 0.55 * (0.5 + 0.5 * sin(_high_t * 3.2 + i * 1.7))
+		var nm := e["name"] as Label
+		var ns: Vector2 = nm.get_minimum_size()
+		nm.position = top + Vector2((-ns.x - 10.0) if e["left"] else 10.0, -up - ns.y * 0.5 - 4.0)
+		nm.modulate.a = on
 	for i in 2:
 		var band := _high.get_child(1 + i) as TextureRect
 		band.size = Vector2(vs.x * 2.2, vs.y * (0.2 + 0.08 * i))
 		band.position = Vector2(-vs.x * 0.6 + (18.0 if i == 0 else -11.0) * _high_t, vs.y * (0.3 + 0.17 * i))
 		band.modulate.a = _high_a * smoothstep(0.0, 1.5, _high_t)
-	if _high_t >= HIGH_HOLD + HIGH_FADE:
+	if _high_t >= _high_hold + HIGH_FADE:
 		_high.queue_free()
 		_high = null
 		_high_a = 0.0
+		_high_marks = []
+		_high_seen = true
 
 ## Behind the hand: a slow flight up the river, never stopping.
 func _hand_camera(delta: float) -> void:
