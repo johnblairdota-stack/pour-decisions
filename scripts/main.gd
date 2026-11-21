@@ -2252,8 +2252,81 @@ func _pick_boat_at(u: float, ahead: float) -> void:
 		_pick_wake.position = _pick_boat.position - dir * 45.0 + Vector3(0, 0.15, 0)
 		_pick_wake.look_at(_pick_wake.position + dir, Vector3.UP)
 
+# ------------------------------------------------------------------ the high open
+
+## The high open (the towers and transitions plan): the game opens high over Brisbane, the river
+## through the city and every tower's reach in the one picture, then eases down onto the river
+## cruise behind the join screen. It's a still from the master Blender scene with a slow push in
+## and two bands of haze drifting across it: the far city at full render quality for the cost of
+## one texture. Once a session, not on test runs; A goes straight to the river.
+## Dev: `--highopen` shows it on test runs too.
+const HIGH_PIC := "res://assets/open/brisbane_high.jpg"
+const HIGH_HOLD := 8.0        # s on the picture (the title's up from the start, the join code from 6 s)
+const HIGH_FADE := 3.0        # s down onto the river
+static var _high_done := false
+var _high: CanvasLayer
+var _high_t := 0.0
+var _high_a := 0.0            # how much of the picture's still up (the place's sound)
+
+func _high_open(delta: float) -> void:
+	if _high == null:
+		if _high_done:
+			return
+		_high_done = true
+		if (autotest and not OS.get_cmdline_user_args().has("--highopen")) or not ResourceLoader.exists(HIGH_PIC):
+			return
+		_high = CanvasLayer.new()
+		_high.layer = -2
+		add_child(_high)
+		var pic := TextureRect.new()
+		pic.texture = load(HIGH_PIC)
+		pic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		pic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+		pic.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		pic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_high.add_child(pic)
+		var g := Gradient.new()
+		g.set_color(0, Color(1.0, 0.96, 0.9, 0.0))
+		g.set_color(1, Color(1.0, 0.96, 0.9, 0.0))
+		g.add_point(0.5, Color(1.0, 0.96, 0.9, 0.34))
+		var gt := GradientTexture2D.new()
+		gt.gradient = g
+		gt.fill_from = Vector2(0, 0)
+		gt.fill_to = Vector2(0, 1)
+		gt.width = 8
+		gt.height = 64
+		for i in 2:
+			var band := TextureRect.new()
+			band.texture = gt
+			band.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			band.stretch_mode = TextureRect.STRETCH_SCALE
+			band.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			_high.add_child(band)
+		_high_t = 0.0
+	if _human_a and _high_t > 0.6:
+		_high_t = maxf(_high_t, HIGH_HOLD)
+	_high_t += minf(delta, 0.1)
+	var vs: Vector2 = get_viewport().get_visible_rect().size
+	_high_a = 1.0 - smoothstep(HIGH_HOLD, HIGH_HOLD + HIGH_FADE, _high_t)
+	var pic := _high.get_child(0) as TextureRect
+	# (a slow push in on the river's bend below the city, quickening as it goes down to the water)
+	var u := _high_t / (HIGH_HOLD + HIGH_FADE)
+	pic.pivot_offset = vs * Vector2(0.4, 0.62)
+	pic.scale = Vector2.ONE * (1.0 + 0.1 * u + 0.5 * pow(maxf(0.0, (_high_t - HIGH_HOLD) / HIGH_FADE), 2.0))
+	pic.modulate.a = _high_a
+	for i in 2:
+		var band := _high.get_child(1 + i) as TextureRect
+		band.size = Vector2(vs.x * 2.2, vs.y * (0.2 + 0.08 * i))
+		band.position = Vector2(-vs.x * 0.6 + (18.0 if i == 0 else -11.0) * _high_t, vs.y * (0.3 + 0.17 * i))
+		band.modulate.a = _high_a * smoothstep(0.0, 1.5, _high_t)
+	if _high_t >= HIGH_HOLD + HIGH_FADE:
+		_high.queue_free()
+		_high = null
+		_high_a = 0.0
+
 ## Behind the hand: a slow flight up the river, never stopping.
 func _hand_camera(delta: float) -> void:
+	_high_open(delta)
 	_hand_u += delta * 0.012
 	if _hand_u >= 0.7:
 		_hand_u -= 0.7
@@ -5415,10 +5488,12 @@ func _update_places() -> void:
 		quick = 5.0
 	elif _on_river:
 		# (the join, the jobs and the hand: cruising up the river behind the CityCat)
-		amb["river"] = 0.8
-		amb["morning"] *= 0.3
-		amb["wind"] = 0.2
-		boat = 0.45
+		# (under the high open: wind and the city far below, the river coming up as it goes down)
+		amb["river"] = 0.8 * (1.0 - _high_a)
+		amb["morning"] *= 0.3 * (1.0 - _high_a)
+		amb["wind"] = 0.2 + 0.6 * _high_a
+		amb["city"] = 0.35 * _high_a
+		boat = 0.45 * (1.0 - _high_a)
 	elif phase == "topout":
 		# the site's gone quiet and the garden's in
 		amb = {"morning": 1.0, "dawn": 0.0, "wind": 0.2, "rain": amb["rain"], "river": 0.15, "city": 0.3,
