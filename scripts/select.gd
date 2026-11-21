@@ -823,7 +823,7 @@ var _photos := {}             # floor -> its photo (null: none taken yet)
 
 func _floor_photo(i: int) -> Texture2D:
 	if not _photos.has(i):
-		var path := Settings.photo_path(i)
+		var path := Settings.photo_path(i, game.photo_tower() if game != null else "riverlight")
 		var img: Image = Image.load_from_file(path) if FileAccess.file_exists(path) else null
 		_photos[i] = ImageTexture.create_from_image(img) if img != null and not img.is_empty() else null
 	return _photos[i]

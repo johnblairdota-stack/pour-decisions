@@ -70,9 +70,10 @@ static func ensure() -> void:
 		if not cf.has_section_key("game", "gold_mode") and not bool(data["gold_assist"]):
 			data["gold_mode"] = 2
 
-## Where the photo of a floor's last pour is kept (level 0-based).
-static func photo_path(level: int) -> String:
-	return "user://photos/level_%02d.png" % (level + 1)
+## Where the photo of a floor's last pour is kept (level 0-based). Each tower keeps its own:
+## they used to share one folder, and Riverlight's floor pick showed Spire's pours.
+static func photo_path(level: int, tower: String) -> String:
+	return "user://photos/%s/level_%02d.png" % [tower, level + 1]
 
 static func value(key: String):
 	ensure()

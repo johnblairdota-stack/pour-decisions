@@ -162,6 +162,10 @@ static func _pick_site() -> String:
 func medal_key() -> String:
 	return "medals_spire" if spire else "medals"
 
+## The folder this tower's pour photos are kept in.
+func photo_tower() -> String:
+	return "water" if tutorial else ("spire" if spire else "riverlight")
+
 ## The site page's floor label for level i (0-based).
 func level_label(i: int) -> String:
 	return SpireSite.level_name(i) if spire else "L%d" % (i + 1)
@@ -4381,8 +4385,8 @@ func _album() -> Array:
 	var out: Array = []
 	for i in floors():
 		var tex: Texture2D = _photos.get(i)
-		if tex == null and FileAccess.file_exists(Settings.photo_path(i)):
-			var img := Image.load_from_file(Settings.photo_path(i))
+		if tex == null and FileAccess.file_exists(Settings.photo_path(i, photo_tower())):
+			var img := Image.load_from_file(Settings.photo_path(i, photo_tower()))
 			if img != null and not img.is_empty():
 				tex = ImageTexture.create_from_image(img)
 		if tex != null:
@@ -4425,8 +4429,9 @@ func _update_photo() -> void:
 	hud.set_slab_photo(tex, "Level %d · %s" % [_photo_k + 1, Story.title(_photo_k)])
 	# (test runs leave the crew's own photos alone, as they do its medals)
 	if not autotest:
-		DirAccess.make_dir_recursive_absolute("user://photos")
-		img.save_png(Settings.photo_path(_photo_k))
+		var path := Settings.photo_path(_photo_k, photo_tower())
+		DirAccess.make_dir_recursive_absolute(path.get_base_dir())
+		img.save_png(path)
 
 ## The end-of-slab report: what an engineer, the builder and the safety
 ## officer would pick up on, as a quality score out of 100 that pays a bonus
