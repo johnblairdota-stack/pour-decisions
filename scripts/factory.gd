@@ -456,7 +456,11 @@ static func bake(root: Node3D) -> int:
 		am.surface_set_material(am.get_surface_count() - 1, g["mat"])
 	for mi in parts:
 		if (mi as Node).has_meta("baked") and (mi as Node).get_child_count() == 0:
-			(mi as Node).queue_free()   # (an earlier bake's, merged again into this one)
+			# (an earlier bake's, merged again into this one. Emptied now, not just freed at the frame's
+			# end: a second bake in the same frame would merge it in again, and its copy with it, the mesh
+			# doubling every time. Jumping to a high Spire floor baked the crane's mast 12 times in a frame.)
+			(mi as MeshInstance3D).mesh = null
+			(mi as Node).queue_free()
 		else:
 			(mi as MeshInstance3D).mesh = null
 			(mi as MeshInstance3D).material_override = null
