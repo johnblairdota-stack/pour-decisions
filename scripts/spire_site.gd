@@ -209,12 +209,45 @@ static func front_z(x: float) -> float:
 			best = maxf(best, lerpf(a.y, b.y, (x - a.x) / (b.x - a.x)))
 	return best if best > -1e8 else _box(plate).end.y
 
-## The masts in the lift core: ours in its Ann St half, the bot crew's in the other.
+## `outline` less `hole`, as plain outlines with no holes in them (a prism can't have one): where the
+## hole's wholly inside, the outline's split in two across it first.
+static func minus_hole(outline: PackedVector2Array, hole: PackedVector2Array) -> Array:
+	var bb := _box(outline).grow(1.0)
+	var cx := centroid(hole).x
+	var halves := [PackedVector2Array([bb.position, Vector2(cx, bb.position.y), Vector2(cx, bb.end.y), Vector2(bb.position.x, bb.end.y)]),
+		PackedVector2Array([Vector2(cx, bb.position.y), Vector2(bb.end.x, bb.position.y), bb.end, Vector2(cx, bb.end.y)])]
+	var out: Array = []
+	for hf in halves:
+		for part in Geometry2D.intersect_polygons(outline, hf):
+			if Geometry2D.is_polygon_clockwise(part):
+				continue
+			for piece in Geometry2D.clip_polygons(part, hole):
+				if not Geometry2D.is_polygon_clockwise(piece):
+					out.append(piece)
+	return out
+
+## Where the placing booms stand. Ours is a Putzmeister RS 850 square column (1 m square) up through
+## its own opening in pour A's slab, just in front of the jump form at the core's Ann St corner (the
+## way SCP stood the boom at The Tannery, John 21 Nov: main._spire_tower). The bot crew's is a
+## tube mast in the core's back half.
+const COLUMN := 0.95           # m square (the RS 850's 1.00 m, less its corner angles)
 static func mast_xz(ours := true) -> Vector2:
 	var core: PackedVector2Array = _polys["core"]
 	var c := centroid(core)
 	var bb := _box(core)
-	return Vector2(c.x + (-2.6 if ours else 2.6), c.y + bb.size.y * (0.22 if ours else -0.22))
+	if ours:
+		# (clear of the jump form's screens, which hang rig_out_m off the core's walls)
+		var rig := _box(_polys["rig"])
+		return Vector2(bb.end.x + 0.45, rig.end.y + 0.55 + COLUMN * 0.5)
+	return Vector2(c.x + 2.6, c.y - bb.size.y * 0.22)
+
+## The penetration our column climbs through, the same in every slab: the column, its delivery line on
+## the column's Ann St-facing side (+x) and the caged ladder beside it. Game x/z.
+static func opening() -> PackedVector2Array:
+	var m := mast_xz()
+	var h := COLUMN * 0.5
+	return PackedVector2Array([Vector2(m.x - h - 0.12, m.y - 0.65), Vector2(m.x + 1.45, m.y - 0.65),
+		Vector2(m.x + 1.45, m.y + 0.65), Vector2(m.x - h - 0.12, m.y + 0.65)])
 
 static func levels() -> Array:
 	return d["levels"]
@@ -835,7 +868,11 @@ static func floor_slab(parent: Node3D, slab_y: float, thick: float, ftf: float) 
 	var parts: Array = Geometry2D.clip_polygons(plate, core)
 	var grey := F.color_mat(Color("a9abaa"))
 	for part in parts:
-		parent.add_child(F.prism(part, slab_y - thick, thick, grey))
+		# (and the column's penetration: the line and the ladder go on down through it)
+		if Geometry2D.is_polygon_clockwise(part):
+			continue
+		for piece in minus_hole(part, opening()):
+			parent.add_child(F.prism(piece, slab_y - thick, thick, grey))
 	var inset: Array = Geometry2D.offset_polygon(plate, -1.2)
 	if not inset.is_empty():
 		parent.add_child(F.prism(inset[0], slab_y - thick - ftf + 0.02, ftf - thick - 0.04, F.color_mat(Color("3a3f45")), false))
