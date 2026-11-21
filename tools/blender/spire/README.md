@@ -204,3 +204,13 @@ swimming pools (on the roof when mapped over a building), car park stall lines, 
 goals, posts and hoops, playground shade sails, and speed signs along the main roads. Positions of roof
 plant, stalls and signs are inferred, not surveyed. Trees whose crown would reach over a bridge deck are
 dropped (`far_roads.over_deck`), and the made-up far suburbs are removed by mesh island inside the area.
+
+## River corridors for the game's flights (`corridor.py`)
+
+`python tools/blender/spire/corridor.py south_brisbane <out_dir> [--dry] [--check] [--pano=william1]` builds the whole
+master scene and keeps, face by face, only what a flight's camera path can see (in its sweep, facing it, big enough for
+its distance, tall enough to show over the near bank), then merges that for draw calls. South Brisbane Reach (1 William St,
+Queen's Wharf): 13.5 million triangles to 138,000 in 45 objects. Outputs: `assets/corridors/<id>.glb`,
+`data/corridors/<id>.json` (path, towers, window recipes, counts), and with `--pano` a see-through strip panorama of the
+far city from a tower's top. The camera path is provisional and the tool places no equipment. Check sheet:
+`docs/screenshots/corridors/south_brisbane_check.jpg` (whole scene left, cut right, panorama under).
