@@ -1859,14 +1859,22 @@ func _verdict(t: Dictionary) -> String:
 		return "stiff"
 	return "ok"
 
+## What was ordered, for the site we're on (the docket must name this tower, not Riverlight).
+func _order() -> Dictionary:
+	var o := ORDER.duplicate()
+	if game != null and game.spire:
+		o["site"] = "Spire"
+	return o
+
 ## The order against what the driver's docket says came on the truck.
 func _order_lines(t: Dictionary) -> String:
-	var load := ORDER.duplicate()
+	var order := _order()
+	var load := order.duplicate()
 	match t.get("mix_wrong", ""):
 		"mpa": load["mpa"] = 32
 		"stone": load["stone"] = 10
 		"site": load["site"] = "Harbour St"
-	return "ORDER   %d MPa · %d mm stone · %s\nDOCKET %d MPa · %d mm stone · %s · %d min" % [ORDER["mpa"], ORDER["stone"], ORDER["site"], load["mpa"], load["stone"], load["site"], int(t["age"])]
+	return "ORDER   %d MPa · %d mm stone · %s\nDOCKET %d MPa · %d mm stone · %s · %d min" % [order["mpa"], order["stone"], order["site"], load["mpa"], load["stone"], load["site"], int(t["age"])]
 
 ## The docket for the truck hand's phone: the order against what came on
 ## the truck at the bay (or the one they're testing), its age, the water held
@@ -1882,15 +1890,16 @@ func phone_docket(p) -> Dictionary:
 		t = bay_truck
 	if t == null:
 		return {}
-	var load := ORDER.duplicate()
+	var order := _order()
+	var load := order.duplicate()
 	match t.get("mix_wrong", ""):
 		"mpa": load["mpa"] = 32
 		"stone": load["stone"] = 10
 		"site": load["site"] = "Harbour St"
 	var help := assist()
-	return {"order": ["%d MPa" % ORDER["mpa"], "%d mm stone" % ORDER["stone"], String(ORDER["site"])],
+	return {"order": ["%d MPa" % order["mpa"], "%d mm stone" % order["stone"], String(order["site"])],
 		"docket": ["%d MPa" % load["mpa"], "%d mm stone" % load["stone"], String(load["site"])],
-		"bad": [help and load["mpa"] != ORDER["mpa"], help and load["stone"] != ORDER["stone"], help and load["site"] != ORDER["site"]],
+		"bad": [help and load["mpa"] != order["mpa"], help and load["stone"] != order["stone"], help and load["site"] != order["site"]],
 		"age": int(t["age"]), "old": float(t["age"]) > MAX_AGE, "max": int(MAX_AGE),
 		"water": int(WATER_HELD), "watered": bool(t.get("watered", false)),
 		"slump": int(t["measured"]) if t["checked"] and t.has("measured") else -1,

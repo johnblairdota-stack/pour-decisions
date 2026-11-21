@@ -674,8 +674,11 @@ const DAWN_LEN := 55.0           # ...to 6:05, full morning, over the pour
 const SUNRISE_U := 0.5           # 5:38
 ## [u, sky top, horizon, sun colour, sun energy, ambient, sun elevation (deg)]
 const DAWN_KEYS := [
-	[0.0, Color("070b1e"), Color("1a2140"), Color("ff8c50"), 0.0, 0.12, -6.0],
-	[0.3, Color("162250"), Color("c97a62"), Color("ff8c50"), 0.15, 0.22, 0.0],
+	# (the ambient is the sky's own light times this, and the 5 AM sky is nearly black: at 0.12 everything
+	# outside the floodlights' pools was pure black. A good deal more of that dark blue reads as night
+	# you can still see the street by.)
+	[0.0, Color("070b1e"), Color("1a2140"), Color("ff8c50"), 0.0, 1.1, -6.0],
+	[0.3, Color("162250"), Color("c97a62"), Color("ff8c50"), 0.15, 0.6, 0.0],
 	[0.5, Color("2f4f8e"), Color("f0a868"), Color("ffb070"), 0.6, 0.35, 6.0],
 	[0.75, Color("3568b0"), Color("e6cdb0"), Color("ffdcb0"), 0.95, 0.5, 20.0],
 	[1.0, Color("3a78c9"), Color("cfdfe8"), Color("fff2df"), 1.2, 0.6, 42.0],
@@ -710,6 +713,13 @@ func _build_floods() -> void:
 		[Vector3(-22.0, 0, 18.0), false],
 		[Vector3(12.0, 0, 18.0), false],
 	]
+	if spire:
+		# (Spire's pump, hopper and trucks are at the Ann St kerb, not where Riverlight's yard is: its two
+		# ground floods stand against the podium wall either side of the pump and light the kerb. They
+		# used to stand at Riverlight's spots, and the street was pitch black at 5 AM.)
+		var wall: float = LineScript.RISER.z + 0.2
+		spots[2] = [Vector3(LineScript.PUMP_POS.x - 7.0, 0, wall), false, LineScript.PUMP_POS + Vector3(1.0, 0, 1.5)]
+		spots[3] = [Vector3(LineScript.BAY.x + 9.0, 0, wall), false, LineScript.BAY + Vector3(-1.0, 0, 1.5)]
 	for sp in spots:
 		var at: Vector3 = sp[0]
 		var deck: bool = sp[1]
@@ -728,7 +738,9 @@ func _build_floods() -> void:
 		l.shadow_enabled = false
 		l.position = Vector3(0, h + 0.2, 0)
 		n.add_child(l)
-		var aim: Vector3 = (Vector3(SC.x, 0, SC.z) if deck else Vector3(-4.0, 0, 26.0)) - at
+		var aim: Vector3 = (Vector3(SC.x, 0, SC.z) if deck else (sp[2] if sp.size() > 2 else Vector3(-4.0, 0, 26.0))) - at
+		if sp.size() > 2:
+			l.spot_angle = 68.0
 		l.look_at_from_position(l.global_position, l.global_position + Vector3(aim.x, -h * (0.9 if deck else 1.4), aim.z), Vector3.UP)
 		head.look_at_from_position(head.global_position, head.global_position + Vector3(aim.x, -h, aim.z), Vector3.UP)
 		n.visible = false
@@ -2972,6 +2984,7 @@ func _menu_fall_update(delta: float) -> void:
 	_menu_fall.mesh = st.commit()
 
 func _apply_kit(which: String) -> void:
+	_tour_due = true
 	if _menu_yaw != INF:
 		cam_yaw = _menu_yaw
 	if _menu_floors != null:
@@ -4114,6 +4127,7 @@ func _start_inspect() -> void:
 var _tour: Dictionary = {}          # the tour while it's on: Flight.tour()'s keys and cues, "t", "cue"
 var _tour_cap: CanvasLayer
 static var _tour_seen := false      # this session's had the whole route
+var _tour_due := false              # the level's just been picked: the next pour opens with the tour
 
 func _tour_route() -> Array:
 	var data: Dictionary = Flight.TOURS.get("spire" if spire else "riverlight", {})
@@ -4144,8 +4158,9 @@ func _tour_begin() -> void:
 	_tour = {}
 	if tutorial or kit == "truck" or line == null:
 		return           # (the water tower's coach walks them round it)
-	if not forced and (autotest or crew.humans().is_empty()):
+	if not forced and (autotest or crew.humans().is_empty() or not _tour_due):
 		return
+	_tour_due = false       # (once, after the level's picked: not again before each pour that follows)
 	_tour = {"t": 0.0, "cue": -1, "short": _tour_seen and not args.has("--tourfull")}
 	_tour_seen = true
 	hud.brief.visible = false
