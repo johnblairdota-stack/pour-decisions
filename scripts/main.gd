@@ -716,9 +716,12 @@ func _build_floods() -> void:
 		# (Spire's pump, hopper and trucks are at the Ann St kerb, not where Riverlight's yard is: its two
 		# ground floods stand against the podium wall either side of the pump and light the kerb. They
 		# used to stand at Riverlight's spots, and the street was pitch black at 5 AM.)
-		var wall: float = LineScript.RISER.z + 0.2
-		spots[2] = [Vector3(LineScript.PUMP_POS.x - 7.0, 0, wall), false, LineScript.PUMP_POS + Vector3(1.0, 0, 1.5)]
-		spots[3] = [Vector3(LineScript.BAY.x + 9.0, 0, wall), false, LineScript.BAY + Vector3(-1.0, 0, 1.5)]
+		# (off the podium's street edge itself, not the riser: the line's about to move inside the building)
+		for i in 2:
+			var fx: float = LineScript.PUMP_POS.x - 7.0 if i == 0 else LineScript.BAY.x + 9.0
+			var to: Vector3 = (LineScript.PUMP_POS + Vector3(1.0, 0, 1.5)) if i == 0 else (LineScript.BAY + Vector3(-1.0, 0, 1.5))
+			var wall: float = maxf(SpireSite.boundary_z(fx), SpireSite.podium_z(fx - 1.0, fx + 1.0) + 0.05)
+			spots[2 + i] = [Vector3(fx, 0, wall + 0.5), false, to]
 	for sp in spots:
 		var at: Vector3 = sp[0]
 		var deck: bool = sp[1]
