@@ -4387,13 +4387,17 @@ func _tour_route() -> Array:
 	var top := maxf(work_y, 3.0)
 	var n := clampi(int(top / 12.0) + 1, 1, 5)
 	if LineScript.PIPE_IN.is_finite():
-		# (the line turns in through the podium and climbs inside, through the slab openings: the camera
-		# can't follow it in there yet, so it watches where it goes in, then rides up the face outside it
-		# to meet it again at the column. Looking inside put the camera in the podium's walls.)
+		# (the line turns in through the podium and climbs inside, through the slab openings beside the
+		# column. The camera stays outside the building's face and looks in at it: the see-through
+		# circle (_update_see_through) opens the face, the slabs and the columns in front of the pipe.
+		# Standing the camera in there with it put it inside the podium's walls.)
 		var inp: Vector3 = LineScript.PIPE_IN
 		out.append(["ground", Vector3(inp.x, 0.6, inp.z + 0.6)])
+		var foot: Vector3 = LineScript.riser_at(0.6)
+		out.append(["ground", foot, Vector3(foot.x, 0.6, inp.z + 0.6)])
 		for i in n:
-			out.append(["up", Vector3(inp.x, top * float(i + 1) / n, inp.z + 0.6)])
+			var at: Vector3 = LineScript.riser_at(top * float(i + 1) / n)
+			out.append(["up", at, Vector3(at.x, at.y, inp.z + 0.6)])
 	else:
 		out.append(["ground", LineScript.riser_at(0.6)])
 		for i in n:
@@ -4444,6 +4448,7 @@ func _tour_camera(delta: float, fin: Vector3) -> void:
 	last[2] = cam_focus
 	camera.position = Flight.at(keys, t, 1)
 	camera.look_at(Flight.at(keys, t, 2), Vector3.UP)
+	_tour["look"] = Flight.at(keys, t, 2)
 	_tour["look_d"] = camera.position.distance_to(Flight.at(keys, t, 2))
 	# (what's going by, and whose job it is)
 	var cues: Array = _tour["cues"]
@@ -7957,6 +7962,7 @@ const STREET_CUT_R := 11.0    # m, the circle cut out of Spire's neighbours roun
 const CUT_R_STREET := 9.0     # ...and the barriers' own circle round someone behind Spire's road barriers,
 const CUT_BACK_STREET := 6.0  # set this far back from the street behind them
 const CUT_R := 4.0            # m, the see-through circle round each bit of work
+const CUT_R_TOUR := 10.0      # ...and round what the equipment tour's camera is following
 var _scr_cut := Vector3.INF    # the nearest concrete a screeder's still to do (world)
 var _scr_cut_t := 0.0
 const CUT_R_CLOSE := 1.1      # ...and round what a close-up's on
@@ -8037,6 +8043,10 @@ func _update_see_through(delta: float) -> void:
 		if ps.size() < 2:
 			ps.append(Vector4(q.x, q.y, q.z, CUT_R_CLOSE))
 	_close_targets.clear()
+	if _tour.has("look"):
+		# (the equipment tour: whatever the camera's following, seen through the building in front of it)
+		var tl: Vector3 = _tour["look"]
+		ps.append(Vector4(tl.x, tl.y, tl.z, CUT_R_TOUR))
 	if spire and LineScript.STACK:
 		# (anyone on the ladder up the column's stack, or in the passage to it under the podium: and the
 		# column itself while it's being climbed)
