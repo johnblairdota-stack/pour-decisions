@@ -207,3 +207,62 @@ static func score(t: float, river_t: float, apex: float, gate: float, total: flo
 		var q := (t - apex) / 0.4
 		lull = exp(-q * q)
 	return {"amb": out, "boat": 1.0 - smoothstep(river_t - 0.2, river_t + 2.6, t), "pitch": lerpf(1.0, 0.78, up), "lull": lull}
+
+# ------------------------------------------------------------------ the equipment tour
+
+## The equipment tour before a pour: the camera follows the concrete's route once, so everyone has
+## seen every machine before they're asked to work it. The route's fixed (John, 22 Nov): truck,
+## hopper, pump, the line along the ground floor, up through the slab openings to the column, the
+## boom, the hose. Where each of those IS belongs to the level, not to this file: with no "route"
+## here main.gd reads the places the level already has. A tower's real route drops in as
+## "route": [[stop, x, y, z], ...] in game metres ("up" as many times as the line has corners on
+## its way up), and nothing else changes.
+const TOURS := {
+	"riverlight": {"route": []},
+	"spire": {"route": []},     # (being redesigned in the mast climb thread: left to the level until that's confirmed)
+}
+
+## Each stop: [s from the stop before, how close (of the game's own camera distance), unused, whose job it is ("" nobody's), what's happening]
+## (the tour looks from the same angle the game's own camera does, only closer in: that's the angle
+## the site's built to be seen from. Stood beside each machine it stared at walls and bare ground.)
+const TOUR_STOPS := {
+	"truck": [0.0, 0.55, 0.0, "line", "Trucks back up to the hopper here"],
+	"hopper": [1.1, 0.42, 0.0, "line", "The concrete goes into the hopper"],
+	"pump": [1.0, 0.42, 0.0, "pump", "The pump pushes it down the line"],
+	"ground": [1.0, 0.45, 0.0, "pump", "Along the ground"],
+	"up": [1.5, 0.55, 0.0, "", "Up to the deck"],
+	"column": [1.1, 0.7, 0.0, "boom", "Out along the boom"],
+	"hose": [1.0, 0.55, 0.0, "hose", "And out of the hose"],
+}
+const TOUR_LAND_T := 1.3      # s from the hose back to the game's own view
+const TOUR_SHORT := ["up", "column", "hose"]    # after the first of a session: just the climb to the deck
+
+## The tour through `route` ([[stop, Vector3], ...]), each stop seen along `off` (the game's own
+## camera, from what it looks at) scaled in, ending on the game's view (`fin` looking at `fin_look`):
+## {"keys": [t, camera, look] for at(), "cues": [t, stop] as each comes up, "total": s}.
+static func tour(route: Array, off: Vector3, fin: Vector3, fin_look: Vector3, short: bool) -> Dictionary:
+	var keys: Array = []
+	var cues: Array = []
+	var t := 0.0
+	var ups := 0
+	for r in route:
+		if String(r[0]) == "up":
+			ups += 1
+	var was := ""
+	for r in route:
+		var id := String(r[0])
+		if not TOUR_STOPS.has(id) or (short and not id in TOUR_SHORT):
+			continue
+		var s: Array = TOUR_STOPS[id]
+		var p: Vector3 = r[1]
+		if not keys.is_empty():
+			t += float(s[0]) / (float(ups) if id == "up" else 1.0)
+		keys.append([t, p + off * float(s[1]), p])
+		if id != was:
+			cues.append([maxf(0.0, t - 0.35), id])
+		was = id
+	if keys.size() < 2:
+		return {}
+	t += TOUR_LAND_T
+	keys.append([t, fin, fin_look])
+	return {"keys": keys, "cues": cues, "total": t}

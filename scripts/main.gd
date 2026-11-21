@@ -4026,6 +4026,119 @@ func _start_inspect() -> void:
 	_brief_hold = 0.0
 	hud.show_toolbox(_toolbox(not _brief_ok or (autotest and not _cam_roles.is_empty())))
 	_set_phase("inspect")
+	_tour_begin()
+
+# ------------------------------------------------------------------ the equipment tour
+
+## The equipment tour (scripts/flight.gd): before the toolbox talk, the camera follows the
+## concrete's route once, each machine named as it passes with whose job it is. The whole route
+## the first time in a session, just the climb to the deck after that. A skips it.
+## Dev: `--tour` plays it on test runs too, `--tourfull` the whole route every time.
+var _tour: Dictionary = {}          # the tour while it's on: Flight.tour()'s keys and cues, "t", "cue"
+var _tour_cap: CanvasLayer
+static var _tour_seen := false      # this session's had the whole route
+
+func _tour_route() -> Array:
+	var data: Dictionary = Flight.TOURS.get("spire" if spire else "riverlight", {})
+	var out: Array = []
+	for q in data.get("route", []):
+		out.append([String(q[0]), Vector3(float(q[1]), float(q[2]), float(q[3]))])
+	if not out.is_empty():
+		return out
+	# (no confirmed route for this tower yet: the places the level itself has)
+	var gy := 0.0
+	out.append(["truck", LineScript.BAY + Vector3(0, gy + 1.5, 0)])
+	out.append(["hopper", LineScript.HOPPER + Vector3(0, gy + 1.0, 0)])
+	out.append(["pump", LineScript.PUMP_POS + Vector3(0, gy + 1.0, 0)])
+	out.append(["ground", LineScript.riser_at(0.6)])
+	var top := maxf(work_y, 3.0)
+	var n := clampi(int(top / 12.0) + 1, 1, 5)
+	for i in n:
+		out.append(["up", LineScript.riser_at(top * float(i + 1) / n)])
+	if head != null:
+		out.append(["column", head.global_position])
+	# (the hose end isn't out over the deck until the boom's working: where the crew are)
+	out.append(["hose", cam_focus])
+	return out
+
+func _tour_begin() -> void:
+	var args := OS.get_cmdline_user_args()
+	var forced := args.has("--tour") or args.has("--tourfull")
+	_tour = {}
+	if tutorial or kit == "truck" or line == null:
+		return           # (the water tower's coach walks them round it)
+	if not forced and (autotest or crew.humans().is_empty()):
+		return
+	_tour = {"t": 0.0, "cue": -1, "short": _tour_seen and not args.has("--tourfull")}
+	_tour_seen = true
+	hud.brief.visible = false
+
+func _tour_end() -> void:
+	_tour = {}
+	hud.brief.visible = true
+	phase_t = 0.0
+	if _tour_cap != null:
+		_tour_cap.queue_free()
+		_tour_cap = null
+
+## The tour's camera: `fin` is where the game's own camera wants to be (it looks at cam_focus).
+func _tour_camera(delta: float, fin: Vector3) -> void:
+	if not _tour.has("keys"):
+		var tr := Flight.tour(_tour_route(), fin - cam_focus, fin, cam_focus, bool(_tour["short"]))
+		if tr.is_empty():
+			_tour_end()
+			return
+		_tour.merge(tr)
+	if _human_a and float(_tour["t"]) > 0.4:
+		_tour["skip"] = true
+	var total: float = _tour["total"]
+	_tour["t"] = minf(float(_tour["t"]) + minf(delta, 0.1) * (6.0 if _tour.get("skip", false) else 1.0), total)
+	var t: float = _tour["t"]
+	var keys: Array = _tour["keys"]
+	var last: Array = keys[keys.size() - 1]
+	last[1] = fin
+	last[2] = cam_focus
+	camera.position = Flight.at(keys, t, 1)
+	camera.look_at(Flight.at(keys, t, 2), Vector3.UP)
+	_tour["look_d"] = camera.position.distance_to(Flight.at(keys, t, 2))
+	# (what's going by, and whose job it is)
+	var cues: Array = _tour["cues"]
+	var ci := -1
+	for i in cues.size():
+		if t >= float(cues[i][0]):
+			ci = i
+	if _tour_cap == null:
+		_tour_cap = CanvasLayer.new()
+		_tour_cap.layer = 6
+		add_child(_tour_cap)
+		var strip := UI.pill(Color(0.05, 0.06, 0.08, 0.85), Vector4(26, 10, 30, 10))
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 16)
+		row.add_child(UI.head("", 30, UI.GOLD))
+		row.add_child(UI.head("", 34, Color("f4f2ec")))
+		strip.add_child(row)
+		_tour_cap.add_child(strip)
+		UI.place(strip, Vector2(0, 1), Vector2(48, -64))
+	if ci != int(_tour["cue"]) and ci >= 0:
+		_tour["cue"] = ci
+		var stop: Array = Flight.TOUR_STOPS[String(cues[ci][1])]
+		var role := String(stop[3])
+		var who := ""
+		if role != "":
+			who = String(UI.ROLE_NAME.get(role, "")).to_upper()
+			var p = crew.crew.get(role)
+			if p != null and not p.bot:
+				who = "P%d · %s" % [p.index, who]
+		var row := (_tour_cap.get_child(0) as Control).get_child(0)
+		(row.get_child(0) as Label).text = who
+		(row.get_child(0) as Label).add_theme_color_override("font_color", UI.ROLE.get(role, UI.GOLD))
+		(row.get_child(0) as Label).visible = who != ""
+		(row.get_child(1) as Label).text = String(stop[4])
+		if autotest:
+			print("[autotest]   tour %.1fs: %s" % [t, String(cues[ci][1])])
+	(_tour_cap.get_child(0) as CanvasItem).modulate.a = smoothstep(0.0, 0.4, t) * (1.0 - smoothstep(total - Flight.TOUR_LAND_T, total - 0.5, t))
+	if t >= total:
+		_tour_end()
 
 var _incidents: Array = []   # [{at: fill fraction, kind: "clamp"/"block"}]
 var _fault_slack := 0.0       # medal slack for this pour's planned faults (score.fault_slack)
@@ -4992,6 +5105,10 @@ func _update_setup(delta: float) -> void:
 		_start_inspect()
 
 func _update_inspect(delta: float) -> void:
+	if not _tour.is_empty():
+		phase_t = 0.0        # (the engineer and the toolbox talk wait for the tour)
+		hud.brief.visible = false
+		return
 	# The engineer walks the deck checking steel, chairs and cover
 	var t := phase_t
 	engineer.position = SC + Vector3(-BW * 0.375 + BW * 0.56 * (0.5 - 0.5 * cos(t * 0.9)), work_y, -BD * 0.33 + BD * 0.66 * (0.5 - 0.5 * cos(t * 0.6)))
@@ -8076,6 +8193,11 @@ func _update_camera_views(delta: float) -> void:
 	camera.look_at(cam_focus, Vector3.UP)
 	if _fly_on and _shot_cam.is_empty():
 		_fly_camera()
+	if not _tour.is_empty() and _shot_cam.is_empty():
+		if phase == "inspect":
+			_tour_camera(delta, want)
+		else:
+			_tour_end()
 	if _shot_cam.is_empty() and (phase == "roles" or phase == "select") and is_instance_valid(selector):
 		if not TowerHand.arrival.is_empty() and (selector.page == "arrive" or selector.arriving):
 			_hand_veil_set(0.0)
@@ -8087,7 +8209,8 @@ func _update_camera_views(delta: float) -> void:
 	else:
 		_hand_veil_set(0.0)
 	# The deck view shifts up into the top part of the screen as the band opens
-	camera.v_offset = -0.34 * split_e * camera.position.distance_to(cam_focus) * tan(deg_to_rad(camera.fov * 0.5))
+	# (on the equipment tour, by how far off the thing it's looking at is)
+	camera.v_offset = -0.34 * split_e * float(_tour.get("look_d", camera.position.distance_to(cam_focus))) * tan(deg_to_rad(camera.fov * 0.5))
 	_menu_shift = move_toward(_menu_shift, 1.0 if phase == "select" else 0.0, delta * 1.6)
 	camera.h_offset = 0.0
 	_menu_frame_crew(delta)
