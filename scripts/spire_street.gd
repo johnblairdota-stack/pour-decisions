@@ -233,7 +233,7 @@ func _zone(r: Rect2, text: String, col: Color) -> void:
 
 func _zones() -> void:
 	# The ground line crosses the footpath under a pipe ramp
-	var so := Line.STEP_OVER
+	var so := Line.RAMP if Line.RAMP.x != INF else Line.STEP_OVER
 	var ramp := Node3D.new()
 	ramp.position = Vector3(so.x, gy(so.x, so.z), so.z + 0.2)
 	ramp.rotation.y = 0.14
@@ -310,7 +310,8 @@ func _path_z(x: float, lane: float) -> float:
 	var mid := (SpireSite.face_z(x) + KERB) * 0.5 + lane
 	var g := smoothstep(GATE.x - 3.0, GATE.x, x) * (1.0 - smoothstep(GATE.y, GATE.y + 3.0, x))
 	# (where the podium comes out to the stairs, that's in the kerb lane, between the stairs' foot and the racking)
-	return lerpf(mid, maxf(KERB - 0.75, Line.LADDER_FOOT.z + 0.75) + lane * 0.5, g)
+	# (Spire's line runs along the podium's wall on the footpath now: they keep to the kerb side of it)
+	return lerpf(mid, maxf(KERB - (0.6 if Line.STACK else 0.75), Line.LADDER_FOOT.z + 0.75) + lane * 0.5, g)
 
 func _process(delta: float) -> void:
 	if game == null or game.line == null:

@@ -42,6 +42,11 @@ static var LADDER_FOOT := Vector3(13.9, 0, 1.5)   # where they step off it, just
 # a bracket at every floor. The way up beside it is a scaffold stair, climbed like the ladder: hold
 # up and they walk up it flight by flight.
 static var STAIRS := false
+## Spire: the line rides up the boom's column through the slabs' openings (use_site), with a caged
+## ladder beside it; PIPE_IN is where the ground line turns in through the podium to the stack.
+static var STACK := false
+static var PIPE_IN := Vector3.INF
+static var RAMP := Vector3.INF          # (Spire: where the ground line crosses the footpath from the pump)
 static var STEP_Y := 1.0e9
 static var STEP_DZ := 0.0
 const STAIR_RUN := 2.0          # m along the face each flight runs
@@ -124,16 +129,30 @@ const KERB_TRUST_K := 1.6      # ...and the chute runs faster on trust while the
 const KERB_CALL_M3 := 3.0      # m3 left in the truck on the hopper when the next can be called round
 
 ## Sets the site's layout. Riverlight: the yard, at 45 degrees. Spire: along the kerb.
-static func use_site(kerb: bool, wall_z := 0.0, roof_y := 1.0e9, set_back := 0.0) -> void:
+static func use_site(kerb: bool, wall_z := 0.0, roof_y := 1.0e9, set_back := 0.0, stack := Vector2.INF) -> void:
 	KERB = kerb
-	STAIRS = kerb
-	STEP_Y = roof_y if kerb else 1.0e9
-	STEP_DZ = set_back if kerb else 0.0
+	STACK = kerb and stack.x != INF
+	STAIRS = kerb and not STACK
+	STEP_Y = roof_y if STAIRS else 1.0e9
+	STEP_DZ = set_back if STAIRS else 0.0
 	HOPPER_CAP = KERB_HOPPER if kerb else 5.0
 	RISER = Vector3(12.0, 0, wall_z + 0.3) if kerb else Vector3(12.0, 0, 1.45)
 	LADDER = Vector3(13.35, 0, wall_z + 0.75) if kerb else Vector3(13.35, 0, 0.7)
 	LADDER_FOOT = Vector3(13.9, 0, wall_z + 1.9) if kerb else Vector3(13.9, 0, 1.5)
 	HAUL = Vector3(10.7, 0, wall_z + 0.6) if kerb else Vector3(10.7, 0, 1.3)
+	PIPE_IN = Vector3.INF
+	if STACK:
+		# Spire (John, 21 Nov): the line goes up through the slabs' openings on the boom's square column,
+		# the way it did at The Tannery. Its pipe's on the column's +x face, the caged ladder beside it
+		# (a climber faces -x, onto the column), the haul rope down the opening's far corner. The ground
+		# line runs from the pump along the podium's wall on the footpath, turns in through the podium at
+		# the column's x and meets the 90 degree bend under the stack on the ground floor.
+		var h := 0.95 * 0.5
+		RISER = Vector3(stack.x + h + 0.21, 0, stack.y - 0.4)
+		LADDER = Vector3(stack.x + h + 0.08, 0, stack.y + 0.12)
+		LADDER_FOOT = Vector3(LADDER.x + 0.6, 0, stack.y + 1.45)
+		HAUL = Vector3(stack.x + 1.2, 0, stack.y - 0.42)
+		PIPE_IN = Vector3(RISER.x, 0, wall_z + 0.22)
 	if kerb:
 		PUMP_YAW = 0.0
 		DIR = Vector3(1, 0, 0)
@@ -145,6 +164,13 @@ static func use_site(kerb: bool, wall_z := 0.0, roof_y := 1.0e9, set_back := 0.0
 		PIPE_TURN = Vector3(15.4, 0, wall_z + 0.55)
 		STEP_OVER = Vector3(15.68, 0, 1.2)
 		STEP_YAW = -1.43
+		RAMP = STEP_OVER
+		if STACK:
+			# (along the footpath the line's tight in against the podium's wall, out of the walkers' way)
+			PIPE_TURN.z = PIPE_IN.z
+			# (the crew step over the ground line on the footpath where they turn in for the ladder)
+			STEP_OVER = Vector3(LADDER_FOOT.x + 0.15, 0, PIPE_IN.z)
+			STEP_YAW = 0.0
 		PANEL_WAIT = Vector3(-0.9, 0, 0.1)
 		BAY_WAIT = Vector3(-0.5, 0, 0.2)
 	else:
@@ -361,6 +387,8 @@ var stats := {}
 var ground_pipe: MeshInstance3D
 var ground_pipe2: MeshInstance3D   # ...its second leg, in to the riser
 var _pipe_bend: MeshInstance3D
+var ground_pipe3: MeshInstance3D   # Spire: in through the podium from the footpath to the stack's foot
+var _pipe_bends: Array[MeshInstance3D] = []   # Spire: the bends where it turns in, and up the stack
 var brackets: Array[MeshInstance3D] = []
 var ladder_rails: Array[MeshInstance3D] = []
 var ladder_rungs: MultiMeshInstance3D
@@ -437,6 +465,12 @@ func build(owner_game, which_kit: String) -> void:
 	add_child(ground_pipe2)
 	_pipe_bend = F.sphere(0.2, F.mat("pipe"), PIPE_TURN + Vector3(0, 0.6, 0))
 	add_child(_pipe_bend)
+	ground_pipe3 = MeshInstance3D.new()
+	add_child(ground_pipe3)
+	for i in 2:
+		var bend := F.sphere(0.2, F.mat("pipe"), Vector3.ZERO)
+		add_child(bend)
+		_pipe_bends.append(bend)
 	for sx in [-0.28, 0.28]:
 		var rail := F.box(Vector3(0.06, 1.0, 0.06), F.mat("yellow_dark"))
 		add_child(rail)
@@ -1072,8 +1106,8 @@ func rebuild_riser() -> void:
 	sections.clear()
 	var top: float = game.riser_top_y() if kit == "tower" else 0.0
 	riser_top = top
-	# (Spire: the riser turns in under the deck, the ladder goes on up to the platform)
-	var ladder_top: float = top + (1.7 if game.spire else 0.0)
+	# (Spire: the caged ladder goes on up the column to the work platform round its head)
+	var ladder_top: float = top + (-0.9 if STACK else 0.0)
 	for r in ladder_rails:
 		r.visible = kit == "tower" and not STAIRS
 	ladder_rungs.visible = kit == "tower" and not STAIRS
@@ -1097,7 +1131,18 @@ func rebuild_riser() -> void:
 		ladder_rungs.multimesh = mm
 	var turn := PIPE_TURN + Vector3(0, 0.6, 0)
 	_line(ground_pipe, pf(-2.9, 0.0, 0.6), turn if kit == "tower" else pf(-2.91, 0.0, 0.6), 0.16)
-	_line(ground_pipe2, turn, Vector3(RISER.x, 0.6, RISER.z), 0.16)
+	if STACK:
+		# (along the podium's wall, in through it at the column's x, and the 90 degree bend at the foot
+		# of the stack on the ground floor, where the line turns up through the openings)
+		_line(ground_pipe2, turn, PIPE_IN + Vector3(0, 0.6, 0), 0.16)
+		_line(ground_pipe3, PIPE_IN + Vector3(0, 0.6, 0), Vector3(RISER.x, 0.6, RISER.z), 0.16)
+		_pipe_bends[0].position = PIPE_IN + Vector3(0, 0.6, 0)
+		_pipe_bends[1].position = Vector3(RISER.x, 0.6, RISER.z)
+	else:
+		_line(ground_pipe2, turn, Vector3(RISER.x, 0.6, RISER.z), 0.16)
+	ground_pipe3.visible = STACK and kit == "tower"
+	for bend in _pipe_bends:
+		bend.visible = STACK and kit == "tower"
 	_riser_step()
 	ground_pipe2.visible = kit == "tower"
 	_pipe_bend.visible = kit == "tower"
@@ -1155,7 +1200,9 @@ func rebuild_riser() -> void:
 	if kit == "tower":
 		var by := 2.1
 		while by < top - 0.5:
-			var br := F.box(Vector3(0.14, 0.12, 0.55), F.mat("yellow_dark"), riser_at(by) + Vector3(0, 0, -0.38))
+			# (Spire: a short bracket back onto the column's face)
+			var br := F.box(Vector3(0.14, 0.12, 0.55), F.mat("yellow_dark"), riser_at(by) + Vector3(0, 0, -0.38)) if not STACK \
+				else F.box(Vector3(0.3, 0.12, 0.14), F.mat("yellow_dark"), riser_at(by) + Vector3(-0.16, 0, 0))
 			add_child(br)
 			brackets.append(br)
 			by += PIPE
@@ -1558,7 +1605,7 @@ func _block(from_bad: bool, heralded := false) -> void:
 	var lo := 0
 	if kit == "tower" and clamps.size() > 3:
 		lo = clamps.size() / 3
-	block_s = randi_range(lo, clamps.size() - 2)
+	block_s = randi_range(mini(lo, _fault_top() - 1), maxi(0, _fault_top() - 1))
 	if force_top_block:
 		force_top_block = false
 		block_s = clamps.size() - 2        # (dev --trucktest: the plug in the top section)
@@ -1595,6 +1642,16 @@ func _block(from_bad: bool, heralded := false) -> void:
 		game.hud.toast("The line sat too long and went off. Blockage!", 2.2)
 	game.sfx.hit("thunk")
 
+## The highest joint a fault can come at. Spire's line rides the boom's column on up past the deck:
+## the joints up there are the climb crew's, so faults keep to the line under the deck (as they did
+## when it turned in under the slab).
+func _fault_top() -> int:
+	var hi := clamps.size() - 1
+	if STACK:
+		while hi > 1 and float(clamps[hi]["pos"].y) > game.work_y + 1.0:
+			hi -= 1
+	return hi
+
 func start_failure(heralded := false) -> void:
 	if clamps.is_empty() or fail_i >= 0 or burst or blocked or job_kind != "":
 		return
@@ -1607,9 +1664,9 @@ func start_failure(heralded := false) -> void:
 			pick = i
 	if pick < 0:
 		var lo := 0
-		var hi := clamps.size() - 1
+		var hi := _fault_top()
 		if kit == "tower" and clamps.size() > 2:
-			lo = 1
+			lo = mini(1, hi)
 		pick = randi_range(lo, hi)
 		# Dev (`--midclamp`): the one halfway up, between the deck and the street
 		if OS.get_cmdline_user_args().has("--midclamp"):
@@ -3368,6 +3425,18 @@ func _update_winch_hand(delta: float) -> void:
 				_winch_state = "idle"
 				_winch_t = 0.0
 	var at := _winch.position
+	if STACK:
+		# (Spire: in and out of the building by the passage beside the ground line, over its step-over)
+		var inner := Vector3(STEP_OVER.x, 0, PIPE_IN.z - 0.5)
+		var outer := Vector3(STEP_OVER.x, 0, PIPE_IN.z + 0.7)
+		var at_in := at.z < PIPE_IN.z - 0.1
+		var to_in := to.z < PIPE_IN.z - 0.1
+		# (line up on the passage first, then straight through it)
+		var lined := absf(at.x - STEP_OVER.x) < 0.2
+		if at_in and not to_in:
+			to = outer if lined and at.z > inner.z - 0.2 else inner
+		elif to_in and not at_in:
+			to = inner if lined and at.z < outer.z + 0.2 else outer
 	var step := Vector3(to.x - at.x, 0, to.z - at.z)
 	var walking := step.length() > 0.05
 	if walking:
@@ -3658,6 +3727,8 @@ func _step_overs() -> void:
 	if kit != "tower":
 		return
 	var run: Array[Vector3] = [pf(-2.9, 0.0), PIPE_TURN, Vector3(RISER.x, 0, RISER.z)]
+	if STACK:
+		run = [pf(-2.9, 0.0), PIPE_TURN, PIPE_IN, Vector3(RISER.x, 0, RISER.z)]
 	for p in game.players:
 		var k := 0.0
 		var high := 0.0
