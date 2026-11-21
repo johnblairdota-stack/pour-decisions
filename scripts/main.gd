@@ -50,6 +50,7 @@ const SpireSite := preload("res://scripts/spire_site.gd")
 const SpireB := preload("res://scripts/spire_b.gd")
 const SpireStreet := preload("res://scripts/spire_street.gd")
 const TowerHand := preload("res://scripts/tower_hand.gd")
+const Flight := preload("res://scripts/flight.gd")
 const RoofSet := preload("res://scripts/roof_set.gd")
 const LookFx := preload("res://scripts/look_fx.gd")
 
@@ -2140,6 +2141,28 @@ var _pick_boat: Node3D
 var _pick_wake: MeshInstance3D
 var _caption: CanvasLayer
 var _hand_u := 0.0
+var _hand_laps := 0              # times the cruise behind the join and the hand has started again
+var _hand_veil: CanvasLayer      # the haze it starts again behind (under every page)
+var _on_river := false           # this frame's camera is the cruise up the river (the place's sound)
+var _arrive_fl: Dictionary = {}  # the flight being flown (Flight.TOWERS), its keys in _arrive_keys
+var _arrive_apex := -1.0         # s: the top of its arc (the float)
+var _arrive_gate := -1.0         # s: through its gate (the Story Bridge)
+var _arrive_snd: Dictionary = {} # the sound's score this frame (Flight.score), or empty
+
+func _hand_veil_set(a: float) -> void:
+	if _hand_veil == null:
+		if a <= 0.0:
+			return
+		_hand_veil = CanvasLayer.new()
+		_hand_veil.layer = -1
+		add_child(_hand_veil)
+		var r := ColorRect.new()
+		r.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		r.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_hand_veil.add_child(r)
+	var rect := _hand_veil.get_child(0) as ColorRect
+	rect.color = Color(env.fog_light_color, a)
+	_hand_veil.visible = a > 0.0
 
 ## The flight's path: low over the river to this site, from downstream (game coordinates).
 func _river_pts() -> Array:
@@ -2191,12 +2214,11 @@ func _pick_boat_at(u: float, ahead: float) -> void:
 		add_child(_pick_boat)
 		_pick_wake = MeshInstance3D.new()
 		var pm := PlaneMesh.new()
-		pm.size = Vector2(7.0, 70.0)
+		pm.size = Vector2(17.0, 84.0)
 		_pick_wake.mesh = pm
-		var wm := StandardMaterial3D.new()
-		wm.albedo_color = Color(1, 1, 1, 0.6)
-		wm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		wm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		# (a V of foam off the stern, all in the shader: shaders/wake.gdshader)
+		var wm := ShaderMaterial.new()
+		wm.shader = preload("res://shaders/wake.gdshader")
 		_pick_wake.material_override = wm
 		_pick_wake.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(_pick_wake)
@@ -2227,12 +2249,22 @@ func _pick_boat_at(u: float, ahead: float) -> void:
 	if dir.length() > 0.1:
 		_pick_boat.look_at(_pick_boat.position + dir, Vector3.UP)
 		_pick_boat.rotate_y(PI * 0.5)      # (the model runs along its x)
-		_pick_wake.position = _pick_boat.position - dir * 38.0 + Vector3(0, 0.15, 0)
+		_pick_wake.position = _pick_boat.position - dir * 45.0 + Vector3(0, 0.15, 0)
 		_pick_wake.look_at(_pick_wake.position + dir, Vector3.UP)
 
 ## Behind the hand: a slow flight up the river, never stopping.
 func _hand_camera(delta: float) -> void:
-	_hand_u = fmod(_hand_u + delta * 0.012, 0.7)
+	_hand_u += delta * 0.012
+	if _hand_u >= 0.7:
+		_hand_u -= 0.7
+		_hand_laps += 1
+	# (the cruise starts again every 58 s: the jump back down the river goes by behind a moment of
+	# river haze, not as a cut)
+	var veil := smoothstep(0.7 - 1.3 * 0.012, 0.7 - 0.15 * 0.012, _hand_u)
+	if _hand_laps > 0:
+		veil = maxf(veil, 1.0 - smoothstep(0.1 * 0.012, 1.3 * 0.012, _hand_u))
+	_hand_veil_set(veil)
+	_on_river = true
 	var p := _river_at(_hand_u) + Vector3(0, 22.0, 0)
 	var ahead := _river_at(_hand_u + 0.18) + Vector3(0, 16.0, 0)     # (up the reach: the skyline over the water)
 	camera.position = p
@@ -2246,17 +2278,15 @@ func _arrive_boat_line() -> Array:
 	if not _arrive_line.is_empty():
 		return _arrive_line
 	var out: Array = []
-	if spire:
+	var fl: Dictionary = _arrive_fl if not _arrive_fl.is_empty() else Flight.of("spire" if spire else "riverlight")
+	if String(fl["frame"]) == "spire":
 		var y := float(SpireSite.d.get("river_ahd", 0.3)) - SpireSite.street
-		# (the site's own metres, as the Blender scene has them: up the Town Reach with Howard Smith
-		# Wharves on the right, under the Story Bridge's main span 60 m north of its middle, 80 m off the wharves (layout.STORY_BRIDGE),
-		# and on towards the city. The run starts 45 m short of the bridge.)
-		for q in [[600.0, -35.0], [488.0, -15.0], [400.0, -60.0], [385.4, -66.0]]:
+		for q in fl["line"]:
 			var gq := SpireSite.g(q)
 			out.append(Vector3(gq.x, y, gq.y))
 	else:
-		for q in [Vector2(330, -338), Vector2(250, -318), Vector2(185, -292), Vector2(140, -262), Vector2(112, -250)]:
-			out.append(-REAL_ORIGIN + Vector3(q.x, Surrounds.RIVER_Y, q.y))
+		for q in fl["line"]:
+			out.append(-REAL_ORIGIN + Vector3(float(q[0]), Surrounds.RIVER_Y, float(q[1])))
 	_arrive_line = out
 	return out
 
@@ -2299,13 +2329,14 @@ func _arrive_place_boat(t: float) -> void:
 	_pick_boat.position = at
 	_pick_boat.look_at(at + dir, Vector3.UP)
 	_pick_boat.rotate_y(PI * 0.5)      # (the model runs along its x)
-	_pick_wake.position = at - dir * 38.0 + Vector3(0, 0.15, 0)
+	_pick_wake.position = at - dir * 45.0 + Vector3(0, 0.15, 0)
 	_pick_wake.look_at(_pick_wake.position + dir, Vector3.UP)
 
 ## The flight's keys: behind the CityCat down the river, the site ahead and to one side the whole way,
 ## then off the water in one arc round the end of the building to the floor pick's own view
 ## (`fin`, `fin_look`: the last key, which the floor pick's camera owns).
 func _arrive_build(tower: Vector3, fin: Vector3, fin_look: Vector3) -> Array:
+	var fl := _arrive_fl
 	var keys: Array = []
 	var n := 4
 	for i in n + 1:
@@ -2316,86 +2347,36 @@ func _arrive_build(tower: Vector3, fin: Vector3, fin_look: Vector3) -> Array:
 		var side := Vector3(dir.z, 0, -dir.x)
 		if side.dot(tower - at) > 0.0:
 			side = -side                    # (the camera rides on the far side of the boat from the site)
-		var f := float(i) / n
-		var cam := at - dir * lerpf(46.0, 38.0, f) + side * 11.0 + Vector3(0, lerpf(8.0, 11.0, f), 0)
-		var look := (at + dir * 14.0 + Vector3(0, 3.0, 0)).lerp(tower, lerpf(0.3, 0.5, f))
-		if spire:
-			# (from well back, the whole Story Bridge across the frame and the CityCat going under it,
-			# Howard Smith Wharves along the right bank; then closing on the boat and under the deck
-			# itself, low: the steel's 33 m over the water. It ends 20 m clear of the truss upstream.)
-			cam = at - dir * lerpf(190.0, 38.0, f) + side * lerpf(30.0, 11.0, f) + Vector3(0, lerpf(30.0, 14.0, smoothstep(0.0, 0.75, f)), 0)     # (the curve dips about 4 m under this as it gathers itself for the climb)
-			look = (at + dir * 14.0 + Vector3(0, lerpf(26.0, 3.0, f), 0)).lerp(tower, lerpf(0.1, 0.5, f * f))
+		var ch := Flight.chase(fl, float(i) / n, at, dir, side, tower)
+		var cam: Vector3 = ch[0]
+		var look: Vector3 = ch[1]
 		keys.append([t, cam, look])
 	var r: Vector3 = keys[n][1]
 	var out_n := Vector3(fin.x - fin_look.x, 0, fin.z - fin_look.z).normalized()     # (the side the floor pick looks in from)
 	var e := Vector3(out_n.z, 0, -out_n.x)
 	var deck := fin_look.y
 	# (round the end of the building: [s, along e, along out_n, m over the deck, how far the look's gone to the deck])
-	var arc: Array = [[6.2, 84.0, -150.0, 34.0, 0.35], [8.4, 70.0, -40.0, 24.0, 0.75], [10.0, 24.0, 42.0, 10.0, 1.0]]
-	var floor_y := -1e9
-	ARRIVE_T = 12.0
-	if not spire:
-		e = -e          # (Riverlight: round the east end, the crew's own wing; the west wing stands at the other)
-		floor_y = 24.0  # (and over the street trees, however low the deck is)
-	if spire:
-		# (Spire's deck is down among taller neighbours and 330 m back from the river: up over the
-		# roofs through the gap east of the tower next door, round the cathedral end where nothing
-		# stands tall, and down onto Ann St. Checked against cuts through the city model at 40, 70
-		# and 100 m: never under 85 m until it's over the cathedral grounds.)
-		# (the third key keeps it outside the tower crane's jib until it's under it)
-		# (it leaves the water 40 m upstream of the Story Bridge, the camera clear of the truss, and
-		# swings up over the cliff in one sweep: 480 m to the site)
-		arc = [[9.6, 146.0, -189.0, 72.0, 0.35], [12.2, 84.0, -48.0, 58.0, 0.7], [13.4, 70.0, 20.0, 34.0, 0.9], [14.5, 22.0, 50.0, 20.0, 1.0]]
-		floor_y = 88.0
-		ARRIVE_T = 16.0
+	var arc: Array = fl["arc"]
+	var floor_y := float(fl["floor_y"])
+	var floor_n := int(fl["floor_n"])
+	ARRIVE_T = float(fl["total_t"])
+	# (Riverlight: round the east end, the crew's own wing; the west wing stands at the other)
+	e *= -float(fl["end"])
 	for k in arc:
 		var p := Vector3(fin_look.x, deck + float(k[3]), fin_look.z) + e * float(k[1]) + out_n * float(k[2])
-		if not spire or arc.find(k) < 2:
+		if arc.find(k) < floor_n:
 			p.y = maxf(p.y, floor_y)        # (Spire's last two are already down over the cathedral grounds and Ann St)
 		keys.append([float(k[0]), p, tower.lerp(fin_look, float(k[4]))])
 	# (the first of the arc sits between the river and the site, wherever the river is)
 	var k1: Array = keys[n + 1]
 	var p1: Vector3 = r.lerp(k1[1], 0.62)
-	k1[1] = Vector3(p1.x, lerpf(r.y, maxf(deck + float(arc[0][3]), floor_y + 8.0), 0.7 if not spire else 1.0), p1.z)
+	k1[1] = Vector3(p1.x, lerpf(r.y, maxf(deck + float(arc[0][3]), floor_y + 8.0), float(fl["rise"])), p1.z)
 	keys.append([ARRIVE_T, fin, fin_look])
 	return keys
 
-## The flight's velocity through key i: along the line between its neighbours, but never much faster
-## than the slower of the two legs it joins (the river's 19 m/s into the arc's 100: a plain average
-## made it back off before the key and then lurch), and stopped dead on the last.
-func _arrive_tan(i: int, which: int) -> Vector3:
-	var keys := _arrive_keys
-	var n := keys.size()
-	if i >= n - 1:
-		return Vector3.ZERO
-	var p: Vector3 = keys[i][which]
-	var v_next: Vector3 = ((keys[i + 1][which] as Vector3) - p) / (float(keys[i + 1][0]) - float(keys[i][0]))
-	if i == 0:
-		return v_next
-	var v_prev: Vector3 = (p - (keys[i - 1][which] as Vector3)) / (float(keys[i][0]) - float(keys[i - 1][0]))
-	var m: Vector3 = ((keys[i + 1][which] as Vector3) - (keys[i - 1][which] as Vector3)) / (float(keys[i + 1][0]) - float(keys[i - 1][0]))
-	var cap := 1.8 * minf(v_prev.length(), v_next.length())
-	return m.limit_length(cap)
-
-## A point on the flight at t: a Hermite curve through the keys (which = 1 camera, 2 look), its
-## speed carried across each key and brought to a stop on the last.
+## A point on the flight at t (which = 1 camera, 2 look): the kit's curve through the keys.
 func _arrive_at(t: float, which: int) -> Vector3:
-	var keys := _arrive_keys
-	var n := keys.size()
-	var i := 0
-	while i < n - 2 and t > float(keys[i + 1][0]):
-		i += 1
-	var t0: float = keys[i][0]
-	var t1: float = keys[i + 1][0]
-	var p0: Vector3 = keys[i][which]
-	var p1: Vector3 = keys[i + 1][which]
-	var m0 := _arrive_tan(i, which)
-	var m1 := _arrive_tan(i + 1, which)
-	var h := t1 - t0
-	var u := clampf((t - t0) / h, 0.0, 1.0)
-	var u2 := u * u
-	var u3 := u2 * u
-	return (2.0 * u3 - 3.0 * u2 + 1.0) * p0 + (u3 - 2.0 * u2 + u) * h * m0 + (-2.0 * u3 + 3.0 * u2) * p1 + (u3 - u2) * h * m1
+	return Flight.at(_arrive_keys, t, which)
 
 ## Playing a card: its picture dissolves onto the river, a short run behind the CityCat with the site
 ## ahead, then one arc off the water and round onto the floor pick (whose page fades up as it lands).
@@ -2408,13 +2389,17 @@ func _arrive_camera(delta: float, fin: Vector3) -> void:
 		a["t"] = 0.0
 		_arrive_keys = []
 		_arrive_line = []
-		ARRIVE_RIVER_T = 6.0 if spire else 3.6
+		_arrive_fl = Flight.of(String(a["card"].get("id", "")))
+		ARRIVE_RIVER_T = float(_arrive_fl["river_t"])
+		ARRIVE_T = float(_arrive_fl["total_t"])
+		_arrive_apex = -1.0
 		selector.arrive_site(a["card"])
 		_light_snap = true       # (behind the picture: straight to that floor's own light, so nothing shifts on landing)
 		return
 	if _human_a and float(a["t"]) > 0.4:
 		a["skip"] = true                 # (A: the rest of it at six times the speed)
-	var dt := minf(delta, 0.1) * (6.0 if a.get("skip", false) else 1.0)
+	# (a moment's float at the top of the arc: the flight's own clock eases there)
+	var dt := minf(delta, 0.1) * (6.0 if a.get("skip", false) else 1.0) * Flight.rate(float(a["t"]), _arrive_apex)
 	a["t"] = minf(float(a["t"]) + dt, ARRIVE_T)
 	var t: float = a["t"]
 	var tower := Vector3(SC.x, cam_focus.y * 0.6 + 4.0, SC.z)
@@ -2425,6 +2410,8 @@ func _arrive_camera(delta: float, fin: Vector3) -> void:
 		# (built again while it's still on the river: the floor pick's camera takes a moment to find
 		# its deck, and the arc is measured up from that deck)
 		_arrive_keys = _arrive_build(tower, fin, cam_focus)
+		_arrive_apex = Flight.apex_t(_arrive_keys, ARRIVE_RIVER_T)
+		_arrive_gate = Flight.gate_t(_arrive_fl, _arrive_keys)
 	var last: Array = _arrive_keys[_arrive_keys.size() - 1]
 	last[1] = fin
 	last[2] = cam_focus
@@ -2441,8 +2428,14 @@ func _arrive_camera(delta: float, fin: Vector3) -> void:
 	(_caption.get_child(0) as CanvasItem).modulate.a = smoothstep(0.8, 1.6, t) * (1.0 - smoothstep(ARRIVE_T - ARRIVE_UI_T - 1.2, ARRIVE_T - ARRIVE_UI_T - 0.2, t))
 	camera.position = _arrive_at(t, 1)
 	camera.look_at(_arrive_at(t, 2), Vector3.UP)
+	# (the feel: banked into the turns, the lens opening with the speed, both gone as it settles)
+	var feel := Flight.feel(_arrive_keys, t, ARRIVE_RIVER_T)
+	a["roll"] = lerpf(float(a.get("roll", 0.0)), float(feel["roll"]), minf(1.0, dt * 2.5))
+	camera.rotate_object_local(Vector3(0, 0, 1), -float(a["roll"]))
+	camera.fov = lerpf(camera.fov, float(feel["fov"]), minf(1.0, dt * 5.0))
+	_arrive_snd = {"t": t}
 	if OS.get_cmdline_user_args().has("--arrivedbg"):      # (dev: the flight, frame by frame, to measure its speed)
-		print("ARR t=%.2f cam=%s look=%s fin=%s" % [t, str(camera.position.snapped(Vector3.ONE * 0.1)), str(_arrive_at(t, 2).snapped(Vector3.ONE * 0.1)), str(fin.snapped(Vector3.ONE * 0.1))])
+		print("ARR t=%.2f cam=%s look=%s fin=%s v=%.0f roll=%.1f fov=%.1f apex=%.1f gate=%.1f" % [t, str(camera.position.snapped(Vector3.ONE * 0.1)), str(_arrive_at(t, 2).snapped(Vector3.ONE * 0.1)), str(fin.snapped(Vector3.ONE * 0.1)), float(feel["v"]), rad_to_deg(float(a["roll"])), camera.fov, _arrive_apex, _arrive_gate])
 	selector.arrive_fade(smoothstep(ARRIVE_T - ARRIVE_UI_T, ARRIVE_T - 0.2, t))
 	if TowerHand.shots != "" and TowerHand.shots != "-":
 		for sh in [["order_5_flight", 3.0], ["order_6_arrive", 9.0]]:
@@ -2450,6 +2443,9 @@ func _arrive_camera(delta: float, fin: Vector3) -> void:
 				TowerHand.shot(sh[0], get_viewport())
 	if t >= ARRIVE_T:
 		TowerHand.arrival = {}
+		camera.fov = Flight.FOV
+		_arrive_snd = {}
+		_arrive_fl = {}
 		TowerHand.uncover(1.0)
 		_caption.queue_free()
 		_caption = null
@@ -5281,6 +5277,9 @@ func _update_places() -> void:
 		"dawn": 1.0 if is_dawn() else 0.0, "wind": 0.25 + 0.75 * up, "rain": 1.0 if rain.emitting else 0.0,
 		"river": 0.0, "city": 0.0, "park": 0.0, "traffic": 0.0}
 	var boat := 0.0
+	var boat_pitch := 1.0
+	var lull := 0.0
+	var quick := 1.0
 	if _fly_on:
 		var water := 1.0 - smoothstep(7.0, 12.0, _fly_t)
 		boat = 1.0 - smoothstep(4.0, 10.0, _fly_t)
@@ -5289,13 +5288,30 @@ func _update_places() -> void:
 		amb["dawn"] = 0.0
 		amb["wind"] = 0.2 * water + 0.8 * smoothstep(8.0, 14.0, _fly_t) * (1.0 - 0.5 * smoothstep(16.0, 20.0, _fly_t))
 		amb["city"] = smoothstep(12.0, 18.0, _fly_t)
+	elif not _arrive_snd.is_empty():
+		# (flying in to a tower: the flight kit's score, handing over to the site as it settles)
+		var sc := Flight.score(float(_arrive_snd["t"]), ARRIVE_RIVER_T, _arrive_apex, _arrive_gate, ARRIVE_T, spire, amb)
+		amb = sc["amb"]
+		boat = float(sc["boat"])
+		boat_pitch = float(sc["pitch"])
+		lull = float(sc["lull"])
+		quick = 5.0
+	elif _on_river:
+		# (the join, the jobs and the hand: cruising up the river behind the CityCat)
+		amb["river"] = 0.8
+		amb["morning"] *= 0.3
+		amb["wind"] = 0.2
+		boat = 0.45
 	elif phase == "topout":
 		# the site's gone quiet and the garden's in
 		amb = {"morning": 1.0, "dawn": 0.0, "wind": 0.2, "rain": amb["rain"], "river": 0.15, "city": 0.3,
 			"park": 0.4, "traffic": 0.0}
 	for name in amb:
 		sfx.set_ambience(name, amb[name])
-	sfx.set_loop("citycat", boat)
+	sfx.set_loop("citycat", boat, boat_pitch)
+	sfx.lull = lull
+	sfx.amb_quick = quick
+	_on_river = false
 	if autotest and _fly_on and fmod(_fly_t, 2.0) < get_process_delta_time():
 		print("[autotest]   fly-past %.0fs: river %.2f, CityCat %.2f, city %.2f" % [_fly_t, float(amb["river"]), boat, float(amb["city"])])
 
@@ -8062,9 +8078,14 @@ func _update_camera_views(delta: float) -> void:
 		_fly_camera()
 	if _shot_cam.is_empty() and (phase == "roles" or phase == "select") and is_instance_valid(selector):
 		if not TowerHand.arrival.is_empty() and (selector.page == "arrive" or selector.arriving):
+			_hand_veil_set(0.0)
 			_arrive_camera(delta, want)
 		elif selector.page == "tower" or (selector.page == "crew" and selector.wants_tower_page()):
 			_hand_camera(delta)      # (the join, the jobs and the hand: up the river, no site yet)
+		else:
+			_hand_veil_set(0.0)
+	else:
+		_hand_veil_set(0.0)
 	# The deck view shifts up into the top part of the screen as the band opens
 	camera.v_offset = -0.34 * split_e * camera.position.distance_to(cam_focus) * tan(deg_to_rad(camera.fov * 0.5))
 	_menu_shift = move_toward(_menu_shift, 1.0 if phase == "select" else 0.0, delta * 1.6)
