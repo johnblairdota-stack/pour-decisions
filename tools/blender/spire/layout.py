@@ -582,6 +582,12 @@ def ref(name):
 OSM_FIX = {1331260431: {"width": "15.5", "lanes": "5"}, 1225155646: {"width": "15.5", "lanes": "5"},
            13861717: {"width": "6.6", "lanes": "2"}}    # the two-lane left turn off Ann St round Cathedral Square
 
+# Asphalt OSM's single-lane turn links leave as gaps (the model raised footpath and kerb islands there).
+EXTRA_ASPHALT = [
+    {"what": "Ann St through the Gotha St / Wharf St junction, kerb to kerb (2018 aerial)",
+     "pts": [(161.7, 222.2), (188.7, 256.2), (213.7, 290.2)], "width": 20.8},
+]
+
 
 def osm():
     """Cropped OSM (raw elements) -> dict with local-metre geometry."""
@@ -604,6 +610,11 @@ def osm():
     for wid, fix in OSM_FIX.items():
         if wid in ways:
             ways[wid].setdefault("tags", {}).update(fix)
+    for k, ex in enumerate(EXTRA_ASPHALT):                   # plain asphalt (no kerb, no marking) as service ways
+        ids = [-(1000 * (k + 1) + i) for i in range(len(ex["pts"]))]
+        nodes.update(zip(ids, ex["pts"]))
+        ways[-(k + 1)] = {"type": "way", "id": -(k + 1), "nodes": ids,
+                          "tags": {"highway": "service", "width": str(ex["width"]), "note": ex["what"]}}
     _cache["osm"] = out = {"nodes": nodes, "ways": ways, "rels": rels, "line": line}
     return out
 

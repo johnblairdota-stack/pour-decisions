@@ -192,6 +192,9 @@ def build():
         width_src[src] += 1
         lift = ROAD_Z.get(t["highway"], 0.028)
         pts = C.densify(pts)
+        if "note" in t:                                      # layout.EXTRA_ASPHALT: flat fill under the real ways
+            ribbon(roads, C.offset_line(pts, wd / 2), C.offset_line(pts, -wd / 2), 0.02)
+            continue
         crowned(roads, pts, wd, lift)
         n_car += 1
         lanes = int(L.tag_float(t, "lanes") or (2 if t["highway"] in ("primary", "secondary", "tertiary") else 1))

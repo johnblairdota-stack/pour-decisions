@@ -22,7 +22,7 @@ STYLE = {"sidewalk": (0.55, 0.7, "path_paving"), "island": (0.55, 0.7, "path_pav
          "cycleway": (0.32, 0.0, "path_bike"), "steps": (0.34, 0.0, "path_steps")}
 COL = {"path_paving": (0.3, 0.265, 0.235), "path_plaza": (0.36, 0.31, 0.27), "path_park": (0.42, 0.39, 0.34),
        "path_bike": (0.17, 0.17, 0.175), "path_steps": (0.42, 0.41, 0.39), "path_paint": (0.85, 0.85, 0.82),
-       "path_pavers": (0.42, 0.3, 0.23), "path_hedge": (0.05, 0.14, 0.035), "path_rail": (0.45, 0.47, 0.48),
+       "path_pavers": (0.42, 0.3, 0.23), "path_hedge": (0.035, 0.085, 0.025), "path_rail": (0.45, 0.47, 0.48),
        "path_asphalt": (0.085, 0.085, 0.09)}
 CROSSING_LIFT = 0.49
 
