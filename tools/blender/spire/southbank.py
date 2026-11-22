@@ -30,13 +30,17 @@ ZONE = [(-1112.0, -1120.0), (-1075.0, -1260.0), (-1010.0, -1400.0), (-962.0, -15
 BANK_GUESS = [(-1062.0, -1140.0), (-1019.0, -1205.0), (-987.0, -1260.0), (-957.0, -1310.0), (-927.0, -1360.0), (-887.0, -1410.0),
               (-857.0, -1460.0), (-815.0, -1550.0), (-750.0, -1600.0), (-705.0, -1650.0), (-670.0, -1700.0), (-655.0, -1750.0),
               (-635.0, -1800.0), (-610.0, -1850.0), (-585.0, -1900.0), (-570.0, -1950.0), (-560.0, -2000.0)]
+# City Botanic Gardens and the Gardens Point bank (John, 22 Nov: the park looked poor from the tower tops). Buildings,
+# roads and the river are cut out of it, so the ring only has to be generous.
+GARDENS = [(-335.0, -1170.0), (125.0, -1170.0), (125.0, -1800.0), (-60.0, -1840.0), (-200.0, -1800.0), (-200.0, -1560.0), (-330.0, -1380.0)]
+POND = (-238.0, -1262.0, 16.0, 10.0)                             # the lagoon by the Alice St side: centre, half axes (2022 aerial)
 BEACH = (-830.0, -1790.0, -640.0, -1570.0)                       # Streets Beach: sand and lagoon only count in here
 ARBOUR = [(-962.0, -1392.0), (-940.0, -1440.0), (-918.0, -1490.0), (-893.0, -1535.0), (-882.0, -1575.0), (-878.0, -1615.0),
           (-862.0, -1648.0), (-843.0, -1690.0), (-822.0, -1740.0), (-800.0, -1785.0), (-775.0, -1830.0), (-750.0, -1870.0),
           (-720.0, -1905.0), (-690.0, -1940.0), (-655.0, -1985.0)]
 PROM_W = 9.0                                                     # Clem Jones Promenade width (m)
 SIGN = {"s": -6.0, "t": 17.5, "h": 2.5, "depth": 0.7, "gap": 0.3}   # along the bank from the forecourt datum, inland of the bank
-TERRACE = (15.0, 56.0, 5.15)                                     # forecourt terrace: river edge and inland edge (m from the bank), level (m AHD; 2019 LiDAR ground is 4.4 to 5.3)
+TERRACE = (15.0, 56.0, 5.45)                                     # forecourt terrace: river edge and inland edge (m from the bank), level (m AHD; 2019 LiDAR ground is 4.4 to 5.3)
 SIGN_DATUM = (-1019.0, -1205.0)                                  # bank point the forecourt is laid out from (snapped to the mask)
 LETTERS = [("B", (0.80, 0.02, 0.22), (0.90, 0.20, 0.02)), ("R", (0.42, 0.03, 0.55), (0.85, 0.05, 0.40)),
            ("I", (0.95, 0.60, 0.02), (0.85, 0.08, 0.30)), ("S", (0.05, 0.14, 0.75), (0.45, 0.06, 0.70)),
@@ -47,7 +51,7 @@ MATS = {   # name: (rgb, roughness)
     "sb_prom": ((0.600, 0.585, 0.545), 0.8), "sb_sand": ((0.800, 0.730, 0.560), 0.95), "sb_lagoon": ((0.060, 0.520, 0.560), 0.06),
     "sb_wall": ((0.640, 0.630, 0.600), 0.8), "sb_steel": ((0.300, 0.310, 0.330), 0.4), "sb_post": ((0.130, 0.120, 0.150), 0.5),
     "sb_bloom": ((0.720, 0.030, 0.330), 0.8), "sb_frond": ((0.085, 0.200, 0.045), 0.6), "sb_palm_trunk": ((0.420, 0.390, 0.330), 0.85),
-    "sb_plinth": ((0.300, 0.300, 0.300), 0.8)}
+    "sb_plinth": ((0.300, 0.300, 0.300), 0.8), "sb_pond": ((0.030, 0.045, 0.028), 0.05)}
 _PROM = None                                                     # (bank line, promenade level per point, inland side) once built
 
 
@@ -74,6 +78,8 @@ def camera_fix(x, y, z=None, eye=1.65):
 
 def in_zone(x, y):
     """True where this module plants the trees itself (city_wide and cbd_ext skip their own there)."""
+    if -340.0 < x < 130.0 and -1845.0 < y < -1165.0:
+        return C.point_in_ring(x, y, GARDENS)
     return ZONE[0][0] - 10 < x < -500.0 and -2070.0 < y < -1110.0 and C.point_in_ring(x, y, ZONE)
 
 
@@ -144,20 +150,36 @@ def forecourt_lawn(o, u, n):
     return [fc(o, u, n, *p) for p in ((-46.0, 16.0), (36.0, 16.0), (36.0, 40.0), (-15.0, 40.0), (-15.0, 33.0), (-46.0, 33.0))]
 
 
-def classify(line):
-    """1 m class grid over the zone: 0 nothing, 1 paving, 2 lawn, 3 garden bed (under canopy), 4 sand, 5 lagoon."""
-    from PIL import Image, ImageDraw
+def _rgb(bx0, by0, bx1, by1):
+    """1 m colour grid of a box: the 2 m State aerial, sharpened by the 0.5 m aerial where the tower packs carry it."""
+    from PIL import Image
     Image.MAX_IMAGE_PIXELS = None
     rv, wat = _water()
     X0, Y1 = rv["box_local"][0], rv["box_local"][3]
-    bx0, by0 = min(p[0] for p in ZONE) - 4, min(p[1] for p in ZONE) - 4
-    bx1, by1 = max(p[0] for p in ZONE) + 4, max(p[1] for p in ZONE) + 4
-    bx0, by0, bx1, by1 = [2 * math.floor(v / 2) for v in (bx0, by0, bx1, by1)]
-    im = Image.open(os.path.join(L.REF, "river", "aerial_wide.jpg")).convert("RGB")
-    box = ((bx0 - X0) / 2, (Y1 - by1) / 2, (bx1 - X0) / 2, (Y1 - by0) / 2)
     W, H = int(bx1 - bx0), int(by1 - by0)
-    rgb = np.asarray(im.crop(box).resize((W, H), Image.BILINEAR)).astype("f4")
+    box = ((bx0 - X0) / 2, (Y1 - by1) / 2, (bx1 - X0) / 2, (Y1 - by0) / 2)
+    rgb = np.asarray(Image.open(os.path.join(L.REF, "river", "aerial_wide.jpg")).convert("RGB").crop(box).resize((W, H), Image.BILINEAR)).astype("f4")
     wt = np.asarray(Image.fromarray(wat * 255).crop(box).resize((W, H), Image.BILINEAR)) > 100
+    fp = os.path.join(L.REF, "ext", "aerial_2022_ext.jpg")
+    if os.path.exists(fp):
+        m = json.load(open(os.path.join(L.REF, "ext", "ext.json")))
+        ex0, ey1 = m["box_local"][0], m["box_local"][3]
+        fine = np.asarray(Image.open(fp).convert("RGB").crop(((bx0 - ex0) * 2, (ey1 - by1) * 2, (bx1 - ex0) * 2, (ey1 - by0) * 2)).resize((W, H), Image.BOX)).astype("f4")
+        ok = np.abs(fine - np.array([86.0, 90.0, 76.0])).max(2) > 9.0      # (86, 90, 76) is the aerial's no-data fill; outside the image crops to black
+        ok &= fine.max(2) > 8.0
+        ok = ~_near(~ok, 2)
+        rgb[ok] = fine[ok]
+    return rgb, wt
+
+
+def classify_zone(ring, beach=None):
+    """1 m class grid over a ring: 0 nothing, 1 paving, 2 lawn, 3 garden bed (under canopy), 4 sand, 5 lagoon."""
+    from PIL import Image, ImageDraw
+    bx0, by0 = min(p[0] for p in ring) - 4, min(p[1] for p in ring) - 4
+    bx1, by1 = max(p[0] for p in ring) + 4, max(p[1] for p in ring) + 4
+    bx0, by0, bx1, by1 = [2 * math.floor(v / 2) for v in (bx0, by0, bx1, by1)]
+    W, H = int(bx1 - bx0), int(by1 - by0)
+    rgb, wt = _rgb(bx0, by0, bx1, by1)
     r, g, b = rgb[..., 0], rgb[..., 1], rgb[..., 2]
     mean = (r + g + b) / 3.0
     green = g - (r + b) / 2.0
@@ -165,16 +187,17 @@ def classify(line):
     cls[(green > 6.0) & (mean > 86.0)] = 2
     cls[(green > 4.0) & (mean <= 86.0)] = 3
     cls[(mean <= 60.0)] = 3                                        # deep shade under figs
-    xs = bx0 + np.arange(W) + 0.5
-    ys = by1 - np.arange(H) - 0.5
-    XX, YY = np.meshgrid(xs, ys)
-    inb = (XX > BEACH[0]) & (XX < BEACH[2]) & (YY > BEACH[1]) & (YY < BEACH[3])
-    lag = inb & (b > r + 14.0) & (mean > 120.0)
-    cls[inb & (mean > 178.0) & (green < 6.0)] = 4
-    cls[lag] = 5
+    if beach:
+        xs = bx0 + np.arange(W) + 0.5
+        ys = by1 - np.arange(H) - 0.5
+        XX, YY = np.meshgrid(xs, ys)
+        inb = (XX > beach[0]) & (XX < beach[2]) & (YY > beach[1]) & (YY < beach[3])
+        lag = inb & (b > r + 14.0) & (mean > 120.0)
+        cls[inb & (mean > 178.0) & (green < 6.0)] = 4
+        cls[lag] = 5
     mk = Image.new("L", (W, H), 0)
     d = ImageDraw.Draw(mk)
-    d.polygon([(p[0] - bx0, by1 - p[1]) for p in ZONE], fill=1)
+    d.polygon([(p[0] - bx0, by1 - p[1]) for p in ring], fill=1)
     zone = np.asarray(mk) > 0
     bd = Image.new("L", (W, H), 0)
     d = ImageDraw.Draw(bd)
@@ -190,8 +213,17 @@ def classify(line):
                 d.polygon([(q[0] - bx0, by1 - q[1]) for q in rg], fill=1, outline=1)
     built = np.asarray(bd) > 0
     cls[~zone | wt | built] = 0
-    cls[(cls == 4) & ~_near(cls == 5, 45)] = 1                      # pale paving far from the lagoon is not sand
-    # promenade band and forecourt are drawn as clean polygons: blank them here
+    if beach:
+        cls[(cls == 4) & ~_near(cls == 5, 45)] = 1                  # pale paving far from the lagoon is not sand
+    return cls, (bx0, by1), zone & ~wt, built
+
+
+def classify(line):
+    """South Bank: the zone grid with the promenade band and the forecourt blanked (they are drawn as clean polygons)."""
+    from PIL import Image, ImageDraw
+    cls, org, zone, built = classify_zone(ZONE, BEACH)
+    bx0, by1 = org
+    H, W = cls.shape
     pm = Image.new("L", (W, H), 0)
     d = ImageDraw.Draw(pm)
     off = C.offset_line(line, PROM_W) if _inland_left(line) else C.offset_line(line, -PROM_W)
@@ -199,7 +231,7 @@ def classify(line):
     o, u, n = forecourt_frame(line)
     d.polygon([(p[0] - bx0, by1 - p[1]) for p in (fc(o, u, n, -52, 0), fc(o, u, n, 42, 0), fc(o, u, n, 42, TERRACE[1]), fc(o, u, n, -52, TERRACE[1]))], fill=1)
     cls[np.asarray(pm) > 0] = 0
-    return cls, (bx0, by1), zone & ~wt, built
+    return cls, org, zone, built
 
 
 def _near(mask, rad):
@@ -244,27 +276,69 @@ def sign_letters(line):
     return out, left, n, total
 
 
-def trees(cls, org, built):
-    """Tree points in the zone: (x, y, ground, height, kind). Palms where a point stands beside the sand or lagoon."""
+def trees(cls, org, built, ring=None, fill=False, land=None, line=None):
+    """Tree points in a zone: (x, y, ground or None, height, kind). LiDAR points where the packs have them; with fill,
+    canopy the aerial shows but no point covers gets a jittered 9 m grid of its own (ground None = sample it)."""
+    ring = ring or ZONE
     out = []
+    H, W = cls.shape
     sand = _near(cls >= 4, 9)
-    lawnfc = None
+    have = np.zeros((H, W), bool)
+    lp = np.array(line) if line else None
+    if land is not None:
+        land = ~_near(~land, 2)                                    # two metres back from the water
+    x0, y0 = min(p[0] for p in ring), min(p[1] for p in ring)
+    x1, y1 = max(p[0] for p in ring), max(p[1] for p in ring)
     for fp in (os.path.join(L.REF, "wide", "tree_points_wide.csv"), os.path.join(L.REF, "ext", "tree_points_ext.csv")):
         if not os.path.exists(fp):
             continue
         ext = "ext" in os.path.basename(fp)
         with open(fp, encoding="utf-8") as f:
             for r in csv.DictReader(f):
-                x, y, h, g = float(r["x_local"]), float(r["y_local"]), float(r["height_m"]), float(r["ground_ahd"])
-                if not in_zone(x, y) or h < 3.5 or h > 40.0:
+                x, y = float(r["x_local"]), float(r["y_local"])
+                if not (x0 < x < x1 and y0 < y < y1):
                     continue
-                if not ext and x > -933.0 + 2.0:                   # the ext box has its own, denser points
+                h, g = float(r["height_m"]), float(r["ground_ahd"])
+                if not C.point_in_ring(x, y, ring) or h < 3.5 or h > 45.0:
+                    continue
+                if not ext and x > -933.0 + 2.0 and ring is ZONE:  # the ext box has its own, denser points
                     continue
                 c, rw = int(x - org[0]), int(org[1] - y)
-                if not (0 <= rw < cls.shape[0] and 0 <= c < cls.shape[1]) or built[rw, c]:
+                if not (0 <= rw < H and 0 <= c < W) or built[rw, c] or (land is not None and not land[rw, c]):
                     continue
-                out.append((x, y, g, h, "palm" if sand[rw, c] else ("fig" if h > 15.0 else "shade")))
+                if lp is not None and ((lp[:, 0] - x) ** 2 + (lp[:, 1] - y) ** 2).min() < 25.0:      # keep the rail clear (photo cameras stand at it)
+                    continue
+                have[rw, c] = True
+                out.append((x, y, g, h, "palm" if sand[rw, c] else _kind(x, y, h)))
+    if fill:
+        have = _near(have, 7)
+        gy = 4
+        while gy < H:
+            gx = 4
+            while gx < W:
+                hsh = math.sin(gx * 12.9898 + gy * 78.233) * 43758.5453
+                j1 = hsh - math.floor(hsh)
+                j2 = hsh * 7.13 - math.floor(hsh * 7.13)
+                c, rw = int(gx + (j1 - 0.5) * 6), int(gy + (j2 - 0.5) * 6)
+                gx += 9
+                if 0 <= rw < H and 0 <= c < W and cls[rw, c] == 3 and not have[rw, c] and (land is None or land[rw, c]):
+                    h = 9.0 + 12.0 * j2
+                    out.append((org[0] + c + 0.5, org[1] - rw - 0.5, None, h, _kind(org[0] + c, org[1] - rw, h)))
+            gy += 9
     return out
+
+
+def _kind(x, y, h):
+    """Species mix by height and a position hash: broad figs, conical hoop and bunya pines, palms, ordinary shade trees."""
+    hsh = math.sin(x * 127.1 + y * 311.7) * 43758.5453
+    j = hsh - math.floor(hsh)
+    if h > 24.0 and j < 0.45:
+        return "pine"
+    if h > 15.0:
+        return "fig" if j < 0.75 else "pine"
+    if 8.0 < h < 15.0 and j > 0.9:
+        return "palm"
+    return "shade"
 
 
 def plan_image(path):
@@ -284,6 +358,13 @@ def plan_image(path):
     d.line([P(p) for p in ARBOUR], fill=(255, 0, 200), width=2)
     for x, y, g, h, k in trees(cls, org, built):
         d.point(P((x, y)), fill=(255, 255, 0) if k == "palm" else (0, 0, 0))
+    gc, gorg, gz, gb = classify_zone(GARDENS)
+    gi = Image.fromarray(pal[gc]).resize((gc.shape[1] * 2, gc.shape[0] * 2), Image.NEAREST)
+    gd = ImageDraw.Draw(gi)
+    cols = {"palm": (255, 255, 0), "pine": (255, 0, 0), "fig": (0, 0, 0), "shade": (0, 0, 255)}
+    for x, y, g, h, k in trees(gc, gorg, gb, GARDENS, True):
+        gd.point(((x - gorg[0]) * 2, (gorg[1] - y) * 2), fill=cols[k] if g is not None else (255, 255, 255))
+    gi.save(path.replace(".png", "_gardens.png"))
     for nm, p in (("a", (-1058, -1210)), ("b", (-1057, -1203)), ("c", (-1081, -1203)), ("1", (-969, -1276)), ("2", (-882, -1406))):
         d.text(P(p), nm, fill=(255, 0, 0))
     im.save(path)
@@ -324,10 +405,10 @@ def _mat(name, rgb, rough, rgb2=None, scale=0.2, emit=0.0, metal=0.0):
     return m
 
 
-def _mosaic(cls, org, G, col):
+def _mosaic(cls, org, G, col, prefix="sb_ground_", run=6):
     """One mesh per ground class: row runs of 1 m cells (cut every 6 m so they follow the ground), draped and lifted."""
     import far_roads as FR
-    lifts = {1: ("sb_pave", 0.10), 2: ("sb_lawn", 0.14), 3: ("sb_garden", 0.12), 4: ("sb_sand", 0.16), 5: ("sb_lagoon", 0.22)}
+    lifts = {1: ("sb_pave", 0.10), 2: ("sb_lawn", 0.14), 3: ("sb_garden", 0.12), 4: ("sb_sand", 0.16), 5: ("sb_lagoon", 0.22), 6: ("sb_pond", 0.22)}
     names = []
     H, W = cls.shape
     for k, (mname, lift) in lifts.items():
@@ -340,13 +421,13 @@ def _mosaic(cls, org, G, col):
             for a, b in zip(np.flatnonzero(d == 1), np.flatnonzero(d == -1)):
                 c = a
                 while c < b:
-                    e = min(b, c + 6)
+                    e = min(b, c + run)
                     quads.append((org[0] + c, org[0] + e, org[1] - r))
                     c = e
         if not quads:
             continue
         q = np.array(quads, "f8")
-        if k != 5:                                                 # roads and rail keep their own surface
+        if k < 5:                                                  # roads and rail keep their own surface
             mid = (q[:, 0] + q[:, 1]) / 2
             keep = np.array([not FR.on_road(mx, my - 0.5) for mx, my in zip(mid, q[:, 2])])
             q = q[keep]
@@ -354,9 +435,9 @@ def _mosaic(cls, org, G, col):
         vx = np.stack([q[:, 0], q[:, 1], q[:, 1], q[:, 0]], 1).ravel()
         vy = np.stack([q[:, 2] - 1.0, q[:, 2] - 1.0, q[:, 2], q[:, 2]], 1).ravel()
         vz = G.z(vx, vy) + lift
-        if k == 5:
+        if k >= 5:
             vz[:] = float(np.median(vz))
-        ob = C.mesh_fast("sb_ground_" + mname[3:], np.stack([vx, vy, vz], 1), np.arange(4 * n).reshape(n, 4), col, "roof")
+        ob = C.mesh_fast(prefix + mname[3:], np.stack([vx, vy, vz], 1), np.arange(4 * n).reshape(n, 4), col, "roof")
         ob.data.materials[0] = _mats(mname)
         names.append(ob.name)
     return names
@@ -445,38 +526,56 @@ def _palm(trunk, frond, x, y, g, h):
             prev = cur
 
 
-def _trees(cls, org, built, line, col, sign_c):
+CROWNS = [("sb_crown_a", (0.065, 0.160, 0.040), (0.110, 0.230, 0.055)), ("sb_crown_b", (0.040, 0.110, 0.035), (0.070, 0.160, 0.045)),
+          ("sb_crown_c", (0.130, 0.250, 0.050), (0.200, 0.320, 0.070)), ("sb_crown_d", (0.090, 0.170, 0.070), (0.150, 0.210, 0.060))]
+PINE = ("sb_crown_pine", (0.020, 0.060, 0.030), (0.040, 0.085, 0.035))
+
+
+def _plant(points, col, prefix, G, skip=None):
+    """Trees with clear trunks and raised crowns in four leaf colours, conical pines, palms. Returns names and counts."""
     import bpy
     import trees as T
     import far_roads as FR
-    o, u, n = forecourt_frame(line)
-    lawn = forecourt_lawn(o, u, n)
-    trunks, crowns, ptr, pfr = C.MeshBuf(), C.MeshBuf(), C.MeshBuf(), C.MeshBuf()
-    cnt = {"shade": 0, "fig": 0, "palm": 0}
-    for x, y, g, h, kind in trees(cls, org, built):
-        if FR.on_road(x, y) or C.point_in_ring(x, y, lawn) or math.hypot(x - sign_c[0], y - sign_c[1]) < 14.0:
+    trunks, ptr, pfr, pine = C.MeshBuf(), C.MeshBuf(), C.MeshBuf(), C.MeshBuf()
+    crowns = [C.MeshBuf() for _ in CROWNS]
+    cnt = {"shade": 0, "fig": 0, "palm": 0, "pine": 0}
+    for x, y, g, h, kind in points:
+        if FR.on_road(x, y) or (skip and skip(x, y)):
             continue
+        if g is None:
+            g = float(G.z([x], [y])[0])
+        hsh = math.sin(x * 12.9898 + y * 78.233) * 43758.5453
+        j = hsh - math.floor(hsh)
         if kind == "palm":
             _palm(ptr, pfr, x, y, g, max(h, 7.0))
+        elif kind == "pine":
+            if FR.over_deck(x, y, 4.0):
+                continue
+            T.tube(trunks, (x, y, g - 0.2), (x, y, g + h * 0.9), 0.4, 0.1, 7)
+            for k in range(5):                                     # stacked whorls, narrowing to the top
+                q = k / 4.0
+                T.blob(pine, x, y, g + h * (0.32 + 0.16 * k), h * (0.20 - 0.035 * k), h * 0.11)
         else:
             fig = kind == "fig"
-            rr = min((0.45 if fig else 0.36) * h, 11.0 if fig else 7.5)
+            rr = min((0.50 if fig else 0.42) * h, 12.0 if fig else 8.5)
             if FR.over_deck(x, y, rr * 1.2):
                 continue
-            clear = h * (0.30 if fig else 0.38)
+            clear = h * (0.24 if fig else 0.28)
             T.trunk(trunks, x, y, g, 0.45 if fig else 0.2 + 0.012 * h, clear, 3, rr * 0.9)
-            T.crown(crowns, x, y, g + h * (0.66 if fig else 0.70), rr, 0.55 if fig else 0.62, 6 if fig else 5)
+            buf = crowns[1 if fig and j < 0.7 else int(j * 3.999)]
+            T.crown(buf, x, y, g + h * (0.56 if fig else 0.60), rr, 0.8 if fig else 0.9, 6 if fig else 5)
         cnt[kind] += 1
     names = []
-    for buf, name, mname in ((trunks, "sb_tree_trunks", "tree_trunks"), (crowns, "sb_tree_crowns", "tree_crowns_far"),
-                             (ptr, "sb_palm_trunks", "sb_palm_trunk"), (pfr, "sb_palm_fronds", "sb_frond")):
+    jobs = [(trunks, "trunks", bpy.data.materials.get("tree_trunks")), (ptr, "palm_trunks", _mats("sb_palm_trunk")), (pfr, "palm_fronds", _mats("sb_frond")),
+            (pine, "pines", _mat(PINE[0], PINE[1], 0.9, PINE[2], 0.9))]
+    jobs += [(b, "crowns_" + nm[-1], _mat(nm, c1, 0.9, c2, 0.5)) for b, (nm, c1, c2) in zip(crowns, CROWNS)]
+    for buf, name, mat in jobs:
         if not buf.v:
             continue
-        ob = C.mesh_object(name, buf.v, buf.f, col, "tree")
-        mat = bpy.data.materials.get(mname) if mname.startswith("tree_") else _mats(mname)
+        ob = C.mesh_object(prefix + "_tree_" + name, buf.v, buf.f, col, "tree")     # "tree" in the name: render_pairs "clear" lanes find them
         if mat:
             ob.data.materials[0] = mat
-        if "crowns" in name or "trunks" in name:
+        if "fronds" not in name:
             for p in ob.data.polygons:
                 p.use_smooth = True
         names.append(ob.name)
@@ -599,10 +698,32 @@ def build():
             for p in ob.data.polygons:
                 p.use_smooth = True
         objs.append(ob.name)
-    tnames, cnt = _trees(cls, org, built, line, col, sign_c)
+    lawn = forecourt_lawn(o, u, n)
+    tnames, cnt = _plant(trees(cls, org, built, None, False, zone, line), col, "sb", G, lambda x, y: C.point_in_ring(x, y, lawn) or math.hypot(x - sign_c[0], y - sign_c[1]) < 14.0)
     objs += tnames
+    gobjs, gparts = gardens(G, col)
+    objs += gobjs
     area = {nm: int((cls == k).sum()) for k, nm in ((1, "paving"), (2, "lawn"), (3, "garden beds"), (4, "sand"), (5, "lagoon"))}
     parts = {"BRISBANE sign": "8 letters, %.1f m tall, %.1f m long" % (SIGN["h"], sign_letters(line)[3]),
              "Cultural Forecourt": "lawn, paving, bollards", "Clem Jones Promenade": "%d m of paving, river wall, rail, lamp posts" % prom_m,
-             "Ground from the aerial (m2)": area, "The Arbour": "%d post pairs under bougainvillea" % posts, "Trees replanted": cnt}
+             "Ground from the aerial (m2)": area, "The Arbour": "%d post pairs under bougainvillea" % posts, "Trees replanted": cnt, "City Botanic Gardens": gparts}
     return objs, parts
+
+
+def gardens(G, col):
+    """City Botanic Gardens: lawns, beds and paths from the aerial, the lagoon, and a mixed planting in place of the
+    uniform LiDAR blobs."""
+    cls, org, zone, built = classify_zone(GARDENS)
+    px, py, pa, pb = POND
+    H, W = cls.shape
+    xs = org[0] + np.arange(W) + 0.5
+    ys = org[1] - np.arange(H) - 0.5
+    XX, YY = np.meshgrid(xs, ys)
+    e = ((XX - px) / pa) ** 2 + ((YY - py) / pb) ** 2
+    cls[(e < 1.0) & (cls > 0)] = 6
+    cls[(e >= 1.0) & (e < 1.5) & (cls > 0)] = 1                     # path round the lagoon
+    objs = _mosaic(cls, org, G, col, "bg_ground_", 3)
+    pts = trees(cls, org, built, GARDENS, True, zone)
+    names, cnt = _plant(pts, col, "bg", G, lambda x, y: ((x - px) / pa) ** 2 + ((y - py) / pb) ** 2 < 1.6)
+    area = {nm: int((cls == k).sum()) for k, nm in ((1, "paths and paving"), (2, "lawn"), (3, "garden beds"), (6, "lagoon"))}
+    return objs + names, {"Ground from the aerial (m2)": area, "Trees": cnt}

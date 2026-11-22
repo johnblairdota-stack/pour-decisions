@@ -554,6 +554,7 @@ def fill_tree_gaps(col):
     import numpy as np
     import trees as T
     import far_roads as FR
+    import southbank as SB
     m = json.load(open(os.path.join(L.REF, "ext", "ext.json")))
     x0, y0, x1, y1 = m["box_local"]
     cov = np.frombuffer(gzip.open(os.path.join(L.REF, "ext", "cover_1m.u8.gz")).read(), "u1").reshape(m["rows"], m["cols"])
@@ -585,7 +586,7 @@ def fill_tree_gaps(col):
             gy += 10.0
             if not (0 <= r < m["rows"] and 0 <= c < m["cols"]) or cov[r, c] or FR.on_road(x, y) or x < -94.0 or y > -1378.0:   # only the gardens corner no pack reaches
                 continue
-            if wet(x, y) or any(q[0] < x < q[2] and q[1] < y < q[3] for q in polys):
+            if wet(x, y) or SB.in_zone(x, y) or any(q[0] < x < q[2] and q[1] < y < q[3] for q in polys):   # the gardens plant their own now (southbank.py)
                 continue
             g = float(FR.GROUND.z([x], [y])[0]) if FR.GROUND else 4.0
             if g < 1.6:
