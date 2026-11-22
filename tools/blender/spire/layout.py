@@ -576,6 +576,12 @@ def ref(name):
     return os.path.join(REF, name)
 
 
+# Carriageways OSM under-counts (measured kerb to kerb on the 2018 0.1 m aerial). The leg north of the Ann St /
+# Queen St junction is five lanes wide, not three: the two lanes on its west side are the left-turn lanes that come
+# off Ann St past the Mantra (John, 22 Nov: the model had footpath and trees there).
+OSM_FIX = {1331260431: {"width": "15.5", "lanes": "5"}, 1225155646: {"width": "15.5", "lanes": "5"}}
+
+
 def osm():
     """Cropped OSM (raw elements) -> dict with local-metre geometry."""
     if "osm" in _cache:
@@ -594,6 +600,9 @@ def osm():
     def line(w):
         return [nodes[n] for n in w["nodes"] if n in nodes]
 
+    for wid, fix in OSM_FIX.items():
+        if wid in ways:
+            ways[wid].setdefault("tags", {}).update(fix)
     _cache["osm"] = out = {"nodes": nodes, "ways": ways, "rels": rels, "line": line}
     return out
 
