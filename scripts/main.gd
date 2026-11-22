@@ -8106,7 +8106,7 @@ func _update_see_through(delta: float) -> void:
 			# (the line and its ladder go up through the building: the podium's slabs and columns, its
 			# Ann St face and the finished floors over it are all cut away round anyone working on them)
 			if _pod_nodes.is_empty() and _spire_world != null:
-				for nm in ["SLAB_*", "COLUMNS_*"]:
+				for nm in ["SLAB_*", "COLUMNS_*", "FORMWORK_*"]:   # (the formply under the podium roof: it hid everything under level 6)
 					_pod_nodes += _spire_world.find_children(nm, "MeshInstance3D", true, false)
 			roots += _pod_nodes
 			for c in get_children():
