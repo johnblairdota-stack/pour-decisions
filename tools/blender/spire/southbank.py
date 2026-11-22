@@ -478,7 +478,7 @@ def _sign(line, G, col, bufs):
         cu = bpy.data.curves.new("sb_glyph", "FONT")
         cu.body = ch
         cu.size = 1.0
-        cu.offset = 0.05                                          # heavier strokes
+        cu.offset = 0.03                                          # heavier strokes; from 0.04 the bowls of the B close up and its face is left unfilled
         cu.extrude = 0.5
         tmp = bpy.data.objects.new("sb_glyph", cu)
         col.objects.link(tmp)
