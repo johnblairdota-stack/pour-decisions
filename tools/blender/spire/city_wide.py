@@ -217,9 +217,14 @@ def bridge_outline(b):
         return False
     if _BRIDGE_PTS is None:
         W = FR.Water()
-        _BRIDGE_PTS = (W, [(p[0], p[1]) for w in json.load(open(FR.ROADS))["ways"]
-                           if w["bridge"] and w["name"] in FR.RIVER_SPANS for p in w["pts"] if W.at(p[0], p[1])])
-    W, pts = _BRIDGE_PTS
+        named = [w for w in json.load(open(FR.ROADS))["ways"] if w["bridge"] and w["name"] in FR.RIVER_SPANS]
+        _BRIDGE_PTS = (W, [(p[0], p[1]) for w in named for p in w["pts"] if W.at(p[0], p[1])],
+                       [(p[0], p[1]) for w in named for p in w["pts"]])
+    W, pts, line = _BRIDGE_PTS
+    rings = [q for t in b["tiers"] for q in t["ring"]]
+    if rings and max(max(q[i] for q in rings) - min(q[i] for q in rings) for i in (0, 1)) > 30.0 and \
+            all(any((q[0] - a) ** 2 + (q[1] - c) ** 2 < 49.0 for a, c in line) for q in rings):
+        return True                                         # a long thin footprint that only follows the bridge line
     for t in b["tiers"]:
         rg = t["ring"]
         if sum(W.at(q[0], q[1]) for q in rg) <= len(rg) / 2:
