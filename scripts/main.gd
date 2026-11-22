@@ -5652,10 +5652,12 @@ func _update_pour(delta: float) -> void:
 		if line.wet_q > 0.0:
 			pour.mark_bleed(hose_local, 0.9)
 		# Points for concrete placed where the pour plan wants it
-		if pour.bay_of_x(hose_local.x) <= pour.cur_bay and absf(hose_local.x) < BW * 0.5 and absf(hose_local.z) < BD * 0.5:
-			score.trickle(op, q * 5.0, "Concrete placed")
+		# (where the slab still needs it: heaping it onto full slab pays nothing)
+		var useful := _place_worth(hose_local)
+		if useful > 0.0:
+			score.trickle(op, q * 5.0 * useful, "Concrete placed")
 			if hose_holder != null:
-				score.trickle(hose_holder, q * 3.0, "On the end hose")
+				score.trickle(hose_holder, q * 3.0 * useful, "On the end hose")
 	pour.set_splash(pumping and not (ops.wants_bin() and ops.over_bin(discharge())), hose_local)
 	if line.pumping:
 		_pump_t += delta
@@ -6005,6 +6007,18 @@ const SYNC_PAY_T := 4.0
 var _sync_t := 0.0
 var _sync_run := 0
 
+## How much concrete landing at `local` (pour-local) is worth paying for:
+## 1 in a bay that's up in the plan where at least a third of the ground round
+## the hose is still short of full depth, less as it fills, 0 on full slab or
+## off it.
+const PLACE_R := 1.2
+func _place_worth(local: Vector3) -> float:
+	if pour.bay_of_x(local.x) > pour.cur_bay or absf(local.x) >= BW * 0.5 or absf(local.z) >= BD * 0.5:
+		return 0.0
+	if not pour.on_slab(local):
+		return 0.0
+	return clampf(pour.fill_need(local, PLACE_R) / 0.33, 0.0, 1.0)
+
 func _in_sync(op, delta: float) -> void:
 	if op == null or op.bot or op.covering or hose_holder == null or phase != "pour":
 		_sync_t = 0.0
@@ -6013,6 +6027,10 @@ func _in_sync(op, delta: float) -> void:
 	if not line.pumping:
 		return   # (a pause in the concrete doesn't break the run)
 	var hp: Vector3 = hose_holder.global_position
+	# (only while the concrete's going where the slab needs it)
+	if _place_worth(_pour_local(discharge())) <= 0.0:
+		_sync_t = 0.0
+		return
 	if Vector2(tip_pos.x - hp.x, tip_pos.z - hp.z).length() <= SYNC_R:
 		_sync_t += delta
 		if _sync_t >= SYNC_PAY_T:
@@ -6306,9 +6324,11 @@ func _handle_player(p, delta: float) -> void:
 				p.cue("action", "pass " + p.held_kind, -1.0, true)
 				if p.action_pressed():
 					var kind: String = p.held_kind
+					var pays: bool = line.part_pay_ok(kind, p)
 					q.hold_item(p.release_item(), kind)
 					sfx.hit("tink")
-					score.award(p, 10, "Parts run to the line")
+					if pays:
+						score.award(p, 10, "Parts run to the line")
 					q.bark("Ta!")
 					p.bounce()
 				return

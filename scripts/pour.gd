@@ -1310,6 +1310,34 @@ func raw_count(local: Vector3, radius: float) -> int:
 			n += 1
 	return n
 
+## Pay for placing concrete: the share (0..1) of the slab within `radius`
+## of `local` still short of its full depth. Pouring onto slab that's
+## already full (heaping it up, or burying a finished bit) is no help.
+func fill_need(local: Vector3, radius: float) -> float:
+	var n := 0
+	var tot := 0
+	for i in _cells_in(local, radius):
+		if mask[i] == 0:
+			continue
+		tot += 1
+		if h[i] < SLAB * 0.9:
+			n += 1
+	return float(n) / float(maxi(1, tot))
+
+## Pay for the poker: raw cells within `radius` that a poke really helps
+## (fresh, not vibrated yet, not already screeded off), and how many slab
+## cells the circle covers. Vector2i(raw, total).
+func poke_need(local: Vector3, radius: float) -> Vector2i:
+	var n := 0
+	var tot := 0
+	for i in _cells_in(local, radius):
+		if mask[i] == 0:
+			continue
+		tot += 1
+		if set_h[i] < 0.0 and h[i] > 0.05 and vib[i] < DONE and scr[i] < 0.7:
+			n += 1
+	return Vector2i(n, tot)
+
 ## The patches of raw concrete closest to going off, a few metres apart:
 ## [[local position, how close it is to going off 0..1], ...]
 func raw_spots(max_n := 3, min_sep := 3.5) -> Array:

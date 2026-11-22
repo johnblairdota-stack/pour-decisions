@@ -178,6 +178,8 @@ var _wreck_landed := -1.0
 var align_arrow: Node3D
 var dog_bot = null          # a crew bot acting as dogman this frame
 var _taggers := [null, null]  # whoever held each tag line during this lift
+var _tag_work := [0.0, 0.0]   # s each tag line was taut in someone's hands this lift
+const TAG_FULL_T := 4.0       # s of a taut line for the full tag-line pay
 # The tag lines: one off each of two opposite corners, the poker hand's
 # ("tag") and the hose hand's ("tag2"). They hang to the deck where the crane
 # brings the load in over the slab; each hand grabs theirs there and walks it
@@ -848,13 +850,17 @@ func _land() -> void:
 	if game.autotest:
 		print("[autotest]   tag lines: %s / %s, both on %.1fs" % [_taggers[0].role if _taggers[0] else "-", _taggers[1].role if _taggers[1] else "-", _steady_t])
 	for n in 2:
-		if _taggers[n] != null:
-			game.score.award(_taggers[n], 20, "Tag line")
+		# Pay for the line actually doing work: grabbing it slack just as it
+		# lands earns nothing
+		var w := clampf(float(_tag_work[n]) / TAG_FULL_T, 0.0, 1.0)
+		if _taggers[n] != null and w > 0.0:
+			game.score.award(_taggers[n], roundi(20.0 * w), "Tag line")
 	# Both lines on for a good while: the load came in dead steady
 	if _taggers[0] != null and _taggers[1] != null and _steady_t > 3.0:
 		for n in 2:
 			game.score.award(_taggers[n], 10, "Both lines on")
 	_taggers = [null, null]
+	_tag_work = [0.0, 0.0]
 	_steady_t = 0.0
 	_steady_said = false
 	var dust := CPUParticles3D.new()
@@ -2609,6 +2615,8 @@ func handle_player(p, delta: float, near: String, act: String, alt: String, leav
 		var left := TAG_LEN - float(tag_len[n])
 		var grip: float = TAG_GRIP[clampi(help(), 0, 2)]
 		var taut: bool = tag_t[n] > 0.0
+		if taut:
+			_tag_work[n] = float(_tag_work[n]) + delta
 		# Arms out along the line, leaning back on it when it's pulling
 		var lean := clampf(float(tag_t[n]) / grip, 0.0, 1.0)
 		p.set_arms(-1.4 - 0.35 * lean, -1.4 - 0.35 * lean)

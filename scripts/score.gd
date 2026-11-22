@@ -14,8 +14,10 @@ const CashArt := preload("res://scripts/cash_art.gd")
 ## points the jobs hand out. Steady work (screeding, pouring) pays by the
 ## square metre, so on the full-size slab it pays less a cell; the calls and
 ## the quick reactions, where a person makes the difference, pay more.
+## (Concrete placed and the end hose only pay where the slab still needs it,
+## so their rates are up to keep a good crew's take where it was.)
 const RATE := {
-	"Screeding": 0.25, "Poker": 0.9, "Concrete placed": 0.9, "On the end hose": 1.2,
+	"Screeding": 0.25, "Poker": 0.9, "Concrete placed": 1.2, "On the end hose": 1.6,
 	"Spikes killed": 3.0, "Clamp swapped before it burst": 2.0, "Line repairs": 2.0,
 	"Blockage found by tap test": 2.0, "Safety pins in": 1.5, "Pump restarted": 1.0,
 	"Good loads in": 2.0, "Bad loads turned away": 3.0, "Slump tests": 1.5,
