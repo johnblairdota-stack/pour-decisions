@@ -204,6 +204,31 @@ def build_trees(col):
     return objs, n
 
 
+_BRIDGE_PTS = None
+
+
+def bridge_outline(b):
+    """OSM maps the outline of a river bridge as an area, which came through as an unnamed 'building' standing in the
+    river under the Goodwill Bridge (solid walls down to the water). Drop unnamed footprints that sit over water along a
+    named river bridge; far_roads builds the real deck and piers."""
+    global _BRIDGE_PTS
+    import far_roads as FR
+    if b.get("name"):
+        return False
+    if _BRIDGE_PTS is None:
+        W = FR.Water()
+        _BRIDGE_PTS = (W, [(p[0], p[1]) for w in json.load(open(FR.ROADS))["ways"]
+                           if w["bridge"] and w["name"] in FR.RIVER_SPANS for p in w["pts"] if W.at(p[0], p[1])])
+    W, pts = _BRIDGE_PTS
+    for t in b["tiers"]:
+        rg = t["ring"]
+        if sum(W.at(q[0], q[1]) for q in rg) <= len(rg) / 2:
+            return False
+        if sum(1 for q in rg if any((q[0] - a) ** 2 + (q[1] - c) ** 2 < 144.0 for a, c in pts)) <= len(rg) / 2:
+            return False
+    return bool(b["tiers"])
+
+
 def build():
     import bpy
     if L.GAME_EXPORT or getattr(L, "ACTIVE_STAGE", None) or not os.path.exists(os.path.join(WIDE, "wide.json")):
@@ -211,6 +236,7 @@ def build():
     import cbd_ext as CE
     m = json.load(open(os.path.join(WIDE, "wide.json")))
     recs = json.load(open(os.path.join(WIDE, "buildings_wide.json")))["buildings"]
+    recs = [b for b in recs if not bridge_outline(b)]
     guessed = guess_roofs(recs)
     global RECS
     RECS = recs

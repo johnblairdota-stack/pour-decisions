@@ -244,7 +244,8 @@ def gantries(bufs, feats, ways):
     return n
 
 
-def deck(bufs, w, G, piers=True):
+def deck(bufs, w, G, piers=True, clear=None):
+    """clear = (i0, i1): no generic piers between those points (a named river span whose real piers structures() builds)."""
     pts = [tuple(p) for p in w["pts"]]
     zs = w["deck"]
     wd = w["width"] + (1.0 if w["kind"] == "road" else 0.6)
@@ -271,6 +272,8 @@ def deck(bufs, w, G, piers=True):
     k = max(1, int(round(PIER_EVERY / 4.0)))
     np_ = 0
     for i in range(k // 2, n, k):
+        if clear and clear[0] <= i <= clear[1]:
+            continue
         x, y = pts[i]
         g = float(G.z([x], [y])[0])
         g = min(g, zs[i] - th)
@@ -351,8 +354,46 @@ def mast(buf, cables, w, i, height, reach, lean=0.0, side=0.0, r=1.6, every=5):
     return top
 
 
+RIVER_SPANS = {"William Jolly Bridge", "Merivale Bridge", "Goodwill Bridge", "Kurilpa Bridge", "Neville Bonner Bridge",
+               "Kangaroo Point Bridge", "Pacific Motorway", "Go Between Bridge"}      # real river piers come from structures()
+
+
+def pier(buf, w, i, half, thick=2.0, drop=1.2, z0=-3.0):
+    """Blade pier across the deck at point i of way w, from the river bed to the deck soffit."""
+    pts, zs = w["pts"], w["deck"]
+    i = min(max(i, 0), len(pts) - 1)
+    tx, ty, nx, ny = frame(pts, i)
+    buf.box(pts[i][0], pts[i][1], z0, thick, 2 * half, zs[i] - drop - z0, math.atan2(ty, tx))
+    return pts[i]
+
+
+def nearest(w, p):
+    return min(range(len(w["pts"])), key=lambda i: (w["pts"][i][0] - p[0]) ** 2 + (w["pts"][i][1] - p[1]) ** 2)
+
+
+def girder(buf, w, i0, i1, at, half_top, half_bot, d0, d1, reach):
+    """Haunched box girder under points i0..i1: depth d1 over the piers `at`, easing on a parabola to d0 `reach` m away."""
+    pts, zs = w["pts"], w["deck"]
+    i0, i1 = max(i0, 0), min(i1, len(pts) - 1)
+    verts, faces = [], []
+    for k, i in enumerate(range(i0, i1 + 1)):
+        tx, ty, nx, ny = frame(pts, i)
+        m = min(abs(i - q) for q in at) * 4.0
+        dp = d0 + (d1 - d0) * max(0.0, 1.0 - m / reach) ** 2
+        zt = zs[i] - 0.3
+        for sw, zz in ((-half_top, zt), (half_top, zt), (half_bot, zt - dp), (-half_bot, zt - dp)):
+            verts.append((pts[i][0] + nx * sw, pts[i][1] + ny * sw, zz))
+        if k:
+            o = 4 * (k - 1)
+            faces += [[o + j, o + (j + 1) % 4, o + 4 + (j + 1) % 4, o + 4 + j] for j in range(4)]
+    buf.add(verts, faces)
+
+
 def structures(bufs, ways, W):
-    """Main structures of the named river bridges, on the span over the traced water."""
+    """Main structures and the real river piers of the named river bridges, on the span over the traced water.
+    Span lengths, heights and pier counts: Wikipedia / Structurae / the designers' pages; where a pier position is not
+    published it is set out from the published span lengths and noted as estimated in the returned list."""
+    import trees as T
     made = []
     by = {}
     for w in ways:
@@ -378,22 +419,49 @@ def structures(bufs, ways, W):
             i0, i1 = max(a + j * k, 0), min(a + (j + 1) * k, len(w["pts"]) - 1)
             arch(bufs["jolly_cream"], w, i0, i1, 11.0, 9.0, 10.5, sec=1.5)
             arch(bufs["jolly_cream"], w, i0, i1, 11.0, 9.0, 0.0, sec=1.3, brace=False)
-        made.append("William Jolly Bridge: 3 x 72.5 m arches")
-    for w in by.get("Merivale Bridge", [])[:1]:              # steel through arch, 132 m, both tracks
+        for j in range(4):                                  # two river piers and the two bank piers the arches spring from
+            pier(bufs["jolly_cream"], w, a + j * k, 12.0, thick=5.0, drop=0.5)
+        made.append("William Jolly Bridge: 3 x 72.5 m arches on two river piers and two bank piers")
+    mv = by.get("Merivale Bridge", [])
+    for w in mv[:1]:                                         # steel tied arch, 132 m clear over the river, both tracks
         s = W.span(w["pts"])
         if s:
             i0, i1 = centred(s, 132.0)
             i0, i1 = max(i0, 0), min(i1, len(w["pts"]) - 1)
-            arch(bufs["steel_white"], w, i0, i1, 22.0, 6.0, 7.5, sec=1.4)
-            made.append("Merivale Bridge: 132 m through arch")
+            o = mv[1] if len(mv) > 1 else w                  # centre the ribs between the two tracks
+            j = nearest(o, w["pts"][i0])
+            tx, ty, nx, ny = frame(w["pts"], i0)
+            off = ((o["pts"][j][0] - w["pts"][i0][0]) * nx + (o["pts"][j][1] - w["pts"][i0][1]) * ny) / 2
+            cw = dict(w, pts=[(p[0] + frame(w["pts"], q)[2] * off, p[1] + frame(w["pts"], q)[3] * off) for q, p in enumerate(w["pts"])])
+            arch(bufs["steel_white"], cw, i0, i1, 22.0, 2.0, 6.5, sec=1.4)
+            for i in (i0, i1):
+                pier(bufs["concrete"], cw, i, 8.0, thick=4.0)
+            made.append("Merivale Bridge: 132 m tied arch, no river piers")
     w, s = main("Goodwill Bridge")
-    if w:                                                   # arch 102 m long, 15 m high, 10 m wide
-        i0, i1 = centred(s, 102.0)
-        arch(bufs["steel_white"], w, max(i0, 0), min(i1, len(w["pts"]) - 1), 15.0, 1.0, 5.0, sec=0.8)
-        made.append("Goodwill Bridge: 102 m arch")
+    if w:                                                   # arch 102 m long, 15 m high, on the South Bank half; pavilion pier mid-river
+        pts, zs = w["pts"], w["deck"]
+        sb = (pts[0][0] + 420) ** 2 + (pts[0][1] + 2018) ** 2 < (pts[-1][0] + 420) ** 2 + (pts[-1][1] + 2018) ** 2
+        d = 1 if sb else -1
+        i0 = (s[0] + 2) if sb else (s[1] - 2)
+        i1 = i0 + d * 25
+        arch(bufs["steel_white"], w, min(i0, i1), max(i0, i1), 15.0, 1.5, 5.0, sec=0.8)
+        pier(bufs["concrete"], w, i0, 5.5, thick=2.5)
+        pier(bufs["concrete"], w, i1, 6.5, thick=5.0)
+        tx, ty, nx, ny = frame(pts, i1)
+        px, py = pts[i1][0] + nx * 7.0, pts[i1][1] + ny * 7.0  # the pavilion: a viewing platform with a sail roof beside the deck
+        ang = math.atan2(ty, tx)
+        bufs["concrete"].box(px, py, zs[i1] - 0.8, 12.0, 9.0, 0.8, ang)
+        bufs["canopy"].box(px, py, zs[i1] + 4.2, 13.0, 10.0, 0.25, ang)
+        for sx in (-5.0, 5.0):
+            bufs["steel_white"].beam((px + tx * sx, py + ty * sx, zs[i1]), (px + tx * sx, py + ty * sx, zs[i1] + 4.2), 0.3)
+        end = s[1] if sb else s[0]
+        rest = abs(end - i1)
+        np_ = max(1, int(round(rest * 4.0 / 45.0)))
+        for k in range(1, np_ + 1):                          # city-side girder spans on slim piers (spacing estimated)
+            pier(bufs["concrete"], w, i1 + d * int(k * rest / np_), 2.2, thick=1.6)
+        made.append("Goodwill Bridge: 102 m arch on the South Bank half, pavilion pier mid-river, %d slim piers to the city bank (spacing estimated)" % np_)
     w, s = main("Kurilpa Bridge")
     if w:                                                   # tensegrity: 20 masts, spars, canopy
-        import trees as T
         pts, zs = w["pts"], w["deck"]
         n = s[1] - s[0]
         for k in range(10):
@@ -416,23 +484,116 @@ def structures(bufs, ways, W):
         m = len(cl)
         bufs["canopy"].add([(cl[i][0], cl[i][1], zs[s[0] + i] + 3.6) for i in range(m)] + [(cr[i][0], cr[i][1], zs[s[0] + i] + 3.4) for i in range(m)],
                            [[i, m + i, m + i + 1, i + 1] for i in range(m - 1)])
-        made.append("Kurilpa Bridge: 20 masts + canopy")
+        i0, i1 = centred(s, 128.0)                           # 128 m main span between two river piers
+        for i in (i0, i1):
+            pier(bufs["concrete"], w, i, 3.5, thick=1.8)
+        made.append("Kurilpa Bridge: 20 masts + canopy, 128 m main span on two river piers")
     w, s = main("Neville Bonner Bridge")
-    if w:                                                   # one 75 m mast on the mid-river pier, two 60 m arches
-        mid = (s[0] + s[1]) // 2
-        mast(bufs["steel_white"], bufs["cables"], w, mid, 75.0 - w["deck"][mid], 120.0, lean=0.12, side=6.0, r=1.5)
-        k = int(60.0 / 4.0)
-        for i0 in (mid - k, mid):
-            arch(bufs["steel_white"], w, max(i0, 0), min(i0 + k, len(w["pts"]) - 1), 30.0 - w["deck"][mid], 0.5, 3.5, sec=0.7, brace=False)
-        made.append("Neville Bonner Bridge: 75 m mast + two 60 m arches")
+    if w:                                                   # one river pier; 75 m twin-leg mast leaning to the city; arch to South Bank
+        pts, zs = w["pts"], w["deck"]
+        n = len(pts)
+        sb = (pts[0][0] + 932) ** 2 + (pts[0][1] + 1329) ** 2 < (pts[-1][0] + 932) ** 2 + (pts[-1][1] + 1329) ** 2
+        d = 1 if sb else -1                                  # d steps from South Bank toward the city
+        land = min(max((s[0] - 2) if sb else (s[1] + 2), 0), n - 1)
+        ip = land + d * 36                                   # the pier: 145 m main span from the South Bank landing
+        tx, ty, nx, ny = frame(pts, ip)
+        cx, cy = tx * d, ty * d                              # unit vector toward the city
+        P = pts[ip]
+        bufs["concrete"].box(P[0], P[1], -3.0, 7.0, 16.0, 5.5, math.atan2(ty, tx))        # pier cap in the river
+        bufs["concrete"].box(P[0], P[1], zs[ip] - 0.8, 14.0, 11.0, 0.8, math.atan2(ty, tx))  # mid-bridge viewing deck
+        top = (P[0] + cx * 34.0, P[1] + cy * 34.0, 75.0)
+        for sd in (1, -1):                                   # twin legs either side of the deck, meeting at the top
+            T.tube(bufs["steel_white"], (P[0] + nx * sd * 6.0, P[1] + ny * sd * 6.0, 2.0), top, 1.3, 0.6, 10)
+        city_end = (s[1] if sb else s[0])
+        for j in range(ip + d * 5, city_end + d, d * 3):     # fan of stays to the city-side deck
+            if 0 <= j < n:
+                for sd in (1, -1):
+                    jx, jy = frame(pts, j)[2:]
+                    bufs["cables"].beam(top, (pts[j][0] + jx * sd * 2.4, pts[j][1] + jy * sd * 2.4, zs[j] + 0.4), 0.16)
+        L_ = pts[land]
+        for sd in (1, -1):                                   # backstays over the arch to the South Bank abutment
+            bufs["cables"].beam(top, (L_[0] + nx * sd * 4.5, L_[1] + ny * sd * 4.5, zs[land] + 0.5), 0.22)
+        m = abs(ip - land)
+        prev = None
+        for k in range(m + 1):                               # the arch: one crown over the path, splitting to straddle it at each end
+            i = land + d * k
+            t = k / m
+            z = (zs[land] - 1.0) * (1 - t) + 2.5 * t + (31.0 - 8.0) * 4 * t * (1 - t)
+            half = 0.6 + 4.6 * abs(2 * t - 1) ** 2
+            fx, fy = frame(pts, i)[2:]
+            cur = [(pts[i][0] + fx * half * sd, pts[i][1] + fy * half * sd, z) for sd in (1, -1)]
+            if prev:
+                for a_, b_ in zip(prev, cur):
+                    bufs["steel_white"].beam(a_, b_, 0.9, 1.2)
+                if k % 4 == 0 and z > zs[i] + 4.0:
+                    for sd, c_ in zip((1, -1), cur):
+                        bufs["cables"].beam(c_, (pts[i][0] + fx * sd * 2.4, pts[i][1] + fy * sd * 2.4, zs[i] + 0.4), 0.14)
+            prev = cur
+        a0, a1 = min(s[0], s[1]), max(s[0], s[1])            # the shade canopy over one side of the path
+        cl = C.offset_line([tuple(p) for p in pts[a0:a1]], 0.4)
+        cr = C.offset_line([tuple(p) for p in pts[a0:a1]], -2.6)
+        mm = len(cl)
+        bufs["canopy"].add([(cl[i][0], cl[i][1], zs[a0 + i] + 3.3) for i in range(mm)] + [(cr[i][0], cr[i][1], zs[a0 + i] + 3.1) for i in range(mm)],
+                           [[i, mm + i, mm + i + 1, i + 1] for i in range(mm - 1)])
+        made.append("Neville Bonner Bridge: one river pier, 75 m twin-leg mast leaning to the city, 145 m arch to South Bank, stays, canopy (lean and leg spread read off photos)")
     w, s = main("Kangaroo Point Bridge")
-    if w:                                                   # single-mast cable stay (height + position estimated)
-        end0 = w["pts"][0]
-        city_first = end0[0] < w["pts"][-1][0]              # the city (Alice St) end is the west end
-        f = 0.35 if city_first else 0.65
-        i = s[0] + int(f * (s[1] - s[0]))
-        mast(bufs["steel_white"], bufs["cables"], w, i, 78.0, 180.0, r=2.0, every=4)
-        made.append("Kangaroo Point Bridge: single mast (estimated 78 m, 35 % from the city bank)")
+    if w:                                                   # single mast cable stay: 95 m mast in the river, 183 m main span
+        pts, zs = w["pts"], w["deck"]
+        n = len(pts)
+        d = 1 if pts[0][0] < pts[-1][0] else -1             # d steps from the city (west) to Kangaroo Point
+        c0 = s[0] if d > 0 else s[1]
+        im = c0 + d * 23                                     # mast about 90 m off the city bank (estimated)
+        ie = im + d * 46                                     # 183 m main span
+        tx, ty, nx, ny = frame(pts, im)
+        M = pts[im]
+        top = (M[0], M[1], 95.0)
+        T.tube(bufs["steel_white"], (M[0], M[1], -3.0), top, 2.4, 0.9, 12)
+        bufs["concrete"].box(M[0], M[1], -3.0, 9.0, 12.0, 5.0, math.atan2(ty, tx))
+        bufs["concrete"].box(M[0], M[1], zs[im] - 0.9, 18.0, 13.0, 0.9, math.atan2(ty, tx))   # the deck widens round the mast
+        for j in range(im + d * 5, ie, d * 3):
+            f = abs(j - im) / 46.0
+            bufs["cables"].beam((top[0], top[1], 95.0 - 30.0 * (1 - f)), (pts[j][0], pts[j][1], zs[j] + 0.5), 0.18)
+        for j in range(im - d * 4, c0 - d * 3, -d * 3):       # back stays to the city side span
+            if 0 <= j < n:
+                f = abs(j - im) / 23.0
+                bufs["cables"].beam((top[0], top[1], 95.0 - 30.0 * (1 - min(f, 1.0))), (pts[j][0], pts[j][1], zs[j] + 0.5), 0.18)
+        far = s[1] if d > 0 else s[0]
+        spots = [im - d * 12, ie] + ([ie + d * (abs(far - ie) // 2)] if abs(far - ie) > 14 else [])
+        for i in spots:
+            if 0 <= i < n:
+                pier(bufs["concrete"], w, i, 3.2, thick=1.8)
+        made.append("Kangaroo Point Bridge: 95 m single mast, 183 m main span, %d river piers (mast and pier positions estimated from the span lengths)" % len(spots))
+    cc = [(w, W.span(w["pts"])) for w in by.get("Pacific Motorway", [])]
+    cc = [(w, s) for w, s in cc if s]
+    if cc:                                                  # Captain Cook Bridge: twin haunched concrete box girders, 183 m main span
+        w0, s0 = cc[0]
+        i0, i1 = centred(s0, 183.0)
+        marks = [w0["pts"][min(max(i, 0), len(w0["pts"]) - 1)] for i in (i0, i1)]
+        ends = [w0["pts"][s0[0]], w0["pts"][s0[1]]]
+        for w, s in cc:
+            at = [nearest(w, p) for p in marks]
+            e = sorted(nearest(w, p) for p in ends)
+            girder(bufs["concrete"], w, e[0] - 6, e[1] + 6, at, w["width"] / 2 + 0.3, w["width"] / 2 - 2.5, 3.0, 9.0, 85.0)
+            for i in at:
+                pier(bufs["concrete"], w, i, w["width"] / 2 - 2.0, thick=3.0, drop=9.0)
+            for i in e:
+                pier(bufs["concrete"], w, i, w["width"] / 2 - 2.0, thick=2.0, drop=3.0)
+        made.append("Captain Cook Bridge: twin haunched box girders, 183 m main span on two river piers (side spans estimated)")
+    gb = [(w, W.span(w["pts"])) for w in by.get("Go Between Bridge", [])]
+    gb = [(w, s) for w, s in gb if s]
+    rd = [(w, s) for w, s in gb if w["kind"] == "road"]
+    if rd:                                                  # Go Between Bridge: haunched box girder, 74 + 117 + 80 m, two river piers
+        w0, s0 = rd[0]
+        i0, i1 = centred(s0, 117.0)
+        marks = [w0["pts"][i0], w0["pts"][i1]]
+        for w, s in gb:
+            at = [nearest(w, p) for p in marks]
+            road = w["kind"] == "road"
+            ht = w["width"] / 2 + (0.8 if road else 0.3)
+            girder(bufs["concrete"], w, min(s) - 5, max(s) + 5, at, ht, ht * 0.6, 2.4 if road else 1.2, 5.5 if road else 1.2, 55.0)
+            for i in at:
+                pier(bufs["concrete"], w, i, ht if road else ht * 0.6, thick=2.6, drop=5.5 if road else 1.2)
+        made.append("Go Between Bridge: haunched box girder, 117 m main span on two river piers")
     return made
 
 
@@ -459,7 +620,8 @@ def build():
                 continue
             mp = w["pts"][len(w["pts"]) // 2]                # Victoria Bridge: hero_towers.landmarks builds its girder and two blade piers
             vic = abs((mp[0] + 956.0) * 0.52 - (mp[1] + 1036.5) * 0.854) < 22.0 and abs((mp[0] + 956.0) * 0.854 + (mp[1] + 1036.5) * 0.52) < 140.0
-            n["piers"] += deck(bufs, w, G, piers=not vic)
+            sp = W.span(w["pts"]) if w["name"] in RIVER_SPANS else None
+            n["piers"] += deck(bufs, w, G, piers=not vic, clear=(sp[0] - 4, sp[1] + 4) if sp else None)
             n["bridges"] += 1
             if w["kind"] == "road":
                 n["marked"] += 1 if markings(bufs["paint"], w, pts, [z + 0.03 for z in w["deck"]]) else 0
