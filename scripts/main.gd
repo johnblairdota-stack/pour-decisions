@@ -7743,6 +7743,8 @@ func _update_hud() -> void:
 		if spire:
 			hud.level_label.text = "%s/%d" % [level_label(mini(k, floors() - 1)), floors()]
 	hud.set_score(score.total, score.rank_name(), score.next_rank(), score.rank_frac(), score.bump)
+	var climbing: bool = phase == "mastclimb" and mast != null and mast.active
+	hud.set_steps(mast.stages() if climbing else [], mast.stage_i() if climbing else 0, climbing)
 	var crew_rows: Array = []
 	for p in players:
 		crew_rows.append({"role": p.role, "p": p.index, "name": p.char_name, "bot": p.bot, "nudge": nudge_level(p)})
@@ -7768,7 +7770,7 @@ func _update_hud() -> void:
 			hud.set_progress(t[2])
 		"mastclimb":
 			var mt: Array = mast.hud_task()
-			hud.set_task(mt[0], mt[1])
+			hud.set_task(mt[0], mt[1], mt[3])
 			hud.set_progress(mt[2])
 		"inspect":
 			hud.set_task("Hold point · engineer's inspection")
