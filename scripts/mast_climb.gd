@@ -689,7 +689,31 @@ func job_at() -> Vector3:
 		return Vector3(LineScript.LADDER.x, float(j["y"]) + 1.0, LineScript.LADDER.z)
 	return (j["at"] as Vector3) + Vector3(0, 0.2, 0)
 
-## For the see-through circle: the column's foot while it's going up.
-func cut_point() -> Vector4:
+## For the see-through circle: the job that's inside the building (down the ladder at the wedges, the
+## feet or the pipe going in), and the column's foot while it's going up.
+func cut_points() -> Array:
 	var m := SpireSite.mast_xz()
-	return Vector4(m.x, foot0 + lifted + 1.0, m.y, 4.0)
+	var out: Array = []
+	var j := job()
+	if not j.is_empty() and String(j["zone"]) == "ladder" and float(j["y"]) < game.work_y - 1.0:
+		out.append(Vector4(m.x, float(j["y"]) + 0.8, m.y, 4.5))
+	if step in ["lift", "send_pipe", "fit_pipe", "feet_in", "feet_out"]:
+		out.append(Vector4(m.x, foot0 + lifted + 0.6, m.y, 4.5))
+	return out
+
+## For the camera: [what to look at, how far back] for this step.
+func focus() -> Array:
+	var m := SpireSite.mast_xz()
+	var top := _col_top()
+	match step:
+		"boom_off", "adaptor_off", "adaptor_on", "boom_on", "hook_down":
+			# (the hook and what's on it, with the column's top)
+			var mid := (hook_pos + top) * 0.5
+			return [mid, clampf(hook_pos.distance_to(top) * 1.3 + 14.0, 16.0, 40.0)]
+		"lift", "send_pipe", "fit_pipe":
+			# (the column's foot, where the mark and the pipe are)
+			return [Vector3(m.x, foot0 + lifted + 1.0, m.y), 16.0]
+	var j := job()
+	if not j.is_empty() and String(j["zone"]) == "ladder":
+		return [Vector3(m.x, float(j["y"]) + 1.0, m.y), 14.0]
+	return [Vector3(m.x, game.work_y + 2.0, m.y), 20.0]

@@ -7989,6 +7989,8 @@ func _update_see_through(delta: float) -> void:
 					roots.append(c)
 			for f in floor_nodes:
 				roots.append(f)
+			# (and the perimeter scaffold with its blue edge screens, hanging down over the floors below the deck)
+			roots += _rect_rails
 		if _spire_b != null:
 			roots += [_spire_b.mast, _spire_b.yaw.get_child(0), _spire_b.arm1]
 		if _spire_street != null:
@@ -8030,8 +8032,11 @@ func _update_see_through(delta: float) -> void:
 		for p in humans():
 			if ps.size() < 4 and (p.zone == "ladder" or (p.zone == "ground" and p.position.z < SpireSite.face_z(p.position.x) - 0.3)):
 				ps.append(Vector4(p.position.x, p.position.y + 1.0, p.position.z, CUT_R + 1.0))
-		if mast != null and mast.active and ps.size() < 4:
-			ps.append(mast.cut_point())
+		if mast != null and mast.active:
+			# (the job inside the building, whoever's on it, and the column's foot while it's lifted)
+			for cp in mast.cut_points():
+				if ps.size() < 4:
+					ps.append(cp)
 	if not climb.active:
 		for p in humans():
 			if p.zone == "deck" and ps.size() < 5:
@@ -8531,6 +8536,13 @@ func _update_camera_views(delta: float) -> void:
 	if climb_frame:
 		focus = focus.lerp(climb.focus_point(), 0.65)
 		dist = minf(cam_dist, 27.0)
+	if phase == "mastclimb" and mast != null and mast.active:
+		# (Spire's climb day: on whatever's happening now: the crane's load, the job up on the column or
+		# down the ladder, the column's foot while it's lifted; whoever's followed stays in the shot)
+		var mf: Array = mast.focus()
+		var gap: float = (focus - (mf[0] as Vector3)).length() if not main_follow.is_empty() else 0.0
+		focus = focus.lerp(mf[0], 0.6 if not main_follow.is_empty() else 1.0)
+		dist = clampf(maxf(float(mf[1]), gap * 1.1 + spread * 1.2 + 8.0), 12.0, 44.0)
 	var guiding: bool = climb_frame and climb.stage == "guide"
 	if guiding and not _dog_view and climb.stage_t < 0.1:
 		_dog_view = true
@@ -8882,7 +8894,7 @@ func _maybe_shot() -> void:
 		key = "every_start%d_%03d" % [k, int(phase_t)]
 	elif "binevery" in _shot_only and ops != null and ops.wants_bin() and not _shots_taken.has("every_bin%d_%03d" % [k, int(phase_t / 1.5)]):
 		key = "every_bin%d_%03d" % [k, int(phase_t / 1.5)]
-	elif "every" in _shot_only and phase in ["pour", "climb"] and not _shots_taken.has("every_%s_%03d" % [phase, int(phase_t / 6.0)]):
+	elif "every" in _shot_only and phase in ["pour", "climb", "mastclimb"] and not _shots_taken.has("every_%s_%03d" % [phase, int(phase_t / 6.0)]):
 		key = "every_%s_%03d" % [phase, int(phase_t / 6.0)]
 	elif "spike" in _shot_only and line != null and line.spike_on and line.spike_t > 0.25 and not _shots_taken.has("spike"):
 		key = "spike"
