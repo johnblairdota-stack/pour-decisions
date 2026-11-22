@@ -3,7 +3,7 @@
     python tools/blender/spire/corridor.py <corridor> [out_dir] [--dry] [--check] [--pano=<tower>]
     (bpy from pip, as export_game.py; or blender -b --factory-startup -P ... -- <corridor> ...)
 
-The master scene is 13.5 million triangles in about 1,000 objects and 1,500 materials: far too much for a
+The master scene is 18 million triangles in well over 1,000 objects and 1,500 materials: far too much for a
 tablet. A flight only ever sees a strip of it, from low on the water, from one side. This tool builds the whole
 scene, walks the flight's camera path and keeps, face by face, only what that camera can see:
 
@@ -67,6 +67,10 @@ GROUND_R = 420.0       # m either side of the path: ground kept
 GROUND_TRIS = 16000    # the ground is thinned to about this
 TREE_R = 300.0         # m: tree crowns kept
 TREE_MIN_R = 2.8       # m: smaller crowns are dropped
+TREE_MAX = 2700        # crowns kept at most: the biggest and nearest win (the gardens and South Bank are thick with them)
+TOWER_TRIS = 11000     # a game tower's own object is thinned to about this: its smallest faces (mullion lines, fins) go first
+PLATE_Z, PLATE_AREA = 30.0, 100.0   # a big level face this high is a floor plate inside a tower (the hand-built towers
+                                    # stack one per floor under their mullion lines): never seen from the water
 TREE_FULL_R = 400.0    # m: nearer crowns are 20-face lumps, further ones 8-face (8-face crowns read as diamonds: none by default)
 TRIM = ("_band", "balustrade", "city_detail")
 TRIM_R = 200.0         # m: slab-edge bands, balcony glass and roof clutter are kept only this close
@@ -78,6 +82,10 @@ GROUND = ("ground", "far_ground", "far_land", "cbd_ext_ground", "hsw_terrain")
 CROWNS = ("tree_crowns", "wide_tree_crowns", "cbd_ext_tree_crowns", "palm_fronds", "far_suburbs_trees", "hsw_mangroves")
 DROP = ("tree_trunks", "wide_tree_trunks", "cbd_ext_tree_trunks", "far_suburbs", "SLAB_", "SPIRE_", "COLUMNS", "PROPS",
         "EDGE_SCREENS", "FORMWORK", "river", "water")
+# The parks built since (South Bank "sb_", the City Botanic Gardens "bg_", ...) name their parts <park>_<kind>_<what>:
+GROUND_IN = ("_ground_",)
+CROWNS_IN = ("tree_crowns", "tree_pines", "palm_fronds")
+DROP_IN = ("tree_trunks",)
 ICO = None
 OCT = (np.array([(1, 0, 0), (-1, 0, 0), (0, 1, 0), (0, -1, 0), (0, 0, 1), (0, 0, -1)], float),
        np.array([(0, 2, 4), (2, 1, 4), (1, 3, 4), (3, 0, 4), (2, 0, 5), (1, 2, 5), (3, 1, 5), (0, 3, 5)]))
@@ -149,7 +157,11 @@ def keep_mask(f, P, D):
     d = seen(f, P, D)
     big = f["area"] >= np.maximum(MIN_AREA, (d / AREA_K) ** 2)
     sky = (d <= NEAR) | (f["ztop"] >= SKY_BASE + SKY_SLOPE * (d - NEAR))
-    return (d < FAR) & big & sky, d
+    return (d < FAR) & big & sky & ~plates(f), d
+
+
+def plates(f):
+    return (np.abs(f["nor"][:, 2]) > 0.9) & (f["ztop"] > PLATE_Z) & (f["area"] > PLATE_AREA)
 
 
 def islands(f, pick):
@@ -298,6 +310,7 @@ def cut(c):
     own, shared, ground, crowns = {}, Bag(), Bag(), Bag()
     towers = {k: Bag() for k in c["towers"]}
     weight, src_tris, kept_by, by_src = {}, 0, {}, {}
+    lumps, tower_parts = [], {k: [] for k in c["towers"]}
     pano_hide = {}                                           # object name -> kept mask (the panorama leaves these out)
     for ob in list(bpy.data.objects):
         if ob.type != "MESH" or not ob.data.polygons:
@@ -310,9 +323,9 @@ def cut(c):
         name = ob.name
         mats = [m for m in ob.data.materials]
         rgbs = np.array([tuple(m.diffuse_color)[:3] if m else (0.6, 0.6, 0.6) for m in mats] or [(0.6, 0.6, 0.6)])
-        if name.startswith(DROP):
+        if name.startswith(DROP) or any(w in name for w in DROP_IN):
             continue
-        if name.startswith(GROUND):
+        if name.startswith(GROUND) or any(w in name for w in GROUND_IN):
             m = (path_distance(f["cen"], P) < GROUND_R) & (f["ztop"] > L.RIVER_LEVEL_AHD - 0.5)
             pano_hide[name] = m
             # (the aerial-draped ground has no colour of its own: the river bank's grass and mud stand in)
@@ -320,7 +333,7 @@ def cut(c):
             grgb = np.where(plain[:, None], np.array(BANK), rgbs)
             kept_by["ground"] = kept_by.get("ground", 0) + ground.take(f, m, grgb[np.clip(f["mi"], 0, len(grgb) - 1)])
             continue
-        if name.startswith(CROWNS):
+        if name.startswith(CROWNS) or any(w in name for w in CROWNS_IN):
             m = path_distance(f["cen"], P) < TREE_R
             pano_hide[name] = m
             if m.any():
@@ -339,8 +352,8 @@ def cut(c):
                         continue
                     x, y = (a[0] + b[0]) * 0.5, (a[1] + b[1]) * 0.5
                     rz = max((b[2] - a[2]) * 0.5 + 0.6, rx * 0.75) * 1.35
-                    far = min(math.hypot(x - p[0], y - p[1]) for p in P) > TREE_FULL_R
-                    crowns.lump(x, y, b[2] + 0.6 - rz * 0.8, rx * 1.1, rz, abs(x * 3.1 + y * 1.7), rgb, far)
+                    dist = min(math.hypot(x - p[0], y - p[1]) for p in P)
+                    lumps.append((rx / max(dist, 60.0), x, y, b[2] + 0.6 - rz * 0.8, rx * 1.1, rz, tuple(rgb), dist > TREE_FULL_R))
             continue
         m, d = keep_mask(f, P, D)
         if any(w in name for w in TRIM):                     # slab-edge bands and balcony glass: only close up
@@ -349,9 +362,10 @@ def cut(c):
         for k, t in c["towers"].items():                     # the game tower's own footprint: its own object
             tm = inside(rings[k], f["cen"][:, :2]) if rings[k] is not None else in_tower(f["cen"], t)
             near = np.hypot(f["cen"][:, 0] - t["at"][0], f["cen"][:, 1] - t["at"][1]) < 400
-            tm &= near & (f["area"] >= MIN_AREA)
+            tm &= near & (f["area"] >= MIN_AREA) & ~plates(f)
             pano_hide[name] = pano_hide[name] | tm
-            towers[k].take(f, tm, rgbs[np.clip(f["mi"], 0, len(rgbs) - 1)])
+            if tm.any():
+                tower_parts[k].append((f, tm, rgbs[np.clip(f["mi"], 0, len(rgbs) - 1)]))
             m &= ~tm
         if not m.any():
             continue
@@ -374,6 +388,19 @@ def cut(c):
             n = bag.take(f, mm, rgb)
             kept_by["own" if key in top else "shared"] = kept_by.get("own" if key in top else "shared", 0) + n
     print("   biggest sources:", sorted(by_src.items(), key=lambda x: -x[1])[:25])
+    lumps.sort(key=lambda l: -l[0])                          # the biggest, nearest crowns
+    for _, x, y, z, rx, rz, rgb, far in lumps[:TREE_MAX]:
+        crowns.lump(x, y, z, rx, rz, abs(x * 3.1 + y * 1.7), rgb, far)
+    for k, parts in tower_parts.items():                     # a tower's biggest faces, up to its share
+        if not parts:
+            continue
+        area = np.concatenate([f["area"][tm] for f, tm, _ in parts])
+        tri = np.concatenate([(f["lt"][tm] - 2) for f, tm, _ in parts])
+        order = np.argsort(-area)
+        over = np.nonzero(np.cumsum(tri[order]) > TOWER_TRIS)[0]
+        floor = float(area[order][over[0]]) if len(over) else 0.0
+        for f, tm, rgb in parts:
+            towers[k].take(f, tm & (f["area"] > floor), rgb)
     kept_by["crowns"] = crowns.tris()
     kept_by["towers"] = sum(b.tris() for b in towers.values())
     return out, {"source_triangles": src_tris, "kept": kept_by, "samples": len(P)}, pano_hide, {k: own[k]["mat"] for k in top}
