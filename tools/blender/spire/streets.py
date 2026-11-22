@@ -96,6 +96,52 @@ def on_other_road(pt, me, car_ways, o, pad=0.2):
     return False
 
 
+def road_cells(car_ways, o, cell=0.5):
+    """{cell: ways whose carriageway covers it} on a 0.5 m grid: a quick 'is this spot on another road' test."""
+    cells = {}
+    for k, w in enumerate(car_ways):
+        P = o["line"](w)
+        if len(P) < 2:
+            continue
+        hw = road_width(w["tags"])[0] / 2
+        P = C.densify(P, cell)
+        m = int(hw / cell) + 1
+        for i, (x, y) in enumerate(P):
+            a_, b_ = P[max(i - 1, 0)], P[min(i + 1, len(P) - 1)]
+            dx, dy = b_[0] - a_[0], b_[1] - a_[1]
+            ln = math.hypot(dx, dy) or 1.0
+            nx, ny = -dy / ln, dx / ln
+            for j in range(-m, m + 1):
+                d = min(hw, max(-hw, j * cell))
+                cells.setdefault((int((x + nx * d) // cell), int((y + ny * d) // cell)), set()).add(k)
+    return cells
+
+
+def clear_runs(core, wd, fw, side, me, cells, cell=0.5):
+    """Index runs of `core` where a footpath on this side would not lie on another road's carriageway (lanes
+    peeling off at a split used to get a strip of raised footpath laid over them)."""
+    probes = [C.offset_line(core, side * (wd / 2 + d)) for d in (min(0.6, fw / 2), max(fw - 0.2, fw / 2))]
+    ok = []
+    for i in range(len(core)):
+        hit = False
+        for pr in probes:
+            got = cells.get((int(pr[i][0] // cell), int(pr[i][1] // cell)))
+            if got and (len(got) > 1 or me not in got):
+                hit = True
+        ok.append(not hit)
+    runs, cur = [], []
+    for i, good in enumerate(ok):
+        if good:
+            cur.append(i)
+        else:
+            if len(cur) > 1:
+                runs.append(cur)
+            cur = []
+    if len(cur) > 1:
+        runs.append(cur)
+    return runs
+
+
 def kerb_band(buf, inner, outer):
     """Footpath band: top at kerb height, with a kerb face down to the road along `inner`."""
     n = len(inner)
@@ -135,6 +181,8 @@ def build():
             deg[w["nodes"][-1]] += 1
     width_src = Counter()
     n_car = n_walk = 0
+    cells = road_cells(car_ways, o)
+    way_no = {id(w): k for k, w in enumerate(car_ways)}
     for w in car_ways:
         t = w["tags"]
         pts = o["line"](w)
@@ -144,6 +192,9 @@ def build():
         width_src[src] += 1
         lift = ROAD_Z.get(t["highway"], 0.028)
         pts = C.densify(pts)
+        if "note" in t:                                      # layout.EXTRA_ASPHALT: flat fill under the real ways
+            ribbon(roads, C.offset_line(pts, wd / 2), C.offset_line(pts, -wd / 2), 0.02)
+            continue
         crowned(roads, pts, wd, lift)
         n_car += 1
         lanes = int(L.tag_float(t, "lanes") or (2 if t["highway"] in ("primary", "secondary", "tertiary") else 1))
@@ -182,9 +233,11 @@ def build():
                         break
             inner = C.offset_line(core, side * wd / 2)
             outer = C.offset_line(core, side * (wd / 2 + fw))
-            if side < 0:
-                inner, outer = inner[::-1], outer[::-1]
-            kerb_band(paths, inner, outer)
+            for run in clear_runs(core, wd, fw, side, way_no[id(w)], cells):
+                ri, ro = [inner[i] for i in run], [outer[i] for i in run]
+                if side < 0:
+                    ri, ro = ri[::-1], ro[::-1]
+                kerb_band(paths, ri, ro)
     for wid, w in o["ways"].items():
         t = w.get("tags", {})
         if t.get("highway") in WALK and t.get("area") != "yes" and t.get("bridge", "no") == "no" \
@@ -194,6 +247,11 @@ def build():
                 continue
             wd = L.ROAD_WIDTH.get(t["highway"], 2.0)
             pts = C.densify(pts)
+            if t.get("footway") == "crossing" or t.get("cycleway") == "crossing":
+                for of in (-1.5, 1.5):                       # a crossing is two painted lines, not a footpath over the road
+                    dashes(lines, pts, of, 0.05, solid=True, w=0.25)
+                n_walk += 1
+                continue
             ribbon(walks, C.offset_line(pts, wd / 2), C.offset_line(pts, -wd / 2), 0.05)
             n_walk += 1
     objs = [ob.name for ob in (roads.object("roads", col, "road"), paths.object("footpaths_kerbs", col, "footpath"),
