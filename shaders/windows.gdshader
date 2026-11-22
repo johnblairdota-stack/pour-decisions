@@ -45,7 +45,7 @@ float hash(vec2 p) {
 }
 
 void fragment() {
-	if (cut && cut_hidden(VERTEX, VIEW_MATRIX, FRAGCOORD.xy)) {
+	if (cut && cut_hidden(VERTEX, VIEW_MATRIX, INV_VIEW_MATRIX, FRAGCOORD.xy)) {
 		discard;
 	}
 	lk_rim = 0.0;

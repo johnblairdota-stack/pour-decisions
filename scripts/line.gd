@@ -171,6 +171,8 @@ static func use_site(kerb: bool, wall_z := 0.0, roof_y := 1.0e9, set_back := 0.0
 			# (the crew step over the ground line on the footpath where they turn in for the ladder)
 			STEP_OVER = Vector3(LADDER_FOOT.x + 0.15, 0, PIPE_IN.z)
 			STEP_YAW = 0.0
+			# (John, 22 Nov: the parts racking's inside, on the ground floor beside the winch's haul rope)
+			RACKING = Vector3(LADDER_FOOT.x + 3.6, 0, stack.y + 3.7)
 		PANEL_WAIT = Vector3(-0.9, 0, 0.1)
 		BAY_WAIT = Vector3(-0.5, 0, 0.2)
 	else:
@@ -757,6 +759,7 @@ func _build_stores() -> void:
 	var iron := F.color_mat(Color("aeb7c2"), true)
 	var rib := F.color_mat(Color("8f99a6"))
 	var roof := Node3D.new()
+	roof.visible = not STACK      # (Spire: it's indoors, under the podium)
 	roof.position = Vector3(0, 2.78, 0)
 	roof.rotation.z = 0.14
 	rk.add_child(roof)
@@ -764,7 +767,7 @@ func _build_stores() -> void:
 	var nrib := int((RACK_LEN + 0.6) / 0.2)
 	for i in nrib:
 		roof.add_child(F.box(Vector3(d * 2.0 + 0.9, 0.035, 0.07), rib, Vector3(0, 0.03, -(RACK_LEN + 0.6) * 0.5 + 0.1 + i * 0.2), false))
-	for ez in [-half, half]:
+	for ez in ([] if STACK else [-half, half]):
 		for ex in [-d, d]:
 			rk.add_child(F.box(Vector3(0.06, 0.34, 0.06), blue, Vector3(ex, 2.62 + 0.14 * ex, ez)))
 	# The signs, on the end that faces the camera: each beside its own shelf
@@ -3416,7 +3419,7 @@ func _update_winch_hand(delta: float) -> void:
 		_winch_kind = ""
 		return
 	var home := _winch_home()
-	var rack := RACKING + Vector3(0.9, 0, -0.2)
+	var rack := RACKING + Vector3(-0.9 if STACK else 0.9, 0, -0.2)
 	var rope := HAUL + Vector3(0.0, 0, 0.75)
 	var to := home
 	_winch_t += delta
