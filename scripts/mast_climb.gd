@@ -22,6 +22,7 @@ signal finished
 const F := preload("res://scripts/factory.gd")
 const LineScript := preload("res://scripts/line.gd")
 const SpireSite := preload("res://scripts/spire_site.gd")
+const UI := preload("res://scripts/ui.gd")
 
 const PIPES := 5
 const HOIST_V := 0.32       # m/s the crane lifts the column
@@ -73,6 +74,7 @@ var _mark: Label3D          # the dogman's mark at the column's foot: "0.4 m to 
 var _saved_borrow: Callable
 var _tag: Label3D           # over the job: what it is and whose
 var _absent := {}           # roles a bot's had to stand in for today (it waits less the next time)
+var _who: Dictionary = {}     # player -> the label over them: their turn, or who they're waiting on
 var _shot_next := ""        # (dev: shoot this step a few seconds in, once things are moving)
 
 func _ready() -> void:
@@ -125,6 +127,13 @@ func start() -> void:
 	g.climb.park_fold = 0.0
 	_go("park")
 	g.hud.toast("Climb day: the crane lifts the boom's column %.0f m up through the slabs" % rise, 3.0)
+	# The roll call: who has which job today, by player tag
+	var lines: Array = []
+	for role in ["boom", "pump", "hose", "line"]:
+		if g.crew.crew.get(role) != null:
+			lines.append("%s · %s" % [who_text(role), CLIMB_JOB[role]])
+	lines.append("Everyone else: stand clear of the column and watch.")
+	g.hud.job_intro("CLIMB DAY · WHO DOES WHAT", "\n".join(lines), UI.GOLD, 14.0)
 
 func _place_column() -> void:
 	var g = game
@@ -289,6 +298,10 @@ func _finish() -> void:
 	_rope.visible = false
 	_mark.visible = false
 	_tag.visible = false
+	for p in _who:
+		if is_instance_valid(_who[p]):
+			_who[p].queue_free()
+	_who = {}
 	game.climb.park_slew = 0.0
 	game.climb.park_fold = 0.0
 	game.line.rebuild_riser()
@@ -589,11 +602,14 @@ func _draw(_delta: float) -> void:
 		var top := Vector3(LineScript.HAUL.x, from_head + lifted, LineScript.HAUL.z)
 		F.stretch(_rope, top, _pipe.position + Vector3(0, 1.1, 0))
 	var ja := job_at()
-	_tag.visible = ja != Vector3.INF
+	var j := job()
+	var holder = game.crew.crew.get(j.get("role", "")) if not j.is_empty() else null
+	# (once they're at it their own button says what to do: the tag would only sit on their name)
+	_tag.visible = ja != Vector3.INF and not (holder != null and _at(holder, j))
 	if _tag.visible:
-		var j := job()
-		_tag.text = "%s\n%s" % [String(j["verb"]).trim_prefix("hold: ").to_upper(), hud_task()[1]]
+		_tag.text = "%s\n%s" % [String(j["verb"]).trim_prefix("hold: ").to_upper(), who_text(String(j["role"]))]
 		_tag.position = ja + Vector3(0, 1.6 + 0.08 * sin(step_t * 3.0), 0)
+	_draw_who(j)
 	# The dogman's mark: how far the column's foot is off the pipe length
 	_mark.visible = step == "lift"
 	if _mark.visible:
@@ -663,12 +679,101 @@ const STEP_SAY := {
 	"adaptor_on": "crane brings the adaptor back", "adaptor_in": "4 adaptor pins in", "boom_on": "crane brings the boom back",
 	"boom_in": "8 boom pins in", "check": "mobilisation check on the remote"}
 
-## For the HUD: [task, who it's on, 0..1 of the day].
+## Which job each step is (the rest are the tower crane's), and what each job does on a climb day.
+const STEP_ROLE := {"park": "boom", "boom_pins": "pump", "adaptor_pins": "pump", "shackle": "pump", "wedges_out": "hose",
+	"feet_in": "hose", "lift": "boom", "send_pipe": "line", "fit_pipe": "hose", "feet_out": "hose", "wedges_in": "hose",
+	"unshackle": "pump", "adaptor_in": "pump", "boom_in": "pump", "check": "boom"}
+const CLIMB_JOB := {
+	"boom": "parks the boom, then is the DOGMAN: whistles the crane to STOP at each mark",
+	"pump": "RIGGER up on the column: pins out, shackles on, pins back in",
+	"hose": "down the ladder inside: wedges, feet, and fits each pipe under the column",
+	"line": "at the haul rope on the ground: sends the 5 pipes up"}
+## The day in eight stages, for the strip on the HUD.
+const STAGES := ["BOOM OFF", "ADAPTOR OFF", "HOOK ON", "WEDGES OUT", "LIFT + PIPES", "FEET + WEDGES", "BOOM ON", "CHECK"]
+const STAGE_OF := {"park": 0, "boom_pins": 0, "boom_off": 0, "adaptor_pins": 1, "adaptor_off": 1, "hook_down": 2, "shackle": 2,
+	"wedges_out": 3, "feet_in": 3, "lift": 4, "send_pipe": 4, "fit_pipe": 4, "feet_out": 5, "wedges_in": 5, "unshackle": 5,
+	"adaptor_on": 6, "adaptor_in": 6, "boom_on": 6, "boom_in": 6, "check": 7}
+
+func stages() -> Array:
+	var out := STAGES.duplicate()
+	if step in ["lift", "send_pipe", "fit_pipe"]:
+		out[4] = "LIFT + PIPE %d OF %d" % [mini(lift_i + 1, PIPES), PIPES]
+	return out
+
+func stage_i() -> int:
+	return int(STAGE_OF.get(step, 0))
+
+## "P2 TASH" for a person, "JULES (bot)" for a bot, on `role`.
+func who_text(role: String) -> String:
+	var p = game.crew.crew.get(role)
+	if p == null:
+		return String(UI.ROLE_NAME.get(role, role)).to_upper()
+	var job_name := String(UI.ROLE_NAME.get(role, role)).to_upper()
+	if p.bot:
+		return "%s (bot) · %s" % [String(p.char_name).to_upper(), job_name]
+	return "P%d %s · %s" % [p.index, String(p.char_name).to_upper(), job_name]
+
+## The job that's up after this step (skipping the crane's own moves).
+func next_role() -> String:
+	match step:
+		"lift": return "line"
+		"send_pipe": return "hose"
+		"fit_pipe": return "boom" if lift_i + 1 < PIPES else "hose"
+	var i := STEP_ORDER.find(step)
+	for n in range(i + 1, STEP_ORDER.size()):
+		if STEP_ROLE.has(STEP_ORDER[n]):
+			return STEP_ROLE[STEP_ORDER[n]]
+	return ""
+
+## Over each person: it's their turn and where to go, or who everyone's waiting on (and "you're next").
+func _draw_who(j: Dictionary) -> void:
+	var now := String(STEP_ROLE.get(step, ""))
+	var nxt := next_role()
+	for p in game.crew.humans():
+		var l: Label3D = _who.get(p)
+		if l == null or not is_instance_valid(l):
+			l = F.label3d("", 54, Color("ffc72c"))
+			l.no_depth_test = true
+			add_child(l)
+			_who[p] = l
+		var text := ""
+		var mine: bool = p.role == now and not p.covering
+		if mine:
+			if step == "lift" or j.is_empty():
+				text = ""        # (the whistle's on their own button)
+			elif _at(p, j):
+				text = ""
+			elif String(j["zone"]) == "ladder":
+				var up: bool = float(j["y"]) > p.position.y
+				text = "YOUR TURN\n%s THE LADDER" % ("UP" if up else "DOWN")
+			elif String(j["zone"]) == "ground":
+				text = "YOUR TURN\nDOWN TO THE HAUL ROPE"
+			else:
+				text = "YOUR TURN\nTO THE BOOM REMOTE"
+		else:
+			var on := "THE CRANE'S MOVE" if now == "" else "WAITING ON %s" % who_text(now).get_slice(" · ", 0)
+			if p.role == nxt:
+				text = "%s\nYOU'RE NEXT" % on
+			elif not STEP_ROLE.values().has(p.role):
+				text = "%s\nNO JOB TODAY · STAND CLEAR" % on
+			else:
+				text = on
+		l.visible = text != ""
+		l.text = text
+		l.modulate = Color("ffc72c") if mine else Color("e9e4d6")
+		l.position = p.global_position + Vector3(0, 3.3 + (0.08 * sin(step_t * 3.0) if mine else 0.0), 0)
+	for p in _who.keys():
+		if not is_instance_valid(p) or p.bot:
+			if is_instance_valid(_who[p]):
+				_who[p].queue_free()
+			_who.erase(p)
+
+## For the HUD: [task, who it's on, 0..1 of the day, their job].
 func hud_task() -> Array:
 	var j := job()
-	var who := ""
+	var who := "TOWER CRANE"
 	if j.has("role") and game.crew.crew.get(j["role"]) != null:
-		who = String(game.crew.INFO[j["role"]]["name"])
+		who = who_text(String(j["role"]))
 	var done := 0.0
 	var i := STEP_ORDER.find(step)
 	if step in ["lift", "send_pipe", "fit_pipe"]:
@@ -678,7 +783,7 @@ func hud_task() -> Array:
 	else:
 		done = float(maxi(i, 0)) / 23.0
 	var lift_txt := " · pipe %d of %d" % [mini(lift_i + 1, PIPES), PIPES] if step in ["lift", "send_pipe", "fit_pipe"] else ""
-	return ["Climb day · %s%s" % [STEP_SAY.get(step, ""), lift_txt], who, done]
+	return ["Climb day · %s%s" % [STEP_SAY.get(step, ""), lift_txt], who, done, String(j.get("role", ""))]
 
 ## Where the current job is, for a floating tag over it (Vector3.INF if it's the crane's).
 func job_at() -> Vector3:

@@ -773,8 +773,40 @@ const INTRO_T := 7.0
 
 ## A person's first go at a job: "P2 · TRUCK HAND" and what it's for, along
 ## the bottom for a few seconds. Several queue up, one at a time.
-func job_intro(head: String, body: String, col: Color) -> void:
-	_intros.append([head, body, col])
+func job_intro(head: String, body: String, col: Color, secs := INTRO_T) -> void:
+	_intros.append([head, body, col, secs])
+
+## A day's stages in a strip under the task bar (a climb day): the ones done ticked off and dim, the
+## one that's on now big and yellow with its number, the rest waiting.
+var steps_bar: HBoxContainer
+var _steps_key := ""
+func set_steps(names: Array, cur: int, show: bool) -> void:
+	if steps_bar == null:
+		if not show:
+			return
+		steps_bar = HBoxContainer.new()
+		steps_bar.add_theme_constant_override("separation", 6)
+		_root.add_child(steps_bar)
+		UI.place(steps_bar, Vector2(0.5, 0), Vector2(0, 168))
+	steps_bar.visible = show
+	var key := str(names) + str(cur)
+	if not show or key == _steps_key:
+		return
+	_steps_key = key
+	for c in steps_bar.get_children():
+		c.queue_free()
+	for i in names.size():
+		var on := i == cur
+		var done := i < cur
+		var pl := UI.pill(UI.YELLOW if on else Color(0.04, 0.07, 0.12, 0.78), Vector4(12, 3, 12, 3), Color(0, 0, 0, 0) if on else (Color("7cd992") if done else UI.EDGE), 2)
+		var txt := "%d  %s" % [i + 1, names[i]]
+		if on:
+			txt = "NOW  " + txt
+		elif done:
+			txt = "%s  DONE" % names[i]
+		pl.add_child(UI.head(txt, 24 if on else 18, Color("111111") if on else (Color("7cd992") if done else UI.BONE)))
+		pl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		steps_bar.add_child(pl)
 
 func _tick_intro(delta: float) -> void:
 	if intro_panel == null:
@@ -794,7 +826,7 @@ func _tick_intro(delta: float) -> void:
 	UI.style(intro_panel).border_color = it[2]
 	intro_panel.visible = true
 	intro_panel.modulate.a = 1.0
-	_intro_t = INTRO_T
+	_intro_t = float(it[3])
 	_pop(intro_panel)
 
 func toast(text: String, seconds := 2.2) -> void:
