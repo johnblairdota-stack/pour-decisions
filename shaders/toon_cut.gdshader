@@ -13,7 +13,7 @@ uniform float rim_amount : hint_range(0.0, 1.0) = 0.35;
 uniform float vc_ao = 0.0;
 
 void fragment() {
-	if (cut_hidden(VERTEX, VIEW_MATRIX, FRAGCOORD.xy)) {
+	if (cut_hidden(VERTEX, VIEW_MATRIX, INV_VIEW_MATRIX, FRAGCOORD.xy)) {
 		discard;
 	}
 	ALBEDO = albedo.rgb;

@@ -147,6 +147,10 @@ var _spire_b: SpireB
 var _spire_street: SpireStreet
 var _spire_mast: Node3D      # the placing boom's square column, up through the slabs' openings
 var _spire_jack := 0.0       # (unused since the crane climb day: mast_climb.gd)
+const MAST_VIEW_GAP := 24.0
+var _mast_view_was := false
+var _yaw_before_mast := 0.0
+var _pitch_before_mast := 0.0
 var mast: Node3D             # Spire's climb day: the crane lifts the boom's column (scripts/mast_climb.gd)
 var _mast_due := false       # this level opens with one
 
@@ -6493,6 +6497,11 @@ func _jobs() -> Array:
 		for i in 4:
 			if outriggers[i] < 1.0:
 				add.call("rig%d" % i, st_pos.call("rig%d" % i) + up, 0, "pump")
+	if phase == "mastclimb" and mast != null and mast.active:
+		var mj: Dictionary = mast.job()
+		var ja: Vector3 = mast.job_at()
+		if not mj.is_empty() and ja != Vector3.INF:
+			add.call("block" if String(mj["zone"]) == "ladder" else "mastjob", ja + Vector3(0, 1.0, 0), 1, String(mj["role"]), String(mj["verb"]).trim_prefix("hold: "))
 	if climb.active:
 		var has := {}
 		for q in players:
@@ -6641,7 +6650,7 @@ const CALL_OUTS := {"boom": "Bay's waiting on the boom!", "line": "Truck's waiti
 ## Is the game waiting on this person right now (their job's flagged, and
 ## they've a button to press)?
 func waiting_on(p) -> bool:
-	return not p.bot and int(urgent.get(p.role, 0)) >= 1 and phase in ["inspect", "pour", "climb"] and (not p.cues.is_empty() or p.had_cues or where_to(p) != "")
+	return not p.bot and int(urgent.get(p.role, 0)) >= 1 and phase in ["inspect", "pour", "climb", "mastclimb"] and (not p.cues.is_empty() or p.had_cues or where_to(p) != "")
 
 ## Where this person's job wants them (the hand sign's spot, on the ground
 ## under it), if it's within `reach` m of them across; else INF. The camera
@@ -6663,7 +6672,7 @@ func _job_dest(p, reach: float) -> Vector3:
 ## For the phone: where this person's job needs them, when they're not there
 ## yet and have nothing to press ("Walk to the TRUCK BAY"), else "".
 func where_to(p) -> String:
-	if p.bot or not phase in ["inspect", "pour", "climb"] or not p.cues.is_empty() or p.busy != "":
+	if p.bot or not phase in ["inspect", "pour", "climb", "mastclimb"] or not p.cues.is_empty() or p.busy != "":
 		return ""
 	var g: Array = go_to.get(p.role, [])
 	if g.is_empty() or String(g[0]) == "":
@@ -6789,7 +6798,7 @@ func _cover(p, delta: float) -> void:
 		p.idle_in += delta
 	# (their job's flagged, whether or not they're near enough to see its
 	# button: someone stood at the wrong end of the site still holds it up)
-	var waiting: bool = waiting_on(p) or (int(urgent.get(p.role, 0)) >= 1 and phase in ["inspect", "pour", "climb"])
+	var waiting: bool = waiting_on(p) or (int(urgent.get(p.role, 0)) >= 1 and phase in ["inspect", "pour", "climb", "mastclimb"])
 	if p.covering and p.role == "pump" and phase == "pour" and (line.repair_pending() or line.tripped):
 		waiting = true   # (he sees a repair through, start to finish)
 	if p.covering and climb.active and p.busy in ["rigger", "dogman"]:
@@ -8043,6 +8052,8 @@ const STREET_CUT_R := 11.0    # m, the circle cut out of Spire's neighbours roun
 const CUT_R_STREET := 9.0     # ...and the barriers' own circle round someone behind Spire's road barriers,
 const CUT_BACK_STREET := 6.0  # set this far back from the street behind them
 const CUT_R := 4.0            # m, the see-through circle round each bit of work
+const CUT_R_STACK := 7.0      # ...round someone on the ladder up Spire's column, or in the passage to it
+const SLOT_SPAN := 10.0       # m above and below a climber the section slot opens the building's floors
 const CUT_R_TOUR := 10.0      # ...and round what the equipment tour's camera is following
 var _scr_cut := Vector3.INF    # the nearest concrete a screeder's still to do (world)
 var _scr_cut_t := 0.0
@@ -8135,7 +8146,7 @@ func _update_see_through(delta: float) -> void:
 		# column itself while it's being climbed)
 		for p in humans():
 			if ps.size() < 4 and (p.zone == "ladder" or (p.zone == "ground" and p.position.z < SpireSite.face_z(p.position.x) - 0.3)):
-				ps.append(Vector4(p.position.x, p.position.y + 1.0, p.position.z, CUT_R + 1.0))
+				ps.append(Vector4(p.position.x, p.position.y + 1.0, p.position.z, CUT_R_STACK))
 		if mast != null and mast.active:
 			# (the job inside the building, whoever's on it, and the column's foot while it's lifted)
 			for cp in mast.cut_points():
@@ -8177,7 +8188,8 @@ func _update_see_through(delta: float) -> void:
 	while ps.size() < 6:
 		ps.append(Vector4.ZERO)
 	# (only when the circles have moved, or there are new parts to tell)
-	var sent := [n, ps, _cut_made.size()]
+	var slot := _section_slot()
+	var sent := [n, ps, _cut_made.size(), slot]
 	if sent == _cut_sent:
 		return
 	_cut_sent = sent
@@ -8186,6 +8198,50 @@ func _update_see_through(delta: float) -> void:
 			continue      # (the barriers keep their own circles)
 		(m as ShaderMaterial).set_shader_parameter("cut_n", n)
 		(m as ShaderMaterial).set_shader_parameter("cut_p", ps)
+		(m as ShaderMaterial).set_shader_parameter("cut_slot", slot[0])
+		(m as ShaderMaterial).set_shader_parameter("cut_slot_y", slot[1])
+
+## Spire's section view: the building's floors, columns, face and edge screens are cut away in a slot
+## from the Ann St face in to the boom's column, so the column, its ladder and the line up beside it
+## show like a section drawing, with the floors left in behind them and either side. On for the whole
+## height under the deck on a climb day, and round anyone on the ladder the rest of the time (they
+## see through the floors above and below them, not just a circle). [slot, heights] for the shader.
+var slot_on := false
+func _section_slot() -> Array:
+	slot_on = false
+	if not spire or not LineScript.STACK or skyline:
+		return [Vector4.ZERO, Vector3.ZERO]
+	var m := SpireSite.mast_xz()
+	var y0 := INF
+	var y1 := -INF
+	if mast != null and mast.active:
+		y0 = SLOT_FLOOR
+		y1 = work_y - 0.45
+	for p in humans():
+		if p.zone == "ladder":
+			y0 = minf(y0, p.position.y - SLOT_SPAN)
+			y1 = maxf(y1, p.position.y + SLOT_SPAN)
+	if not _tour.is_empty() and _tour.has("look"):
+		var tl: Vector3 = _tour["look"]
+		if absf(tl.x - m.x) < 3.0 and absf(tl.z - m.y) < 3.0:
+			y0 = minf(y0, tl.y - SLOT_SPAN)
+			y1 = maxf(y1, tl.y + SLOT_SPAN)
+	if y0 == INF:
+		return [Vector4.ZERO, Vector3.ZERO]
+	# (never the ground storey, where the passage, the winch and the racking are; never the deck)
+	y0 = maxf(y0, SLOT_FLOOR)
+	y1 = minf(y1, work_y - 0.45)
+	if y1 - y0 < 1.0:
+		return [Vector4.ZERO, Vector3.ZERO]
+	slot_on = true
+	# (quantised, so the materials aren't all written to every frame of a climb)
+	y0 = snappedf(y0, 0.25)
+	y1 = snappedf(y1, 0.25)
+	var front := SpireSite.face_z(m.x) + 3.0
+	return [Vector4(m.x - SLOT_HALF, m.x + SLOT_HALF + 1.0, m.y + 0.8, 1.0), Vector3(y0, y1, front)]
+
+const SLOT_HALF := 4.5        # m either side of the column the slot's cut
+const SLOT_FLOOR := 3.4       # m: it starts above the ground storey
 
 ## Dev: which west wing screenshot this moment of the pour makes, if any.
 const WEST_SHOTS := {"west1": 0.08, "west2": 0.3, "west3": 0.55, "west4": 0.7, "west5": 0.95}
@@ -8640,13 +8696,31 @@ func _update_camera_views(delta: float) -> void:
 	if climb_frame:
 		focus = focus.lerp(climb.focus_point(), 0.65)
 		dist = minf(cam_dist, 27.0)
+	var mast_view := false
 	if phase == "mastclimb" and mast != null and mast.active:
 		# (Spire's climb day: on whatever's happening now: the crane's load, the job up on the column or
 		# down the ladder, the column's foot while it's lifted; whoever's followed stays in the shot)
 		var mf: Array = mast.focus()
 		var gap: float = (focus - (mf[0] as Vector3)).length() if not main_follow.is_empty() else 0.0
-		focus = focus.lerp(mf[0], 0.6 if not main_follow.is_empty() else 1.0)
-		dist = clampf(maxf(float(mf[1]), gap * 1.1 + spread * 1.2 + 8.0), 12.0, 44.0)
+		# (someone a long way from it, down on the street or halfway up the ladder, keeps their own
+		# camera: half way between them and the job shows neither. John, 22 Nov)
+		if gap < MAST_VIEW_GAP:
+			focus = focus.lerp(mf[0], 0.6 if not main_follow.is_empty() else 1.0)
+			dist = clampf(maxf(float(mf[1]), gap * 1.1 + spread * 1.2 + 8.0), 12.0, 44.0)
+			mast_view = bool(mf[2])
+	if mast_view != _mast_view_was:
+		# (jobs inside the building: round to look straight in along the section slot, and low, so
+		# the floors over the job don't hide it)
+		if mast_view:
+			_yaw_before_mast = cam_yaw
+			_pitch_before_mast = cam_pitch
+		else:
+			cam_yaw = _yaw_before_mast
+			cam_pitch = _pitch_before_mast
+		_mast_view_was = mast_view
+	if mast_view:
+		cam_yaw = lerp_angle(cam_yaw, 0.06, minf(1.0, delta * 2.0))
+		cam_pitch = lerpf(cam_pitch, 0.2, minf(1.0, delta * 2.0))
 	var guiding: bool = climb_frame and climb.stage == "guide"
 	if guiding and not _dog_view and climb.stage_t < 0.1:
 		_dog_view = true

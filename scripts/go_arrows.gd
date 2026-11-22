@@ -18,7 +18,7 @@ func _ready() -> void:
 
 func _process(_delta: float) -> void:
 	_marks.clear()
-	if game == null or game.skyline or game.hud_off or not game.phase in ["inspect", "pour", "climb"]:
+	if game == null or game.skyline or game.hud_off or not game.phase in ["inspect", "pour", "climb", "mastclimb"]:
 		queue_redraw()
 		return
 	var vs: Vector2 = get_viewport_rect().size
