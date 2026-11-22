@@ -257,7 +257,9 @@ static func tour(route: Array, off: Vector3, fin: Vector3, fin_look: Vector3, sh
 		var p: Vector3 = r[1]
 		if not keys.is_empty():
 			t += float(s[0]) / (float(ups) if id == "up" else 1.0)
-		keys.append([t, p + off * float(s[1]), p])
+		# (a stop may say where its camera stands off from, when what it looks at is inside the building)
+		var base: Vector3 = r[2] if r.size() > 2 else p
+		keys.append([t, base + off * float(s[1]), p])
 		if id != was:
 			cues.append([maxf(0.0, t - 0.35), id])
 		was = id
