@@ -1,0 +1,875 @@
+{
+ "id": "south_brisbane",
+ "name": "South Brisbane Reach",
+ "glb": "res://assets/corridors/south_brisbane.glb",
+ "frame": "as assets/spire/spire_site.glb: local x east, y north, z AHD (glTF y-up); origin = the Spire site",
+ "path_provisional": [
+  [
+   215,
+   -1350,
+   12
+  ],
+  [
+   215,
+   -1600,
+   12
+  ],
+  [
+   150,
+   -1880,
+   12
+  ],
+  [
+   -30,
+   -2040,
+   12
+  ],
+  [
+   -260,
+   -2040,
+   12
+  ],
+  [
+   -470,
+   -1860,
+   12
+  ],
+  [
+   -600,
+   -1640,
+   12
+  ],
+  [
+   -690,
+   -1480,
+   12
+  ],
+  [
+   -760,
+   -1360,
+   12
+  ]
+ ],
+ "towers": {
+  "william1": {
+   "name": "1 William St",
+   "at": [
+    -494.0,
+    -1344.6
+   ],
+   "top_ahd": 266.0,
+   "object": "tower_william1",
+   "equipment": "TBC: from the mast climb thread / John"
+  },
+  "queenswharf": {
+   "name": "Queen's Wharf",
+   "at": [
+    -532.8,
+    -1167.7
+   ],
+   "top_ahd": 190.0,
+   "object": "tower_queenswharf",
+   "equipment": "TBC: from the mast climb thread / John"
+  }
+ },
+ "looks": {
+  "gen_modern_res_wall": {
+   "glass": [
+    0.2471,
+    0.3333,
+    0.4
+   ],
+   "bay": 3.0,
+   "win": 2.6,
+   "sill": 0.02,
+   "head": 0.86,
+   "floor": 3.1,
+   "diag": false,
+   "wall": [
+    0.9412,
+    0.9412,
+    0.9333
+   ]
+  },
+  "gen_w_res2_r3_wall": {
+   "glass": [
+    0.2275,
+    0.1882,
+    0.149
+   ],
+   "bay": 3.0,
+   "win": 2.6,
+   "sill": 0.02,
+   "head": 0.86,
+   "floor": 3.1,
+   "diag": false,
+   "wall": [
+    0.7882,
+    0.651,
+    0.4863
+   ]
+  },
+  "gen_w_walkup0_r3_wall": {
+   "glass": [
+    0.1725,
+    0.1882,
+    0.2196
+   ],
+   "bay": 3.0,
+   "win": 2.6,
+   "sill": 0.02,
+   "head": 0.86,
+   "floor": 3.1,
+   "diag": false,
+   "wall": [
+    0.5804,
+    0.3137,
+    0.2275
+   ]
+  },
+  "gen_w_walkup2_r4_wall": {
+   "glass": [
+    0.1725,
+    0.1882,
+    0.2196
+   ],
+   "bay": 3.0,
+   "win": 2.6,
+   "sill": 0.02,
+   "head": 0.86,
+   "floor": 3.1,
+   "diag": false,
+   "wall": [
+    0.7882,
+    0.6902,
+    0.5412
+   ]
+  },
+  "gen_w_office3_r4_wall": {
+   "glass": [
+    0.2275,
+    0.1725,
+    0.1098
+   ],
+   "bay": 1.5,
+   "win": 1.38,
+   "sill": 0.3,
+   "head": 0.97,
+   "floor": 3.7,
+   "diag": false,
+   "wall": [
+    0.6627,
+    0.5608,
+    0.4157
+   ]
+  },
+  "gen_w_walkup4_r3_wall": {
+   "glass": [
+    0.1725,
+    0.1882,
+    0.2196
+   ],
+   "bay": 3.0,
+   "win": 2.6,
+   "sill": 0.02,
+   "head": 0.86,
+   "floor": 3.1,
+   "diag": false,
+   "wall": [
+    0.4784,
+    0.2745,
+    0.2118
+   ]
+  },
+  "gen_w_lowrise_brick_r4_wall": {
+   "glass": [
+    0.1725,
+    0.1882,
+    0.2196
+   ],
+   "bay": 3.0,
+   "win": 1.1,
+   "sill": 0.3,
+   "head": 0.78,
+   "floor": 3.6,
+   "diag": false,
+   "wall": [
+    0.5804,
+    0.3137,
+    0.2275
+   ]
+  },
+  "gen_w_walkup2_r2_wall": {
+   "glass": [
+    0.1725,
+    0.1882,
+    0.2196
+   ],
+   "bay": 3.0,
+   "win": 2.6,
+   "sill": 0.02,
+   "head": 0.86,
+   "floor": 3.1,
+   "diag": false,
+   "wall": [
+    0.7882,
+    0.6902,
+    0.5412
+   ]
+  },
+  "gen_w_res1_r3_wall": {
+   "glass": [
+    0.2275,
+    0.2902,
+    0.2667
+   ],
+   "bay": 3.0,
+   "win": 2.6,
+   "sill": 0.02,
+   "head": 0.86,
+   "floor": 3.1,
+   "diag": false,
+   "wall": [
+    0.8902,
+    0.8392,
+    0.7216
+   ]
+  },
+  "gen_w_office1_r4_wall": {
+   "glass": [
+    0.0588,
+    0.1098,
+    0.1569
+   ],
+   "bay": 1.5,
+   "win": 1.38,
+   "sill": 0.3,
+   "head": 0.97,
+   "floor": 3.7,
+   "diag": false,
+   "wall": [
+    0.5608,
+    0.6039,
+    0.6353
+   ]
+  },
+  "gen_w_office1_r1_wall": {
+   "glass": [
+    0.0588,
+    0.1098,
+    0.1569
+   ],
+   "bay": 1.5,
+   "win": 1.38,
+   "sill": 0.3,
+   "head": 0.97,
+   "floor": 3.7,
+   "diag": false,
+   "wall": [
+    0.5608,
+    0.6039,
+    0.6353
+   ]
+  },
+  "gen_w_res2_r1_wall": {
+   "glass": [
+    0.2275,
+    0.1882,
+    0.149
+   ],
+   "bay": 3.0,
+   "win": 2.6,
+   "sill": 0.02,
+   "head": 0.86,
+   "floor": 3.1,
+   "diag": false,
+   "wall": [
+    0.7882,
+    0.651,
+    0.4863
+   ]
+  },
+  "gen_w_lowrise_brick_r2_wall": {
+   "glass": [
+    0.1725,
+    0.1882,
+    0.2196
+   ],
+   "bay": 3.0,
+   "win": 1.1,
+   "sill": 0.3,
+   "head": 0.78,
+   "floor": 3.6,
+   "diag": false,
+   "wall": [
+    0.5804,
+    0.3137,
+    0.2275
+   ]
+  },
+  "gen_w_mid3_r4_wall": {
+   "glass": [
+    0.149,
+    0.1961,
+    0.2353
+   ],
+   "bay": 1.5,
+   "win": 1.45,
+   "sill": 0.35,
+   "head": 0.85,
+   "floor": 3.1,
+   "diag": false,
+   "wall": [
+    0.6039,
+    0.6392,
+    0.6667
+   ]
+  },
+  "gen_w_res3_r2_wall": {
+   "glass": [
+    0.1255,
+    0.1647,
+    0.2039
+   ],
+   "bay": 3.0,
+   "win": 2.6,
+   "sill": 0.02,
+   "head": 0.86,
+   "floor": 3.1,
+   "diag": false,
+   "wall": [
+    0.5529,
+    0.5804,
+    0.6039
+   ]
+  },
+  "gen_w_walkup2_r3_wall": {
+   "glass": [
+    0.1725,
+    0.1882,
+    0.2196
+   ],
+   "bay": 3.0,
+   "win": 2.6,
+   "sill": 0.02,
+   "head": 0.86,
+   "floor": 3.1,
+   "diag": false,
+   "wall": [
+    0.7882,
+    0.6902,
+    0.5412
+   ]
+  },
+  "gen_w_res0_r3_wall": {
+   "glass": [
+    0.2471,
+    0.3333,
+    0.4
+   ],
+   "bay": 3.0,
+   "win": 2.6,
+   "sill": 0.02,
+   "head": 0.86,
+   "floor": 3.1,
+   "diag": false,
+   "wall": [
+    0.9412,
+    0.9412,
+    0.9333
+   ]
+  },
+  "gen_w_office4_r4_wall": {
+   "glass": [
+    0.1098,
+    0.2902,
+    0.298
+   ],
+   "bay": 1.5,
+   "win": 1.38,
+   "sill": 0.3,
+   "head": 0.97,
+   "floor": 3.7,
+   "diag": false,
+   "wall": [
+    0.498,
+    0.6275,
+    0.6353
+   ]
+  },
+  "gen_lowrise_brick_wall": {
+   "glass": [
+    0.1725,
+    0.1882,
+    0.2196
+   ],
+   "bay": 3.0,
+   "win": 1.1,
+   "sill": 0.3,
+   "head": 0.78,
+   "floor": 3.6,
+   "diag": false,
+   "wall": [
+    0.5804,
+    0.3137,
+    0.2275
+   ]
+  },
+  "look_683336940_wall": {
+   "glass": [
+    0.07,
+    0.11,
+    0.21
+   ],
+   "bay": 1.5,
+   "win": 1.45,
+   "sill": 0.35,
+   "head": 0.85,
+   "floor": 3.1,
+   "diag": false,
+   "wall": [
+    0.11,
+    0.15,
+    0.24
+   ]
+  },
+  "gen_w_res3_r1_wall": {
+   "glass": [
+    0.1255,
+    0.1647,
+    0.2039
+   ],
+   "bay": 3.0,
+   "win": 2.6,
+   "sill": 0.02,
+   "head": 0.86,
+   "floor": 3.1,
+   "diag": false,
+   "wall": [
+    0.5529,
+    0.5804,
+    0.6039
+   ]
+  },
+  "gen_w_office1_r3_wall": {
+   "glass": [
+    0.0588,
+    0.1098,
+    0.1569
+   ],
+   "bay": 1.5,
+   "win": 1.38,
+   "sill": 0.3,
+   "head": 0.97,
+   "floor": 3.7,
+   "diag": false,
+   "wall": [
+    0.5608,
+    0.6039,
+    0.6353
+   ]
+  },
+  "gen_w_lowrise_render_r2_wall": {
+   "glass": [
+    0.1725,
+    0.1882,
+    0.2196
+   ],
+   "bay": 3.0,
+   "win": 1.1,
+   "sill": 0.3,
+   "head": 0.78,
+   "floor": 3.6,
+   "diag": false,
+   "wall": [
+    0.8863,
+    0.8392,
+    0.7373
+   ]
+  },
+  "gen_precast_80s_wall": {
+   "glass": [
+    0.3725,
+    0.5608,
+    0.5412
+   ],
+   "bay": 1.5,
+   "win": 1.45,
+   "sill": 0.35,
+   "head": 0.85,
+   "floor": 3.1,
+   "diag": false,
+   "wall": [
+    0.8667,
+    0.8275,
+    0.749
+   ]
+  },
+  "gen_office_wall": {
+   "glass": [
+    0.2392,
+    0.3765,
+    0.4706
+   ],
+   "bay": 1.5,
+   "win": 1.38,
+   "sill": 0.3,
+   "head": 0.97,
+   "floor": 3.7,
+   "diag": false,
+   "wall": [
+    0.7255,
+    0.7608,
+    0.7843
+   ]
+  },
+  "gen_w_res2_r2_wall": {
+   "glass": [
+    0.2275,
+    0.1882,
+    0.149
+   ],
+   "bay": 3.0,
+   "win": 2.6,
+   "sill": 0.02,
+   "head": 0.86,
+   "floor": 3.1,
+   "diag": false,
+   "wall": [
+    0.7882,
+    0.651,
+    0.4863
+   ]
+  },
+  "gen_w_lowrise_render_r4_wall": {
+   "glass": [
+    0.1725,
+    0.1882,
+    0.2196
+   ],
+   "bay": 3.0,
+   "win": 1.1,
+   "sill": 0.3,
+   "head": 0.78,
+   "floor": 3.6,
+   "diag": false,
+   "wall": [
+    0.8863,
+    0.8392,
+    0.7373
+   ]
+  },
+  "gen_w_office4_r1_wall": {
+   "glass": [
+    0.1098,
+    0.2902,
+    0.298
+   ],
+   "bay": 1.5,
+   "win": 1.38,
+   "sill": 0.3,
+   "head": 0.97,
+   "floor": 3.7,
+   "diag": false,
+   "wall": [
+    0.498,
+    0.6275,
+    0.6353
+   ]
+  },
+  "gen_lowrise_render_wall": {
+   "glass": [
+    0.1725,
+    0.1882,
+    0.2196
+   ],
+   "bay": 3.0,
+   "win": 1.1,
+   "sill": 0.3,
+   "head": 0.78,
+   "floor": 3.6,
+   "diag": false,
+   "wall": [
+    0.8863,
+    0.8392,
+    0.7373
+   ]
+  },
+  "gen_w_office3_r2_wall": {
+   "glass": [
+    0.2275,
+    0.1725,
+    0.1098
+   ],
+   "bay": 1.5,
+   "win": 1.38,
+   "sill": 0.3,
+   "head": 0.97,
+   "floor": 3.7,
+   "diag": false,
+   "wall": [
+    0.6627,
+    0.5608,
+    0.4157
+   ]
+  },
+  "gen_w_res1_r4_wall": {
+   "glass": [
+    0.2275,
+    0.2902,
+    0.2667
+   ],
+   "bay": 3.0,
+   "win": 2.6,
+   "sill": 0.02,
+   "head": 0.86,
+   "floor": 3.1,
+   "diag": false,
+   "wall": [
+    0.8902,
+    0.8392,
+    0.7216
+   ]
+  },
+  "gen_w_lowrise_render_r3_wall": {
+   "glass": [
+    0.1725,
+    0.1882,
+    0.2196
+   ],
+   "bay": 3.0,
+   "win": 1.1,
+   "sill": 0.3,
+   "head": 0.78,
+   "floor": 3.6,
+   "diag": false,
+   "wall": [
+    0.8863,
+    0.8392,
+    0.7373
+   ]
+  },
+  "gen_w_res0_r4_wall": {
+   "glass": [
+    0.2471,
+    0.3333,
+    0.4
+   ],
+   "bay": 3.0,
+   "win": 2.6,
+   "sill": 0.02,
+   "head": 0.86,
+   "floor": 3.1,
+   "diag": false,
+   "wall": [
+    0.9412,
+    0.9412,
+    0.9333
+   ]
+  },
+  "gen_w_walkup1_r4_wall": {
+   "glass": [
+    0.1725,
+    0.1882,
+    0.2196
+   ],
+   "bay": 3.0,
+   "win": 2.6,
+   "sill": 0.02,
+   "head": 0.86,
+   "floor": 3.1,
+   "diag": false,
+   "wall": [
+    0.6902,
+    0.4392,
+    0.3059
+   ]
+  },
+  "gen_w_office3_r3_wall": {
+   "glass": [
+    0.2275,
+    0.1725,
+    0.1098
+   ],
+   "bay": 1.5,
+   "win": 1.38,
+   "sill": 0.3,
+   "head": 0.97,
+   "floor": 3.7,
+   "diag": false,
+   "wall": [
+    0.6627,
+    0.5608,
+    0.4157
+   ]
+  },
+  "gen_w_office2_r1_wall": {
+   "glass": [
+    0.1686,
+    0.2275,
+    0.2667
+   ],
+   "bay": 1.5,
+   "win": 1.45,
+   "sill": 0.35,
+   "head": 0.85,
+   "floor": 3.1,
+   "diag": false,
+   "wall": [
+    0.902,
+    0.8863,
+    0.8392
+   ]
+  },
+  "gen_w_res2_r0_wall": {
+   "glass": [
+    0.2275,
+    0.1882,
+    0.149
+   ],
+   "bay": 3.0,
+   "win": 2.6,
+   "sill": 0.02,
+   "head": 0.86,
+   "floor": 3.1,
+   "diag": false,
+   "wall": [
+    0.7882,
+    0.651,
+    0.4863
+   ]
+  },
+  "gen_w_res0_r2_wall": {
+   "glass": [
+    0.2471,
+    0.3333,
+    0.4
+   ],
+   "bay": 3.0,
+   "win": 2.6,
+   "sill": 0.02,
+   "head": 0.86,
+   "floor": 3.1,
+   "diag": false,
+   "wall": [
+    0.9412,
+    0.9412,
+    0.9333
+   ]
+  },
+  "gen_w_lowrise_render_r1_wall": {
+   "glass": [
+    0.1725,
+    0.1882,
+    0.2196
+   ],
+   "bay": 3.0,
+   "win": 1.1,
+   "sill": 0.3,
+   "head": 0.78,
+   "floor": 3.6,
+   "diag": false,
+   "wall": [
+    0.8863,
+    0.8392,
+    0.7373
+   ]
+  },
+  "gen_w_res2_r4_wall": {
+   "glass": [
+    0.2275,
+    0.1882,
+    0.149
+   ],
+   "bay": 3.0,
+   "win": 2.6,
+   "sill": 0.02,
+   "head": 0.86,
+   "floor": 3.1,
+   "diag": false,
+   "wall": [
+    0.7882,
+    0.651,
+    0.4863
+   ]
+  }
+ },
+ "stats": {
+  "source_triangles": 13539011,
+  "kept": {
+   "ground": 240058,
+   "shared": 48046,
+   "own": 14220,
+   "crowns": 50180,
+   "towers": 9814
+  },
+  "samples": 73,
+  "triangles": 138260,
+  "draws": 45,
+  "objects": {
+   "cor_trees": 50180,
+   "cor_shared": 48046,
+   "cor_ground": 16000,
+   "tower_queenswharf": 8944,
+   "cor_gen_office_wall": 3267,
+   "cor_gen_modern_res_wall": 3003,
+   "cor_gen_precast_80s_wall": 1236,
+   "tower_william1": 870,
+   "cor_gen_w_res0_r2_wall": 745,
+   "cor_gen_w_res0_r3_wall": 577,
+   "cor_gen_w_office3_r2_wall": 577,
+   "cor_gen_w_res0_r4_wall": 460,
+   "cor_gen_w_res2_r3_wall": 314,
+   "cor_gen_lowrise_brick_wall": 322,
+   "cor_gen_w_res2_r4_wall": 344,
+   "cor_gen_lowrise_render_wall": 249,
+   "cor_gen_w_office4_r1_wall": 278,
+   "cor_gen_w_res3_r1_wall": 239,
+   "cor_gen_w_res2_r0_wall": 286,
+   "cor_gen_w_res3_r2_wall": 284,
+   "cor_gen_w_res2_r2_wall": 195,
+   "cor_gen_w_office2_r1_wall": 169,
+   "cor_gen_w_office1_r4_wall": 187,
+   "cor_gen_w_office1_r1_wall": 140,
+   "cor_gen_w_res1_r4_wall": 108,
+   "cor_gen_w_office3_r4_wall": 115,
+   "cor_gen_w_res2_r1_wall": 102,
+   "cor_gen_w_lowrise_render_r4_wall": 100,
+   "cor_gen_w_office4_r4_wall": 134,
+   "cor_gen_w_walkup0_r3_wall": 87,
+   "cor_gen_w_res1_r3_wall": 98,
+   "cor_gen_w_lowrise_render_r3_wall": 66,
+   "cor_gen_w_office1_r3_wall": 76,
+   "cor_gen_w_lowrise_render_r2_wall": 56,
+   "cor_gen_w_office3_r3_wall": 72,
+   "cor_gen_w_lowrise_render_r1_wall": 64,
+   "cor_gen_w_walkup2_r3_wall": 34,
+   "cor_gen_w_walkup2_r2_wall": 48,
+   "cor_gen_w_lowrise_brick_r2_wall": 44,
+   "cor_gen_w_mid3_r4_wall": 30,
+   "cor_gen_w_lowrise_brick_r4_wall": 28,
+   "cor_look_683336940_wall": 22,
+   "cor_gen_w_walkup1_r4_wall": 28,
+   "cor_gen_w_walkup4_r3_wall": 22,
+   "cor_gen_w_walkup2_r4_wall": 14
+  },
+  "budget": {
+   "triangles": 150000,
+   "draws": 60,
+   "within": true
+  }
+ },
+ "rules": {
+  "step_m": 25.0,
+  "half_view_deg": 70.0,
+  "near_m": 300.0,
+  "skyline": [
+   14.0,
+   0.08
+  ],
+  "far_m": 2600.0,
+  "area_k": 220.0,
+  "ground_m": 420.0,
+  "trees_m": 300.0
+ }
+}

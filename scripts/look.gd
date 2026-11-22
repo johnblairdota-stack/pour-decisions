@@ -1,5 +1,5 @@
 ## Looks: whole-picture styles to try on the game, side by side.
-## Comic Ink is the default. Smoko > Settings > Look picks one (kept between sessions), F6 flicks through
+## Site Toon is the default. Smoko > Settings > Look picks one (kept between sessions), F6 flicks through
 ## them live, and `--look=N` (or a name: `--look=clay`) starts on one, for
 ## screenshots.
 ##

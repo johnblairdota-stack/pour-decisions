@@ -453,6 +453,7 @@ Each slab prints its points and report, and the run ends with `TOPPED OUT with N
 | `--dbg` | Prints pump, truck and crew state |
 | `--human=<job>` | Leaves that job to an idle "person", to see how the rest of the crew copes (a crewmate covers after 15 s) |
 | `--nocover` | With `--human`, nobody covers the idle person, to test the line looking after itself |
+| `--pokerspam` | After 50 s the poker stands still and plunges the same spot over and over; prints `[pokerspam]` pay every 10 s (it should stop rising) |
 | `--botcues` | Shows the bots' button cues in the close-up cameras (for screenshots) |
 | `--weary` | Keeps the crew in the worn-out smoko pose all the time |
 | `--collidetest` | Sets each section down against the tower to check it bounces off |

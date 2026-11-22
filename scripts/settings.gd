@@ -32,7 +32,7 @@ const DOG_HELP_NAMES := ["First Day", "On Site", "Ticketed"]
 const GOLD_NAMES := ["fades as you learn", "full sparkle", "off"]
 const GRAPHICS_NAMES := ["Full", "Lite"]
 
-static var data := {"incidents": 1, "ui_scale": 1.25, "world_text": 1.25, "docket_help": false, "fullscreen": false, "gold_assist": true, "gold_mode": 0, "dog_help": 0, "real_names": true, "split": true, "band": true, "vol_site": 1.0, "vol_band": 1.0, "vol_alerts": 1.0, "ver": 2, "medals": [], "medals_spire": [], "site": "riverlight", "tut_done": false, "tower_started": false, "graphics": 0, "look": 4, "room_code": "", "phones_seen": []}
+static var data := {"incidents": 1, "ui_scale": 1.25, "world_text": 1.25, "docket_help": false, "fullscreen": false, "gold_assist": true, "gold_mode": 0, "dog_help": 0, "real_names": true, "split": true, "band": true, "vol_site": 1.0, "vol_band": 1.0, "vol_alerts": 1.0, "ver": 3, "medals": [], "medals_spire": [], "site": "riverlight", "tut_done": false, "tower_started": false, "graphics": 0, "look": 0, "room_code": "", "phones_seen": []}
 static var _loaded := false
 
 ## Camera test (not saved: it's for trying out the multiplayer cameras on
@@ -63,16 +63,21 @@ static func ensure() -> void:
 			data[k] = cf.get_value("game", k, data[k])
 		# Settings saved before screen text defaulted to 125% (TV-sized)
 		# come up to it once
-		if int(cf.get_value("game", "ver", 1)) < 2:
+		var ver := int(cf.get_value("game", "ver", 1))
+		if ver < 2:
 			data["ui_scale"] = maxf(float(data["ui_scale"]), 1.25)
-			data["ver"] = 2
+		# Site Toon became the default look (John, 22 Nov 2026): saves from before come over to it once
+		if ver < 3:
+			data["look"] = 0
+		data["ver"] = 3
 		# (the old on/off gold switch: off stays off)
 		if not cf.has_section_key("game", "gold_mode") and not bool(data["gold_assist"]):
 			data["gold_mode"] = 2
 
-## Where the photo of a floor's last pour is kept (level 0-based).
-static func photo_path(level: int) -> String:
-	return "user://photos/level_%02d.png" % (level + 1)
+## Where the photo of a floor's last pour is kept (level 0-based). Each tower keeps its own:
+## they used to share one folder, and Riverlight's floor pick showed Spire's pours.
+static func photo_path(level: int, tower: String) -> String:
+	return "user://photos/%s/level_%02d.png" % [tower, level + 1]
 
 static func value(key: String):
 	ensure()

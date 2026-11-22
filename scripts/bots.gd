@@ -7,6 +7,8 @@ extends Node
 var game
 var _boom_goal := Vector3.ZERO
 var _boom_goal_t := 0.0
+var _reach_t := 0.0     # (how long the tip's sat short of a goal it can't get to)
+var _reach_at := Vector3.ZERO
 var _heap_t := 0.0
 var _boom_ok := true    # the boom bot's own say on pumping now
 var _knocktest: bool = OS.get_cmdline_user_args().has("--knocktest")   # (dev: read once, not every frame of a guide)
@@ -24,6 +26,7 @@ const POKER_ROOM := 3.2
 var _barked := {}
 var _naive_dog := OS.get_cmdline_user_args().has("--naive-dog")
 var _pk_target := Vector3(INF, 0, 0)
+var _pk_spam := OS.get_cmdline_user_args().has("--pokerspam")
 var _pk_urgent := false
 const URGENT_PK := 0.55   # how close to going off before the poker bot drops what it's doing
 const PACE := [0.75, 0.88, 1.0]   # bronze, silver, gold
@@ -118,6 +121,8 @@ func tick(delta: float) -> void:
 		if p.zone == "hoist" or game.phase in ["select", "roles"]:
 			continue
 		if not p.covering and _slipping(p, role, delta):
+			continue
+		if game.phase == "mastclimb" and game.mast != null and game.mast.bot(p, role, delta):
 			continue
 		match role:
 			"boom": _boom(p, delta)
@@ -414,6 +419,22 @@ func _boom(p, delta: float) -> void:
 	if to.length() > 2.5 and under > pour.SLAB * 1.3:
 		ok = false
 		why = "pile"
+	# (a goal the boom can't get the tip to: round the jump form from a mast
+	# outside the core, say. Once the tip's stopped short of it, give it up)
+	var tt: Vector3 = g.tip_target
+	if to.length() > 1.5:
+		_reach_t += delta
+		if tt.distance_to(_reach_at) > 0.6:
+			# (still getting there)
+			_reach_t = 0.0
+			_reach_at = tt
+		elif _reach_t > 2.5:
+			_reach_t = 0.0
+			pour.skip_near(_boom_goal, 1.5, 25.0)
+			_boom_goal_t = 0.0
+	else:
+		_reach_t = 0.0
+		_reach_at = tt
 	# (on a big slab's wide splash, never stand building a heap: wait for the
 	# hose to move on to fresh deck)
 	if pour.vol_k > 1.0 and under > pour.SLAB * 1.5:
@@ -868,6 +889,17 @@ func _poker(p, _delta: float) -> void:
 			p.ai_action = _tap()
 		return
 	var st: Dictionary = poker._state(p)
+	if _pk_spam and g.pour_clock > 50.0:
+		# (test: --pokerspam. The poker stops where it is and plunges the
+		# same spot over and over, to show it earns nothing for it)
+		p.ai_move = Vector2.ZERO
+		if st["state"] == "in":
+			p.ai_action = st["t"] < 0.8
+		else:
+			p.ai_action = fmod(g.phase_t, 0.3) < 0.15
+		if fmod(g.pour_clock, 10.0) < get_process_delta_time():
+			print("[pokerspam] t=%.0f poker pay $%d" % [g.pour_clock, int((g.score.role_rows.get("poker", {}) as Dictionary).get("Poker", 0))])
+		return
 	if st["state"] == "in":
 		p.ai_action = pour.raw_count(st["spot"], poker.R) > 0
 		return

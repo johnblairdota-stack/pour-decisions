@@ -42,6 +42,11 @@ static var LADDER_FOOT := Vector3(13.9, 0, 1.5)   # where they step off it, just
 # a bracket at every floor. The way up beside it is a scaffold stair, climbed like the ladder: hold
 # up and they walk up it flight by flight.
 static var STAIRS := false
+## Spire: the line rides up the boom's column through the slabs' openings (use_site), with a caged
+## ladder beside it; PIPE_IN is where the ground line turns in through the podium to the stack.
+static var STACK := false
+static var PIPE_IN := Vector3.INF
+static var RAMP := Vector3.INF          # (Spire: where the ground line crosses the footpath from the pump)
 static var STEP_Y := 1.0e9
 static var STEP_DZ := 0.0
 const STAIR_RUN := 2.0          # m along the face each flight runs
@@ -124,16 +129,30 @@ const KERB_TRUST_K := 1.6      # ...and the chute runs faster on trust while the
 const KERB_CALL_M3 := 3.0      # m3 left in the truck on the hopper when the next can be called round
 
 ## Sets the site's layout. Riverlight: the yard, at 45 degrees. Spire: along the kerb.
-static func use_site(kerb: bool, wall_z := 0.0, roof_y := 1.0e9, set_back := 0.0) -> void:
+static func use_site(kerb: bool, wall_z := 0.0, roof_y := 1.0e9, set_back := 0.0, stack := Vector2.INF) -> void:
 	KERB = kerb
-	STAIRS = kerb
-	STEP_Y = roof_y if kerb else 1.0e9
-	STEP_DZ = set_back if kerb else 0.0
+	STACK = kerb and stack.x != INF
+	STAIRS = kerb and not STACK
+	STEP_Y = roof_y if STAIRS else 1.0e9
+	STEP_DZ = set_back if STAIRS else 0.0
 	HOPPER_CAP = KERB_HOPPER if kerb else 5.0
 	RISER = Vector3(12.0, 0, wall_z + 0.3) if kerb else Vector3(12.0, 0, 1.45)
 	LADDER = Vector3(13.35, 0, wall_z + 0.75) if kerb else Vector3(13.35, 0, 0.7)
 	LADDER_FOOT = Vector3(13.9, 0, wall_z + 1.9) if kerb else Vector3(13.9, 0, 1.5)
 	HAUL = Vector3(10.7, 0, wall_z + 0.6) if kerb else Vector3(10.7, 0, 1.3)
+	PIPE_IN = Vector3.INF
+	if STACK:
+		# Spire (John, 21 Nov): the line goes up through the slabs' openings on the boom's square column,
+		# the way it did at The Tannery. Its pipe's on the column's +x face, the caged ladder beside it
+		# (a climber faces -x, onto the column), the haul rope down the opening's far corner. The ground
+		# line runs from the pump along the podium's wall on the footpath, turns in through the podium at
+		# the column's x and meets the 90 degree bend under the stack on the ground floor.
+		var h := 0.95 * 0.5
+		RISER = Vector3(stack.x + h + 0.21, 0, stack.y - 0.4)
+		LADDER = Vector3(stack.x + h + 0.08, 0, stack.y + 0.12)
+		LADDER_FOOT = Vector3(LADDER.x + 0.6, 0, stack.y + 1.45)
+		HAUL = Vector3(stack.x + 1.2, 0, stack.y - 0.42)
+		PIPE_IN = Vector3(RISER.x, 0, wall_z + 0.22)
 	if kerb:
 		PUMP_YAW = 0.0
 		DIR = Vector3(1, 0, 0)
@@ -145,6 +164,13 @@ static func use_site(kerb: bool, wall_z := 0.0, roof_y := 1.0e9, set_back := 0.0
 		PIPE_TURN = Vector3(15.4, 0, wall_z + 0.55)
 		STEP_OVER = Vector3(15.68, 0, 1.2)
 		STEP_YAW = -1.43
+		RAMP = STEP_OVER
+		if STACK:
+			# (along the footpath the line's tight in against the podium's wall, out of the walkers' way)
+			PIPE_TURN.z = PIPE_IN.z
+			# (the crew step over the ground line on the footpath where they turn in for the ladder)
+			STEP_OVER = Vector3(LADDER_FOOT.x + 0.15, 0, PIPE_IN.z)
+			STEP_YAW = 0.0
 		PANEL_WAIT = Vector3(-0.9, 0, 0.1)
 		BAY_WAIT = Vector3(-0.5, 0, 0.2)
 	else:
@@ -258,6 +284,7 @@ const BAND_PAY_T := 8.0                  # s between the lines for each trickle 
 var chute := 2
 var _flick_ok := true
 var _band_t := 0.0
+var _band_ok := false   # the pump operator's signalled this truck's chute (so the band's their doing)
 var _spill_t := 0.0
 var _spill_paid := false
 var _chute_shown_at := -1.0
@@ -361,6 +388,8 @@ var stats := {}
 var ground_pipe: MeshInstance3D
 var ground_pipe2: MeshInstance3D   # ...its second leg, in to the riser
 var _pipe_bend: MeshInstance3D
+var ground_pipe3: MeshInstance3D   # Spire: in through the podium from the footpath to the stack's foot
+var _pipe_bends: Array[MeshInstance3D] = []   # Spire: the bends where it turns in, and up the stack
 var brackets: Array[MeshInstance3D] = []
 var ladder_rails: Array[MeshInstance3D] = []
 var ladder_rungs: MultiMeshInstance3D
@@ -437,6 +466,12 @@ func build(owner_game, which_kit: String) -> void:
 	add_child(ground_pipe2)
 	_pipe_bend = F.sphere(0.2, F.mat("pipe"), PIPE_TURN + Vector3(0, 0.6, 0))
 	add_child(_pipe_bend)
+	ground_pipe3 = MeshInstance3D.new()
+	add_child(ground_pipe3)
+	for i in 2:
+		var bend := F.sphere(0.2, F.mat("pipe"), Vector3.ZERO)
+		add_child(bend)
+		_pipe_bends.append(bend)
 	for sx in [-0.28, 0.28]:
 		var rail := F.box(Vector3(0.06, 1.0, 0.06), F.mat("yellow_dark"))
 		add_child(rail)
@@ -1072,8 +1107,8 @@ func rebuild_riser() -> void:
 	sections.clear()
 	var top: float = game.riser_top_y() if kit == "tower" else 0.0
 	riser_top = top
-	# (Spire: the riser turns in under the deck, the ladder goes on up to the platform)
-	var ladder_top: float = top + (1.7 if game.spire else 0.0)
+	# (Spire: the caged ladder goes on up the column to the work platform round its head)
+	var ladder_top: float = top + (-0.9 if STACK else 0.0)
 	for r in ladder_rails:
 		r.visible = kit == "tower" and not STAIRS
 	ladder_rungs.visible = kit == "tower" and not STAIRS
@@ -1097,7 +1132,18 @@ func rebuild_riser() -> void:
 		ladder_rungs.multimesh = mm
 	var turn := PIPE_TURN + Vector3(0, 0.6, 0)
 	_line(ground_pipe, pf(-2.9, 0.0, 0.6), turn if kit == "tower" else pf(-2.91, 0.0, 0.6), 0.16)
-	_line(ground_pipe2, turn, Vector3(RISER.x, 0.6, RISER.z), 0.16)
+	if STACK:
+		# (along the podium's wall, in through it at the column's x, and the 90 degree bend at the foot
+		# of the stack on the ground floor, where the line turns up through the openings)
+		_line(ground_pipe2, turn, PIPE_IN + Vector3(0, 0.6, 0), 0.16)
+		_line(ground_pipe3, PIPE_IN + Vector3(0, 0.6, 0), Vector3(RISER.x, 0.6, RISER.z), 0.16)
+		_pipe_bends[0].position = PIPE_IN + Vector3(0, 0.6, 0)
+		_pipe_bends[1].position = Vector3(RISER.x, 0.6, RISER.z)
+	else:
+		_line(ground_pipe2, turn, Vector3(RISER.x, 0.6, RISER.z), 0.16)
+	ground_pipe3.visible = STACK and kit == "tower"
+	for bend in _pipe_bends:
+		bend.visible = STACK and kit == "tower"
 	_riser_step()
 	ground_pipe2.visible = kit == "tower"
 	_pipe_bend.visible = kit == "tower"
@@ -1155,7 +1201,9 @@ func rebuild_riser() -> void:
 	if kit == "tower":
 		var by := 2.1
 		while by < top - 0.5:
-			var br := F.box(Vector3(0.14, 0.12, 0.55), F.mat("yellow_dark"), riser_at(by) + Vector3(0, 0, -0.38))
+			# (Spire: a short bracket back onto the column's face)
+			var br := F.box(Vector3(0.14, 0.12, 0.55), F.mat("yellow_dark"), riser_at(by) + Vector3(0, 0, -0.38)) if not STACK \
+				else F.box(Vector3(0.3, 0.12, 0.14), F.mat("yellow_dark"), riser_at(by) + Vector3(-0.16, 0, 0))
 			add_child(br)
 			brackets.append(br)
 			by += PIPE
@@ -1558,7 +1606,7 @@ func _block(from_bad: bool, heralded := false) -> void:
 	var lo := 0
 	if kit == "tower" and clamps.size() > 3:
 		lo = clamps.size() / 3
-	block_s = randi_range(lo, clamps.size() - 2)
+	block_s = randi_range(mini(lo, _fault_top() - 1), maxi(0, _fault_top() - 1))
 	if force_top_block:
 		force_top_block = false
 		block_s = clamps.size() - 2        # (dev --trucktest: the plug in the top section)
@@ -1595,6 +1643,16 @@ func _block(from_bad: bool, heralded := false) -> void:
 		game.hud.toast("The line sat too long and went off. Blockage!", 2.2)
 	game.sfx.hit("thunk")
 
+## The highest joint a fault can come at. Spire's line rides the boom's column on up past the deck:
+## the joints up there are the climb crew's, so faults keep to the line under the deck (as they did
+## when it turned in under the slab).
+func _fault_top() -> int:
+	var hi := clamps.size() - 1
+	if STACK:
+		while hi > 1 and float(clamps[hi]["pos"].y) > game.work_y + 1.0:
+			hi -= 1
+	return hi
+
 func start_failure(heralded := false) -> void:
 	if clamps.is_empty() or fail_i >= 0 or burst or blocked or job_kind != "":
 		return
@@ -1607,9 +1665,9 @@ func start_failure(heralded := false) -> void:
 			pick = i
 	if pick < 0:
 		var lo := 0
-		var hi := clamps.size() - 1
+		var hi := _fault_top()
 		if kit == "tower" and clamps.size() > 2:
-			lo = 1
+			lo = mini(1, hi)
 		pick = randi_range(lo, hi)
 		# Dev (`--midclamp`): the one halfway up, between the deck and the street
 		if OS.get_cmdline_user_args().has("--midclamp"):
@@ -1684,6 +1742,7 @@ func _advance() -> void:
 		fix_i = job_steps[fix_step][1]
 
 func _finish_job() -> void:
+	_job_serial += 1
 	var j: int = job_steps[0][1]
 	var bonus := {"clamp": [40, "Clamp swapped before it burst"], "burst": [20, "Burst joint remade"], "block": [40, "Blockage cleared"]}
 	if _worker != null and bonus.has(job_kind):
@@ -1828,6 +1887,10 @@ func _set_truck(t: Dictionary, s: String) -> void:
 		game.sfx.hit("air_brake")
 	if s in ["pour", "leave_wait"] and was != "ready":
 		game.sfx.hit("chute_rattle")
+	if s == "pour":
+		# A new load on the chute: the hopper's pay is for running this one
+		_band_ok = false
+		_band_t = 0.0
 	if s == "pour" and live:
 		_changeover(t)
 
@@ -1859,14 +1922,22 @@ func _verdict(t: Dictionary) -> String:
 		return "stiff"
 	return "ok"
 
+## What was ordered, for the site we're on (the docket must name this tower, not Riverlight).
+func _order() -> Dictionary:
+	var o := ORDER.duplicate()
+	if game != null and game.spire:
+		o["site"] = "Spire"
+	return o
+
 ## The order against what the driver's docket says came on the truck.
 func _order_lines(t: Dictionary) -> String:
-	var load := ORDER.duplicate()
+	var order := _order()
+	var load := order.duplicate()
 	match t.get("mix_wrong", ""):
 		"mpa": load["mpa"] = 32
 		"stone": load["stone"] = 10
 		"site": load["site"] = "Harbour St"
-	return "ORDER   %d MPa · %d mm stone · %s\nDOCKET %d MPa · %d mm stone · %s · %d min" % [ORDER["mpa"], ORDER["stone"], ORDER["site"], load["mpa"], load["stone"], load["site"], int(t["age"])]
+	return "ORDER   %d MPa · %d mm stone · %s\nDOCKET %d MPa · %d mm stone · %s · %d min" % [order["mpa"], order["stone"], order["site"], load["mpa"], load["stone"], load["site"], int(t["age"])]
 
 ## The docket for the truck hand's phone: the order against what came on
 ## the truck at the bay (or the one they're testing), its age, the water held
@@ -1882,15 +1953,16 @@ func phone_docket(p) -> Dictionary:
 		t = bay_truck
 	if t == null:
 		return {}
-	var load := ORDER.duplicate()
+	var order := _order()
+	var load := order.duplicate()
 	match t.get("mix_wrong", ""):
 		"mpa": load["mpa"] = 32
 		"stone": load["stone"] = 10
 		"site": load["site"] = "Harbour St"
 	var help := assist()
-	return {"order": ["%d MPa" % ORDER["mpa"], "%d mm stone" % ORDER["stone"], String(ORDER["site"])],
+	return {"order": ["%d MPa" % order["mpa"], "%d mm stone" % order["stone"], String(order["site"])],
 		"docket": ["%d MPa" % load["mpa"], "%d mm stone" % load["stone"], String(load["site"])],
-		"bad": [help and load["mpa"] != ORDER["mpa"], help and load["stone"] != ORDER["stone"], help and load["site"] != ORDER["site"]],
+		"bad": [help and load["mpa"] != order["mpa"], help and load["stone"] != order["stone"], help and load["site"] != order["site"]],
 		"age": int(t["age"]), "old": float(t["age"]) > MAX_AGE, "max": int(MAX_AGE),
 		"water": int(WATER_HELD), "watered": bool(t.get("watered", false)),
 		"slump": int(t["measured"]) if t["checked"] and t.has("measured") else -1,
@@ -2515,7 +2587,7 @@ func _chute_flow(t: Dictionary, delta: float) -> float:
 	var flow := minf(PUMP_Q * CHUTE[chute] * delta, t["load"])
 	var fill := hopper / HOPPER_CAP
 	var op = game.crew.crew.get("pump")
-	if fill >= HOP_BAND.x and fill <= HOP_BAND.y and pumping:
+	if fill >= HOP_BAND.x and fill <= HOP_BAND.y and pumping and _band_ok:
 		_band_t += delta
 		if _band_t >= BAND_PAY_T:
 			_band_t = 0.0
@@ -2562,6 +2634,8 @@ func _chute_signal(p, delta: float) -> bool:
 	var fill := hopper / HOPPER_CAP
 	if p.slow_held():
 		p.busy = "chute"   # (stands still: the stick's the signal now)
+		if feeding:
+			_band_ok = true
 		var v: Vector2 = p.move_input()
 		var was := chute
 		if _flick_ok and v.y < -0.6:
@@ -2850,7 +2924,9 @@ func accept(t: Dictionary) -> void:
 	var at: Vector3 = (t["node"] as Node3D).position + Vector3(0, 3.5, 0)
 	game.pop("Good load" if v == "ok" else ("Wrong mix going in!" if v == "mix" else "Bad load!"), at, Color("7cd992") if v == "ok" else Color("ff4d4d"))
 	var who = t.get("tester")
-	if who != null:
+	if who != null and not (v == "ok" and t.get("skipped", false)):
+		# (a good load waved on untested was luck, not a call: no pay for it,
+		# while a bad one still costs)
 		game.score.award(who, 15 if v == "ok" else -25, "Good loads in" if v == "ok" else "Bad load accepted")
 	if v != "ok":
 		# (a weaker mix in the slab: a weak patch where it lands, like a wet one)
@@ -3235,6 +3311,9 @@ func handle_player(p, delta: float, near: String) -> bool:
 ## Clips the part someone's carrying onto the haul rope and hauls it up to the
 ## joint being worked (or the line hand, wherever they are on the ladder).
 func send_up(p) -> void:
+	var kind: String = p.held_kind
+	# (decided before it's on the hook, or it'd count as already coming)
+	var pays: bool = (game.climb.needs_pins() and not _pins_on_way(p)) if kind == "pins" else part_pay_ok(kind, p)
 	var it: Node3D = p.release_item()
 	if it == null:
 		return
@@ -3244,14 +3323,27 @@ func send_up(p) -> void:
 		hook["to"] = clampf(game.climb.platform_spot().y + 1.0, 1.0, riser_top - 0.3)
 		hook["state"] = "rising"
 		game.sfx.hit("clank")
-		game.score.award(p, 10, "Pins sent up", HAUL + Vector3(0, 2.0, 0))
+		if pays:
+			game.score.award(p, 10, "Pins sent up", HAUL + Vector3(0, 2.0, 0))
 		p.pose_arms(Vector3(-2.7, 0, -0.2), Vector3(-2.2, 0, 0.2))
 		p.bounce()
 		return
 	_hook_up()
-	game.score.award(p, 10, "Parts run to the line", HAUL + Vector3(0, 2.0, 0))
+	if pays:
+		game.score.award(p, 10, "Parts run to the line", HAUL + Vector3(0, 2.0, 0))
+	elif not p.bot:
+		game.pop("nobody needs a %s yet" % kind, HAUL + Vector3(0, 2.6, 0), Color("ffc23d"))
 	p.pose_arms(Vector3(-2.7, 0, -0.2), Vector3(-2.2, 0, 0.2))
 	p.bounce()
+
+## Another bag of pins already on its way up (on the hook, or in someone else's hands).
+func _pins_on_way(p) -> bool:
+	if hook["kind"] == "pins":
+		return true
+	for q in game.players:
+		if q != p and q.held_kind == "pins":
+			return true
+	return false
 
 func _hook_on(it: Node3D) -> void:
 	hook["kind"] = it.get_meta("kind")
@@ -3359,6 +3451,18 @@ func _update_winch_hand(delta: float) -> void:
 				_winch_state = "idle"
 				_winch_t = 0.0
 	var at := _winch.position
+	if STACK:
+		# (Spire: in and out of the building by the passage beside the ground line, over its step-over)
+		var inner := Vector3(STEP_OVER.x, 0, PIPE_IN.z - 0.5)
+		var outer := Vector3(STEP_OVER.x, 0, PIPE_IN.z + 0.7)
+		var at_in := at.z < PIPE_IN.z - 0.1
+		var to_in := to.z < PIPE_IN.z - 0.1
+		# (line up on the passage first, then straight through it)
+		var lined := absf(at.x - STEP_OVER.x) < 0.2
+		if at_in and not to_in:
+			to = outer if lined and at.z > inner.z - 0.2 else inner
+		elif to_in and not at_in:
+			to = inner if lined and at.z < outer.z + 0.2 else outer
 	var step := Vector3(to.x - at.x, 0, to.z - at.z)
 	var walking := step.length() > 0.05
 	if walking:
@@ -3409,6 +3513,20 @@ func _take_nearby_part(p, want: String, at: Vector3) -> bool:
 
 ## Is a part of this kind on its way to the line hand (by someone other than
 ## `asker`): on the rope, in someone's hands, or lying by the joint?
+## Whether running a `kind` part to the line right now earns pay: the job on
+## needs one, none's on its way already, and this job's part hasn't been
+## paid for yet. A part nobody needs is just a walk with it.
+var _part_paid_key := ""
+var _job_serial := 0
+func part_pay_ok(kind: String, giver) -> bool:
+	if game.bots == null or game.bots.part_needed() != kind or part_coming(kind, giver):
+		return false
+	var key := "%s:%d:%d" % [kind, fix_i if fix_i >= 0 else fail_i, _job_serial]
+	if key == _part_paid_key:
+		return false
+	_part_paid_key = key
+	return true
+
 func part_coming(kind: String, asker) -> bool:
 	if hook["kind"] == kind or _winch_kind == kind:
 		return true
@@ -3526,6 +3644,8 @@ func pick_up(p, e: Dictionary) -> void:
 	p.hold_item(e["node"], e["kind"])
 	game.sfx.hit("tink")
 
+var extra_stops: Array = []   # more heights the ladder catches you at (Spire's climb day jobs)
+
 const LADDER_OFF_T := 1.2   # s holding down at the foot of the ladder before you're stepped off
 
 ## A tall riser's climbed (and the haul rope runs) faster, so the trip never takes much longer
@@ -3548,6 +3668,8 @@ func _ladder(p, delta: float) -> void:
 	var stops: Array = [0.0]
 	if kit == "tower" and game.deck_open():
 		stops.append(work)
+	for es in extra_stops:
+		stops.append(clampf(float(es), 0.0, top))
 	var jt := fix_i if fix_i >= 0 else fail_i
 	if jt >= 0:
 		stops.append(clampf(float(clamps[jt]["pos"].y) - 1.0, 0.0, top))
@@ -3649,6 +3771,8 @@ func _step_overs() -> void:
 	if kit != "tower":
 		return
 	var run: Array[Vector3] = [pf(-2.9, 0.0), PIPE_TURN, Vector3(RISER.x, 0, RISER.z)]
+	if STACK:
+		run = [pf(-2.9, 0.0), PIPE_TURN, PIPE_IN, Vector3(RISER.x, 0, RISER.z)]
 	for p in game.players:
 		var k := 0.0
 		var high := 0.0
