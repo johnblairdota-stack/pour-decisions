@@ -30,6 +30,7 @@ const OP_DELAY := 0.35      # s: the driver's reaction to the whistle
 const STOP_TOL := 0.12      # m either side of the mark the pipe still goes in
 const NO_CALL := 0.6        # m past the mark: the driver stops it himself
 const PIN_T := 0.5          # s a pin takes to knock out or drive home
+const HELP_T := 25.0        # s before a bot takes over a job a person's left
 const REACH := 1.4          # m from a deck or ground job
 
 var game
@@ -70,6 +71,9 @@ var _adaptor: Node3D
 var _adaptor_rest := Vector3.ZERO
 var _mark: Label3D          # the dogman's mark at the column's foot: "0.4 m to go"
 var _saved_borrow: Callable
+var _tag: Label3D           # over the job: what it is and whose
+var _absent := {}           # roles a bot's had to stand in for today (it waits less the next time)
+var _shot_next := ""        # (dev: shoot this step a few seconds in, once things are moving)
 
 func _ready() -> void:
 	for i in 2:
@@ -84,6 +88,10 @@ func _ready() -> void:
 	_mark.visible = false
 	_mark.no_depth_test = true
 	add_child(_mark)
+	_tag = F.label3d("", 34, Color("ffc72c"))
+	_tag.visible = false
+	_tag.no_depth_test = true
+	add_child(_tag)
 
 ## Today's a climb day: the column stands where it was for the last three levels.
 func start() -> void:
@@ -97,6 +105,7 @@ func start() -> void:
 	wedged = true
 	hoist = ""
 	_jobs_done = {}
+	_absent = {}
 	from_head = g.spire_mast_head(k - 1)
 	to_head = g.spire_mast_head(k)
 	rise = to_head - from_head
@@ -184,8 +193,11 @@ func _go(s: String) -> void:
 		"boom_on": "Crane: boom back on", "boom_in": "Pin the boom", "check": "Mobilisation check: unfold it and swing it"}
 	if say.has(s):
 		game.hud.toast("Climb · %s%s" % [say[s], who if j.get("n", 0) > 0 or s in ["park", "check", "lift"] else ""], 2.2)
+	if game._spire_shots != "" and s in ["boom_off", "wedges_out", "fit_pipe", "boom_on", "check"] and (s != "fit_pipe" or lift_i == 2):
+		game.mast_shot = s if s != "boom_off" else ""
+		_shot_next = "boom_off" if s == "boom_off" else ""
 	if game.autotest:
-		print("[autotest]   mast climb: %s (lifted %.2f of %.2f m)" % [s, lifted, rise])
+		print("[autotest]   mast climb: %s (lifted %.2f of %.2f m) at %.0fs" % [s, lifted, rise, game.phase_t])
 	# (the ladder catches whoever's climbing at the job's height)
 	game.line.extra_stops = [j["y"]] if j.get("zone", "") == "ladder" else []
 	match s:
@@ -252,6 +264,8 @@ func _done_step() -> void:
 			_go("adaptor_on")
 		"adaptor_on": _go("adaptor_in")
 		"adaptor_in":
+			_load = null
+			_way = [hook_pos + Vector3(0, 2.0, 0)]
 			game.spire_adaptor_home(_adaptor)
 			_adaptor = null
 			_go("boom_on")
@@ -274,6 +288,7 @@ func _finish() -> void:
 		s.visible = false
 	_rope.visible = false
 	_mark.visible = false
+	_tag.visible = false
 	game.climb.park_slew = 0.0
 	game.climb.park_fold = 0.0
 	game.line.rebuild_riser()
@@ -287,6 +302,9 @@ func update(delta: float) -> void:
 	if not active:
 		return
 	step_t += delta
+	if _shot_next != "" and step_t > 8.0:
+		game.mast_shot = _shot_next
+		_shot_next = ""
 	match step:
 		"park":
 			if game.climb.park_stage == "done":
@@ -304,6 +322,8 @@ func update(delta: float) -> void:
 				_done_step()
 		"lift":
 			_lift(delta)
+			if game.autotest and fmod(step_t, 5.0) < delta:
+				print("[autotest]     lift %d: %s lifted %.2f target %.2f t %.0f" % [lift_i, hoist, lifted, rise * float(lift_i + 1) / float(PIPES), step_t])
 		"send_pipe", "fit_pipe":
 			_update_pipe(delta)
 	_draw(delta)
@@ -339,8 +359,7 @@ func _lift(delta: float) -> void:
 	lifted = clampf(lifted, 0.0, rise + NO_CALL)
 	hook_pos = _lug_hook()
 	_place_column()
-	var err2 := lifted - target
-	if hoist in ["held", "creep_up", "creep_down"] and absf(err2) <= STOP_TOL * 0.7 and hoist == "held" and step_t > 0.3:
+	if hoist == "held" and absf(lifted - target) <= STOP_TOL and step_t > 0.3:
 		_done_step()
 
 ## The dogman's whistles, from whoever's the boom operator (a bot: bot()).
@@ -355,13 +374,15 @@ func _dog(p, delta: float) -> void:
 				_stop_in = OP_DELAY
 				game.sfx.hit("tink")
 		"held", "creep_up", "creep_down":
-			if absf(err) > STOP_TOL * 0.7:
+			if absf(err) > STOP_TOL:
 				var up := err < 0.0
 				p.cue("action", "hold: inch it %s" % ("up" if up else "down"), -1.0, true)
 				if p.action_held():
 					hoist = "creep_up" if up else "creep_down"
 				else:
 					hoist = "held"
+			else:
+				hoist = "held"
 
 func _update_pipe(delta: float) -> void:
 	if _pipe == null:
@@ -375,11 +396,11 @@ func _update_pipe(delta: float) -> void:
 func handle_player(p, delta: float) -> bool:
 	if not active:
 		return false
-	if step == "lift" and p == game.crew.crew.get("boom"):
+	if step == "lift" and (p == game.crew.crew.get("boom") or (p.bot and p.role == "poker" and _absent.has("boom"))):
 		_dog(p, delta)
 		return p.zone != "ladder"
 	var j := job()
-	if j.is_empty() or int(j.get("n", 0)) <= 0 and not step in ["park", "check"]:
+	if j.is_empty() or (int(j.get("n", 0)) <= 0 and not (step in ["park", "check"])):
 		return false
 	if not _at(p, j):
 		return false
@@ -403,6 +424,10 @@ func handle_player(p, delta: float) -> bool:
 			return true
 		"send_pipe":
 			if _pipe != null:
+				return true
+		"fit_pipe":
+			if _pipe != null and _pipe_y < maxf(0.6, foot0 + lifted - 1.0) - 0.05:
+				p.cue("action", "pipe's coming up", -1.0)
 				return true
 	var n: int = j["n"]
 	var verb: String = j["verb"]
@@ -448,9 +473,18 @@ func bot(p, role: String, delta: float) -> bool:
 		return false
 	var b = game.bots
 	var j := job()
+	# (a job that's a person's, and they haven't got to it: after a while a bot steps in for them)
+	if not j.is_empty() and j.get("role", "") != role and step_t > (6.0 if _absent.has(j.get("role", "")) else HELP_T):
+		var owner = game.crew.crew.get(j["role"])
+		var back := {"pump": "hose", "hose": "pump", "boom": "poker", "line": "screed"}
+		if owner != null and not owner.bot and not owner.covering and back.get(j["role"], "") == role:
+			_absent[j["role"]] = true
+			j["role"] = role
+			if step == "lift":
+				role = "boom"
 	if step == "lift" and role == "boom":
-		if not b.go(p, "deck", _dog_spot(), 0.5):
-			return true
+		# (walking over to where they can see it, and calling it from wherever they are)
+		b.go(p, "deck", _dog_spot(), 0.6)
 		var target := rise * float(lift_i + 1) / float(PIPES)
 		var err := lifted - target
 		var prev: bool = p._ai_prev["action"]
@@ -460,14 +494,17 @@ func bot(p, role: String, delta: float) -> bool:
 			"held", "creep_up", "creep_down":
 				p.ai_action = absf(err) > STOP_TOL * 0.5
 		return true
-	if j.is_empty() or j.get("role", "") != role or int(j.get("n", 0)) <= 0 and not step in ["park", "check"]:
-		# (nothing for them right now: off the ladder, out of the way)
+	if j.is_empty() or j.get("role", "") != role or (int(j.get("n", 0)) <= 0 and not (step in ["park", "check"])):
+		# (nothing for them right now: off the ladder, out of the way; up top, the pump operator waits
+		# on the platform while the crane's at work)
+		if p.zone == "ladder" and role == "pump" and step in ["boom_off", "adaptor_off", "hook_down", "adaptor_on", "boom_on"]:
+			return true
 		if p.zone == "ladder":
 			b._ladder_to(p, game.work_y if game.work_y > p.position.y - 6.0 else 0.0, true)
 		elif role in ["pump", "hose"] and p.zone == "deck":
 			b.walk(p, _deck_wait(role), 0.6)
 		elif role == "line":
-			b.go(p, "ground", _haul_spot() + Vector3(0.8, 0, 0.9), 0.6)
+			b.go(p, "ground", _haul_spot() + Vector3(0, 0, 1.2), 0.6)
 		elif role == "boom":
 			b.go(p, "deck", _dog_spot(), 0.6)
 		else:
@@ -484,8 +521,6 @@ func bot(p, role: String, delta: float) -> bool:
 			else:
 				# (onto the ladder from wherever they are: the deck's top, or its foot on the street)
 				var via: Vector3 = b._deck("ladder") if p.zone == "deck" else b._gnd("ladder_g")
-				if float(j["y"]) < game.work_y - 6.0 and p.zone == "deck" and false:
-					pass
 				if b.walk(p, via, 0.5):
 					p.ai_action = b._tap()
 		_:
@@ -498,11 +533,17 @@ func bot(p, role: String, delta: float) -> bool:
 ## climb.gd's crane, while it's ours: true every frame (it has the hook).
 func _crane(delta: float) -> bool:
 	var c = game.climb
+	# (the sling marker in the waypoints: the load comes on here)
+	if not _way.is_empty() and _way[0] is Dictionary:
+		var d: Dictionary = _way.pop_front()
+		_load = d["sling"]
+		_load_off = _load.global_position - hook_pos
+		game.sfx.hit("clank")
 	if not _way.is_empty():
 		var to: Vector3 = _way[0]
 		var dxz := Vector2(to.x - hook_pos.x, to.z - hook_pos.z)
-		var step_xz := dxz.limit_length(3.0 * delta)
-		var dy := clampf(to.y - hook_pos.y, -2.6 * delta, 2.6 * delta)
+		var step_xz := dxz.limit_length(4.5 * delta)
+		var dy := clampf(to.y - hook_pos.y, -3.5 * delta, 3.5 * delta)
 		# (up before across, across before down)
 		if to.y > hook_pos.y + 0.05 and dxz.length() > 0.2:
 			step_xz = Vector2.ZERO
@@ -527,19 +568,8 @@ func _fly_to(load: Node3D, pick: Vector3, to: Vector3) -> void:
 	_way.append(Vector3(pick.x, clear, pick.z))
 	_way.append(Vector3(to.x, clear, to.z))
 	_way.append(to)
-	_way = _expand(_way)
-
-## Waypoints with a "sling" marker: split into two runs (the hook's own, then the load's).
-func _expand(w: Array) -> Array:
-	return w
 
 func _draw(_delta: float) -> void:
-	# (the sling marker in the waypoints: the load comes on here)
-	if not _way.is_empty() and _way[0] is Dictionary:
-		var d: Dictionary = _way.pop_front()
-		_load = d["sling"]
-		_load_off = _load.global_position - hook_pos
-		game.sfx.hit("clank")
 	var att: Array = []
 	if _load != null:
 		var c := _load.global_position
@@ -558,6 +588,12 @@ func _draw(_delta: float) -> void:
 	if _pipe != null:
 		var top := Vector3(LineScript.HAUL.x, from_head + lifted, LineScript.HAUL.z)
 		F.stretch(_rope, top, _pipe.position + Vector3(0, 1.1, 0))
+	var ja := job_at()
+	_tag.visible = ja != Vector3.INF
+	if _tag.visible:
+		var j := job()
+		_tag.text = "%s\n%s" % [String(j["verb"]).trim_prefix("hold: ").to_upper(), hud_task()[1]]
+		_tag.position = ja + Vector3(0, 1.6 + 0.08 * sin(step_t * 3.0), 0)
 	# The dogman's mark: how far the column's foot is off the pipe length
 	_mark.visible = step == "lift"
 	if _mark.visible:
@@ -585,7 +621,8 @@ func _dog_spot() -> Vector3:
 	return _on_deck(Vector3(m.x + 2.4, 0, m.y + 2.2))
 
 func _haul_spot() -> Vector3:
-	return Vector3(LineScript.HAUL.x + 0.9, 0, LineScript.HAUL.z + 0.6)
+	# (the gin wheel's rope comes down in the passage under the podium, by the ladder's foot)
+	return game.bots._gnd("haul")
 
 func _deck_wait(role: String) -> Vector3:
 	var m := SpireSite.mast_xz()
@@ -614,6 +651,43 @@ func _make_pipe() -> Node3D:
 	n.add_child(F.cylinder(0.07, 1.9, F.mat("steel"), Vector3(0, 0, 0), 8))
 	add_child(n)
 	return n
+
+const STEP_ORDER := ["park", "boom_pins", "boom_off", "adaptor_pins", "adaptor_off", "hook_down", "shackle", "wedges_out", "feet_in",
+	"lift", "send_pipe", "fit_pipe", "feet_out", "wedges_in", "unshackle", "adaptor_on", "adaptor_in", "boom_on", "boom_in", "check"]
+const STEP_SAY := {
+	"park": "park the boom", "boom_pins": "8 boom pins out", "boom_off": "crane lifts the boom off",
+	"adaptor_pins": "4 adaptor pins out", "adaptor_off": "crane lifts the adaptor off", "hook_down": "hook down to the column",
+	"shackle": "shackle the 2 red lugs", "wedges_out": "wedges and corner plates out", "feet_in": "feet in off the pads",
+	"lift": "crane lifts the column: whistle STOP at the mark", "send_pipe": "a pipe up the rope", "fit_pipe": "pipe in under the column",
+	"feet_out": "feet out onto the pads", "wedges_in": "wedges and corner plates in", "unshackle": "shackles off",
+	"adaptor_on": "crane brings the adaptor back", "adaptor_in": "4 adaptor pins in", "boom_on": "crane brings the boom back",
+	"boom_in": "8 boom pins in", "check": "mobilisation check on the remote"}
+
+## For the HUD: [task, who it's on, 0..1 of the day].
+func hud_task() -> Array:
+	var j := job()
+	var who := ""
+	if j.has("role") and game.crew.crew.get(j["role"]) != null:
+		who = String(game.crew.INFO[j["role"]]["name"])
+	var done := 0.0
+	var i := STEP_ORDER.find(step)
+	if step in ["lift", "send_pipe", "fit_pipe"]:
+		done = (9.0 + 6.0 * (float(lift_i) + (float(i) - 9.0) / 3.0) / float(PIPES)) / 23.0
+	elif i >= 12:
+		done = (15.0 + float(i - 12)) / 23.0
+	else:
+		done = float(maxi(i, 0)) / 23.0
+	var lift_txt := " · pipe %d of %d" % [mini(lift_i + 1, PIPES), PIPES] if step in ["lift", "send_pipe", "fit_pipe"] else ""
+	return ["Climb day · %s%s" % [STEP_SAY.get(step, ""), lift_txt], who, done]
+
+## Where the current job is, for a floating tag over it (Vector3.INF if it's the crane's).
+func job_at() -> Vector3:
+	var j := job()
+	if j.is_empty() or step == "lift":
+		return Vector3.INF
+	if String(j["zone"]) == "ladder":
+		return Vector3(LineScript.LADDER.x, float(j["y"]) + 1.0, LineScript.LADDER.z)
+	return (j["at"] as Vector3) + Vector3(0, 0.2, 0)
 
 ## For the see-through circle: the column's foot while it's going up.
 func cut_point() -> Vector4:
