@@ -29,6 +29,7 @@ const HudScript := preload("res://scripts/hud.gd")
 const PourScript := preload("res://scripts/pour.gd")
 const SfxScript := preload("res://scripts/sfx.gd")
 const ClimbScript := preload("res://scripts/climb.gd")
+const MastClimb := preload("res://scripts/mast_climb.gd")
 const LineScript := preload("res://scripts/line.gd")
 const PokerScript := preload("res://scripts/poker.gd")
 const PhonesScript := preload("res://scripts/phones.gd")
@@ -145,7 +146,9 @@ var _spire_core := {}
 var _spire_b: SpireB
 var _spire_street: SpireStreet
 var _spire_mast: Node3D      # the placing boom's square column, up through the slabs' openings
-var _spire_jack := 0.0       # m the column has still to rise on a climb day (the crane lifts it)
+var _spire_jack := 0.0       # (unused since the crane climb day: mast_climb.gd)
+var mast: Node3D             # Spire's climb day: the crane lifts the boom's column (scripts/mast_climb.gd)
+var _mast_due := false       # this level opens with one
 
 ## The site: `--site=spire` / `--site=riverlight`, else the one picked last on the site page (X there
 ## swaps them). Test runs only go by the command line.
@@ -1595,6 +1598,14 @@ func _spire_tower(deck: float, head_y: float, lvl := -1) -> void:
 	head.position = Vector3(m.x, head_y, m.y)
 	if lvl < 0:
 		lvl = k
+	spire_column(head_y, spire_foot_y(lvl), spire_wedge_y(lvl), true, true, lvl)
+
+## The column alone, its head at `head_y` (the boom may be off it), with its feet on the slab at
+## `foot_y` if `feet` and its wedges and plates in if `wedged`.
+func spire_column(head_y: float, foot_y: float, wedge_y: float, feet := true, wedged := true, lvl := -1) -> void:
+	var m := SpireSite.mast_xz()
+	if lvl < 0:
+		lvl = k
 	var top := head_y - 0.62               # the column's top (the adaptor and the pedestal over it)
 	var length := spire_mast_head(lvl) - 0.62 - spire_foot_y(lvl)
 	if _spire_mast == null:
@@ -1611,12 +1622,35 @@ func _spire_tower(deck: float, head_y: float, lvl := -1) -> void:
 		_build_column(length)
 	_spire_mast.position = Vector3(m.x, top - _col_len, m.y)
 	_spire_fixings.position = Vector3(m.x, 0, m.y)
-	_set_fixings(spire_foot_y(lvl), spire_wedge_y(lvl), top - _col_len)
+	_set_fixings(foot_y, wedge_y, top - _col_len, feet, wedged)
 	_spire_pen_rail.visible = true
+
+## The adaptor plate off the column's top, for the crane to lift (mast_climb.gd), and back on it.
+func spire_adaptor() -> Node3D:
+	var a: Node3D = _spire_mast.get_node("Adaptor")
+	var at := a.global_transform
+	_spire_mast.remove_child(a)
+	add_child(a)
+	# (its origin moved up to the plate itself, so the crane carries it by its middle)
+	var off := Vector3(0, _col_len + 0.13, 0)
+	for c in a.get_children():
+		c.position -= off
+	a.global_transform = at
+	a.global_position += off
+	return a
+
+func spire_adaptor_home(a: Node3D) -> void:
+	if a == null:
+		return
+	remove_child(a)
+	_spire_mast.add_child(a)
+	a.transform = Transform3D.IDENTITY
+	for c in a.get_children():
+		c.position += Vector3(0, _col_len + 0.13, 0)
 
 var _spire_fixings: Node3D       # the column's feet, pads, corner plates and wedges (world heights)
 var _spire_pen_rail: Node3D      # the hand rail round the opening on the deck
-var _fix_at := Vector3.INF
+var _fix_at := Vector4.INF
 
 ## The column, `length` long from its feet to its top: square sections pinned at the joints, the corner
 ## angles, the work platform and the adaptor plate at the top (with the boom pin ears, red), the two red
@@ -1688,9 +1722,9 @@ func _build_column(length: float) -> void:
 
 ## The feet on their pads, and the corner plates and wedges in the opening at the foot slab and at the
 ## deck above, where it's held. Only rebuilt when the climb's moved them.
-func _set_fixings(foot_y: float, wedge_y: float, col_y: float) -> void:
-	var seated := absf(col_y - foot_y) < 0.3
-	var want := Vector3(foot_y, wedge_y, 1.0 if seated else 0.0)
+func _set_fixings(foot_y: float, wedge_y: float, col_y: float, feet := true, wedged := true) -> void:
+	var seated := absf(col_y - foot_y) < 0.3 and feet
+	var want := Vector4(foot_y, wedge_y, 1.0 if seated else 0.0, 1.0 if wedged else 0.0)
 	if want.is_equal_approx(_fix_at):
 		return
 	_fix_at = want
@@ -1708,7 +1742,7 @@ func _set_fixings(foot_y: float, wedge_y: float, col_y: float) -> void:
 			_spire_fixings.add_child(F.box(Vector3(0.36, 0.14, 0.36), steel, at + Vector3(0, 0.15, 0)))
 			var arm := F.beam(Vector3(d.x * (h - 0.05), foot_y + 0.5, d.y * (h - 0.05)), at + Vector3(0, 0.22, 0), 0.07, steel)
 			_spire_fixings.add_child(arm)
-	for y in [foot_y, wedge_y]:
+	for y in ([foot_y, wedge_y] if wedged else []):
 		for d in [Vector2(1, 1), Vector2(1, -1), Vector2(-1, 1), Vector2(-1, -1)]:
 			# (an L of plate round each corner, a wedge driven in down each side of it)
 			var c := Vector3(d.x * (h + 0.07), y + 0.05, d.y * (h + 0.07))
@@ -1754,6 +1788,9 @@ func _pipe_between(node: Node3D, a: Vector3, b: Vector3) -> void:
 ## The top of the riser: at the boom's head.
 func riser_top_y(_deck := INF) -> float:
 	# (Spire: the line rides the column right up to the boom, the same as up a lattice tower)
+	if spire and _spire_mast != null and _col_len > 0.0:
+		# (the column's head: where the boom sits on it, even while the boom's off on a climb day)
+		return _spire_mast.position.y + _col_len + 0.62 + 0.6
 	return head.position.y + 0.6
 
 ## The story's day for level k (Spire has 34 levels; the days go round).
@@ -2800,8 +2837,18 @@ func _spire_level() -> void:
 	# openings, a storey and more at a time, and it's wedged at its new height (_process). Between
 	# climbs it stands where it is.
 	var want := spire_mast_head(k)
-	_spire_jack = maxf(0.0, want - head.position.y) if k in spire_climb_levels() and head.position.y > level_y(k) else 0.0
-	_spire_tower(level_y(k + 1) - 0.3, want - _spire_jack)
+	_spire_jack = 0.0
+	_mast_due = k in spire_climb_levels() and k >= SPIRE_CLIMB
+	if _mast_due:
+		# (it stands where it's been for the last three levels till the crane lifts it: mast_climb.gd)
+		_spire_tower(level_y(k + 1) - 0.3, spire_mast_head(k - 1), k - 1)
+	else:
+		_spire_tower(level_y(k + 1) - 0.3, want)
+	if mast == null:
+		mast = MastClimb.new()
+		mast.game = self
+		add_child(mast)
+		mast.finished.connect(_on_mast_done)
 	_spire_crane(level_y(k + 1))
 	if line != null:
 		line.rebuild_riser()
@@ -5089,12 +5136,9 @@ func _process(delta: float) -> void:
 			fb = _filled_ratio()
 		elif phase in ["screed", "cure", "sign", "report"]:
 			fb = 1.0
-		if _spire_jack > 0.0:
+		if mast != null and mast.active:
 			# the column going up through the openings on the crane
-			_spire_jack = maxf(0.0, _spire_jack - delta * 0.65)
-			_spire_tower(level_y(k + 1) - 0.3, spire_mast_head(k) - _spire_jack)
-			if _spire_jack <= 0.0 and line != null:
-				line.rebuild_riser()      # (the new pipes sat in under it on the way up)
+			mast.update(delta)
 		_spire_b.update(delta, fb, phase, deck_top(), head.position.y)
 	perf.mark("climb")
 	line.update(delta, phase == "pour")
@@ -5151,7 +5195,11 @@ func _process(delta: float) -> void:
 				_set_phase("deck")
 		"deck":
 			if phase_t > 1.0:
-				if kit == "tower" and k in climb_levels():
+				if spire and _mast_due and mast != null:
+					_mast_due = false
+					_set_phase("mastclimb")
+					mast.start()
+				elif kit == "tower" and k in climb_levels():
 					_set_phase("climb")
 					_climb_kit(true)
 					climb.start(sections_per_climb())
@@ -5162,7 +5210,7 @@ func _process(delta: float) -> void:
 					_start_inspect()
 		"setup":
 			_update_setup(delta)
-		"climb":
+		"climb", "mastclimb":
 			pass
 		"inspect":
 			_update_inspect(delta)
@@ -5790,6 +5838,11 @@ func _climb_kit(on: bool) -> void:
 		for role in ["line", "pump"]:
 			F.kit(crew.crew[role].model, role)
 
+func _on_mast_done() -> void:
+	_spire_tower(level_y(k + 1) - 0.3, spire_mast_head(k))
+	line.rebuild_riser()
+	_start_inspect()
+
 func _on_climb_done() -> void:
 	_climb_kit(false)
 	climb_notes["unclipped"] += climb.unclipped
@@ -5803,6 +5856,8 @@ func _on_climb_done() -> void:
 func _station_visible(key: String) -> bool:
 	if handover != null:
 		return false
+	if phase == "mastclimb" and not key in ["ladder", "ladder_g"]:
+		return false   # (the climb day's jobs are mast_climb.gd's)
 	match key:
 		"tag", "tag2":
 			return climb.active and climb.stage in ["fly", "guide"]
@@ -6135,6 +6190,8 @@ func _handle_player(p, delta: float) -> void:
 		line.drop_item(p)
 		return
 
+	if phase == "mastclimb" and mast != null and mast.handle_player(p, delta):
+		return
 	var near := _station_near(p)
 	if p.role == "pump":
 		_output_remote(p, delta, near)
@@ -7569,8 +7626,8 @@ func _update_hud() -> void:
 	var crew_rows: Array = []
 	for p in players:
 		crew_rows.append({"role": p.role, "p": p.index, "name": p.char_name, "bot": p.bot, "nudge": nudge_level(p)})
-	hud.set_crew(crew_rows, phase in ["columns", "deck", "setup", "climb", "inspect", "pour", "screed"] and not hud.brief.visible)
-	hud.tick_pause_hint(get_process_delta_time(), phase in ["climb", "inspect", "pour"] and not hud.brief.visible and not get_tree().paused)
+	hud.set_crew(crew_rows, phase in ["columns", "deck", "setup", "climb", "mastclimb", "inspect", "pour", "screed"] and not hud.brief.visible)
+	hud.tick_pause_hint(get_process_delta_time(), phase in ["climb", "mastclimb", "inspect", "pour"] and not hud.brief.visible and not get_tree().paused)
 	match phase:
 		"columns":
 			hud.set_task("Build · columns and core")
@@ -7589,6 +7646,10 @@ func _update_hud() -> void:
 			var t: Array = climb.hud_task()
 			hud.set_task(t[0], t[1])
 			hud.set_progress(t[2])
+		"mastclimb":
+			var mt: Array = mast.hud_task()
+			hud.set_task(mt[0], mt[1])
+			hud.set_progress(mt[2])
 		"inspect":
 			hud.set_task("Hold point · engineer's inspection")
 			hud.set_progress(clampf(phase_t / 3.0, 0.0, 1.0) if defect_fixed else 0.0)
@@ -7697,7 +7758,7 @@ func assembly_state() -> Dictionary:
 				s = slot
 				slot += 1
 			(d["trucks"] as Array).append({"id": (t["node"] as Node).get_instance_id(), "slot": s, "age": float(t["age"])})
-	if phase in ["columns", "deck", "setup", "climb", "inspect", "pour", "screed"]:
+	if phase in ["columns", "deck", "setup", "climb", "mastclimb", "inspect", "pour", "screed"]:
 		for role in hud.CREW_ORDER:
 			var p = crew.crew.get(role) if crew != null else null
 			if p == null:
@@ -7745,7 +7806,7 @@ func _next_up() -> String:
 			return "climb the tower" if kit == "tower" and k in climb_levels() else "engineer's inspection"
 		"setup":
 			return "engineer's inspection"
-		"climb":
+		"climb", "mastclimb":
 			return "pour level %d" % (k + 1)
 		"inspect":
 			return "prime the line, then pour"
@@ -7928,6 +7989,8 @@ func _update_see_through(delta: float) -> void:
 					roots.append(c)
 			for f in floor_nodes:
 				roots.append(f)
+			# (and the perimeter scaffold with its blue edge screens, hanging down over the floors below the deck)
+			roots += _rect_rails
 		if _spire_b != null:
 			roots += [_spire_b.mast, _spire_b.yaw.get_child(0), _spire_b.arm1]
 		if _spire_street != null:
@@ -7969,8 +8032,11 @@ func _update_see_through(delta: float) -> void:
 		for p in humans():
 			if ps.size() < 4 and (p.zone == "ladder" or (p.zone == "ground" and p.position.z < SpireSite.face_z(p.position.x) - 0.3)):
 				ps.append(Vector4(p.position.x, p.position.y + 1.0, p.position.z, CUT_R + 1.0))
-		if _spire_jack > 0.0 and ps.size() < 4:
-			ps.append(Vector4(head.position.x, head.position.y - 9.0, head.position.z, CUT_R + 2.0))
+		if mast != null and mast.active:
+			# (the job inside the building, whoever's on it, and the column's foot while it's lifted)
+			for cp in mast.cut_points():
+				if ps.size() < 4:
+					ps.append(cp)
 	if not climb.active:
 		for p in humans():
 			if p.zone == "deck" and ps.size() < 5:
@@ -8302,7 +8368,37 @@ func _spire_views() -> Array:
 		["line_in", Vector3(LineScript.PIPE_IN.x + 9, 5, 11), Vector3(LineScript.PIPE_IN.x, 1, -3)],
 	]
 
+var mast_shot := ""        # dev (--spireshots on a climb day): a moment of it to shoot (mast_climb.gd sets it)
+var _mast_shot_i := 0
+
+func _mast_shoot() -> void:
+	RenderingServer.render_loop_enabled = true
+	for c in get_children():
+		if c is CanvasLayer:
+			(c as CanvasLayer).visible = false
+	var m := SpireSite.mast_xz()
+	var foot: float = mast.foot0 + mast.lifted
+	var mid: float = (foot + mast.from_head + mast.lifted) * 0.5
+	var views := [
+		["wide", Vector3(m.x + 16, mid + 6, m.y + 22), Vector3(m.x, mid, m.y)],
+		["foot", Vector3(m.x + 4.5, foot + 2.5, m.y + 6), Vector3(m.x, foot + 0.5, m.y)],
+		["top", Vector3(m.x + 7, work_y + 9, m.y + 9), Vector3(m.x, work_y + 2, m.y)],
+	]
+	var v: Array = views[_mast_shot_i / 4]
+	camera.h_offset = 0.0
+	camera.look_at_from_position(v[1], v[2], Vector3.UP)
+	_mast_shot_i += 1
+	if _mast_shot_i % 4 == 0:
+		DirAccess.make_dir_recursive_absolute(_spire_shots)
+		get_viewport().get_texture().get_image().save_png(_spire_shots.path_join("climb_%s_%s.png" % [mast_shot, v[0]]))
+		if _mast_shot_i >= views.size() * 4:
+			_mast_shot_i = 0
+			mast_shot = ""
+
 func _spire_shoot() -> void:
+	if spire and phase == "mastclimb" and mast_shot != "":
+		_mast_shoot()
+		return
 	if not spire or phase != "pour" or _filled_ratio() < _spire_shot_fill:
 		RenderingServer.render_loop_enabled = false     # (no drawing till then: software GL is slow)
 		return
@@ -8440,6 +8536,13 @@ func _update_camera_views(delta: float) -> void:
 	if climb_frame:
 		focus = focus.lerp(climb.focus_point(), 0.65)
 		dist = minf(cam_dist, 27.0)
+	if phase == "mastclimb" and mast != null and mast.active:
+		# (Spire's climb day: on whatever's happening now: the crane's load, the job up on the column or
+		# down the ladder, the column's foot while it's lifted; whoever's followed stays in the shot)
+		var mf: Array = mast.focus()
+		var gap: float = (focus - (mf[0] as Vector3)).length() if not main_follow.is_empty() else 0.0
+		focus = focus.lerp(mf[0], 0.6 if not main_follow.is_empty() else 1.0)
+		dist = clampf(maxf(float(mf[1]), gap * 1.1 + spread * 1.2 + 8.0), 12.0, 44.0)
 	var guiding: bool = climb_frame and climb.stage == "guide"
 	if guiding and not _dog_view and climb.stage_t < 0.1:
 		_dog_view = true
@@ -8791,7 +8894,7 @@ func _maybe_shot() -> void:
 		key = "every_start%d_%03d" % [k, int(phase_t)]
 	elif "binevery" in _shot_only and ops != null and ops.wants_bin() and not _shots_taken.has("every_bin%d_%03d" % [k, int(phase_t / 1.5)]):
 		key = "every_bin%d_%03d" % [k, int(phase_t / 1.5)]
-	elif "every" in _shot_only and phase in ["pour", "climb"] and not _shots_taken.has("every_%s_%03d" % [phase, int(phase_t / 6.0)]):
+	elif "every" in _shot_only and phase in ["pour", "climb", "mastclimb"] and not _shots_taken.has("every_%s_%03d" % [phase, int(phase_t / 6.0)]):
 		key = "every_%s_%03d" % [phase, int(phase_t / 6.0)]
 	elif "spike" in _shot_only and line != null and line.spike_on and line.spike_t > 0.25 and not _shots_taken.has("spike"):
 		key = "spike"
