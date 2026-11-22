@@ -579,7 +579,8 @@ def ref(name):
 # Carriageways OSM under-counts (measured kerb to kerb on the 2018 0.1 m aerial). The leg north of the Ann St /
 # Queen St junction is five lanes wide, not three: the two lanes on its west side are the left-turn lanes that come
 # off Ann St past the Mantra (John, 22 Nov: the model had footpath and trees there).
-OSM_FIX = {1331260431: {"width": "15.5", "lanes": "5"}, 1225155646: {"width": "15.5", "lanes": "5"}}
+OSM_FIX = {1331260431: {"width": "15.5", "lanes": "5"}, 1225155646: {"width": "15.5", "lanes": "5"},
+           13861717: {"width": "6.6", "lanes": "2"}}    # the two-lane left turn off Ann St round Cathedral Square
 
 
 def osm():
