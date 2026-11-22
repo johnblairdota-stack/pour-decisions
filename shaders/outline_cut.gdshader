@@ -19,7 +19,7 @@ void fragment() {
 	if (look_ink_w <= 0.0) {
 		discard;
 	}
-	if (cut_hidden(VERTEX, VIEW_MATRIX, FRAGCOORD.xy)) {
+	if (cut_hidden(VERTEX, VIEW_MATRIX, INV_VIEW_MATRIX, FRAGCOORD.xy)) {
 		discard;
 	}
 	ALBEDO = mix(color.rgb, look_ink.rgb, look_ink.a);

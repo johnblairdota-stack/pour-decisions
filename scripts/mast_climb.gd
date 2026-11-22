@@ -701,7 +701,7 @@ func cut_points() -> Array:
 		out.append(Vector4(m.x, foot0 + lifted + 0.6, m.y, 4.5))
 	return out
 
-## For the camera: [what to look at, how far back] for this step.
+## For the camera: [what to look at, how far back, is it inside the building (the section view)].
 func focus() -> Array:
 	var m := SpireSite.mast_xz()
 	var top := _col_top()
@@ -709,11 +709,12 @@ func focus() -> Array:
 		"boom_off", "adaptor_off", "adaptor_on", "boom_on", "hook_down":
 			# (the hook and what's on it, with the column's top)
 			var mid := (hook_pos + top) * 0.5
-			return [mid, clampf(hook_pos.distance_to(top) * 1.3 + 14.0, 16.0, 40.0)]
+			return [mid, clampf(hook_pos.distance_to(top) * 1.3 + 14.0, 16.0, 40.0), false]
 		"lift", "send_pipe", "fit_pipe":
 			# (the column's foot, where the mark and the pipe are)
-			return [Vector3(m.x, foot0 + lifted + 1.0, m.y), 16.0]
+			return [Vector3(m.x, foot0 + lifted + 1.5, m.y), 22.0, true]
 	var j := job()
 	if not j.is_empty() and String(j["zone"]) == "ladder":
-		return [Vector3(m.x, float(j["y"]) + 1.0, m.y), 14.0]
-	return [Vector3(m.x, game.work_y + 2.0, m.y), 20.0]
+		var inside: bool = float(j["y"]) < game.work_y - 1.0
+		return [Vector3(m.x, float(j["y"]) + 1.0, m.y), 22.0 if inside else 14.0, inside]
+	return [Vector3(m.x, game.work_y + 2.0, m.y), 20.0, false]
