@@ -3604,6 +3604,8 @@ func pick_up(p, e: Dictionary) -> void:
 	p.hold_item(e["node"], e["kind"])
 	game.sfx.hit("tink")
 
+var extra_stops: Array = []   # more heights the ladder catches you at (Spire's climb day jobs)
+
 const LADDER_OFF_T := 1.2   # s holding down at the foot of the ladder before you're stepped off
 
 ## A tall riser's climbed (and the haul rope runs) faster, so the trip never takes much longer
@@ -3626,6 +3628,8 @@ func _ladder(p, delta: float) -> void:
 	var stops: Array = [0.0]
 	if kit == "tower" and game.deck_open():
 		stops.append(work)
+	for es in extra_stops:
+		stops.append(clampf(float(es), 0.0, top))
 	var jt := fix_i if fix_i >= 0 else fail_i
 	if jt >= 0:
 		stops.append(clampf(float(clamps[jt]["pos"].y) - 1.0, 0.0, top))

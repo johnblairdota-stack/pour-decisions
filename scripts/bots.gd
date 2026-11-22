@@ -121,6 +121,8 @@ func tick(delta: float) -> void:
 			continue
 		if not p.covering and _slipping(p, role, delta):
 			continue
+		if game.phase == "mastclimb" and game.mast != null and game.mast.bot(p, role, delta):
+			continue
 		match role:
 			"boom": _boom(p, delta)
 			"line": _line(p, delta)
