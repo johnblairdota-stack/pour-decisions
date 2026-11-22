@@ -26,6 +26,7 @@ const POKER_ROOM := 3.2
 var _barked := {}
 var _naive_dog := OS.get_cmdline_user_args().has("--naive-dog")
 var _pk_target := Vector3(INF, 0, 0)
+var _pk_spam := OS.get_cmdline_user_args().has("--pokerspam")
 var _pk_urgent := false
 const URGENT_PK := 0.55   # how close to going off before the poker bot drops what it's doing
 const PACE := [0.75, 0.88, 1.0]   # bronze, silver, gold
@@ -888,6 +889,17 @@ func _poker(p, _delta: float) -> void:
 			p.ai_action = _tap()
 		return
 	var st: Dictionary = poker._state(p)
+	if _pk_spam and g.pour_clock > 50.0:
+		# (test: --pokerspam. The poker stops where it is and plunges the
+		# same spot over and over, to show it earns nothing for it)
+		p.ai_move = Vector2.ZERO
+		if st["state"] == "in":
+			p.ai_action = st["t"] < 0.8
+		else:
+			p.ai_action = fmod(g.phase_t, 0.3) < 0.15
+		if fmod(g.pour_clock, 10.0) < get_process_delta_time():
+			print("[pokerspam] t=%.0f poker pay $%d" % [g.pour_clock, int((g.score.role_rows.get("poker", {}) as Dictionary).get("Poker", 0))])
+		return
 	if st["state"] == "in":
 		p.ai_action = pour.raw_count(st["spot"], poker.R) > 0
 		return

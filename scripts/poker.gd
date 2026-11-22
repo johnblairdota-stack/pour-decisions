@@ -20,6 +20,7 @@ const HOSE_LEN := 6.5      # flexible shaft length, m
 const CREEP := 0.13        # walking speed while it's in the concrete (share of normal)
 const LEASH := 1.3         # m you can work it along from where it went in
 const GOOD_SHARE := 0.45   # gold: at least this much of the circle is raw concrete
+const FULL_PAY_SHARE := 0.25   # a plunge pays in full once this much of the circle was raw
 
 var game
 var pour
@@ -150,6 +151,15 @@ func _work(who, st: Dictionary, holding: bool, delta: float, compact_t: float) -
 				st["done_t"] = 0.0
 				st["bled"] = false
 				st["raw0"] = maxi(1, pour.raw_count(local, R))
+				# Pay follows the raw concrete this plunge really compacts:
+				# none for going back into what's already been done
+				var need: Vector2i = pour.poke_need(local, R)
+				st["pay_raw"] = need.x
+				st["pay_tot"] = maxi(1, need.y)
+				st["lift_w"] = 0.0
+				if need.x == 0 and _crew(who) and not who.bot and Time.get_ticks_msec() * 0.001 - float(st.get("told_at", -9.0)) > 3.0:
+					st["told_at"] = Time.get_ticks_msec() * 0.001
+					game.pop("already poked: find the purple", pour.global_position + local + Vector3(0, 1.2, 0), Color("b48cff"))
 				fx.call("clear")
 				fx.set("sheen", 0.0)
 				fx.set("bleed", 0.0)
@@ -160,6 +170,9 @@ func _work(who, st: Dictionary, holding: bool, delta: float, compact_t: float) -
 			st["t"] += delta
 			var local: Vector3 = st["spot"]
 			var left: int = pour.vibrate(local, R * 1.15, delta, compact_t)
+			if left > 0:
+				# (creeping along into fresh purple: that's more to be paid for)
+				st["pay_raw"] = maxi(int(st.get("pay_raw", 0)), pour.poke_need(local, R).x)
 			var prog: float = 1.0 - float(left) / float(st["raw0"])
 			# Bubbles come hard as it goes in, slow, and stop: then lift.
 			# The cream comes up as it compacts; hold on and the bleed water
@@ -172,8 +185,14 @@ func _work(who, st: Dictionary, holding: bool, delta: float, compact_t: float) -
 				if st["done_t"] == 0.0:
 					game.sfx.hit("chime")
 					if _crew(who):
-						game.score.award(who, 5, "Poker")
-						game.haptic(who, "30,40,30")
+						# Full pay once a quarter of the circle was raw; a
+						# sliver pays a sliver, and nothing raw pays nothing
+						var w := clampf(float(st.get("pay_raw", 0)) / (float(st.get("pay_tot", 1)) * FULL_PAY_SHARE), 0.0, 1.0)
+						st["pay_raw"] = 0
+						st["lift_w"] = maxf(float(st.get("lift_w", 0.0)), w)
+						if w > 0.0:
+							game.score.award(who, roundi(5.0 * w), "Poker")
+							game.haptic(who, "30,40,30")
 				st["done_t"] += delta
 				if st["done_t"] > OVER_T and not st["bled"]:
 					st["bled"] = true
@@ -185,8 +204,8 @@ func _work(who, st: Dictionary, holding: bool, delta: float, compact_t: float) -
 							game.learned(who, false)
 						game.pop("bleed water!", pour.global_position + local + Vector3(0, 1.2, 0), Color("6fa8dc"))
 			if not holding:
-				if st["done_t"] > 0.0 and not st["bled"] and _crew(who):
-					game.score.award(who, 2, "Poker")
+				if st["done_t"] > 0.0 and not st["bled"] and _crew(who) and float(st.get("lift_w", 0.0)) > 0.0:
+					game.score.award(who, maxi(1, roundi(2.0 * float(st["lift_w"]))), "Poker")
 					# (lifted on the bubbles, before the bleed: the poker's
 					# real call, and what fades their help)
 					if game.has_method("learned"):

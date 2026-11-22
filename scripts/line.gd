@@ -284,6 +284,7 @@ const BAND_PAY_T := 8.0                  # s between the lines for each trickle 
 var chute := 2
 var _flick_ok := true
 var _band_t := 0.0
+var _band_ok := false   # the pump operator's signalled this truck's chute (so the band's their doing)
 var _spill_t := 0.0
 var _spill_paid := false
 var _chute_shown_at := -1.0
@@ -1741,6 +1742,7 @@ func _advance() -> void:
 		fix_i = job_steps[fix_step][1]
 
 func _finish_job() -> void:
+	_job_serial += 1
 	var j: int = job_steps[0][1]
 	var bonus := {"clamp": [40, "Clamp swapped before it burst"], "burst": [20, "Burst joint remade"], "block": [40, "Blockage cleared"]}
 	if _worker != null and bonus.has(job_kind):
@@ -1885,6 +1887,10 @@ func _set_truck(t: Dictionary, s: String) -> void:
 		game.sfx.hit("air_brake")
 	if s in ["pour", "leave_wait"] and was != "ready":
 		game.sfx.hit("chute_rattle")
+	if s == "pour":
+		# A new load on the chute: the hopper's pay is for running this one
+		_band_ok = false
+		_band_t = 0.0
 	if s == "pour" and live:
 		_changeover(t)
 
@@ -2581,7 +2587,7 @@ func _chute_flow(t: Dictionary, delta: float) -> float:
 	var flow := minf(PUMP_Q * CHUTE[chute] * delta, t["load"])
 	var fill := hopper / HOPPER_CAP
 	var op = game.crew.crew.get("pump")
-	if fill >= HOP_BAND.x and fill <= HOP_BAND.y and pumping:
+	if fill >= HOP_BAND.x and fill <= HOP_BAND.y and pumping and _band_ok:
 		_band_t += delta
 		if _band_t >= BAND_PAY_T:
 			_band_t = 0.0
@@ -2628,6 +2634,8 @@ func _chute_signal(p, delta: float) -> bool:
 	var fill := hopper / HOPPER_CAP
 	if p.slow_held():
 		p.busy = "chute"   # (stands still: the stick's the signal now)
+		if feeding:
+			_band_ok = true
 		var v: Vector2 = p.move_input()
 		var was := chute
 		if _flick_ok and v.y < -0.6:
@@ -2916,7 +2924,9 @@ func accept(t: Dictionary) -> void:
 	var at: Vector3 = (t["node"] as Node3D).position + Vector3(0, 3.5, 0)
 	game.pop("Good load" if v == "ok" else ("Wrong mix going in!" if v == "mix" else "Bad load!"), at, Color("7cd992") if v == "ok" else Color("ff4d4d"))
 	var who = t.get("tester")
-	if who != null:
+	if who != null and not (v == "ok" and t.get("skipped", false)):
+		# (a good load waved on untested was luck, not a call: no pay for it,
+		# while a bad one still costs)
 		game.score.award(who, 15 if v == "ok" else -25, "Good loads in" if v == "ok" else "Bad load accepted")
 	if v != "ok":
 		# (a weaker mix in the slab: a weak patch where it lands, like a wet one)
@@ -3301,6 +3311,9 @@ func handle_player(p, delta: float, near: String) -> bool:
 ## Clips the part someone's carrying onto the haul rope and hauls it up to the
 ## joint being worked (or the line hand, wherever they are on the ladder).
 func send_up(p) -> void:
+	var kind: String = p.held_kind
+	# (decided before it's on the hook, or it'd count as already coming)
+	var pays: bool = (game.climb.needs_pins() and not _pins_on_way(p)) if kind == "pins" else part_pay_ok(kind, p)
 	var it: Node3D = p.release_item()
 	if it == null:
 		return
@@ -3310,14 +3323,27 @@ func send_up(p) -> void:
 		hook["to"] = clampf(game.climb.platform_spot().y + 1.0, 1.0, riser_top - 0.3)
 		hook["state"] = "rising"
 		game.sfx.hit("clank")
-		game.score.award(p, 10, "Pins sent up", HAUL + Vector3(0, 2.0, 0))
+		if pays:
+			game.score.award(p, 10, "Pins sent up", HAUL + Vector3(0, 2.0, 0))
 		p.pose_arms(Vector3(-2.7, 0, -0.2), Vector3(-2.2, 0, 0.2))
 		p.bounce()
 		return
 	_hook_up()
-	game.score.award(p, 10, "Parts run to the line", HAUL + Vector3(0, 2.0, 0))
+	if pays:
+		game.score.award(p, 10, "Parts run to the line", HAUL + Vector3(0, 2.0, 0))
+	elif not p.bot:
+		game.pop("nobody needs a %s yet" % kind, HAUL + Vector3(0, 2.6, 0), Color("ffc23d"))
 	p.pose_arms(Vector3(-2.7, 0, -0.2), Vector3(-2.2, 0, 0.2))
 	p.bounce()
+
+## Another bag of pins already on its way up (on the hook, or in someone else's hands).
+func _pins_on_way(p) -> bool:
+	if hook["kind"] == "pins":
+		return true
+	for q in game.players:
+		if q != p and q.held_kind == "pins":
+			return true
+	return false
 
 func _hook_on(it: Node3D) -> void:
 	hook["kind"] = it.get_meta("kind")
@@ -3487,6 +3513,20 @@ func _take_nearby_part(p, want: String, at: Vector3) -> bool:
 
 ## Is a part of this kind on its way to the line hand (by someone other than
 ## `asker`): on the rope, in someone's hands, or lying by the joint?
+## Whether running a `kind` part to the line right now earns pay: the job on
+## needs one, none's on its way already, and this job's part hasn't been
+## paid for yet. A part nobody needs is just a walk with it.
+var _part_paid_key := ""
+var _job_serial := 0
+func part_pay_ok(kind: String, giver) -> bool:
+	if game.bots == null or game.bots.part_needed() != kind or part_coming(kind, giver):
+		return false
+	var key := "%s:%d:%d" % [kind, fix_i if fix_i >= 0 else fail_i, _job_serial]
+	if key == _part_paid_key:
+		return false
+	_part_paid_key = key
+	return true
+
 func part_coming(kind: String, asker) -> bool:
 	if hook["kind"] == kind or _winch_kind == kind:
 		return true
