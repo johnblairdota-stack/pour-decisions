@@ -95,7 +95,14 @@ def assign_looks(recs):
         out[osm] = (key, dict(rec, roof=tuple(c * ROOF_GAIN for c in ROOFS[ri]), src="city_wide.assign_looks (use + height; roof colour from the aerial)"))
         kind = key[6:].split("_r")[0].rstrip("0123456789")
         count[kind] = count.get(kind, 0) + 1
+    for osm, (name, over) in NAMED.items():                # towers the photo critics could name
+        if osm in out:
+            out[osm] = ("gen_w_%s_r0" % name, dict(LK.GENERIC["office"], roof=out[osm][1]["roof"], src="city_wide.NAMED (Commons photos)",
+                                                **{k: LK.hx(v) for k, v in over.items()}))
     return out, count
+
+
+NAMED = {481145058: ("abian", {"wall": "2a3340", "glass": "0c1420", "spandrel": "0a1018"})}    # dark mirror glass by the gardens
 
 
 def guess_roofs(recs):
@@ -164,6 +171,7 @@ def drop_far_suburbs(box, bpy):
 def build_trees(col):
     import trees as T
     import far_roads as FR
+    import southbank as SB
     trunks, crowns = C.MeshBuf(), C.MeshBuf()
     n = 0
     with open(os.path.join(WIDE, "tree_points_wide.csv"), encoding="utf-8") as f:
@@ -171,15 +179,20 @@ def build_trees(col):
             x, y, h, g = float(r["x_local"]), float(r["y_local"]), float(r["height_m"]), float(r["ground_ahd"])
             if FR.on_road(x, y) or h < 4.0:
                 continue
+            if SB.in_zone(x, y):                          # South Bank plants its own (southbank.py)
+                continue
             rr = min(0.32 * h, 7.0) * (0.85 + 0.3 * ((int(x * 3 + y * 7) % 10) / 10))
             if FR.over_deck(x, y, rr):
                 continue
             T.tube(trunks, (x, y, g - 0.3), (x, y, g + h * 0.55), 0.22, 0.14, 5)
-            T.blob(crowns, x, y, g + h - rr * 0.62, rr, rr * 0.62)
+            T.blob(crowns, x, y, g + h * 0.5, rr * 1.2, h * 0.34)     # full crown down to near the ground (critics: lollipops)
+            for k2 in range(4):                           # two side lobes: a ragged clump, not a ball (critic round 6)
+                a2 = (x * 12.9898 + y * 78.233 + k2 * 2.4) % 6.2832
+                T.blob(crowns, x + math.cos(a2) * rr * 0.8, y + math.sin(a2) * rr * 0.8, g + h * (0.34 + 0.07 * k2), rr * (0.55 + 0.12 * k2), h * 0.24)
             n += 1
     objs = []
     for buf, name, mname, rgb in ((trunks, "wide_tree_trunks", "tree_trunks", (0.11, 0.095, 0.08)),
-                                  (crowns, "wide_tree_crowns", "tree_crowns_far", (0.035, 0.075, 0.03))):
+                                  (crowns, "wide_tree_crowns", "tree_crowns_far", (0.06, 0.14, 0.045))):
         ob = buf.object(name, col, "tree")
         if ob:
             ob.data.materials[0] = C.material_rgb(mname, rgb)
@@ -191,6 +204,36 @@ def build_trees(col):
     return objs, n
 
 
+_BRIDGE_PTS = None
+
+
+def bridge_outline(b):
+    """OSM maps the outline of a river bridge as an area, which came through as an unnamed 'building' standing in the
+    river under the Goodwill Bridge (solid walls down to the water). Drop unnamed footprints that sit over water along a
+    named river bridge; far_roads builds the real deck and piers."""
+    global _BRIDGE_PTS
+    import far_roads as FR
+    if b.get("name"):
+        return False
+    if _BRIDGE_PTS is None:
+        W = FR.Water()
+        named = [w for w in json.load(open(FR.ROADS))["ways"] if w["bridge"] and w["name"] in FR.RIVER_SPANS]
+        _BRIDGE_PTS = (W, [(p[0], p[1]) for w in named for p in w["pts"] if W.at(p[0], p[1])],
+                       [(p[0], p[1]) for w in named for p in w["pts"]])
+    W, pts, line = _BRIDGE_PTS
+    rings = [q for t in b["tiers"] for q in t["ring"]]
+    if rings and max(max(q[i] for q in rings) - min(q[i] for q in rings) for i in (0, 1)) > 30.0 and \
+            all(any((q[0] - a) ** 2 + (q[1] - c) ** 2 < 49.0 for a, c in line) for q in rings):
+        return True                                         # a long thin footprint that only follows the bridge line
+    for t in b["tiers"]:
+        rg = t["ring"]
+        if sum(W.at(q[0], q[1]) for q in rg) <= len(rg) / 2:
+            return False
+        if sum(1 for q in rg if any((q[0] - a) ** 2 + (q[1] - c) ** 2 < 144.0 for a, c in pts)) <= len(rg) / 2:
+            return False
+    return bool(b["tiers"])
+
+
 def build():
     import bpy
     if L.GAME_EXPORT or getattr(L, "ACTIVE_STAGE", None) or not os.path.exists(os.path.join(WIDE, "wide.json")):
@@ -198,6 +241,7 @@ def build():
     import cbd_ext as CE
     m = json.load(open(os.path.join(WIDE, "wide.json")))
     recs = json.load(open(os.path.join(WIDE, "buildings_wide.json")))["buildings"]
+    recs = [b for b in recs if not bridge_outline(b)]
     guessed = guess_roofs(recs)
     global RECS
     RECS = recs
