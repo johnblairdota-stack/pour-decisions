@@ -49,6 +49,7 @@ const ExploreScript := preload("res://scripts/explore.gd")
 const Look := preload("res://scripts/look.gd")
 const SpireSite := preload("res://scripts/spire_site.gd")
 const SpireB := preload("res://scripts/spire_b.gd")
+const SpireInside := preload("res://scripts/spire_inside.gd")
 const SpireStreet := preload("res://scripts/spire_street.gd")
 const TowerHand := preload("res://scripts/tower_hand.gd")
 const Flight := preload("res://scripts/flight.gd")
@@ -2877,6 +2878,7 @@ func _watch_dispatch(delta: float) -> void:
 		_truck_test = false
 
 ## Spire: the podium's brick and its scaffold as they stand at pour `at` (rebuilt only on a change).
+var _spire_in: Node3D          # what's inside round the boom's column (spire_inside.gd)
 var _pod_stage := [-1, false]
 func _podium_face(at: int) -> void:
 	var stg: Array = SpireSite.podium_stage(at)
@@ -2919,6 +2921,12 @@ func _spire_level() -> void:
 		add_child(mast)
 		mast.finished.connect(_on_mast_done)
 	_spire_crane(level_y(k + 1))
+	if LineScript.STACK:
+		if _spire_in == null:
+			_spire_in = SpireInside.new()
+			_spire_in.game = self
+			add_child(_spire_in)
+		_spire_in.build(k)
 	if line != null:
 		line.rebuild_riser()
 
@@ -4132,6 +4140,10 @@ func _walkable(p: Vector3, zone: String, who = null) -> bool:
 			if LineScript.STACK and p.x >= LineScript.LADDER_FOOT.x - 0.25 and p.x <= LineScript.LADDER_FOOT.x + 1.5 \
 					and p.z >= SpireSite.mast_xz().y + 0.85 and p.z <= SpireSite.face_z(p.x) + 0.6:
 				ok = true    # (the passage in through the podium to the column's ladder)
+			var mz := SpireSite.mast_xz().y
+			if LineScript.STACK and p.x >= LineScript.LADDER_FOOT.x - 0.25 and p.x <= LineScript.LADDER_FOOT.x + 6.5 \
+					and p.z >= mz + 0.85 and p.z <= mz + 6.6:
+				ok = true    # (and the ground floor's store room beside it: the winch and the parts racking)
 		elif not tutorial:
 			# Riverlight's two wings come right up to the street: the west wing
 			# east of x 14.3 and the east wing round the slab, with the boom
