@@ -63,12 +63,9 @@ const TOWERS := {
 		"arc": [[9.6, 146.0, -189.0, 72.0, 0.35], [12.2, 84.0, -48.0, 58.0, 0.7], [13.4, 70.0, 20.0, 34.0, 0.9], [14.5, 22.0, 50.0, 20.0, 1.0]],
 		"end": 1.0, "floor_y": 88.0, "floor_n": 2, "rise": 1.0,
 		"gate": [-305.0, -410.0, 0.78, 0.63],
-		# (the fly-in as a film, scripts/fly_film.gd: when the film's there this is the flight, and the
-		# river run above isn't flown. `live` is the way in from the film's last frame: [s, m along the
-		# street towards `end`, m out from the face, m over the deck, never under this height (the towers
-		# across Ann St stand to about 105)].)
-		"film": {"video": "res://assets/fly/spire.ogv", "cams": "res://assets/fly/spire_cams.json",
-			"live": [[1.7, 0.0, 28.0, 40.0, 132.0]]},
+		# (the fly-in as a film, scripts/fly_film.gd: when the film's there this is the flight, right
+		# down to the floor pick's own view, and the river run above isn't flown.)
+		"film": {"video": "res://assets/fly/spire.ogv", "cams": "res://assets/fly/spire_cams.json"},
 	},
 }
 

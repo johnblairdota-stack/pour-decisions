@@ -1,15 +1,17 @@
 ## The fly-in as a film: one camera flight through the Blender model of Brisbane, rendered frame by
-## frame (tools/blender/spire/render_film.py, film_pack.py), from high in the cloud down to a few
-## hundred metres off the tower. The game's own camera flies the same line under it (the film's
-## cameras are in <tower>_cams.json), so as the film fades the live site is already there, moving
-## the same way, and the live flight takes it on down to the floor pick.
+## frame (tools/blender/spire/render_film.py, film_pack.py), from high in the cloud all the way down
+## to the floor pick's own view of the first deck. The game's own camera flies the same line under it
+## (the film's cameras are in <tower>_cams.json), and the film only fades off once both are standing
+## still on the same view. If the floor pick stands somewhere else (a later deck), the game's camera
+## goes on there live as the film fades.
 ## Nothing here places or shows equipment.
 extends RefCounted
 
 const CLOUD := preload("res://shaders/fly_cloud.gdshader")
 const CLOUD_T := 1.4        # s: the cloud parts
-const HAND_T := 0.8         # s at the film's end it fades over, onto the live site
-const LIVE_T := 3.6         # s live, from the film's last frame onto the floor pick
+const HAND_T := 0.9         # s after the film's last frame (it holds there): it fades off, onto the live site
+const LIVE_T := 1.6         # s live from the film's last frame onto the floor pick, if that's somewhere else
+const SAME := 0.75          # m: nearer the floor pick's own camera than this, the film ends on it
 
 ## The film of a flight ("film" in Flight.TOWERS): {"video", "cams"}.
 static func ready(fl: Dictionary) -> bool:
@@ -54,9 +56,9 @@ static func draw(layer: CanvasLayer, t: float, gone: bool) -> void:
 		var fit := maxf(vs.x / ts.x, vs.y / ts.y)
 		v.size = ts * fit
 		v.position = (vs - v.size) * 0.5
-	var left := 0.0 if gone else 1.0 - smoothstep(d - HAND_T, d, t)
+	var left := 0.0 if gone else 1.0 - smoothstep(d, d + HAND_T, t)
 	v.modulate.a = left
-	if (gone or t >= d) and v.is_playing():
+	if (gone or t >= d + HAND_T) and v.is_playing():
 		v.stop()
 	var m := r.material as ShaderMaterial
 	m.set_shader_parameter("cloud", 0.0 if gone else 1.0 - smoothstep(0.1, CLOUD_T, t))
@@ -73,5 +75,9 @@ static func cam(layer: CanvasLayer, t: float) -> Array:
 	var a: Array = cams[i]
 	var b: Array = cams[i + 1]
 	var p := Vector3(a[0], a[1], a[2]).lerp(Vector3(b[0], b[1], b[2]), f - float(i))
+	if d.has("looks"):
+		var la: Array = d["looks"][i]
+		var lb: Array = d["looks"][i + 1]
+		return [p, Vector3(la[0], la[1], la[2]).lerp(Vector3(lb[0], lb[1], lb[2]), f - float(i))]
 	var tg: Array = d["target"]
 	return [p, Vector3(tg[0], tg[1], tg[2])]

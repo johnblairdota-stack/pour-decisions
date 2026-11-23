@@ -27,6 +27,9 @@ def edge_row(a):
     return (rows.max() + 1) / a.shape[0] if len(rows) else 0.0
 
 
+HOLD = 1.5   # s: the last frame held on the end of the film, while the game fades up over it
+
+
 def main():
     src = os.path.abspath(sys.argv[1])
     tower = next((x[6:] for x in sys.argv if x.startswith("tower=")), "spire")
@@ -47,11 +50,14 @@ def main():
         y = (np.arange(a.shape[0]) + 0.5) / a.shape[0]
         t = np.clip((y - (yv + SOLID)) / FADE, 0.0, 1.0)
         w = 1.0 - t * t * (3.0 - 2.0 * t)
+        # (the haze is for the far edge of the model seen from high up: gone by the time it's down at the tower)
+        tt = (i / float(cams["fps"]) - float(cams.get("run_in", 1e9))) / 1.6
+        w = w * (1.0 - min(1.0, max(0.0, tt)))
         a = a * (1.0 - w[:, None, None]) + HAZE * w[:, None, None]
         Image.fromarray((a * 255.0 + 0.5).astype(np.uint8)).save(os.path.join(tmp, "f%04d.png" % i))
     ogv = os.path.join(out, tower + ".ogv")
     subprocess.check_call(["ffmpeg", "-y", "-loglevel", "error", "-framerate", str(cams["fps"]), "-i", os.path.join(tmp, "f%04d.png"),
-                           "-c:v", "libtheora", "-q:v", q, "-pix_fmt", "yuv420p", "-an", ogv])
+                           "-vf", "tpad=stop_mode=clone:stop_duration=%.2f" % HOLD, "-c:v", "libtheora", "-q:v", q, "-pix_fmt", "yuv420p", "-an", ogv])
     shutil.rmtree(tmp)
     json.dump(cams, open(os.path.join(out, tower + "_cams.json"), "w"))
     print("film_pack: %d of %d frames rendered, %s (%.1f MB)" % (len(have), n, ogv, os.path.getsize(ogv) / 1e6))
