@@ -46,24 +46,35 @@ static func white_kit() -> Dictionary:
 	return {"machine": F.color_mat(Color("e3e5e2"), true), "machine_dark": F.color_mat(Color("c3c7c6"), true),
 		"orange": F.color_mat(Color("d3d6d4"), true)}
 
+## Where a column `length` m tall is pinned together, m up from its foot. It's made of 11 m, 9 m and
+## 2 m sections (John, 24 Nov): an 11 at the bottom, a 9 on that, then 2 m make-up pieces, with the
+## foot's own pins just above the base as on unit 531.
+static func joints(length: float) -> Array:
+	var out: Array = [0.9]
+	var y := 0.0
+	for sec in [11.0, 9.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0]:
+		y += sec
+		if y > length - 1.6:
+			break
+		out.append(y)
+	return out
+
 ## The paint and fittings an SCP column carries, from John's photos of unit 531: the four black pin
-## holes each side of every section joint (`pitch` m apart, counted down from the top), the upright
+## holes each side of every section joint (joints()), the upright
 ## name between two red bars and the unit number on the face looking `face` (+1/-1 along z), the red
 ## rail the delivery line clamps to on the side `side` (+1/-1 along x), and the hose and cable bundle
 ## coiled on the platform (`plat_y`). `col`: the column, built along +y from 0, `h` half its width.
-static func dress_column(col: Node3D, length: float, h: float, face: float, side: float, unit: String, plat_y: float, pitch := 3.0) -> void:
+static func dress_column(col: Node3D, length: float, h: float, face: float, side: float, unit: String, plat_y: float) -> void:
 	var red := F.color_mat(Color("d3202f"))
 	var black := F.color_mat(Color("1d2126"))
 	var seam := F.color_mat(Color("aeb3b3"))
-	var y := length - pitch
-	while y > 0.5:
+	for y in joints(length):
 		col.add_child(F.box(Vector3(h * 2.0 + 0.012, 0.025, h * 2.0 + 0.012), seam, Vector3(0, y, 0)))
 		for dy in [-0.2, 0.2]:
 			for a in [-0.3, 0.3]:
 				for f in [-1.0, 1.0]:
 					col.add_child(F.box(Vector3(0.1, 0.1, 0.02), black, Vector3(a, y + dy, f * (h + 0.006))))
 					col.add_child(F.box(Vector3(0.02, 0.1, 0.1), black, Vector3(f * (h + 0.006), y + dy, a)))
-		y -= pitch
 	# The name, read down the column
 	var name_y := length - 4.2
 	if name_y > 3.0:
