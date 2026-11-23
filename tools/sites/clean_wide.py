@@ -87,7 +87,7 @@ class Dem:
         return v if np.isfinite(v) else None
 
 
-def osm_buildings(data, ways, nodes, ox, oy, box, keep_tags):
+def osm_buildings(data, ways, nodes, ox, oy, covered, keep_tags):
     """OSM buildings outside the LiDAR mosaic (West End until its tiles arrive): the footprint at OSM's own
     height (height, else levels, else a usual height for the type) on the QldDem ground."""
     rv = json.load(open(os.path.join(L.REF, "river", "river.json")))["box_local"]
@@ -102,7 +102,7 @@ def osm_buildings(data, ways, nodes, ox, oy, box, keep_tags):
             continue
         cx = sum(q[0] for q in rawr) / len(rawr)
         cy = sum(q[1] for q in rawr) / len(rawr)
-        if box[0] + 5 < cx < box[2] - 5 and box[1] + 5 < cy < box[3] - 5:
+        if covered(cx, cy):
             continue                                        # the LiDAR pass has it
         if not (rv[0] < cx < rv[2] and rv[1] < cy < rv[3]):
             continue
@@ -124,7 +124,25 @@ def osm_buildings(data, ways, nodes, ox, oy, box, keep_tags):
     return out
 
 
-def aerial_trees(data, recs, lidar_box, zone):
+def lidar_boxes(tiles):
+    """The tiles as local boxes, one per run of tiles side by side in a row (the mosaic need not be a rectangle)."""
+    rows = {}
+    for g, _ in tiles:
+        rows.setdefault((g["Y1"] - g["H"], g["Y1"]), []).append((g["X0"], g["X0"] + g["W"]))
+    out = []
+    for (n0, n1), xs in sorted(rows.items()):
+        run = None
+        for e0, e1 in sorted(xs):
+            if run and e0 == run[1]:
+                run[1] = e1
+            else:
+                run = [e0, e1]
+                out.append((run, n0, n1))
+    oE, oN = L.ORIGIN_MGA56
+    return [[round(r[0] - oE, 2), round(n0 - oN, 2), round(r[1] - oE, 2), round(n1 - oN, 2)] for r, n0, n1 in out]
+
+
+def aerial_trees(data, recs, covered, zone):
     """Tree spots outside the LiDAR mosaic, read off the aerial (no canopy heights there yet): one per 16 m cell
     that is largely dark green, off the buildings and the river. Heights are a usual 10-17 m."""
     import gzip
@@ -154,7 +172,7 @@ def aerial_trees(data, recs, lidar_box, zone):
         y = y1 - (rr + 0.2 + 0.6 * ((hsh * 7.3) % 1.0)) * 2 * k
         if not (zone[0] < x < zone[2] and zone[1] < y < zone[3]):
             continue
-        if lidar_box[0] < x < lidar_box[2] and lidar_box[1] < y < lidar_box[3]:
+        if covered(x, y):
             continue
         z = dem.z(x, y)
         if z is None or z < 0.6:
@@ -225,7 +243,11 @@ def main():
             sp["x"], sp["y"] = round(sp["x"] + ox, 2), round(sp["y"] + oy, 2)
         wt = ways[b["osm"]].get("tags", {})
         b["tags"] = {k: wt[k] for k in keep_tags if k in wt}
-    osm_only = osm_buildings(data, cand, nodes, ox, oy, box, keep_tags)
+    def covered(x, y):                                      # inside a LiDAR tile (the mosaic need not be a rectangle)
+        c, r = int(x - box[0]), int(box[3] - y)
+        return 0 <= r < H and 0 <= c < W and bool(cover[r, c])
+
+    osm_only = osm_buildings(data, cand, nodes, ox, oy, covered, keep_tags)
     out += osm_only
     os.makedirs(OUT, exist_ok=True)
     json.dump({"note": "Every OSM building over the 2019 LiDAR download (tools/sites/clean_wide.py), Spire local metres.",
@@ -256,7 +278,7 @@ def main():
         seen.add(key)
         trees.append((round(x, 1), round(y, 1), round(float(can[r, c]), 1), round(float(gfill[r, c]), 2)))
     lidar_trees = len(trees)
-    trees += aerial_trees(data, out, box, RS.box_local(RS.AREAS["westend"]))
+    trees += aerial_trees(data, out, covered, RS.box_local(RS.AREAS["westend"]))
     with open(os.path.join(OUT, "tree_points_wide.csv"), "w", newline="", encoding="utf-8") as f:
         wr = csv.writer(f)
         wr.writerow(["x_local", "y_local", "height_m", "ground_ahd"])
@@ -295,7 +317,7 @@ def main():
     for b in out:
         fams[b["family"]] = fams.get(b["family"], 0) + 1
         srcs[b["height_src"]] = srcs.get(b["height_src"], 0) + 1
-    meta = {"box_local": [round(v, 2) for v in box], "lidar_tiles": len(tiles), "buildings": len(out), "osm_only": len(osm_only),
+    meta = {"box_local": [round(v, 2) for v in box], "lidar_tiles": len(tiles), "lidar_boxes": lidar_boxes(tiles), "buildings": len(out), "osm_only": len(osm_only),
             "osm_boxes": [[round(v, 1) for v in RS.box_local(RS.AREAS[k])] for k in RW.OSM_AREAS],
             "already_in_scene": built + len(have), "skipped": skipped, "families": fams, "height_sources": srcs,
             "gables": sum(1 for b in out if b["gable"]), "multi_tier": sum(1 for b in out if len(b["tiers"]) > 1),

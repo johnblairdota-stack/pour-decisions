@@ -15,11 +15,11 @@
   "order": "rows north to south from y1, cell centres (x0 + (4c+0.5)*2, y1 - (4r+0.5)*2)"
  },
  "order": "rows north to south, cell centres at (x0+(c+0.5)*step, y1-(r+0.5)*step)",
- "river_area_ha": 450.2,
+ "river_area_ha": 453.6,
  "reaches_kept": 9,
  "loops": 3,
  "aerial_cover": 0.469,
- "lidar_cover": 0.194,
+ "lidar_cover": 0.35,
  "sources": {
   "aerial": "Qld AerialOrtho newest (area_newest_wide.jpg, cbd + portside + westend)",
   "lidar": "Brisbane 2019 LiDAR grid2019 (dsm NaN = water)",

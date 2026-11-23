@@ -19,6 +19,7 @@ import common as C
 import shapes as S
 
 WIDE = os.path.join(L.REF, "wide")
+NEAR = (-2046.57, -2279.05, 1953.43, 1720.95)               # the first LiDAR download: full trees inside it
 RECS = None                                                 # the records as built (city_detail dresses them)
 HOUSE = {"house", "detached", "semidetached_house", "terrace", "bungalow", "residential", "yes", "garage", "shed", "roof"}
 
@@ -184,9 +185,13 @@ def build_trees(col):
             rr = min(0.32 * h, 7.0) * (0.85 + 0.3 * ((int(x * 3 + y * 7) % 10) / 10))
             if FR.over_deck(x, y, rr):
                 continue
+            if not (NEAR[0] < x < NEAR[2] and NEAR[1] < y < NEAR[3]):     # far suburbs: one crown, no trunk
+                T.blob(crowns, x, y, g + h * 0.48, rr * 1.4, h * 0.38)    # (the cloud render has no room for more)
+                n += 1
+                continue
             T.tube(trunks, (x, y, g - 0.3), (x, y, g + h * 0.55), 0.22, 0.14, 5)
             T.blob(crowns, x, y, g + h * 0.5, rr * 1.2, h * 0.34)     # full crown down to near the ground (critics: lollipops)
-            for k2 in range(4):                           # two side lobes: a ragged clump, not a ball (critic round 6)
+            for k2 in (0, 2):                             # two side lobes: a ragged clump, not a ball (critic round 6)
                 a2 = (x * 12.9898 + y * 78.233 + k2 * 2.4) % 6.2832
                 T.blob(crowns, x + math.cos(a2) * rr * 0.8, y + math.sin(a2) * rr * 0.8, g + h * (0.34 + 0.07 * k2), rr * (0.55 + 0.12 * k2), h * 0.24)
             n += 1
@@ -259,7 +264,10 @@ def build():
         res, _ = CE.build_buildings(recs, zone=box, collection="city_wide", suffix="_wide")
     finally:
         B.look_for = keep
-    dropped = drop_far_suburbs(box, bpy)
+    dropped = {}
+    for lb in m.get("lidar_boxes", [box]):                  # tile rows: the LiDAR mosaic need not be a rectangle
+        for k, v in drop_far_suburbs(lb, bpy).items():
+            dropped[k] = dropped.get(k, 0) + v
     # outside the LiDAR the real OSM buildings and aerial-read trees stand too (West End): the made-up ones go
     for ob_ in m.get("osm_boxes", []):
         for k, v in drop_far_suburbs(ob_, bpy).items():
