@@ -21,8 +21,8 @@ const ScreedScript := preload("res://scripts/screed.gd")
 const ViewScript := preload("res://scripts/spire_b_view.gd")
 const LineScript := preload("res://scripts/line.gd")
 
-const L1 := 15.0
-const L2 := 15.0
+const L1 := 9.40 + 8.41        # the four-arm boom's arms 1 + 2, and 3 + 4 (zboom.gd), for main.rig_clear
+const L2 := 8.74 + 8.56
 const SHOULDER := 1.7
 const HOSE := 3.0
 const HOSE_WALK_K := 0.55      # walking with the hose: slow and steady (as main.gd)
@@ -38,7 +38,10 @@ var pour
 var plan := PackedVector2Array()   # pour B, game x/z
 var centre := Vector3.ZERO
 var head: Node3D
-var mast: MeshInstance3D
+var mast: Node3D                   # their square column, up through its opening in their slab
+var zboom: Node3D                  # the four-arm Z-fold boom on it (zboom.gd), as ours
+var pen_rail: Node3D               # the hand rail round the opening on their deck
+var _col_len := -1.0
 var yaw: Node3D
 var arm1: Node3D
 var arm2: Node3D
@@ -90,7 +93,10 @@ func build(owner_game) -> void:
 	var rel := PackedVector2Array()
 	for p in plan:
 		rel.append(p - Vector2(centre.x, centre.z))
-	pour.set_poly(rel)
+	var hole := PackedVector2Array()
+	for p in SpireSite.opening(false):
+		hole.append(p - Vector2(centre.x, centre.z))
+	pour.set_poly(rel, [hole])
 	pour.reset()
 	view = ViewScript.new()
 	view.main = game
@@ -101,42 +107,35 @@ func build(owner_game) -> void:
 	view.BD = pour.bd
 	view.autotest = bool(game.get("autotest"))
 	add_child(view)
-	# Their boom: a second mast up through the lift core, in its far half
+	# Their boom: the same set-up as ours. A square column up through its own opening in their slab,
+	# behind the jump form, with the four-arm Z-fold boom on top.
 	var at := SpireSite.mast_xz(false)
 	head = Node3D.new()
 	head.position = Vector3(at.x, 0, at.y)
 	add_child(head)
-	mast = F.cylinder(0.42, 1.0, F.color_mat(Color("e7e2d2")), Vector3.ZERO, 12)
+	mast = Node3D.new()
+	mast.name = "BoomMastB"
 	add_child(mast)
-	head.add_child(F.prop("BoomCollar", ZBoom.white_kit(), F.TOWERS))
+	pen_rail = _pen_rail()
+	add_child(pen_rail)
 	yaw = Node3D.new()
 	head.add_child(yaw)
 	yaw.add_child(F.prop("BoomTurret", ZBoom.white_kit(), F.TOWERS))
-	arm1 = Node3D.new()
-	arm1.position.y = SHOULDER
-	yaw.add_child(arm1)
-	var a1 := F.prop("BoomArm1", ZBoom.white_kit(), F.TOWERS)
-	a1.scale.x = L1 / 20.0
-	arm1.add_child(a1)
-	arm2 = Node3D.new()
-	arm2.position.x = L1
-	arm1.add_child(arm2)
-	var a2 := F.prop("BoomArm2", ZBoom.white_kit(), F.TOWERS)
-	a2.scale.x = L2 / 20.0
-	arm2.add_child(a2)
-	tip = Node3D.new()
-	tip.position.x = L2
-	arm2.add_child(tip)
-	tip.add_child(F.prop("BoomTip", ZBoom.white_kit(), F.TOWERS))
-	hang = F.cylinder(0.17, HOSE, F.mat("hose"), Vector3(0, -HOSE * 0.5, 0), 8)
-	tip.add_child(hang)
+	zboom = ZBoom.new()
+	zboom.name = "ZBoom"
+	yaw.add_child(zboom)
+	zboom.build(SHOULDER, HOSE)
+	arm1 = zboom.arms[0]
+	arm2 = zboom.arms[1]
+	tip = zboom.tip
+	hang = tip.get_node("Hose")
 	stream = F.cylinder(0.2, 1.0, F.color_mat(Color("6c6f73")), Vector3.ZERO, 10)
 	stream.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(stream)
-	# The boom operator's spot: on the jump form's walkway, at the slab's edge nearest the mast
-	var edge := _inside(Vector3(at.x, 0, at.y) - centre) + centre
-	var back := Vector3(at.x - edge.x, 0, at.y - edge.z)
-	boom_spot = edge + (back.normalized() * 0.6 if back.length() > 0.1 else Vector3.ZERO)
+	# The boom operator's spot: on their deck beside the column, clear of its opening
+	boom_spot = Vector3(at.x + 0.3, 0, at.y - 1.9)
+	if not walkable(boom_spot):
+		boom_spot = _inside(boom_spot - centre) + centre
 	var st := Node3D.new()
 	st.position = boom_spot
 	view.add_child(st)
@@ -250,7 +249,92 @@ func _inside(local: Vector3) -> Vector3:
 ## Pour B and a step round its forms, never into the core.
 func walkable(q: Vector3) -> bool:
 	var v := Vector2(q.x, q.z)
+	if _hole.has_point(v):
+		return false
 	return Geometry2D.is_point_in_polygon(v, _walk) and not Geometry2D.is_point_in_polygon(v, _core)
+
+var _hole := Rect2()
+
+## The column, `length` long from its feet to its top: as main._build_column builds ours. Square
+## sections with corner angles and a collar at each pinned joint, the adaptor plate and its red pin
+## ears, the work platform under the top, the delivery line and the caged ladder up its far side.
+func _build_column(length: float) -> void:
+	for c in mast.get_children():
+		c.queue_free()
+	var cream := F.color_mat(Color("e7e2d2"))
+	var angle := F.color_mat(Color("b9b4a4"))
+	var red := F.color_mat(Color("d3202f"))
+	var rail := F.color_mat(Color("e3e5e2"))
+	var h := SpireSite.COLUMN * 0.5
+	mast.add_child(F.box(Vector3(SpireSite.COLUMN, length, SpireSite.COLUMN), cream, Vector3(0, length * 0.5, 0)))
+	for sx in [-1.0, 1.0]:
+		for sz in [-1.0, 1.0]:
+			mast.add_child(F.box(Vector3(0.12, length, 0.12), angle, Vector3(sx * (h - 0.03), length * 0.5, sz * (h - 0.03))))
+	var y := length - 3.0
+	while y > 0.5:
+		mast.add_child(F.box(Vector3(SpireSite.COLUMN + 0.06, 0.16, SpireSite.COLUMN + 0.06), angle, Vector3(0, y, 0)))
+		y -= 3.0
+	mast.add_child(F.box(Vector3(1.2, 0.26, 1.2), cream, Vector3(0, length + 0.13, 0)))
+	for sx in [-0.42, 0.42]:
+		for sz in [-0.42, 0.42]:
+			mast.add_child(F.box(Vector3(0.1, 0.32, 0.24), red, Vector3(sx, length + 0.42, sz)))
+	# The work platform
+	var py := length - 1.15
+	var w := 2.5
+	mast.add_child(F.box(Vector3(w, 0.08, w), F.mat("steel"), Vector3(-0.25, py, 0)))
+	for side in 4:
+		var along := Vector3(w, 0.06, 0.06) if side < 2 else Vector3(0.06, 0.06, w)
+		var at := Vector3(-0.25, 0, (w * 0.5) * (1.0 if side == 0 else -1.0)) if side < 2 else Vector3(-0.25 + (w * 0.5) * (1.0 if side == 2 else -1.0), 0, 0)
+		for hy in [0.55, 1.1]:
+			mast.add_child(F.box(along, rail, at + Vector3(0, py + hy, 0)))
+		mast.add_child(F.box(Vector3(along.x, 0.15, along.z), F.color_mat(Color("c3c7c6")), at + Vector3(0, py + 0.08, 0)))
+	for cx in [-1.0, 1.0]:
+		for cz in [-1.0, 1.0]:
+			mast.add_child(F.box(Vector3(0.06, 1.1, 0.06), rail, Vector3(-0.25 + cx * w * 0.5, py + 0.55, cz * w * 0.5)))
+	# The delivery line up the column's far face, a clamp at each joint
+	var px := -h - 0.16
+	mast.add_child(F.cylinder(0.07, length, F.mat("pipe"), Vector3(px, length * 0.5, -0.2), 8))
+	y = 1.5
+	while y < length:
+		mast.add_child(F.box(Vector3(0.2, 0.08, 0.2), F.color_mat(Color("4a5058")), Vector3(px, y, -0.2)))
+		y += 3.0
+	# The ladder beside it, caged from a man's height over the deck to the platform
+	var lx := -h - 0.75
+	for sz in [0.05, 0.45]:
+		mast.add_child(F.box(Vector3(0.05, py, 0.05), rail, Vector3(lx, py * 0.5, sz)))
+	y = 0.3
+	while y < py:
+		mast.add_child(F.box(Vector3(0.03, 0.03, 0.4), rail, Vector3(lx, y, 0.25)))
+		y += 0.3
+	var cage0: float = 3.0 * float(game.FH) + 2.4
+	y = cage0
+	while y < py - 0.3:
+		mast.add_child(F.box(Vector3(0.05, 0.05, 0.84), rail, Vector3(lx - 0.72, y, 0.25)))
+		for sz in [-0.17, 0.67]:
+			mast.add_child(F.box(Vector3(0.72, 0.05, 0.05), rail, Vector3(lx - 0.36, y, sz)))
+		y += 0.9
+	if py - cage0 > 0.5:
+		for cz in [-0.17, 0.25, 0.67]:
+			mast.add_child(F.box(Vector3(0.04, py - cage0, 0.04), rail, Vector3(lx - 0.72 if cz == 0.25 else lx - 0.36, (py + cage0) * 0.5, cz)))
+
+## The hand rail round the opening on their deck (its origin at deck level).
+func _pen_rail() -> Node3D:
+	var n := Node3D.new()
+	n.name = "PenetrationRailB"
+	var op := SpireSite.opening(false)
+	_hole = Rect2(op[0], op[2] - op[0]).grow(0.3)
+	var a := op[0] - Vector2(0.2, 0.2)
+	var b := op[2] + Vector2(0.2, 0.2)
+	var rail := F.mat("yellow")
+	for hy in [0.5, 1.0]:
+		for z in [a.y, b.y]:
+			n.add_child(F.box(Vector3(b.x - a.x, 0.05, 0.05), rail, Vector3((a.x + b.x) * 0.5, hy, z)))
+		for x in [a.x, b.x]:
+			n.add_child(F.box(Vector3(0.05, 0.05, b.y - a.y), rail, Vector3(x, hy, (a.y + b.y) * 0.5)))
+	for x in [a.x, b.x]:
+		for z in [a.y, b.y]:
+			n.add_child(F.box(Vector3(0.06, 1.0, 0.06), rail, Vector3(x, 0.5, z)))
+	return n
 
 ## Spots on their deck the bots ask for by name (main.deck_pos's keys).
 func spot(key: String) -> Vector3:
@@ -311,9 +395,14 @@ func _update(delta: float, frac: float, phase: String, deck_y: float, head_y: fl
 	(view.stations["boom"]["node"] as Node3D).position.y = deck_y
 	boom_spot.y = deck_y
 	head.position.y = head_y
+	# (the column stands on the slab three floors under their deck, as ours does)
 	var bottom: float = deck_y - 3.0 * float(game.FH)
-	mast.position = Vector3(head.position.x, (head_y + bottom) * 0.5, head.position.z)
-	mast.scale.y = head_y - bottom
+	var length: float = head_y - 0.62 - bottom
+	if absf(length - _col_len) > 0.05:
+		_col_len = length
+		_build_column(length)
+	mast.position = Vector3(head.position.x, bottom, head.position.z)
+	pen_rail.position.y = deck_y
 	pour.open_time = maxf(60.0, float(game.pour.open_time) * 2.5)
 	view.phase_t = float(game.phase_t)
 	view.cam_yaw = float(game.cam_yaw)
@@ -596,10 +685,4 @@ func _boom() -> void:
 	yaw.rotation.y = atan2(-hv.y, hv.x)
 	var d := hv.length()
 	var ty := t.y - hp.y
-	var dist := clampf(sqrt(d * d + ty * ty), 1.0, L1 + L2 - 0.05)
-	var phi := atan2(ty, d)
-	var a := acos(clampf((L1 * L1 + dist * dist - L2 * L2) / (2.0 * L1 * dist), -1.0, 1.0))
-	var b := acos(clampf((L1 * L1 + L2 * L2 - dist * dist) / (2.0 * L1 * L2), -1.0, 1.0))
-	arm1.rotation.z = phi + a
-	arm2.rotation.z = -(PI - b)
-	tip.rotation.z = -(arm1.rotation.z + arm2.rotation.z)
+	zboom.pose(d, ty, 0.0, 0.0, get_process_delta_time())
