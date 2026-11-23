@@ -173,6 +173,23 @@ func _solve(d: float, ty: float) -> Array:
 		q[i] = clampf(q[i], LIM[i][0], LIM[i][1])
 	return q
 
+## With the tip `d` out and `ty` up, do all four arms pass clear of something standing from `r0` to
+## `r` m out and `top` high (from arm 1's pivot)? The jump form, for main.rig_arms_clear: a Z boom
+## arches over it and comes down steeply behind, which two straight halves can't.
+func clears(d: float, ty: float, r0: float, r: float, top: float) -> bool:
+	var q := _solve(d, ty)
+	var p := Vector2.ZERO
+	var dir := 0.0
+	for i in 4:
+		dir = float(q[0]) if i == 0 else dir - float(q[i])
+		var e := p + Vector2(cos(dir), sin(dir)) * float(L[i])
+		for n in 9:
+			var pt := p.lerp(e, n / 8.0)
+			if pt.x > r0 and pt.x < r and pt.y < top:
+				return false
+		p = e
+	return true
+
 ## Poses the boom: the tip `d` out and `ty` up from arm 1's pivot, less however far it's folded away
 ## (`fold` 0 working .. 1 stowed: up to the carry first, then arms 4, 3, 2 fold in turn and arm 1
 ## comes down last; unfolding is the same backwards). `shake` is added to the joints (pump strokes, wind).

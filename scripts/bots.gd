@@ -318,8 +318,14 @@ func _ladder_to(p, want_y: float, step_off: bool) -> bool:
 		top = maxf(top, game.work_y)
 	want_y = clampf(want_y, 0.0, top)
 	var dy: float = want_y - p.position.y
+	if absf(dy) > 0.06 and absf(dy) < 0.3 and p.zone == "ladder":
+		# (the last hand's breadth, they just step to the rung: at a low frame rate or up a tall ladder
+		# one frame's climb is longer than this, and they'd hunt up and down past it for ever)
+		p.position.y = want_y
+		dy = 0.0
 	if absf(dy) > 0.06:
-		p.ai_move = Vector2(0, -signf(dy) * clampf(absf(dy) * 4.0, 0.3, 1.0))
+		# (never under 0.35: the ladder only counts a push past 0.3 as climbing)
+		p.ai_move = Vector2(0, -signf(dy) * clampf(absf(dy) * 4.0, 0.35, 1.0))
 		return false
 	if step_off:
 		p.ai_leave = _tap()
@@ -701,8 +707,11 @@ func _repair(p, delta: float) -> bool:
 				want_y = line.clamps[maxi(0, target_j)]["pos"].y - 1.0
 			want_y = clampf(want_y, 0.0, maxf(0.0, line.riser_top - 1.6))
 			var dy: float = want_y - p.position.y
+			if absf(dy) > 0.06 and absf(dy) < 0.3 and p.zone == "ladder":
+				p.position.y = want_y     # (as _ladder_to: step to the rung)
+				dy = 0.0
 			if absf(dy) > 0.06:
-				p.ai_move = Vector2(0, -signf(dy) * clampf(absf(dy) * 4.0, 0.3, 1.0))
+				p.ai_move = Vector2(0, -signf(dy) * clampf(absf(dy) * 4.0, 0.35, 1.0))
 			elif not need_fetch and line.joint_near(p) >= 0:
 				_fix(p)
 			elif need_fetch:
