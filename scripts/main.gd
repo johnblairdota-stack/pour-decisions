@@ -50,6 +50,7 @@ const Look := preload("res://scripts/look.gd")
 const SpireSite := preload("res://scripts/spire_site.gd")
 const SpireB := preload("res://scripts/spire_b.gd")
 const SpireInside := preload("res://scripts/spire_inside.gd")
+const ZBoom := preload("res://scripts/zboom.gd")
 const SpireStreet := preload("res://scripts/spire_street.gd")
 const TowerHand := preload("res://scripts/tower_hand.gd")
 const Flight := preload("res://scripts/flight.gd")
@@ -238,6 +239,7 @@ var section_count := 0
 var head: Node3D
 var head_deco: Array[Node3D] = []
 var yaw_node: Node3D
+var zboom: Node3D           # Spire's four-arm Z-fold boom (zboom.gd), or null: then it's arm1 + arm2
 var arm1: Node3D
 var arm2: Node3D
 var tip: Node3D
@@ -1668,7 +1670,7 @@ func _build_column(length: float) -> void:
 	var angle := F.color_mat(Color("b9b4a4"))
 	var red := F.color_mat(Color("d3202f"))
 	var grate := F.mat("steel")
-	var rail := F.mat("yellow")
+	var rail := F.color_mat(Color("e3e5e2"))
 	var h := SpireSite.COLUMN * 0.5
 	_spire_mast.add_child(F.box(Vector3(SpireSite.COLUMN, length, SpireSite.COLUMN), cream, Vector3(0, length * 0.5, 0)))
 	for sx in [-1.0, 1.0]:
@@ -1701,7 +1703,7 @@ func _build_column(length: float) -> void:
 		var at := Vector3(0.25, 0, (w * 0.5) * (1.0 if side == 0 else -1.0)) if side < 2 else Vector3(0.25 + (w * 0.5) * (1.0 if side == 2 else -1.0), 0, 0)
 		for hy in [0.55, 1.1]:
 			_spire_mast.add_child(F.box(along, rail, at + Vector3(0, py + hy, 0)))
-		_spire_mast.add_child(F.box(Vector3(along.x, 0.15, along.z), F.mat("yellow_dark"), at + Vector3(0, py + 0.08, 0)))
+		_spire_mast.add_child(F.box(Vector3(along.x, 0.15, along.z), F.color_mat(Color("c3c7c6")), at + Vector3(0, py + 0.08, 0)))
 	for cx in [-1.0, 1.0]:
 		for cz in [-1.0, 1.0]:
 			_spire_mast.add_child(F.box(Vector3(0.06, 1.1, 0.06), rail, Vector3(0.25 + cx * w * 0.5, py + 0.55, cz * w * 0.5)))
@@ -1952,7 +1954,8 @@ func _build_site() -> void:
 		head.add_child(d)
 	yaw_node = Node3D.new()
 	head.add_child(yaw_node)
-	yaw_node.add_child(F.prop("BoomTurret", {}, F.TOWERS))
+	# (Spire's is the Tannery's boom: white, not yellow)
+	yaw_node.add_child(F.prop("BoomTurret", ZBoom.white_kit() if spire else {}, F.TOWERS))
 	for side in [1.0, -1.0]:
 		var scp := Label3D.new()
 		scp.text = Settings.brand("pumper")
@@ -2259,11 +2262,31 @@ func on_pad(p: Vector3) -> bool:
 	return absf(p.x - SC.x) < BW * 0.5 - 0.2 and absf(p.z - SC.z) < BD * 0.5 - 0.2
 
 ## Builds the placing boom's two arms for the chosen kit.
-func _build_boom(a: float, b: float) -> void:
+func _build_boom(a: float, b: float, z_fold := false) -> void:
 	l1 = a
 	l2 = b
+	if zboom != null:
+		zboom.queue_free()
+		zboom = null
+		arm1 = null
 	if arm1:
 		arm1.queue_free()
+	if z_fold:
+		# Spire: a four-arm Z-fold boom (zboom.gd). For the rest of the game it's still two halves:
+		# arms 1 + 2 and arms 3 + 4.
+		_slew_mid = NAN
+		_slew_unwind = 0.0
+		zboom = ZBoom.new()
+		zboom.name = "ZBoom"
+		yaw_node.add_child(zboom)
+		zboom.build(SHOULDER, HOSE)
+		l1 = ZBoom.L[0] + ZBoom.L[1]
+		l2 = ZBoom.L[2] + ZBoom.L[3]
+		arm1 = zboom.arms[0]
+		arm2 = zboom.arms[1]
+		tip = zboom.tip
+		hose_end = zboom.hose_end
+		return
 	# (the arms are modelled 20 m long and stretched to the kit's length)
 	arm1 = Node3D.new()
 	arm1.position.y = SHOULDER
@@ -3262,9 +3285,12 @@ func _update_menu_floors(delta: float) -> void:
 	var phi := atan2(ty, hd)
 	var a := acos(clampf((l1 * l1 + reach * reach - l2 * l2) / (2.0 * l1 * reach), -1.0, 1.0))
 	var b := acos(clampf((l1 * l1 + l2 * l2 - reach * reach) / (2.0 * l1 * l2), -1.0, 1.0))
-	arm1.rotation.z = phi + a
-	arm2.rotation.z = -(PI - b)
-	tip.rotation.z = -(arm1.rotation.z + arm2.rotation.z)
+	if zboom != null:
+		zboom.pose(hd, ty)
+	else:
+		arm1.rotation.z = phi + a
+		arm2.rotation.z = -(PI - b)
+		tip.rotation.z = -(arm1.rotation.z + arm2.rotation.z)
 	var fall := 1.6
 	_menu_stream.position = Vector3(tipw.x, mh + fall * 0.5 - 0.1, tipw.z)
 	_menu_stream.scale = Vector3(1.0 + 0.15 * sin(_menu_t * 23.0), fall + 0.2, 1.0 + 0.15 * sin(_menu_t * 19.0))
@@ -3409,7 +3435,7 @@ func _apply_kit(which: String) -> void:
 		# Spire ran separate placing booms, one per pour area. Ours stands on a square column up through
 		# the slabs' openings (the Tannery's set-up, John 21 Nov: an MXR 36-4 T, about 36 m), climbed every
 		# third level, so its head stands up to five floors over the deck: 36 m reaches both ends of pour A
-		_build_boom(18.0, 18.0)
+		_build_boom(18.0, 18.0, true)
 		hud.toast("Spire: your crew pours the Ann St side. The other crew's on pour B round the core with their own boom.", 3.0)
 	else:
 		# Long enough to reach the far corner of the east wing from the tower
@@ -7684,6 +7710,63 @@ func _rig_bump(delta: float) -> void:
 			op.say("jump form!")
 	tip_pos = rig_clear(tip_pos, head.global_position, l1, l2)[0]
 
+## The four-arm boom's dead spot. Its hoses and power cable come up through the slewing ring, so it
+## turns ZBoom.SLEW each way from the middle of its swing (facing the pour) and there a stop holds
+## it: to get past, it has to come back round the other way. `slew` is where it's turned to, from
+## the middle. A player's boom just stops (and they're told); a bot's unwinds itself.
+var slew := 0.0
+var _slew_mid := NAN
+var _slew_unwind := 0.0      # +1/-1: coming back round off that stop
+var _slew_say_t := 0.0
+
+func _slew_stop(hp: Vector3, h: Vector2) -> Vector2:
+	var dt := get_process_delta_time()
+	_slew_say_t = maxf(0.0, _slew_say_t - dt)
+	var want := atan2(-h.y, h.x)
+	if is_nan(_slew_mid):
+		_slew_mid = atan2(-(SC.z - hp.z), SC.x - hp.x)
+		slew = wrapf(want - _slew_mid, -PI, PI)
+	var step := wrapf(want - (_slew_mid + slew), -PI, PI)
+	var op = _boom_operator()
+	var human: bool = op != null and not op.bot and not op.covering
+	if _slew_unwind != 0.0:
+		# (round the long way, until where it's wanted is nearer that way than back at the stop)
+		if human or step * _slew_unwind <= 0.0 or absf(slew) < 0.3:
+			_slew_unwind = 0.0
+		else:
+			slew -= _slew_unwind * 0.5 * dt
+			return _slew_put(hp, h)
+	var to := slew + step
+	if absf(to) <= ZBoom.SLEW:
+		slew = to
+		if human and absf(slew) > ZBoom.SLEW - 0.6 and _slew_say_t <= 0.0:
+			_slew_say_t = 2.5
+			op.say("slew stop in %d°" % int(rad_to_deg(ZBoom.SLEW - absf(slew))))
+		return h
+	slew = clampf(to, -ZBoom.SLEW, ZBoom.SLEW)
+	if human:
+		if _slew_say_t <= 1.5:
+			_slew_say_t = 3.0
+			sfx.hit("clank")
+			op.say("SLEW STOP! back round the other way")
+	else:
+		_slew_unwind = signf(slew)
+	return _slew_put(hp, h)
+
+## Holds the hose on the bearing the boom's actually slewed to.
+func _slew_put(hp: Vector3, h: Vector2) -> Vector2:
+	var yaw := _slew_mid + slew
+	yaw_node.rotation.y = yaw
+	var out := Vector2(cos(yaw), -sin(yaw))
+	var at := out * h.length()
+	tip_pos = Vector3(hp.x + at.x, tip_pos.y, hp.z + at.y)
+	tip_kick = Vector3.ZERO
+	if _slew_unwind == 0.0:
+		var tt := Vector2(tip_target.x - hp.x, tip_target.z - hp.z)
+		var along := out * maxf(tt.dot(out), 2.0)
+		tip_target = Vector3(hp.x + along.x, tip_target.y, hp.z + along.y)
+	return at
+
 func _update_boom() -> void:
 	if arm1 == null:
 		return
@@ -7692,6 +7775,8 @@ func _update_boom() -> void:
 	var t := Vector3(tp.x, deck_top() + 1.3 + HOSE, tp.z)
 	var h := Vector2(t.x - hp.x, t.z - hp.z)
 	yaw_node.rotation.y = atan2(-h.y, h.x)
+	if zboom != null:
+		h = _slew_stop(hp, h)
 	var d := h.length()
 	var ty := t.y - hp.y
 	var dist := clampf(sqrt(d * d + ty * ty), 1.0, l1 + l2 - 0.05)
@@ -7708,20 +7793,27 @@ func _update_boom() -> void:
 		breathe = 0.0035 * absf(sin(line._knock_phase * PI / 0.8))
 	var gust: float = climb.wind_gust if climb != null else 20.0
 	breathe += 0.0011 * (1.0 + gust / 40.0) * sin(phase_t * 0.9) + 0.0005 * sin(phase_t * 2.3 + 0.7)
-	arm1.rotation.z = phi + a + sin(phase_t * 11.0) * jit * 0.15 + breathe
-	arm2.rotation.z = -(PI - b) + sin(phase_t * 12.7 + 1.0) * jit * 0.3 - breathe * 0.6
+	if zboom == null:
+		arm1.rotation.z = phi + a + sin(phase_t * 11.0) * jit * 0.15 + breathe
+		arm2.rotation.z = -(PI - b) + sin(phase_t * 12.7 + 1.0) * jit * 0.3 - breathe * 0.6
 	# Packed away for a climb day: swung round off the crane's path and folded
 	# up tight and steep, as a parked boom stands on a real job. (Eased, so it
 	# moves there and back rather than jumping.)
 	var dt := get_process_delta_time()
 	_park_s = move_toward(_park_s, climb.park_slew if climb != null else 0.0, dt * 0.8)
-	_park_f = move_toward(_park_f, climb.park_fold if climb != null else 0.0, dt * 0.6)
+	# (the four-arm boom folds an arm at a time: it takes its time over it)
+	_park_f = move_toward(_park_f, climb.park_fold if climb != null else 0.0, dt * (0.2 if zboom != null else 0.6))
 	if _park_s > 0.0 or _park_f > 0.0:
 		yaw_node.rotation.y = lerp_angle(yaw_node.rotation.y, PARK_YAW, ease(_park_s, -1.6))
 		var f := ease(_park_f, -1.6)
-		arm1.rotation.z = lerpf(arm1.rotation.z, PARK_A1, f)
-		arm2.rotation.z = lerpf(arm2.rotation.z, PARK_A2, f)
-	tip.rotation.z = -(arm1.rotation.z + arm2.rotation.z)
+		if zboom == null:
+			arm1.rotation.z = lerpf(arm1.rotation.z, PARK_A1, f)
+			arm2.rotation.z = lerpf(arm2.rotation.z, PARK_A2, f)
+	if zboom != null:
+		# (the real fold: up to the carry, arms 4, 3, 2 in turn, then arm 1 down onto the stack)
+		zboom.pose(d, ty, _park_f, sin(phase_t * 11.0) * jit * 0.15 + breathe, dt)
+	else:
+		tip.rotation.z = -(arm1.rotation.z + arm2.rotation.z)
 
 var _stream_mats := {}
 
@@ -8634,6 +8726,10 @@ func _spire_views() -> Array:
 		["mast_deck", Vector3(SpireSite.mast_xz().x + 4, dk + 3, SpireSite.mast_xz().y + 5), Vector3(SpireSite.mast_xz().x + 0.5, dk + 0.5, SpireSite.mast_xz().y)],
 		["stack", Vector3(SpireSite.mast_xz().x + 10, base_y * 0.6, 24), Vector3(SpireSite.mast_xz().x, base_y * 0.5, SpireSite.mast_xz().y)],
 		["line_in", Vector3(LineScript.PIPE_IN.x + 9, 5, 11), Vector3(LineScript.PIPE_IN.x, 1, -3)],
+		# (the placing boom itself: side on, and from above the pour)
+		["boom", head.global_position + Vector3(34, 6, 12), head.global_position + Vector3(0, -2, 8)],
+		["boom_west", head.global_position + Vector3(-30, 8, 20), head.global_position + Vector3(0, -2, 6)],
+		["boom_head", head.global_position + Vector3(7, 5, -6), head.global_position + Vector3(0, 1.5, 2)],
 	]
 
 var mast_shot := ""        # dev (--spireshots on a climb day): a moment of it to shoot (mast_climb.gd sets it)
