@@ -8,7 +8,9 @@ facade family) over every OSM building in <data>/cbd/osm/osm_all.json.gz that th
 (buildings_clean.json inside the +-700 m square, ext/buildings_ext.json). Writes reference/sites/spire/wide/:
 
     wide.json             box, counts, sources
-    buildings_wide.json   buildings_clean-format records + tags (building, name, height, levels, roof:shape)
+    buildings_wide.json   buildings_clean-format records + tags (building, name, height, levels, roof:shape);
+                          outside the LiDAR (wide.json osm_boxes, e.g. West End) the OSM footprint at OSM's
+                          own height on the QldDem ground, until those LiDAR tiles are ordered
     tree_points_wide.csv  LiDAR tree tops (9 m local maxima of the canopy) outside LIDAR_BOX and the ext box
     features.json         OSM traffic signals, street lamps, motorway junctions (nodes) and parks, pitches,
                           car parks, stadiums (rings), local metres
@@ -30,6 +32,10 @@ sys.path.insert(0, os.path.join(REPO, "tools", "blender", "spire"))
 sys.path.insert(0, HERE)
 import layout as L  # noqa: E402
 import clean_ext as CE  # noqa: E402
+import prep_clean as PC  # noqa: E402
+import river_shape as RS  # noqa: E402
+import roads_wide as RW  # noqa: E402
+import shapes as S  # noqa: E402
 
 OUT = os.path.join(L.REF, "wide")
 
@@ -47,6 +53,74 @@ def fill_nan(a):
         ok = bad & (den > 0.05)
         a[ok] = num[ok] / den[ok]
     return np.where(np.isnan(a), np.nanmedian(a), a)
+
+
+# no LiDAR yet: heights for untagged buildings by OSM type (m)
+TYPE_HEIGHT = {"house": 5.6, "detached": 5.6, "semidetached_house": 5.6, "terrace": 6.0, "bungalow": 4.2, "residential": 5.8,
+               "apartments": 12.8, "hotel": 16.0, "dormitory": 12.8, "office": 12.8, "commercial": 8.0, "retail": 6.5,
+               "industrial": 7.5, "warehouse": 7.5, "school": 7.0, "university": 12.0, "hospital": 16.0, "church": 9.0,
+               "garage": 2.8, "garages": 2.8, "shed": 2.6, "roof": 3.2, "carport": 2.6, "yes": 5.6}
+
+
+class Dem:
+    """QldDem 1 m bare ground tiles of every area (dem_<E>_<N>.tif), read on demand."""
+
+    def __init__(self, data):
+        import prep_site as PS
+        self.read, self.files, self.cache = PS.read_tif, {}, {}
+        for area in sorted(os.listdir(data)):
+            d = os.path.join(data, area, "dem", "default")
+            for f in sorted(os.listdir(d)) if os.path.isdir(d) else []:
+                if f.endswith(".tif"):
+                    self.files.setdefault(tuple(int(v) for v in f[4:-4].split("_")), os.path.join(d, f))
+
+    def z(self, x, y):
+        E, N = x + L.ORIGIN_MGA56[0], y + L.ORIGIN_MGA56[1]
+        key = (int(E // 1000) * 1000, int(N // 1000) * 1000)
+        if key not in self.files:
+            return None
+        if key not in self.cache:
+            self.cache[key] = self.read(self.files[key])
+        a = self.cache[key]
+        v = float(a[min(int(key[1] + 1000 - N), 999), min(int(E - key[0]), 999)])
+        return v if np.isfinite(v) else None
+
+
+def osm_buildings(data, ways, nodes, ox, oy, box, keep_tags):
+    """OSM buildings outside the LiDAR mosaic (West End until its tiles arrive): the footprint at OSM's own
+    height (height, else levels, else a usual height for the type) on the QldDem ground."""
+    rv = json.load(open(os.path.join(L.REF, "river", "river.json")))["box_local"]
+    dem = Dem(data)
+    out = []
+    for wid, w in ways.items():
+        t = w.get("tags", {})
+        if "building" not in t or t.get("building") in ("no", "bridge") or (L.tag_float(t, "layer") or 0) < 0:
+            continue
+        rawr = [(nodes[n][0] + ox, nodes[n][1] + oy) for n in w["nodes"] if n in nodes]
+        if len(rawr) < 4 or len(rawr) != len(w["nodes"]) or w["nodes"][0] != w["nodes"][-1]:
+            continue
+        cx = sum(q[0] for q in rawr) / len(rawr)
+        cy = sum(q[1] for q in rawr) / len(rawr)
+        if box[0] + 5 < cx < box[2] - 5 and box[1] + 5 < cy < box[3] - 5:
+            continue                                        # the LiDAR pass has it
+        if not (rv[0] < cx < rv[2] and rv[1] < cy < rv[3]):
+            continue
+        ring = S.clean(rawr, 0.3)
+        if len(ring) < 3 or abs(S.area(ring)) < 12:
+            continue
+        zs = [z for z in (dem.z(x, y) for x, y in ring + [(cx, cy)]) if z is not None]
+        if not zs:
+            continue
+        h, src = L.building_height(t)
+        if src.startswith("default"):
+            h, src = TYPE_HEIGHT.get(t["building"], 6.4), "usual height for the OSM type (no LiDAR yet)"
+        name = t.get("name", "")
+        fam = PC.family(t, h, name)
+        out.append({"osm": wid, "name": name, "base_ahd": round(min(zs), 2),
+                    "tiers": [{"ring": [(round(x, 2), round(y, 2)) for x, y in ring], "top_ahd": round(float(np.median(zs)) + h, 2)}],
+                    "gable": None, "spires": [], "family": fam[0], "family_why": fam[1], "height_src": src,
+                    "tags": {k: t[k] for k in keep_tags if k in t}})
+    return out
 
 
 def main():
@@ -80,7 +154,7 @@ def main():
     cls = np.where(~np.isnan(bld), 3, np.where(~np.isnan(veg), 2, np.where(~np.isnan(gnd), 1, 0))).astype("u1")
     dsm_f = np.where(np.isnan(dsm), gfill, dsm)
 
-    raw = json.load(gzip.open(os.path.join(data, "cbd", "osm", "osm_all.json.gz"), "rt", encoding="utf-8"))
+    raw = RW.load_osm(data)
     nodes, ways, tagged = {}, {}, []
     for el in raw["elements"]:
         if el["type"] == "node":
@@ -111,6 +185,8 @@ def main():
             sp["x"], sp["y"] = round(sp["x"] + ox, 2), round(sp["y"] + oy, 2)
         wt = ways[b["osm"]].get("tags", {})
         b["tags"] = {k: wt[k] for k in keep_tags if k in wt}
+    osm_only = osm_buildings(data, cand, nodes, ox, oy, box, keep_tags)
+    out += osm_only
     os.makedirs(OUT, exist_ok=True)
     json.dump({"note": "Every OSM building over the 2019 LiDAR download (tools/sites/clean_wide.py), Spire local metres.",
                "buildings": out}, open(os.path.join(OUT, "buildings_wide.json"), "w"), separators=(",", ":"))
@@ -177,7 +253,8 @@ def main():
     for b in out:
         fams[b["family"]] = fams.get(b["family"], 0) + 1
         srcs[b["height_src"]] = srcs.get(b["height_src"], 0) + 1
-    meta = {"box_local": [round(v, 2) for v in box], "lidar_tiles": len(tiles), "buildings": len(out),
+    meta = {"box_local": [round(v, 2) for v in box], "lidar_tiles": len(tiles), "buildings": len(out), "osm_only": len(osm_only),
+            "osm_boxes": [[round(v, 1) for v in RS.box_local(RS.AREAS[k])] for k in RW.OSM_AREAS],
             "already_in_scene": built + len(have), "skipped": skipped, "families": fams, "height_sources": srcs,
             "gables": sum(1 for b in out if b["gable"]), "multi_tier": sum(1 for b in out if len(b["tiers"]) > 1),
             "spires": sum(len(b["spires"]) for b in out), "trees": len(trees),

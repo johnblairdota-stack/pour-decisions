@@ -2,8 +2,8 @@
 
     python3 tools/sites/river_shape.py <PourDecisions-sites>/data
 
-Inputs (raw download on John's PC, staged up): the newest wide aerials of the CBD and Portside areas
-(<data>/{cbd,portside}/aerial/area_newest_wide.jpg, EPSG:3857 over fetch_sites.AREAS boxes) and the 2019
+Inputs (raw download on John's PC, staged up): the newest wide aerials of the CBD, Portside and West End areas
+(<data>/{cbd,portside,westend}/aerial/area_newest_wide.jpg, EPSG:3857 over fetch_sites.AREAS boxes) and the 2019
 LiDAR grids (<data>/cbd/elvis/grid2019/<E>_<N>/dsm.f32; the gridder drops class 9 water, so open water
 has no surface at all).
 
@@ -34,7 +34,9 @@ import prep_lidar as PL  # noqa: E402
 import shapes as S  # noqa: E402
 
 AREAS = {"cbd": (153.0080, -27.4870, 153.0520, -27.4500),          # fetch_sites.AREAS boxes (w, s, e, n)
-         "portside": (153.0540, -27.4530, 153.0860, -27.4250)}
+         "portside": (153.0540, -27.4530, 153.0860, -27.4250),
+         "westend": (152.9870, -27.5010, 153.0280, -27.4660)}
+MUD = {"westend": (93, 85, 67)}                             # that aerial's river is brown flood water, not dark
 STEP = 2.0
 OUT = os.path.join(L.REF, "river")
 MIN_REACH_M2 = 30000
@@ -124,6 +126,7 @@ def main():
     X, Y = np.meshgrid(x0 + (np.arange(W) + 0.5) * STEP, y1 - (np.arange(H) + 0.5) * STEP)
     rgb = np.zeros((H, W, 3), "u1")
     have = np.zeros((H, W), bool)
+    muddy = np.zeros((H, W), bool)                          # pixels from an aerial flown with the river in flood
     for area, box in AREAS.items():
         im = np.asarray(Image.open(os.path.join(data, area, "aerial", "area_newest_wide.jpg")).convert("RGB"))
         h, w = im.shape[:2]
@@ -136,9 +139,14 @@ def main():
         ok = (c >= 0) & (c < w) & (r >= 0) & (r < h) & ~have
         rgb[ok] = im[r[ok], c[ok]]
         have |= ok
+        if area in MUD:
+            muddy |= ok
     luma = rgb.astype("f4") @ np.array([0.3, 0.59, 0.11], "f4")
     var = np.sqrt(np.maximum(blur(luma * luma, 2) - blur(luma, 2) ** 2, 0))
     dark_smooth = have & (luma < 75) & (var < 9)
+    for area, col in MUD.items():                           # brown flood water: smooth and the river's own colour
+        d = np.abs(rgb.astype("f4") - np.array(col, "f4")).max(-1)
+        dark_smooth |= muddy & (d < 26) & (var < 7)
 
     # LiDAR: no surface at all = water (the gridder drops class 9)
     gdir = os.path.join(data, "cbd", "elvis", "grid2019")
@@ -162,14 +170,17 @@ def main():
         sel = (rr % 4 == 0) & (cc % 4 == 0)
         gnd8[rr[sel] // 4, cc[sel] // 4] = g8[sel]
     # gaps in the LiDAR ground: the QldDem 1 m tiles (river bed included), else stay NaN
-    ddir = os.path.join(data, "cbd", "dem", "default")
     import prep_site as PS  # noqa: E402  (tools/sites, for read_tif)
     rr, cc = np.nonzero(np.isnan(gnd8))
-    for f in sorted(os.listdir(ddir)) if os.path.isdir(ddir) else []:
-        if not f.endswith(".tif"):
-            continue
+    tifs = {}
+    for area in AREAS:
+        ddir = os.path.join(data, area, "dem", "default")
+        for f in sorted(os.listdir(ddir)) if os.path.isdir(ddir) else []:
+            if f.endswith(".tif"):
+                tifs.setdefault(f, os.path.join(ddir, f))
+    for f, path in sorted(tifs.items()):
         TE, TN0 = [int(v) for v in f[4:-4].split("_")]
-        a = PS.read_tif(os.path.join(ddir, f))
+        a = PS.read_tif(path)
         e_ = E[rr * 4, cc * 4] - TE
         n_ = TN0 + 1000 - N[rr * 4, cc * 4]
         ok = (e_ >= 0) & (e_ < 1000) & (n_ >= 0) & (n_ < 1000)
@@ -219,7 +230,7 @@ def main():
             "river_area_ha": round(float(river.sum()) * STEP * STEP / 1e4, 1), "reaches_kept": int(len(keep_ids)),
             "loops": len(out_loops), "aerial_cover": round(float(have.mean()), 3),
             "lidar_cover": round(float(inlid.mean()), 3),
-            "sources": {"aerial": "Qld AerialOrtho newest (area_newest_wide.jpg, cbd + portside)",
+            "sources": {"aerial": "Qld AerialOrtho newest (area_newest_wide.jpg, cbd + portside + westend)",
                         "lidar": "Brisbane 2019 LiDAR grid2019 (dsm NaN = water)", "dem": "QldDem default 1 m"},
             "credit": "(c) State of Queensland (Department of Resources) CC BY 4.0"}
     json.dump(meta, open(os.path.join(OUT, "river.json"), "w"), indent=1)

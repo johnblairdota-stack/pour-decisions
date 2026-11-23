@@ -6,30 +6,46 @@
   1720.95
  ],
  "lidar_tiles": 16,
- "buildings": 8048,
+ "buildings": 18360,
+ "osm_only": 10312,
+ "osm_boxes": [
+  [
+   -2256.3,
+   -2657.0,
+   2091.9,
+   1442.4
+  ],
+  [
+   -4331.0,
+   -4206.9,
+   -280.1,
+   -329.9
+  ]
+ ],
  "already_in_scene": 995,
  "skipped": 1,
  "families": {
-  "brick": 7282,
-  "concrete": 525,
-  "heritage": 88,
-  "glass": 153
+  "brick": 17174,
+  "concrete": 868,
+  "heritage": 146,
+  "glass": 172
  },
  "height_sources": {
   "lidar 2019": 7860,
   "default (no tag)": 161,
-  "osm levels x 3.2 m": 25,
-  "osm height": 2
+  "osm levels x 3.2 m": 7342,
+  "osm height": 64,
+  "usual height for the OSM type (no LiDAR yet)": 2933
  },
  "gables": 259,
  "multi_tier": 653,
  "spires": 372,
  "trees": 37213,
  "features": {
-  "traffic_signals": 751,
-  "street_lamps": 192,
+  "traffic_signals": 917,
+  "street_lamps": 206,
   "motorway_junctions": 19,
-  "areas": 1128
+  "areas": 1830
  },
  "credit": "2019 LiDAR (c) State of Queensland CC BY 4.0; OSM (c) OpenStreetMap contributors ODbL"
 }
