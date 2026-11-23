@@ -2868,6 +2868,8 @@ func _arrive_film(delta: float, fin: Vector3, a: Dictionary) -> void:
 	var fl := _arrive_fl
 	if _fall_layer == null:
 		_fall_layer = FlyFilm.make(self, fl)
+		if _spire_world != null:
+			FlyFilm.site(_fall_layer, _spire_world, camera, env)
 	var ft := FlyFilm.dur(_fall_layer)
 	var last: Array = FlyFilm.cam(_fall_layer, ft)
 	var from := _spire_local(last[0])
@@ -2895,6 +2897,7 @@ func _arrive_film(delta: float, fin: Vector3, a: Dictionary) -> void:
 		var keys: Array = [[0.0, from, aim], [FlyFilm.LIVE_T, fin, cam_focus]]
 		camera.position = Flight.at(keys, t - ft, 1)
 		camera.look_at(Flight.at(keys, t - ft, 2), Vector3.UP)
+	FlyFilm.follow(_fall_layer, camera)
 	if OS.get_cmdline_user_args().has("--arrivedbg"):      # (dev: where the floor pick stands, for render_film.py's END)
 		print("FILMDBG fin=%s focus=%s th=%.5f off=%s street=%.3f" % [str(fin), str(cam_focus), SpireSite.th, str(SpireSite.off), SpireSite.street])
 	camera.fov = Flight.FOV
@@ -2914,6 +2917,7 @@ func _arrive_film(delta: float, fin: Vector3, a: Dictionary) -> void:
 		_arrive_snd = {}
 		_arrive_fl = {}
 		TowerHand.uncover(1.0)
+		FlyFilm.done(_fall_layer)
 		_fall_layer.queue_free()
 		_fall_layer = null
 		_caption.queue_free()
