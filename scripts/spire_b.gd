@@ -11,6 +11,7 @@
 extends Node3D
 
 const F := preload("res://scripts/factory.gd")
+const ZBoom := preload("res://scripts/zboom.gd")
 const PourScript := preload("res://scripts/pour.gd")
 const SpireSite := preload("res://scripts/spire_site.gd")
 const PlayerScript := preload("res://scripts/player.gd")
@@ -105,28 +106,28 @@ func build(owner_game) -> void:
 	head = Node3D.new()
 	head.position = Vector3(at.x, 0, at.y)
 	add_child(head)
-	mast = F.cylinder(0.42, 1.0, F.mat("orange"), Vector3.ZERO, 12)
+	mast = F.cylinder(0.42, 1.0, F.color_mat(Color("e7e2d2")), Vector3.ZERO, 12)
 	add_child(mast)
-	head.add_child(F.prop("BoomCollar", {}, F.TOWERS))
+	head.add_child(F.prop("BoomCollar", ZBoom.white_kit(), F.TOWERS))
 	yaw = Node3D.new()
 	head.add_child(yaw)
-	yaw.add_child(F.prop("BoomTurret", {}, F.TOWERS))
+	yaw.add_child(F.prop("BoomTurret", ZBoom.white_kit(), F.TOWERS))
 	arm1 = Node3D.new()
 	arm1.position.y = SHOULDER
 	yaw.add_child(arm1)
-	var a1 := F.prop("BoomArm1", {}, F.TOWERS)
+	var a1 := F.prop("BoomArm1", ZBoom.white_kit(), F.TOWERS)
 	a1.scale.x = L1 / 20.0
 	arm1.add_child(a1)
 	arm2 = Node3D.new()
 	arm2.position.x = L1
 	arm1.add_child(arm2)
-	var a2 := F.prop("BoomArm2", {}, F.TOWERS)
+	var a2 := F.prop("BoomArm2", ZBoom.white_kit(), F.TOWERS)
 	a2.scale.x = L2 / 20.0
 	arm2.add_child(a2)
 	tip = Node3D.new()
 	tip.position.x = L2
 	arm2.add_child(tip)
-	tip.add_child(F.prop("BoomTip", {}, F.TOWERS))
+	tip.add_child(F.prop("BoomTip", ZBoom.white_kit(), F.TOWERS))
 	hang = F.cylinder(0.17, HOSE, F.mat("hose"), Vector3(0, -HOSE * 0.5, 0), 8)
 	tip.add_child(hang)
 	stream = F.cylinder(0.2, 1.0, F.color_mat(Color("6c6f73")), Vector3.ZERO, 10)

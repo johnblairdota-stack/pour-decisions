@@ -39,6 +39,12 @@ var _at: Array = [1.0, 1.0, -0.5, 1.0]             # ...less the shake
 var _off: Array = [0.0, 0.0, 0.0, 0.0]             # each pivot's step off the arm before's centre line
 var _rams: Array = []                              # [barrel, rod, node a, local a, node b, local b]
 
+## The Tannery boom's paint for the modelled boom parts (turret, collar, tip, the other crew's arms):
+## white where the stock ones are yellow or orange. Hand it to F.prop as `per`.
+static func white_kit() -> Dictionary:
+	return {"machine": F.color_mat(Color("e3e5e2"), true), "machine_dark": F.color_mat(Color("c3c7c6"), true),
+		"orange": F.color_mat(Color("d3d6d4"), true)}
+
 static func reach() -> float:
 	return L[0] + L[1] + L[2] + L[3]
 
@@ -88,7 +94,7 @@ func build(shoulder: float, hose: float) -> void:
 	tip = Node3D.new()
 	tip.position.x = L[3]
 	arms[3].add_child(tip)
-	tip.add_child(F.prop("BoomTip", {}, F.TOWERS))
+	tip.add_child(F.prop("BoomTip", white_kit(), F.TOWERS))
 	var hang := F.cylinder(0.17, hose, F.mat("hose"), Vector3(0, -hose * 0.5, 0), 8)
 	hang.name = "Hose"
 	tip.add_child(hang)

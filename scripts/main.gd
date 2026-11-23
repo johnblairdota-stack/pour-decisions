@@ -1669,7 +1669,7 @@ func _build_column(length: float) -> void:
 	var angle := F.color_mat(Color("b9b4a4"))
 	var red := F.color_mat(Color("d3202f"))
 	var grate := F.mat("steel")
-	var rail := F.mat("yellow")
+	var rail := F.color_mat(Color("e3e5e2"))
 	var h := SpireSite.COLUMN * 0.5
 	_spire_mast.add_child(F.box(Vector3(SpireSite.COLUMN, length, SpireSite.COLUMN), cream, Vector3(0, length * 0.5, 0)))
 	for sx in [-1.0, 1.0]:
@@ -1702,7 +1702,7 @@ func _build_column(length: float) -> void:
 		var at := Vector3(0.25, 0, (w * 0.5) * (1.0 if side == 0 else -1.0)) if side < 2 else Vector3(0.25 + (w * 0.5) * (1.0 if side == 2 else -1.0), 0, 0)
 		for hy in [0.55, 1.1]:
 			_spire_mast.add_child(F.box(along, rail, at + Vector3(0, py + hy, 0)))
-		_spire_mast.add_child(F.box(Vector3(along.x, 0.15, along.z), F.mat("yellow_dark"), at + Vector3(0, py + 0.08, 0)))
+		_spire_mast.add_child(F.box(Vector3(along.x, 0.15, along.z), F.color_mat(Color("c3c7c6")), at + Vector3(0, py + 0.08, 0)))
 	for cx in [-1.0, 1.0]:
 		for cz in [-1.0, 1.0]:
 			_spire_mast.add_child(F.box(Vector3(0.06, 1.1, 0.06), rail, Vector3(0.25 + cx * w * 0.5, py + 0.55, cz * w * 0.5)))
@@ -1953,7 +1953,8 @@ func _build_site() -> void:
 		head.add_child(d)
 	yaw_node = Node3D.new()
 	head.add_child(yaw_node)
-	yaw_node.add_child(F.prop("BoomTurret", {}, F.TOWERS))
+	# (Spire's is the Tannery's boom: white, not yellow)
+	yaw_node.add_child(F.prop("BoomTurret", ZBoom.white_kit() if spire else {}, F.TOWERS))
 	for side in [1.0, -1.0]:
 		var scp := Label3D.new()
 		scp.text = Settings.brand("pumper")
