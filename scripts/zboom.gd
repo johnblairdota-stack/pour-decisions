@@ -64,7 +64,7 @@ static func joints(length: float) -> Array:
 ## name between two red bars and the unit number on the face looking `face` (+1/-1 along z), the red
 ## rail the delivery line clamps to on the side `side` (+1/-1 along x), and the hose and cable bundle
 ## coiled on the platform (`plat_y`). `col`: the column, built along +y from 0, `h` half its width.
-static func dress_column(col: Node3D, length: float, h: float, face: float, side: float, unit: String, plat_y: float) -> void:
+static func dress_column(col: Node3D, length: float, h: float, face: float, side: float, unit: String, plat_y: float, line_z := 0.12) -> void:
 	var red := F.color_mat(Color("d3202f"))
 	var black := F.color_mat(Color("1d2126"))
 	var seam := F.color_mat(Color("aeb3b3"))
@@ -102,8 +102,8 @@ static func dress_column(col: Node3D, length: float, h: float, face: float, side
 		un.position = Vector3(0, name_y - half - 0.42, face * (h + 0.012))
 		un.rotation.y = 0.0 if face > 0.0 else PI
 		col.add_child(un)
-	# The red rail up the line's side
-	col.add_child(F.box(Vector3(0.05, length - 0.6, 0.26), red, Vector3(side * (h + 0.025), length * 0.5, 0)))
+	# The V recess the line sits in, down the line's side (a shade darker: it's in shadow)
+	col.add_child(F.box(Vector3(0.012, length - 0.3, 0.5), seam, Vector3(side * (h + 0.006), length * 0.5, line_z)))
 	# The bundle on the platform
 	var coil := F.cylinder(0.3, 0.22, black, Vector3(-side * 0.75, plat_y + 0.16, face * 0.8), 10)
 	col.add_child(coil)
