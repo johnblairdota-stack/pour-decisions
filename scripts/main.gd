@@ -53,6 +53,7 @@ const SpireInside := preload("res://scripts/spire_inside.gd")
 const SpireStreet := preload("res://scripts/spire_street.gd")
 const TowerHand := preload("res://scripts/tower_hand.gd")
 const Flight := preload("res://scripts/flight.gd")
+const FlyViews := preload("res://scripts/fly_views.gd")
 const RoofSet := preload("res://scripts/roof_set.gd")
 const LookFx := preload("res://scripts/look_fx.gd")
 
@@ -2512,6 +2513,9 @@ func _high_open(delta: float) -> void:
 	if _high == null:
 		if _high_done:
 			return
+		if not TowerHand.arrival.is_empty():
+			_high_done = true       # (the scene's come up straight into a tower's fly-in: that's the picture now)
+			return
 		_high_done = true
 		if (autotest and not OS.get_cmdline_user_args().has("--highopen")) or not ResourceLoader.exists(HIGH_PIC):
 			return
@@ -2747,14 +2751,28 @@ func _arrive_camera(delta: float, fin: Vector3) -> void:
 		# (the floor pick is set up behind the picture: its floors, the crew on the deck, its camera)
 		a["on"] = true
 		a["t"] = 0.0
+		if _high != null:
+			# (a card played while the opening picture was still up: it's only moved on from the hand's
+			# camera, and would sit there under the whole flight)
+			_high.queue_free()
+			_high = null
+			_high_a = 0.0
+			_high_marks = []
+			_high_seen = true
 		_arrive_keys = []
 		_arrive_line = []
 		_arrive_fl = Flight.of(String(a["card"].get("id", "")))
 		ARRIVE_RIVER_T = float(_arrive_fl["river_t"])
 		ARRIVE_T = float(_arrive_fl["total_t"])
 		_arrive_apex = -1.0
+		a["views"] = FlyViews.ready(_arrive_fl) and not OS.get_cmdline_user_args().has("--riverflight")
+		if a["views"]:
+			ARRIVE_T = FlyViews.total(_arrive_fl)
 		selector.arrive_site(a["card"])
 		_light_snap = true       # (behind the picture: straight to that floor's own light, so nothing shifts on landing)
+		return
+	if a.get("views", false):
+		_arrive_views(delta, fin, a)
 		return
 	if _human_a and float(a["t"]) > 0.4:
 		a["skip"] = true                 # (A: the rest of it at six times the speed)
@@ -2807,6 +2825,73 @@ func _arrive_camera(delta: float, fin: Vector3) -> void:
 		_arrive_snd = {}
 		_arrive_fl = {}
 		TowerHand.uncover(1.0)
+		_caption.queue_free()
+		_caption = null
+		if _pick_boat != null:
+			_pick_boat.queue_free()
+			_pick_wake.queue_free()
+			_pick_boat = null
+		selector.arrive_done()
+
+## The rendered fall (scripts/fly_views.gd): out of the cloud over Brisbane and down one straight line
+## to the tower on the model's own pictures, then live from the last picture's place onto the floor
+## pick, at the speed the fall was going and easing to a stop. No boat, no banking, no float.
+var _fall_layer: CanvasLayer
+
+func _arrive_views(delta: float, fin: Vector3, a: Dictionary) -> void:
+	var fl := _arrive_fl
+	if _human_a and float(a["t"]) > 0.4:
+		a["skip"] = true                 # (A: the rest of it at six times the speed)
+	var dt := minf(delta, 0.1) * (6.0 if a.get("skip", false) else 1.0)
+	a["t"] = minf(float(a["t"]) + dt, ARRIVE_T)
+	var t: float = a["t"]
+	if _fall_layer == null:
+		_fall_layer = FlyViews.make(self, fl)
+	TowerHand.uncover(smoothstep(0.0, 0.6, t), 0.03 * t)
+	FlyViews.draw(_fall_layer, fl, t)
+	# (the last picture's camera, in the game's own metres)
+	var vc := FlyViews.view_cam(fl, int(fl["views"]["n"]) - 1)
+	var g0 := SpireSite.g([vc[0].x, vc[0].y])
+	var g1 := SpireSite.g([vc[1].x, vc[1].y])
+	var from := Vector3(g0.x, vc[0].z - SpireSite.street, g0.y)
+	var aim := Vector3(g1.x, vc[1].z - SpireSite.street, g1.y)
+	var ft := FlyViews.fall_t(fl)
+	# (live: on down the same line, over the towers across Ann St, and then down the building's own
+	# face from over the street onto the floor pick. `live` is [s, along the street, out from the
+	# face, m over the deck, never under this height] for each key between the last picture and the
+	# floor pick's own view.)
+	var out_n := Vector3(fin.x - cam_focus.x, 0, fin.z - cam_focus.z).normalized()
+	var e := Vector3(out_n.z, 0, -out_n.x) * -float(fl["end"])
+	var keys: Array = [[0.0, from, aim]]
+	var live: Array = fl["views"]["live"]
+	for k in live:
+		var f := float(k[0]) / FlyViews.LIVE_T
+		var over := float(k[3]) if k.size() < 5 else maxf(float(k[3]), float(k[4]) - cam_focus.y)
+		keys.append([float(k[0]), Vector3(cam_focus.x, cam_focus.y + over, cam_focus.z) + e * float(k[1]) + out_n * float(k[2]),
+			aim.lerp(cam_focus, smoothstep(0.0, 0.85, f))])
+	keys.append([FlyViews.LIVE_T, fin, cam_focus])
+	var lt := clampf(t - ft, 0.0, FlyViews.LIVE_T)
+	camera.position = Flight.at(keys, lt, 1)
+	camera.look_at(Flight.at(keys, lt, 2), Vector3.UP)
+	camera.fov = Flight.FOV
+	if _caption == null:
+		_caption = CanvasLayer.new()
+		_caption.layer = 6
+		add_child(_caption)
+		var strip := UI.pill(Color(0.05, 0.06, 0.08, 0.8), Vector4(24, 8, 28, 8))
+		strip.add_child(UI.head(String(a["card"]["caption"]), 34, Color("f4f2ec")))
+		_caption.add_child(strip)
+		UI.place(strip, Vector2(0, 1), Vector2(48, -56))
+	(_caption.get_child(0) as CanvasItem).modulate.a = smoothstep(1.2, 2.0, t) * (1.0 - smoothstep(ARRIVE_T - ARRIVE_UI_T - 1.2, ARRIVE_T - ARRIVE_UI_T - 0.2, t))
+	_arrive_snd = {"t": t, "fall": clampf(t / ARRIVE_T, 0.0, 1.0)}
+	selector.arrive_fade(smoothstep(ARRIVE_T - ARRIVE_UI_T, ARRIVE_T - 0.2, t))
+	if t >= ARRIVE_T:
+		TowerHand.arrival = {}
+		_arrive_snd = {}
+		_arrive_fl = {}
+		TowerHand.uncover(1.0)
+		_fall_layer.queue_free()
+		_fall_layer = null
 		_caption.queue_free()
 		_caption = null
 		if _pick_boat != null:
@@ -5823,6 +5908,15 @@ func _update_places() -> void:
 		amb["dawn"] = 0.0
 		amb["wind"] = 0.2 * water + 0.8 * smoothstep(8.0, 14.0, _fly_t) * (1.0 - 0.5 * smoothstep(16.0, 20.0, _fly_t))
 		amb["city"] = smoothstep(12.0, 18.0, _fly_t)
+	elif _arrive_snd.has("fall"):
+		# (the rendered fall: the wind high up, the city coming up under it, then the site's own morning)
+		var fall := float(_arrive_snd["fall"])
+		var land := smoothstep(0.6, 0.97, fall)
+		var high := {"wind": 0.9 - 0.5 * fall, "city": 0.6 * smoothstep(0.15, 0.7, fall)}
+		for name in amb:
+			amb[name] = lerpf(float(high.get(name, 0.0)), float(amb[name]), land)
+		boat = 0.0
+		quick = 5.0
 	elif not _arrive_snd.is_empty():
 		# (flying in to a tower: the flight kit's score, handing over to the site as it settles)
 		var sc := Flight.score(float(_arrive_snd["t"]), ARRIVE_RIVER_T, _arrive_apex, _arrive_gate, ARRIVE_T, spire, amb)
