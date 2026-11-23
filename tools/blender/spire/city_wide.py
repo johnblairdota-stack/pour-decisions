@@ -130,9 +130,8 @@ def guess_roofs(recs):
     return n
 
 
-def drop_far_suburbs(box, bpy, names=("far_suburbs", "far_suburbs_terracotta", "far_suburbs_trees"), hit=None):
-    """Delete the made-up far suburbs (boxes and tree masses) that stand inside the box (and, with hit, only
-    those whose middle hit(x, y) says is taken)."""
+def drop_far_suburbs(box, bpy, names=("far_suburbs", "far_suburbs_terracotta", "far_suburbs_trees")):
+    """Delete the made-up far suburbs (boxes and tree masses) that stand inside the box."""
     import bmesh
     x0, y0, x1, y1 = box
     out = {}
@@ -158,7 +157,7 @@ def drop_far_suburbs(box, bpy, names=("far_suburbs", "far_suburbs_terracotta", "
                         todo.append(u)
             cx = sum(v.co.x for v in isl) / len(isl)
             cy = sum(v.co.y for v in isl) / len(isl)
-            if x0 - 10 < cx < x1 + 10 and y0 - 10 < cy < y1 + 10 and (hit is None or hit(cx, cy)):
+            if x0 - 10 < cx < x1 + 10 and y0 - 10 < cy < y1 + 10:
                 kill.extend(isl)
         out[name] = len(kill)
         if kill:
@@ -261,20 +260,9 @@ def build():
     finally:
         B.look_for = keep
     dropped = drop_far_suburbs(box, bpy)
-    # outside the LiDAR the real OSM buildings stand too (West End): the made-up roofs go; the made-up tree
-    # masses stay (no LiDAR trees there yet) unless a real building stands in them
-    taken = set()
-    for b in recs:
-        if not b["height_src"].startswith("lidar"):
-            ring = b["tiers"][0]["ring"]
-            xs, ys = [p[0] for p in ring], [p[1] for p in ring]
-            for i in range(int(min(xs) // 8) - 1, int(max(xs) // 8) + 2):
-                for j in range(int(min(ys) // 8) - 1, int(max(ys) // 8) + 2):
-                    taken.add((i, j))
+    # outside the LiDAR the real OSM buildings and aerial-read trees stand too (West End): the made-up ones go
     for ob_ in m.get("osm_boxes", []):
-        d1 = drop_far_suburbs(ob_, bpy, ("far_suburbs", "far_suburbs_terracotta"))
-        d2 = drop_far_suburbs(ob_, bpy, ("far_suburbs_trees",), lambda x, y: (int(x // 8), int(y // 8)) in taken)
-        for k, v in list(d1.items()) + list(d2.items()):
+        for k, v in drop_far_suburbs(ob_, bpy).items():
             dropped[k] = dropped.get(k, 0) + v
     tobjs, ntrees = build_trees(C.collection("city_wide"))
     return {"module": "city_wide", "objects": res["objects"] + tobjs, "buildings": res["buildings"], "roof_guesses": guessed, "crane_spikes_dropped": cranes,

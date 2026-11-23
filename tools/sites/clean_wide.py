@@ -11,7 +11,8 @@ facade family) over every OSM building in <data>/cbd/osm/osm_all.json.gz that th
     buildings_wide.json   buildings_clean-format records + tags (building, name, height, levels, roof:shape);
                           outside the LiDAR (wide.json osm_boxes, e.g. West End) the OSM footprint at OSM's
                           own height on the QldDem ground, until those LiDAR tiles are ordered
-    tree_points_wide.csv  LiDAR tree tops (9 m local maxima of the canopy) outside LIDAR_BOX and the ext box
+    tree_points_wide.csv  LiDAR tree tops (9 m local maxima of the canopy) outside LIDAR_BOX and the ext box;
+                          outside the LiDAR, dark green 16 m cells of the aerial at a usual height
     features.json         OSM traffic signals, street lamps, motorway junctions (nodes) and parks, pitches,
                           car parks, stadiums (rings), local metres
 
@@ -123,6 +124,45 @@ def osm_buildings(data, ways, nodes, ox, oy, box, keep_tags):
     return out
 
 
+def aerial_trees(data, recs, lidar_box, zone):
+    """Tree spots outside the LiDAR mosaic, read off the aerial (no canopy heights there yet): one per 16 m cell
+    that is largely dark green, off the buildings and the river. Heights are a usual 10-17 m."""
+    import gzip
+    from PIL import Image, ImageDraw
+    Image.MAX_IMAGE_PIXELS = None
+    rdir = os.path.join(L.REF, "river")
+    rv = json.load(open(os.path.join(rdir, "river.json")))
+    x0, y0, x1, y1 = rv["box_local"]
+    H, W = rv["rows"], rv["cols"]
+    im = np.asarray(Image.open(os.path.join(rdir, "aerial_wide.jpg")).convert("RGB")).astype("i2")
+    water = np.frombuffer(gzip.open(os.path.join(rdir, "water_2m.u8.gz")).read(), "u1").reshape(H, W) > 0
+    r, g, b = im[..., 0], im[..., 1], im[..., 2]
+    luma = 0.3 * r + 0.59 * g + 0.11 * b
+    veg = (g - r > 1) & (g - b > 6) & (luma < 105) & (luma > 22) & ~water
+    mask = Image.new("1", (W, H), 0)
+    dr = ImageDraw.Draw(mask)
+    for bd in recs:
+        dr.polygon([((x - x0) / 2, (y1 - y) / 2) for x, y in bd["tiers"][0]["ring"]], fill=1)
+    veg &= ~np.asarray(mask, bool)
+    k = 8                                                   # 16 m cells (the cloud render has no room for more)
+    share = veg[:H // k * k, :W // k * k].reshape(H // k, k, W // k, k).mean(axis=(1, 3))
+    dem = Dem(data)
+    out = []
+    for rr, cc in zip(*np.nonzero(share > 0.36)):
+        hsh = (int(rr) * 7349 + int(cc) * 9151) % 1000 / 1000.0
+        x = x0 + (cc + 0.2 + 0.6 * hsh) * 2 * k
+        y = y1 - (rr + 0.2 + 0.6 * ((hsh * 7.3) % 1.0)) * 2 * k
+        if not (zone[0] < x < zone[2] and zone[1] < y < zone[3]):
+            continue
+        if lidar_box[0] < x < lidar_box[2] and lidar_box[1] < y < lidar_box[3]:
+            continue
+        z = dem.z(x, y)
+        if z is None or z < 0.6:
+            continue
+        out.append((round(float(x), 1), round(float(y), 1), round(10.0 + 7.0 * ((hsh * 3.7) % 1.0), 1), round(z, 2)))
+    return out
+
+
 def main():
     data = sys.argv[1]
     gdir = os.path.join(data, "cbd", "elvis", "grid2019")
@@ -215,6 +255,8 @@ def main():
             continue
         seen.add(key)
         trees.append((round(x, 1), round(y, 1), round(float(can[r, c]), 1), round(float(gfill[r, c]), 2)))
+    lidar_trees = len(trees)
+    trees += aerial_trees(data, out, box, RS.box_local(RS.AREAS["westend"]))
     with open(os.path.join(OUT, "tree_points_wide.csv"), "w", newline="", encoding="utf-8") as f:
         wr = csv.writer(f)
         wr.writerow(["x_local", "y_local", "height_m", "ground_ahd"])
@@ -257,7 +299,7 @@ def main():
             "osm_boxes": [[round(v, 1) for v in RS.box_local(RS.AREAS[k])] for k in RW.OSM_AREAS],
             "already_in_scene": built + len(have), "skipped": skipped, "families": fams, "height_sources": srcs,
             "gables": sum(1 for b in out if b["gable"]), "multi_tier": sum(1 for b in out if len(b["tiers"]) > 1),
-            "spires": sum(len(b["spires"]) for b in out), "trees": len(trees),
+            "spires": sum(len(b["spires"]) for b in out), "trees": len(trees), "trees_from_aerial": len(trees) - lidar_trees,
             "features": {k: len(v) for k, v in feats.items()},
             "credit": "2019 LiDAR (c) State of Queensland CC BY 4.0; OSM (c) OpenStreetMap contributors ODbL"}
     json.dump(meta, open(os.path.join(OUT, "wide.json"), "w"), indent=1)

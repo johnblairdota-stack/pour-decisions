@@ -40,7 +40,8 @@
  "gables": 259,
  "multi_tier": 653,
  "spires": 372,
- "trees": 37213,
+ "trees": 44312,
+ "trees_from_aerial": 7099,
  "features": {
   "traffic_signals": 917,
   "street_lamps": 206,

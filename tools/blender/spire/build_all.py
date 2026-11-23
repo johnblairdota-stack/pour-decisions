@@ -48,6 +48,13 @@ def build_all(stage=None, write_meta=True):
         r["seconds"] = round(time.time() - t, 2)
         meta["modules"].append(r)
         print("built %-10s %5.1fs  %s" % (r["module"], r["seconds"], ", ".join(r.get("objects", []))))
+    try:                                                    # hand the builders' freed lists back to the system
+        import ctypes                                       # (2 GB on the cloud box, which the render then needs)
+        import gc
+        gc.collect()
+        ctypes.CDLL("libc.so.6").malloc_trim(0)
+    except (OSError, AttributeError):
+        pass
     if write_meta:
         os.makedirs(L.DOCS, exist_ok=True)
         name = "blockout_meta.json" if not stage else "blockout_meta_%s.json" % stage
