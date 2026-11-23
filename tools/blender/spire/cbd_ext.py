@@ -233,7 +233,7 @@ def build_trees(col):
 
 
 # ---------------------------------------------------------------- far ground with the real river (17 Nov)
-FAR_STEP = 6.0
+FAR_STEP = 8.0
 FAR_Z = 8.0
 
 

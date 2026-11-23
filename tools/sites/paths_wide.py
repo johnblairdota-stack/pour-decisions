@@ -2,7 +2,7 @@
 
     python3 tools/sites/paths_wide.py <PourDecisions-sites>/data
 
-Input: <data>/cbd/osm/osm_all.json.gz (the same extract roads_wide.py reads). Writes
+Input: <data>/{cbd,westend}/osm/osm_all.json.gz (the same extracts roads_wide.py reads). Writes
 reference/sites/spire/roads/paths.json:
 
     ways   [{id, cls, name, width, pts: [[x, y], ...] (local, every <= 4 m)}]
@@ -12,7 +12,6 @@ cls: sidewalk (footway=sidewalk), crossing, island (footway=traffic_island), foo
 cycleway, pedestrian (malls and promenades), steps. Bridges are roads.json's (roads_wide.py); tunnels, arcades
 and upper levels are left out. far_paths.py builds them outside the Spire LiDAR box (streets.py covers inside).
 """
-import gzip
 import json
 import os
 import sys
@@ -22,7 +21,7 @@ REPO = os.path.normpath(os.path.join(HERE, "..", ".."))
 sys.path.insert(0, os.path.join(REPO, "tools", "blender", "spire"))
 sys.path.insert(0, HERE)
 import layout as L  # noqa: E402
-from roads_wide import densify  # noqa: E402
+from roads_wide import densify, load_osm  # noqa: E402
 
 OUT = os.path.join(L.REF, "roads")
 WIDTH = {"sidewalk": 3.2, "crossing": 3.0, "island": 2.0, "footway": 2.4, "cycleway": 3.0, "pedestrian": 6.0,
@@ -33,7 +32,7 @@ def main():
     data = sys.argv[1]
     rv = json.load(open(os.path.join(L.REF, "river", "river.json")))
     bx0, by0, bx1, by1 = rv["box_local"]
-    raw = json.load(gzip.open(os.path.join(data, "cbd", "osm", "osm_all.json.gz"), "rt", encoding="utf-8"))
+    raw = load_osm(data)
     nodes = {el["id"]: (el["lat"], el["lon"]) for el in raw["elements"] if el["type"] == "node"}
     ways, areas, counts = [], [], {}
     for w in raw["elements"]:

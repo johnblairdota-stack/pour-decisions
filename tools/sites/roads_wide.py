@@ -2,7 +2,7 @@
 
     python3 tools/sites/roads_wide.py <PourDecisions-sites>/data
 
-Input: <data>/cbd/osm/osm_all.json.gz (OSM, CBD + inner suburbs) and <data>/cbd/elvis/grid2019 (LiDAR DSM).
+Input: <data>/{cbd,westend}/osm/osm_all.json.gz (OSM, CBD + inner suburbs, merged) and <data>/cbd/elvis/grid2019 (LiDAR DSM).
 Box: reference/sites/spire/river/river.json (river_shape.py). Writes reference/sites/spire/roads/roads.json:
 
     ways     [{id, kind, cls, name, width, lanes, oneway, bridge, layer, pts: [[x, y], ...] (local, every <= 4 m),
@@ -26,6 +26,22 @@ sys.path.insert(0, os.path.join(REPO, "tools", "blender", "spire"))
 import layout as L  # noqa: E402
 
 OUT = os.path.join(L.REF, "roads")
+OSM_AREAS = ("cbd", "westend")                              # fetch_sites.py areas whose extracts are merged
+
+
+def load_osm(data):
+    """The OSM extracts of every area that has one, merged: the first copy of an element wins."""
+    seen, els = set(), []
+    for area in OSM_AREAS:
+        f = os.path.join(data, area, "osm", "osm_all.json.gz")
+        if not os.path.exists(f):
+            continue
+        for el in json.load(gzip.open(f, "rt", encoding="utf-8"))["elements"]:
+            k = (el["type"], el["id"])
+            if k not in seen:
+                seen.add(k)
+                els.append(el)
+    return {"elements": els}
 ROAD = {"motorway", "motorway_link", "trunk", "trunk_link", "primary", "primary_link", "secondary",
         "secondary_link", "tertiary", "tertiary_link", "unclassified", "residential", "living_street",
         "busway", "service"}
@@ -138,7 +154,7 @@ def main():
     data = sys.argv[1]
     rv = json.load(open(os.path.join(L.REF, "river", "river.json")))
     bx0, by0, bx1, by1 = rv["box_local"]
-    raw = json.load(gzip.open(os.path.join(data, "cbd", "osm", "osm_all.json.gz"), "rt", encoding="utf-8"))
+    raw = load_osm(data)
     nodes = {}
     ways = []
     for el in raw["elements"]:

@@ -130,12 +130,12 @@ def guess_roofs(recs):
     return n
 
 
-def drop_far_suburbs(box, bpy):
+def drop_far_suburbs(box, bpy, names=("far_suburbs", "far_suburbs_terracotta", "far_suburbs_trees")):
     """Delete the made-up far suburbs (boxes and tree masses) that stand inside the box."""
     import bmesh
     x0, y0, x1, y1 = box
     out = {}
-    for name in ("far_suburbs", "far_suburbs_terracotta", "far_suburbs_trees"):
+    for name in names:
         o = bpy.data.objects.get(name)
         if o is None:
             continue
@@ -260,6 +260,10 @@ def build():
     finally:
         B.look_for = keep
     dropped = drop_far_suburbs(box, bpy)
+    # outside the LiDAR the real OSM buildings and aerial-read trees stand too (West End): the made-up ones go
+    for ob_ in m.get("osm_boxes", []):
+        for k, v in drop_far_suburbs(ob_, bpy).items():
+            dropped[k] = dropped.get(k, 0) + v
     tobjs, ntrees = build_trees(C.collection("city_wide"))
     return {"module": "city_wide", "objects": res["objects"] + tobjs, "buildings": res["buildings"], "roof_guesses": guessed, "crane_spikes_dropped": cranes,
             "far_suburbs_removed": dropped, "trees": ntrees, "looks": look_count,

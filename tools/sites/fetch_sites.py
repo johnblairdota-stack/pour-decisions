@@ -72,6 +72,12 @@ AREAS = {
              "search": ["Queen's Wharf Brisbane", "Neville Bonner Bridge", "Star Brisbane"]},
         ],
     },
+    # West End, South Brisbane and South Bank (John, 23 Nov 2026): the peninsula west and south of the cbd box.
+    # No sites of its own: run with --only=westend --skip=geocode,commons
+    "westend": {
+        "box": (152.9870, -27.5010, 153.0280, -27.4660),
+        "sites": [],
+    },
 }
 
 COUNCIL = [
