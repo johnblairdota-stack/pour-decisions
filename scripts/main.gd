@@ -54,7 +54,7 @@ const ZBoom := preload("res://scripts/zboom.gd")
 const SpireStreet := preload("res://scripts/spire_street.gd")
 const TowerHand := preload("res://scripts/tower_hand.gd")
 const Flight := preload("res://scripts/flight.gd")
-const FlyViews := preload("res://scripts/fly_views.gd")
+const FlyFilm := preload("res://scripts/fly_film.gd")
 const RoofSet := preload("res://scripts/roof_set.gd")
 const LookFx := preload("res://scripts/look_fx.gd")
 
@@ -2788,14 +2788,12 @@ func _arrive_camera(delta: float, fin: Vector3) -> void:
 		ARRIVE_RIVER_T = float(_arrive_fl["river_t"])
 		ARRIVE_T = float(_arrive_fl["total_t"])
 		_arrive_apex = -1.0
-		a["views"] = FlyViews.ready(_arrive_fl) and not OS.get_cmdline_user_args().has("--riverflight")
-		if a["views"]:
-			ARRIVE_T = FlyViews.total(_arrive_fl)
+		a["film"] = FlyFilm.ready(_arrive_fl) and not OS.get_cmdline_user_args().has("--riverflight")
 		selector.arrive_site(a["card"])
 		_light_snap = true       # (behind the picture: straight to that floor's own light, so nothing shifts on landing)
 		return
-	if a.get("views", false):
-		_arrive_views(delta, fin, a)
+	if a.get("film", false):
+		_arrive_film(delta, fin, a)
 		return
 	if _human_a and float(a["t"]) > 0.4:
 		a["skip"] = true                 # (A: the rest of it at six times the speed)
@@ -2856,46 +2854,52 @@ func _arrive_camera(delta: float, fin: Vector3) -> void:
 			_pick_boat = null
 		selector.arrive_done()
 
-## The rendered fall (scripts/fly_views.gd): out of the cloud over Brisbane and down one straight line
-## to the tower on the model's own pictures, then live from the last picture's place onto the floor
-## pick, at the speed the fall was going and easing to a stop. No boat, no banking, no float.
+## The fly-in as a film (scripts/fly_film.gd): out of the cloud over Brisbane and down to the tower
+## on one camera flight rendered from the model, the game's own camera flying the same line under it;
+## then live from where the film ends onto the floor pick. No boat, no banking, no float.
 var _fall_layer: CanvasLayer
 
-func _arrive_views(delta: float, fin: Vector3, a: Dictionary) -> void:
+## The model's own metres (x east, y north, z AHD) in the game's.
+func _spire_local(p: Vector3) -> Vector3:
+	var q := SpireSite.g([p.x, p.y])
+	return Vector3(q.x, p.z - SpireSite.street, q.y)
+
+func _arrive_film(delta: float, fin: Vector3, a: Dictionary) -> void:
 	var fl := _arrive_fl
+	if _fall_layer == null:
+		_fall_layer = FlyFilm.make(self, fl)
+	var ft := FlyFilm.dur(_fall_layer)
+	ARRIVE_T = ft + FlyFilm.LIVE_T
 	if _human_a and float(a["t"]) > 0.4:
-		a["skip"] = true                 # (A: the rest of it at six times the speed)
+		a["skip"] = true                 # (A: the film's dropped and the rest goes by at six times the speed)
 	var dt := minf(delta, 0.1) * (6.0 if a.get("skip", false) else 1.0)
 	a["t"] = minf(float(a["t"]) + dt, ARRIVE_T)
 	var t: float = a["t"]
-	if _fall_layer == null:
-		_fall_layer = FlyViews.make(self, fl)
 	TowerHand.uncover(smoothstep(0.0, 0.6, t), 0.03 * t)
-	FlyViews.draw(_fall_layer, fl, t)
-	# (the last picture's camera, in the game's own metres)
-	var vc := FlyViews.view_cam(fl, int(fl["views"]["n"]) - 1)
-	var g0 := SpireSite.g([vc[0].x, vc[0].y])
-	var g1 := SpireSite.g([vc[1].x, vc[1].y])
-	var from := Vector3(g0.x, vc[0].z - SpireSite.street, g0.y)
-	var aim := Vector3(g1.x, vc[1].z - SpireSite.street, g1.y)
-	var ft := FlyViews.fall_t(fl)
-	# (live: on down the same line, over the towers across Ann St, and then down the building's own
-	# face from over the street onto the floor pick. `live` is [s, along the street, out from the
-	# face, m over the deck, never under this height] for each key between the last picture and the
-	# floor pick's own view.)
-	var out_n := Vector3(fin.x - cam_focus.x, 0, fin.z - cam_focus.z).normalized()
-	var e := Vector3(out_n.z, 0, -out_n.x) * -float(fl["end"])
-	var keys: Array = [[0.0, from, aim]]
-	var live: Array = fl["views"]["live"]
-	for k in live:
-		var f := float(k[0]) / FlyViews.LIVE_T
-		var over := float(k[3]) if k.size() < 5 else maxf(float(k[3]), float(k[4]) - cam_focus.y)
-		keys.append([float(k[0]), Vector3(cam_focus.x, cam_focus.y + over, cam_focus.z) + e * float(k[1]) + out_n * float(k[2]),
-			aim.lerp(cam_focus, smoothstep(0.0, 0.85, f))])
-	keys.append([FlyViews.LIVE_T, fin, cam_focus])
-	var lt := clampf(t - ft, 0.0, FlyViews.LIVE_T)
-	camera.position = Flight.at(keys, lt, 1)
-	camera.look_at(Flight.at(keys, lt, 2), Vector3.UP)
+	FlyFilm.draw(_fall_layer, t, a.get("skip", false))
+	var aim := _spire_local(FlyFilm.cam(_fall_layer, ft)[1])
+	if t < ft:
+		# (under the film: the same camera, so the live site's already there as the film fades)
+		camera.position = _spire_local(FlyFilm.cam(_fall_layer, t)[0])
+		camera.look_at(aim, Vector3.UP)
+	else:
+		# (live: on down the same line, over the towers across Ann St, and then down the building's
+		# own face from over the street onto the floor pick. `live` is [s, along the street, out from
+		# the face, m over the deck, never under this height] for each key between the film's last
+		# frame and the floor pick's own view.)
+		var from := _spire_local(FlyFilm.cam(_fall_layer, ft)[0])
+		var out_n := Vector3(fin.x - cam_focus.x, 0, fin.z - cam_focus.z).normalized()
+		var e := Vector3(out_n.z, 0, -out_n.x) * -float(fl["end"])
+		var keys: Array = [[0.0, from, aim]]
+		var live: Array = fl["film"]["live"]
+		for k in live:
+			var f := float(k[0]) / FlyFilm.LIVE_T
+			var over := float(k[3]) if k.size() < 5 else maxf(float(k[3]), float(k[4]) - cam_focus.y)
+			keys.append([float(k[0]), Vector3(cam_focus.x, cam_focus.y + over, cam_focus.z) + e * float(k[1]) + out_n * float(k[2]),
+				aim.lerp(cam_focus, smoothstep(0.0, 0.85, f))])
+		keys.append([FlyFilm.LIVE_T, fin, cam_focus])
+		camera.position = Flight.at(keys, t - ft, 1)
+		camera.look_at(Flight.at(keys, t - ft, 2), Vector3.UP)
 	camera.fov = Flight.FOV
 	if _caption == null:
 		_caption = CanvasLayer.new()
