@@ -7612,6 +7612,9 @@ func rig_arms_clear(hd: Vector3, la: float, lb: float, d: float, r: float, r0 :=
 	var rig: Node3D = _spire_core["rig"]
 	var top := rig.global_position.y + rig.scale.y + RIG_PAD - hy     # (the form's top, from the shoulder)
 	var ty := deck_top() + 1.3 + HOSE - hy
+	if zboom != null:
+		# (Spire's booms, ours and the other crew's, are the four-arm one: its own shape decides)
+		return zboom.clears(d, ty, r0, r, top)
 	var dist := clampf(sqrt(d * d + ty * ty), 1.0, la + lb - 0.05)
 	var phi := atan2(ty, d)
 	var a := acos(clampf((la * la + dist * dist - lb * lb) / (2.0 * la * dist), -1.0, 1.0))
@@ -8730,6 +8733,8 @@ func _spire_views() -> Array:
 		# (the placing boom itself: side on, and from above the pour)
 		["boom", head.global_position + Vector3(34, 6, 12), head.global_position + Vector3(0, -2, 8)],
 		["boom_west", head.global_position + Vector3(-30, 8, 20), head.global_position + Vector3(0, -2, 6)],
+		["mast_b", Vector3(SpireSite.mast_xz(false).x - 12, dk + 9, SpireSite.mast_xz(false).y - 16), Vector3(SpireSite.mast_xz(false).x, dk + 4, SpireSite.mast_xz(false).y)],
+		["mast_b_deck", Vector3(SpireSite.mast_xz(false).x - 5, dk + 3.5, SpireSite.mast_xz(false).y - 6), Vector3(SpireSite.mast_xz(false).x - 0.5, dk + 0.6, SpireSite.mast_xz(false).y)],
 		["boom_head", head.global_position + Vector3(7, 5, -6), head.global_position + Vector3(0, 1.5, 2)],
 	]
 

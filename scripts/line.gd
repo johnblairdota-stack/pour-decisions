@@ -3686,7 +3686,9 @@ func _ladder(p, delta: float) -> void:
 		stops = []   # bots climb to the exact height anyway
 	if climbing:
 		var y0: float = p.position.y
-		var y1: float = clampf(y0 - signf(v.y) * sp * delta, 0.0, top)
+		# (a bot eases onto its rung: at full speed a tall ladder's step is bigger than the height it's
+		# after, and it would hunt up and down for ever)
+		var y1: float = clampf(y0 - signf(v.y) * sp * (minf(1.0, absf(v.y)) if p.ai else 1.0) * delta, 0.0, top)
 		if detent > 0.0:
 			p.set_meta("ladder_detent", detent - delta)
 			y1 = y0

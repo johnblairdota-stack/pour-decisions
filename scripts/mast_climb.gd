@@ -484,6 +484,9 @@ func _at(p, j: Dictionary) -> bool:
 func bot(p, role: String, delta: float) -> bool:
 	if not active:
 		return false
+	# (dev: a step that's hung, and where everyone is)
+	if game.autotest and step_t > 60.0 and fmod(step_t, 30.0) < delta:
+		print("[autotest]     mast step %s hung %.0fs: job %s | %s %s zone %s at %s busy '%s'" % [step, step_t, str(job()), role, p.char_name, p.zone, str(p.position), p.busy])
 	var b = game.bots
 	var j := job()
 	# (a job that's a person's, and they haven't got to it: after a while a bot steps in for them)

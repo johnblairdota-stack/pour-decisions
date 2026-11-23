@@ -228,8 +228,8 @@ static func minus_hole(outline: PackedVector2Array, hole: PackedVector2Array) ->
 
 ## Where the placing booms stand. Ours is a Putzmeister RS 850 square column (1 m square) up through
 ## its own opening in pour A's slab, just in front of the jump form at the core's Ann St corner (the
-## way SCP stood the boom at The Tannery, John 21 Nov: main._spire_tower). The bot crew's is a
-## tube mast in the core's back half.
+## way SCP stood the boom at The Tannery, John 21 Nov: main._spire_tower). The bot crew's is the
+## same column up through an opening in pour B's slab, behind the jump form (John 23 Nov).
 const COLUMN := 0.95           # m square (the RS 850's 1.00 m, less its corner angles)
 static func mast_xz(ours := true) -> Vector2:
 	var core: PackedVector2Array = _polys["core"]
@@ -239,13 +239,20 @@ static func mast_xz(ours := true) -> Vector2:
 		# (clear of the jump form's screens, which hang rig_out_m off the core's walls)
 		var rig := _box(_polys["rig"])
 		return Vector2(bb.end.x + 0.45, rig.end.y + 0.55 + COLUMN * 0.5)
-	return Vector2(c.x + 2.6, c.y - bb.size.y * 0.22)
+	# (the other crew's stands the same way on their own slab: behind the jump form, at the core's
+	# opposite corner)
+	var rig_b := _box(_polys["rig"])
+	return Vector2(bb.position.x - 0.45, rig_b.position.y - 0.55 - COLUMN * 0.5)
 
 ## The penetration our column climbs through, the same in every slab: the column, its delivery line on
 ## the column's Ann St-facing side (+x) and the caged ladder beside it. Game x/z.
-static func opening() -> PackedVector2Array:
-	var m := mast_xz()
+static func opening(ours := true) -> PackedVector2Array:
+	var m := mast_xz(ours)
 	var h := COLUMN * 0.5
+	if not ours:
+		# (the other crew's is ours turned about: its line and ladder on the far side)
+		return PackedVector2Array([Vector2(m.x - 1.45, m.y - 0.65), Vector2(m.x + h + 0.12, m.y - 0.65),
+			Vector2(m.x + h + 0.12, m.y + 0.65), Vector2(m.x - 1.45, m.y + 0.65)])
 	return PackedVector2Array([Vector2(m.x - h - 0.12, m.y - 0.65), Vector2(m.x + 1.45, m.y - 0.65),
 		Vector2(m.x + 1.45, m.y + 0.65), Vector2(m.x - h - 0.12, m.y + 0.65)])
 
@@ -872,7 +879,8 @@ static func floor_slab(parent: Node3D, slab_y: float, thick: float, ftf: float) 
 		if Geometry2D.is_polygon_clockwise(part):
 			continue
 		for piece in minus_hole(part, opening()):
-			parent.add_child(F.prism(piece, slab_y - thick, thick, grey))
+			for bit in minus_hole(piece, opening(false)):
+				parent.add_child(F.prism(bit, slab_y - thick, thick, grey))
 	var inset: Array = Geometry2D.offset_polygon(plate, -1.2)
 	if not inset.is_empty():
 		parent.add_child(F.prism(inset[0], slab_y - thick - ftf + 0.02, ftf - thick - 0.04, F.color_mat(Color("3a3f45")), false))
