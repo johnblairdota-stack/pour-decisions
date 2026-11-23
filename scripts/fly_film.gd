@@ -14,6 +14,8 @@ const HAND_T := 0.9         # s after the film's last frame (it holds there): it
 const LIVE_T := 1.6         # s live from the film's last frame onto the floor pick, if that's somewhere else
 const WORLD_LAYER := 1 << 12  # the render layer the surroundings sit on while the film plays
 const FAR_M := 300.0         # m: a part of the game bigger than this, or further off, is the city's, not the site's
+## Parts of the surroundings' model that are the site's own (the podium the deck stands on): they stay with the site.
+const SITE_PARTS := ["SLAB_", "COLUMNS_", "FORMWORK_", "PROPS", "hoarding"]
 const SAME := 0.75          # m: nearer the floor pick's own camera than this, the film ends on it
 
 ## The film of a flight ("film" in Flight.TOWERS): {"video", "cams"}.
@@ -130,6 +132,9 @@ static func site(layer: CanvasLayer, world: Node3D, cam: Camera3D, env: Environm
 		_layers(n, true)
 
 static func _layers(n: Node, on: bool) -> void:
+	for pre in SITE_PARTS:
+		if String(n.name).begins_with(pre):
+			return
 	if n is VisualInstance3D:
 		var vi := n as VisualInstance3D
 		if on:
