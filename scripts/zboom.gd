@@ -12,6 +12,7 @@
 extends Node3D
 
 const F := preload("res://scripts/factory.gd")
+const Settings := preload("res://scripts/settings.gd")
 
 const L := [9.40, 8.41, 8.74, 8.56]                 # m, arm 1 to 4
 const H := [0.56, 0.48, 0.42, 0.34]                 # each arm's box, deep
@@ -44,6 +45,57 @@ var _rams: Array = []                              # [barrel, rod, node a, local
 static func white_kit() -> Dictionary:
 	return {"machine": F.color_mat(Color("e3e5e2"), true), "machine_dark": F.color_mat(Color("c3c7c6"), true),
 		"orange": F.color_mat(Color("d3d6d4"), true)}
+
+## The paint and fittings an SCP column carries, from John's photos of unit 531: the four black pin
+## holes each side of every section joint (`pitch` m apart, counted down from the top), the upright
+## name between two red bars and the unit number on the face looking `face` (+1/-1 along z), the red
+## rail the delivery line clamps to on the side `side` (+1/-1 along x), and the hose and cable bundle
+## coiled on the platform (`plat_y`). `col`: the column, built along +y from 0, `h` half its width.
+static func dress_column(col: Node3D, length: float, h: float, face: float, side: float, unit: String, plat_y: float, pitch := 3.0) -> void:
+	var red := F.color_mat(Color("d3202f"))
+	var black := F.color_mat(Color("1d2126"))
+	var seam := F.color_mat(Color("aeb3b3"))
+	var y := length - pitch
+	while y > 0.5:
+		col.add_child(F.box(Vector3(h * 2.0 + 0.012, 0.025, h * 2.0 + 0.012), seam, Vector3(0, y, 0)))
+		for dy in [-0.2, 0.2]:
+			for a in [-0.3, 0.3]:
+				for f in [-1.0, 1.0]:
+					col.add_child(F.box(Vector3(0.1, 0.1, 0.02), black, Vector3(a, y + dy, f * (h + 0.006))))
+					col.add_child(F.box(Vector3(0.02, 0.1, 0.1), black, Vector3(f * (h + 0.006), y + dy, a)))
+		y -= pitch
+	# The name, read down the column
+	var name_y := length - 4.2
+	if name_y > 3.0:
+		var txt := "\n".join(Settings.brand("pumper").split(""))
+		var lab := Label3D.new()
+		lab.text = txt
+		lab.add_to_group("brand_pumper_upright")
+		lab.font_size = 150
+		lab.pixel_size = 0.0042
+		lab.line_spacing = -18.0
+		lab.outline_size = 0
+		lab.modulate = Color("2a2f36")
+		lab.position = Vector3(0, name_y, face * (h + 0.012))
+		lab.rotation.y = 0.0 if face > 0.0 else PI
+		col.add_child(lab)
+		var half := 0.33 * float(maxi(1, Settings.brand("pumper").length()))
+		for e in [-1.0, 1.0]:
+			col.add_child(F.box(Vector3(0.42, 0.09, 0.012), red, Vector3(0, name_y + e * (half + 0.12), face * (h + 0.008))))
+		var un := Label3D.new()
+		un.text = "UNIT No\n" + unit
+		un.font_size = 40
+		un.pixel_size = 0.0036
+		un.outline_size = 0
+		un.modulate = Color("2a2f36")
+		un.position = Vector3(0, name_y - half - 0.42, face * (h + 0.012))
+		un.rotation.y = 0.0 if face > 0.0 else PI
+		col.add_child(un)
+	# The red rail up the line's side
+	col.add_child(F.box(Vector3(0.05, length - 0.6, 0.26), red, Vector3(side * (h + 0.025), length * 0.5, 0)))
+	# The bundle on the platform
+	var coil := F.cylinder(0.3, 0.22, black, Vector3(-side * 0.75, plat_y + 0.16, face * 0.8), 10)
+	col.add_child(coil)
 
 static func reach() -> float:
 	return L[0] + L[1] + L[2] + L[3]
