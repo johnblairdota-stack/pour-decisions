@@ -1666,21 +1666,14 @@ var _fix_at := Vector4.INF
 func _build_column(length: float) -> void:
 	for c in _spire_mast.get_children():
 		c.queue_free()
-	var cream := F.color_mat(Color("e7e2d2"))
-	var angle := F.color_mat(Color("b9b4a4"))
+	var cream := F.color_mat(Color("eceeed"))       # (SCP white, as unit 531: John's photos, 24 Nov)
 	var red := F.color_mat(Color("d3202f"))
-	var grate := F.mat("steel")
+	var grate := F.color_mat(Color("e3e5e2"))
+	var galv := F.color_mat(Color("b4bcc1"))
 	var rail := F.color_mat(Color("e3e5e2"))
 	var h := SpireSite.COLUMN * 0.5
 	_spire_mast.add_child(F.box(Vector3(SpireSite.COLUMN, length, SpireSite.COLUMN), cream, Vector3(0, length * 0.5, 0)))
-	for sx in [-1.0, 1.0]:
-		for sz in [-1.0, 1.0]:
-			_spire_mast.add_child(F.box(Vector3(0.12, length, 0.12), angle, Vector3(sx * (h - 0.03), length * 0.5, sz * (h - 0.03))))
-	# (the sections' pinned joints: a collar band every 3 m, counted down from the top)
-	var y := length - 3.0
-	while y > 0.5:
-		_spire_mast.add_child(F.box(Vector3(SpireSite.COLUMN + 0.06, 0.16, SpireSite.COLUMN + 0.06), angle, Vector3(0, y, 0)))
-		y -= 3.0
+	# (a smooth box, pinned at the joints: no corner angles or bands on the real one)
 	# The top: the two lifting lugs (under the adaptor), the adaptor plate with its red pin ears
 	var lugs := Node3D.new()
 	lugs.name = "Lugs"
@@ -1713,20 +1706,16 @@ func _build_column(length: float) -> void:
 	var lz := LineScript.LADDER.z - SpireSite.mast_xz().y
 	var hy := 2.0 * FH + 2.4
 	while hy < py - 0.3:
-		_spire_mast.add_child(F.box(Vector3(0.05, 0.05, 0.84), rail, Vector3(lx + 0.72, hy, lz)))
+		_spire_mast.add_child(F.box(Vector3(0.05, 0.05, 0.84), galv, Vector3(lx + 0.72, hy, lz)))
 		for sz in [-0.42, 0.42]:
-			_spire_mast.add_child(F.box(Vector3(0.72, 0.05, 0.05), rail, Vector3(lx + 0.36, hy, lz + sz)))
+			_spire_mast.add_child(F.box(Vector3(0.72, 0.05, 0.05), galv, Vector3(lx + 0.36, hy, lz + sz)))
 		hy += 0.9
 	for sz in [-0.42, 0.0, 0.42]:
 		var run := py - (2.0 * FH + 2.4)
 		if run > 0.5:
-			_spire_mast.add_child(F.box(Vector3(0.04, run, 0.04), rail, Vector3(lx + 0.72 if sz == 0.0 else lx + 0.36, 2.0 * FH + 2.4 + run * 0.5, lz + sz)))
-	# The unit number on the column's street face, the way SCP paint theirs
-	var lab := F.label3d("SCP · UNIT 532", 34, Color("2a2f36"))
-	lab.billboard = BaseMaterial3D.BILLBOARD_DISABLED
-	lab.position = Vector3(0, length - 4.0, h + 0.01)
-	lab.pixel_size = 0.006
-	_spire_mast.add_child(lab)
+			_spire_mast.add_child(F.box(Vector3(0.04, run, 0.04), galv, Vector3(lx + 0.72 if sz == 0.0 else lx + 0.36, 2.0 * FH + 2.4 + run * 0.5, lz + sz)))
+	# The name down its street face, the pin holes, the red rail on the line's side
+	ZBoom.dress_column(_spire_mast, length, h, 1.0, 1.0, "532", py)
 
 ## The feet on their pads, and the corner plates and wedges in the opening at the foot slab and at the
 ## deck above, where it's held. Only rebuilt when the climb's moved them.
