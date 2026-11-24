@@ -30,6 +30,7 @@ const PourScript := preload("res://scripts/pour.gd")
 const SfxScript := preload("res://scripts/sfx.gd")
 const ClimbScript := preload("res://scripts/climb.gd")
 const MastClimb := preload("res://scripts/mast_climb.gd")
+const MastErect := preload("res://scripts/mast_erect.gd")
 const LineScript := preload("res://scripts/line.gd")
 const PokerScript := preload("res://scripts/poker.gd")
 const PhonesScript := preload("res://scripts/phones.gd")
@@ -1587,7 +1588,20 @@ func spire_mast_head(lvl: int) -> float:
 ## Spire: the slab the column's feet stand on for level `lvl` (two floors under the deck it was climbed
 ## from), and the deck it's wedged at above that.
 func spire_foot_y(lvl: int) -> float:
+	# (till the first climb it stands free on its X base on the podium's roof, 11 m + 9 m of column)
+	if spire_climb_base(lvl) == 0:
+		return level_y(0)
 	return level_y(spire_climb_base(lvl) - 1)
+
+## Spire: the column's free-standing on its X base (the first levels, before its first climb).
+func spire_free(lvl: int) -> bool:
+	return spire_climb_base(lvl) == 0
+
+var spire_col_force := -1.0      # the erection day: this much of the column's stood so far (mast_erect.gd)
+var spire_col_bare := false      # ...and its top's still bare (no platform or adaptor yet)
+var erect: Node3D                # Spire's first day: the X base, the column and the boom go up (mast_erect.gd)
+var _erected := false
+var _mast_keep: Node3D
 
 func spire_wedge_y(lvl: int) -> float:
 	return level_y(spire_climb_base(lvl) + 1)
@@ -1599,6 +1613,7 @@ func spire_wedge_y(lvl: int) -> float:
 ## boom's pedestal on top, a work platform round them. `deck`: the deck being poured (the rails round
 ## the opening ride on it), `head_y`: the boom's head, `lvl`: which level's feet and wedges to show.
 var _col_len := -1.0
+var _col_bare := false
 func _spire_tower(deck: float, head_y: float, lvl := -1) -> void:
 	lattice.visible = false
 	var m := SpireSite.mast_xz()
@@ -1615,6 +1630,8 @@ func spire_column(head_y: float, foot_y: float, wedge_y: float, feet := true, we
 		lvl = k
 	var top := head_y - 0.62               # the column's top (the adaptor and the pedestal over it)
 	var length := spire_mast_head(lvl) - 0.62 - spire_foot_y(lvl)
+	if spire_col_force >= 0.0:
+		length = maxf(0.01, spire_col_force)
 	if _spire_mast == null:
 		_spire_mast = Node3D.new()
 		_spire_mast.name = "BoomMast"
@@ -1624,13 +1641,17 @@ func spire_column(head_y: float, foot_y: float, wedge_y: float, feet := true, we
 		add_child(_spire_fixings)
 		_spire_pen_rail = _pen_rail()
 		rig.add_child(_spire_pen_rail)
-	if absf(length - _col_len) > 0.05:
+	var bare := spire_col_force >= 0.0 and spire_col_bare
+	if absf(length - _col_len) > 0.005 or bare != _col_bare:
 		_col_len = length
-		_build_column(length)
+		_col_bare = bare
+		_build_column(length, bare)
+	_spire_mast.visible = length > 0.05
 	_spire_mast.position = Vector3(m.x, top - _col_len, m.y)
 	_spire_fixings.position = Vector3(m.x, 0, m.y)
-	_set_fixings(foot_y, wedge_y, top - _col_len, feet, wedged)
-	_spire_pen_rail.visible = true
+	_set_fixings(foot_y, wedge_y, top - _col_len, feet, wedged and not spire_free(lvl), spire_free(lvl))
+	# (no deck round it yet while it's being stood on the roof)
+	_spire_pen_rail.visible = spire_col_force < 0.0
 
 ## The adaptor plate off the column's top, for the crane to lift (mast_climb.gd), and back on it.
 func spire_adaptor() -> Node3D:
@@ -1662,9 +1683,16 @@ var _fix_at := Vector4.INF
 ## The column, `length` long from its feet to its top: square sections pinned at the joints, the corner
 ## angles, the work platform and the adaptor plate at the top (with the boom pin ears, red), the two red
 ## lifting lugs under it, and the ladder's cage over the deck. Built along +y from 0.
-func _build_column(length: float) -> void:
+func _build_column(length: float, bare := false) -> void:
 	for c in _spire_mast.get_children():
 		c.queue_free()
+	if bare:
+		# (a section or two stood, nothing on top yet: mast_erect.gd)
+		_spire_mast.add_child(F.box(Vector3(SpireSite.COLUMN, length, SpireSite.COLUMN), F.color_mat(Color("eceeed")), Vector3(0, length * 0.5, 0)))
+		for sx in [-0.16, 0.16]:
+			_spire_mast.add_child(F.box(Vector3(0.05, 0.3, 0.22), F.color_mat(Color("d3202f")), Vector3(sx, length + 0.15, 0)))
+		ZBoom.dress_column(_spire_mast, length, SpireSite.COLUMN * 0.5, 1.0, 1.0, "532", -100.0)
+		return
 	var cream := F.color_mat(Color("eceeed"))       # (SCP white, as unit 531: John's photos, 24 Nov)
 	var red := F.color_mat(Color("d3202f"))
 	var grate := F.color_mat(Color("e3e5e2"))
@@ -1718,9 +1746,9 @@ func _build_column(length: float) -> void:
 
 ## The feet on their pads, and the corner plates and wedges in the opening at the foot slab and at the
 ## deck above, where it's held. Only rebuilt when the climb's moved them.
-func _set_fixings(foot_y: float, wedge_y: float, col_y: float, feet := true, wedged := true) -> void:
+func _set_fixings(foot_y: float, wedge_y: float, col_y: float, feet := true, wedged := true, free := false) -> void:
 	var seated := absf(col_y - foot_y) < 0.3 and feet
-	var want := Vector4(foot_y, wedge_y, 1.0 if seated else 0.0, 1.0 if wedged else 0.0)
+	var want := Vector4(foot_y, wedge_y, (2.0 if free else 1.0) if seated else 0.0, 1.0 if wedged else 0.0)
 	if want.is_equal_approx(_fix_at):
 		return
 	_fix_at = want
@@ -1730,6 +1758,15 @@ func _set_fixings(foot_y: float, wedge_y: float, col_y: float, feet := true, wed
 	var timber := F.color_mat(Color("8a6a43"))
 	var wedge := F.mat("yellow_dark")
 	var h := SpireSite.COLUMN * 0.5
+	if seated and free:
+		# (free-standing: bolted down on its X base, no feet out and no wedges)
+		var xb := ZBoom.xbase()
+		xb.position.y = foot_y
+		_spire_fixings.add_child(xb)
+		var hold := ZBoom.xbase_hold(4)
+		hold.position.y = foot_y
+		_spire_fixings.add_child(hold)
+		return
 	# (the feet come out of the column only where its base is on the foot slab)
 	if seated:
 		for d in [Vector2(1, 1), Vector2(1, -1), Vector2(-1, 1), Vector2(-1, -1)]:
@@ -4139,7 +4176,7 @@ func deck_open() -> bool:
 	return phase != "select" and phase != "roles"
 
 func _walkable(p: Vector3, zone: String, who = null) -> bool:
-	if zone == "deck" and who != null and who.role == "boom" and on_pad(p):
+	if zone == "deck" and who != null and who.role == "boom" and on_pad(p) and not (erect != null and erect.active):
 		# The boom operator works off the scaffold, never on the pad
 		return false
 	if zone == "ground":
@@ -5202,7 +5239,7 @@ func _process(delta: float) -> void:
 				flat = flat.limit_length(lim)
 				p.position.x = flat.x
 				p.position.z = flat.y
-		if p.role == "boom" and p.zone == "deck" and p.busy == "":
+		if p.role == "boom" and p.zone == "deck" and p.busy == "" and not (erect != null and erect.active):
 			# Off the pad, onto the scaffold (Spire: and off the joint strip behind our U, which only
 			# leads back across the wet slab)
 			var wq := walkway_point(walkway_param(Vector2(p.position.x, p.position.z)))
@@ -5249,7 +5286,7 @@ func _process(delta: float) -> void:
 		if mast != null and mast.active:
 			# the column going up through the openings on the crane
 			mast.update(delta)
-		_spire_b.update(delta, fb, phase, deck_top(), head.position.y)
+		_spire_b.update(delta, fb, phase, deck_top(), spire_mast_head(k) if erect != null and erect.active else head.position.y)
 	perf.mark("climb")
 	line.update(delta, phase == "pour")
 	if spire:
@@ -5294,6 +5331,19 @@ func _process(delta: float) -> void:
 
 	match phase:
 		"columns":
+			if phase_t > 0.3 and spire and k == 0 and not _erected and mast != null and _start_level <= 1 and not OS.get_cmdline_user_args().has("--noerect"):
+				# (the first day: the boom's not up yet. The X base, the column and the boom go up on
+				# the crane, then the mobilisation test)
+				_erected = true
+				if erect == null:
+					erect = MastErect.new()
+					erect.game = self
+					add_child(erect)
+					erect.finished.connect(_on_erect_done)
+				_mast_keep = mast
+				mast = erect
+				_set_phase("mastclimb")
+				erect.start()
 			var u := clampf(phase_t / 1.8, 0.0, 1.0)
 			var frame: Node3D = floor_nodes[k].get_node("Frame")
 			frame.scale.y = maxf(0.01, ease(u, 0.4))
@@ -5949,6 +5999,14 @@ func _climb_kit(on: bool) -> void:
 	if not on:
 		for role in ["line", "pump"]:
 			F.kit(crew.crew[role].model, role)
+
+func _on_erect_done() -> void:
+	mast = _mast_keep
+	spire_col_force = -1.0
+	spire_col_bare = false
+	_spire_tower(level_y(k + 1) - 0.3, spire_mast_head(k))
+	line.rebuild_riser()
+	_set_phase("columns")
 
 func _on_mast_done() -> void:
 	_spire_tower(level_y(k + 1) - 0.3, spire_mast_head(k))
@@ -8312,7 +8370,7 @@ func _section_slot() -> Array:
 	var m := SpireSite.mast_xz()
 	var y0 := INF
 	var y1 := -INF
-	if mast != null and mast.active:
+	if mast != null and mast.active and not mast.open_air:
 		y0 = SLOT_FLOOR
 		y1 = work_y - 0.45
 	for p in humans():
