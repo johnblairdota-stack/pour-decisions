@@ -75,6 +75,7 @@ var _saved_borrow: Callable
 var _tag: Label3D           # over the job: what it is and whose
 var _absent := {}           # roles a bot's had to stand in for today (it waits less the next time)
 var _who: Dictionary = {}     # player -> the label over them: their turn, or who they're waiting on
+var open_air := false       # (the erection day's is out on the roof: mast_erect.gd)
 var _shot_next := ""        # (dev: shoot this step a few seconds in, once things are moving)
 
 func _ready() -> void:
@@ -137,7 +138,10 @@ func start() -> void:
 
 func _place_column() -> void:
 	var g = game
-	g.spire_column(from_head + lifted, foot0 if lifted < rise - 0.01 else foot1, wedge0 if lifted < 0.01 else wedge1, feet, wedged)
+	# (the first climb: it comes up off the X base the length it was stood at, and its make-up piece
+	# goes on under it as it's seated)
+	var lvl: int = g.k - 1 if g.spire_free(g.k - 1) and lifted < rise - 0.01 else g.k
+	g.spire_column(from_head + lifted, foot0 if lifted < rise - 0.01 else foot1, wedge0 if lifted < 0.01 else wedge1, feet, wedged, lvl)
 
 # ------------------------------------------------------------------ the steps
 
@@ -157,8 +161,13 @@ func job() -> Dictionary:
 		"shackle":
 			return {"role": "pump", "zone": "ladder", "y": top_y, "verb": "shackle the lugs", "n": 2, "t": 0.8}
 		"wedges_out":
+			if g.spire_free(g.k - 1):
+				# (its first climb: it's stood free on the X base till now)
+				return {"role": "hose", "zone": "ladder", "y": foot0 + 0.1, "verb": "undo the hold-down nuts", "n": 8, "t": 0.5}
 			return {"role": "hose", "zone": "ladder", "y": wedge0, "verb": "knock out the wedges", "n": 4, "t": 0.6}
 		"feet_in":
+			if g.spire_free(g.k - 1):
+				return {"role": "hose", "zone": "ladder", "y": foot0 + 0.1, "verb": "unbolt the X base", "n": 1, "t": 1.4}
 			return {"role": "hose", "zone": "ladder", "y": foot0 + 0.1, "verb": "pull the feet in", "n": 1, "t": 1.4}
 		"send_pipe":
 			return {"role": "line", "zone": "ground", "at": _haul_spot(), "verb": "send a pipe up", "n": 1, "t": 1.0}
