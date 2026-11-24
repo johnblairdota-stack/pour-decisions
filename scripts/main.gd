@@ -2906,7 +2906,7 @@ func _arrive_film(delta: float, fin: Vector3, a: Dictionary) -> void:
 		_arrive_snd = {}
 		_arrive_fl = {}
 		TowerHand.uncover(1.0)
-		FlyFilm.done(_fall_layer)
+		FlyFilm.done(_fall_layer, camera)
 		_fall_layer.queue_free()
 		_fall_layer = null
 		_caption.queue_free()

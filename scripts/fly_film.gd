@@ -16,6 +16,12 @@ const WORLD_LAYER := 1 << 12  # the render layer the surroundings sit on while t
 const FAR_M := 300.0         # m: a part of the game bigger than this, or further off, is the city's, not the site's
 ## Parts of the surroundings' model that are the site's own (the podium the deck stands on): they stay with the site.
 const SITE_PARTS := ["SLAB_", "COLUMNS_", "FORMWORK_", "PROPS", "hoarding"]
+const COVER_LAYER := 1 << 13  # and the one their black stand-ins are on, for the site's camera alone
+const COVER_MIN := 6.0        # m: nothing smaller than this hides the site
+## Parts of the surroundings that lie flat or are too slight to stand in front of anything.
+const FLAT_PARTS := ["ground", "roads", "river", "footpaths", "footways", "kerb", "streetname", "busonly", "line", "car_park", "area_flat_", "street", "far_land"]
+const SITE := preload("res://shaders/fly_site.gdshader")
+const COVER := preload("res://shaders/fly_cover.gdshader")
 const SAME := 0.75          # m: nearer the floor pick's own camera than this, the film ends on it
 
 ## The film of a flight ("film" in Flight.TOWERS): {"video", "cams"}.
@@ -71,6 +77,10 @@ static func draw(layer: CanvasLayer, t: float, gone: bool) -> void:
 		v.position = (vs - v.size) * 0.5
 	var left := 0.0 if gone else 1.0 - smoothstep(d - BLEND_T, d + HAND_T, t)
 	v.modulate.a = left
+	# (the site's own layer goes with the last of the film: by then the game's picture under it is the same)
+	var o := layer.get_child(1) as TextureRect
+	if o.material != null:
+		(o.material as ShaderMaterial).set_shader_parameter("show", smoothstep(0.0, 0.35, left))
 	if (gone or t >= d + HAND_T) and v.is_playing():
 		v.stop()
 	var m := r.material as ShaderMaterial
@@ -108,16 +118,18 @@ static func site(layer: CanvasLayer, world: Node3D, cam: Camera3D, env: Environm
 	sv.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	layer.add_child(sv)
 	var c := Camera3D.new()
-	c.cull_mask = cam.cull_mask & ~WORLD_LAYER
-	var e := env.duplicate() as Environment
-	e.background_mode = Environment.BG_CLEAR_COLOR
-	e.glow_enabled = false
-	e.fog_enabled = false
-	e.volumetric_fog_enabled = false
-	c.environment = e
+	c.cull_mask = (cam.cull_mask & ~WORLD_LAYER) | COVER_LAYER
+	c.environment = Environment.new()
+	c.set_meta("env", env)
+	c.set_meta("cam_mask", cam.cull_mask)
+	cam.cull_mask &= ~COVER_LAYER
 	sv.add_child(c)
-	(layer.get_child(1) as TextureRect).texture = sv.get_texture()
-	(layer.get_child(1) as TextureRect).visible = true
+	var o := layer.get_child(1) as TextureRect
+	o.texture = sv.get_texture()
+	var om := ShaderMaterial.new()
+	om.shader = SITE
+	o.material = om
+	o.visible = true
 	layer.set_meta("site", c)
 	# (and whatever else of the game's lies out in the city, not on the site: the free roam's streets,
 	# the CityCat. The film has the city.)
@@ -130,6 +142,34 @@ static func site(layer: CanvasLayer, world: Node3D, cam: Camera3D, env: Environm
 	layer.set_meta("world", out)
 	for n in out:
 		_layers(n, true)
+	# (the city's buildings stand in front of the site wherever they really do: each is drawn for the
+	# site's camera alone, in plain black, which the site's picture leaves out)
+	var covers := Node3D.new()
+	covers.name = "FlyCovers"
+	world.get_parent().add_child(covers)
+	var cm := ShaderMaterial.new()
+	cm.shader = COVER
+	_covers(world, covers, cm)
+	layer.set_meta("covers", covers)
+
+static func _covers(n: Node, into: Node3D, mat: Material) -> void:
+	var nm := String(n.name)
+	for pre in SITE_PARTS + FLAT_PARTS:
+		if nm.begins_with(pre):
+			return
+	if n is MeshInstance3D and (n as MeshInstance3D).mesh != null and (n as MeshInstance3D).is_visible_in_tree():
+		var src := n as MeshInstance3D
+		var box := src.get_aabb()
+		if maxf(box.size.x, maxf(box.size.y, box.size.z)) * src.global_transform.basis.get_scale().x > COVER_MIN:
+			var m := MeshInstance3D.new()
+			m.mesh = src.mesh
+			m.material_override = mat
+			m.layers = COVER_LAYER
+			m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			into.add_child(m)
+			m.global_transform = src.global_transform
+	for ch in n.get_children():
+		_covers(ch, into, mat)
 
 static func _layers(n: Node, on: bool) -> void:
 	for pre in SITE_PARTS:
@@ -159,12 +199,24 @@ static func follow(layer: CanvasLayer, cam: Camera3D) -> void:
 	c.fov = cam.fov
 	c.near = cam.near
 	c.far = cam.far
+	# (the same light as the game's own picture, whatever the day's doing to it: only the sky's left out)
+	var env := c.get_meta("env") as Environment
+	for p in env.get_property_list():
+		if int(p["usage"]) & PROPERTY_USAGE_STORAGE and not String(p["name"]) in ["background_mode", "resource_path", "resource_name", "resource_local_to_scene", "script"]:
+			c.environment.set(p["name"], env.get(p["name"]))
+	c.environment.background_mode = Environment.BG_CLEAR_COLOR
+	c.environment.background_color = Color(0, 0, 0, 0)
+	cam.cull_mask &= ~COVER_LAYER
 
 ## The film's over: the surroundings go back on their own layers.
-static func done(layer: CanvasLayer) -> void:
+static func done(layer: CanvasLayer, cam: Camera3D) -> void:
 	for n in layer.get_meta("world", []):
 		if is_instance_valid(n):
 			_layers(n as Node, false)
+	if layer.has_meta("covers"):
+		(layer.get_meta("covers") as Node).queue_free()
+	if layer.has_meta("site"):
+		cam.cull_mask = int((layer.get_meta("site") as Camera3D).get_meta("cam_mask"))
 
 static func _box(n: Node) -> AABB:
 	var out := AABB()
