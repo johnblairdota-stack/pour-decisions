@@ -1787,7 +1787,7 @@ func _watchdog(delta: float) -> void:
 		_blocked_t += delta
 		if _blocked_t > FIND_AUTO:
 			block_found = true
-			game.hud.toast("The pump operator heard the plug: above C%d" % (block_s + 1), 2.2)
+			game.hud.toast("The pump op heard the plug: above C%d" % (block_s + 1), 2.2)
 			_start_job("block", block_s)
 	if job_kind == "":
 		return

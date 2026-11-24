@@ -710,8 +710,8 @@ func stage_i() -> int:
 func who_text(role: String) -> String:
 	var p = game.crew.crew.get(role)
 	if p == null:
-		return String(UI.ROLE_NAME.get(role, role)).to_upper()
-	var job_name := String(UI.ROLE_NAME.get(role, role)).to_upper()
+		return UI.job_full(role, " ").to_upper()
+	var job_name := UI.job_full(role, " ").to_upper()
 	if p.bot:
 		return "%s (bot) · %s" % [String(p.char_name).to_upper(), job_name]
 	return "P%d %s · %s" % [p.index, String(p.char_name).to_upper(), job_name]
