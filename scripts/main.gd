@@ -2901,6 +2901,10 @@ func _arrive_film(delta: float, fin: Vector3, a: Dictionary) -> void:
 	(_caption.get_child(0) as CanvasItem).modulate.a = smoothstep(1.2, 2.0, t) * (1.0 - smoothstep(ARRIVE_T - ARRIVE_UI_T - 1.2, ARRIVE_T - ARRIVE_UI_T - 0.2, t))
 	_arrive_snd = {"t": t, "fall": clampf(t / ARRIVE_T, 0.0, 1.0)}
 	selector.arrive_fade(smoothstep(ARRIVE_T - ARRIVE_UI_T, ARRIVE_T - 0.2, t))
+	# (the floor pick's shading is over the film from the moment the cloud parts: the picture it lands
+	# on is the picture it flew in)
+	if not a.get("skip", false):
+		selector.arrive_shade(maxf(smoothstep(ARRIVE_T - ARRIVE_UI_T, ARRIVE_T - 0.2, t), smoothstep(0.2, FlyFilm.CLOUD_T + 0.4, t)))
 	if t >= ARRIVE_T:
 		TowerHand.arrival = {}
 		_arrive_snd = {}
