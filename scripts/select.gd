@@ -34,7 +34,7 @@ const KITS := [
 const FLOORS := 11
 const MEDAL_COL := [Color("d0884a"), Color("d6dde6"), Color("ffd23f")]
 const CLIMB_BEFORE := [4, 7, 10]   # levels that start with a climb day
-const RACK_ORDER := ["boom", "line", "pump", "hose", "poker", "screed"]
+const RACK_ORDER := UI.PICK_ORDER
 
 const HOLD_T := 0.8           # everyone's locked in: the first player holds A this long to start
 const WAIT_T := 20.0          # ...and if nobody does, it starts on its own
@@ -301,6 +301,10 @@ func _build_crew_page(root: Control) -> void:
 		hat.custom_minimum_size = Vector2(120, 100)
 		hat.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 		col.add_child(hat)
+		# (the trade first, then the seat in it)
+		var tn := UI.head(String(UI.TRADE[role]).to_upper(), 20, Color("6b5a3e"))
+		tn.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		col.add_child(tn)
 		var jn := UI.head(UI.ROLE_NAME[role], 30, Color("1b1308"))
 		jn.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		col.add_child(jn)

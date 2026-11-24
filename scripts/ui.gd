@@ -94,7 +94,23 @@ static func ptag(i: int, size := 18, bot := false) -> PanelContainer:
 
 ## Job colours: the same as the hard hats, so a colour always means a job
 const ROLE := {"boom": Color("ffc72c"), "line": Color("7cd992"), "pump": Color("ff7a1a"), "poker": Color("c49bff"), "screed": Color("f4f7fa"), "hose": Color("2fd3e8")}
-const ROLE_NAME := {"boom": "Boom operator", "line": "Truck hand", "pump": "Pump operator", "poker": "Poker hand", "screed": "Screeder", "hose": "Hose hand"}
+## Each job's seat in its trade, as a real site would say it. The trade
+## (TRADE) always goes first where a job is named on a ticket, a phone card or
+## the role call: "PUMPY · LINE HAND". The end hose is the line hand, a pumpy;
+## the truck bay and slump tests are a concreter on the gate.
+const ROLE_NAME := {"boom": "Boom op", "line": "Gate hand", "pump": "Pump op", "poker": "Poker hand", "screed": "Screeder", "hose": "Line hand"}
+## The trade each job belongs to (John, 24 Nov 2026): three pumpies run the
+## boom, the end hose and the pump; three concreters run the deck and the gate.
+const TRADE := {"boom": "Pumpy", "hose": "Pumpy", "pump": "Pumpy", "poker": "Concreter", "screed": "Concreter", "line": "Concreter"}
+## The jobs in trade order, pumpies then concreters: the hat rack, the phone
+## lobby and left / right on the crew page.
+const PICK_ORDER := ["boom", "hose", "pump", "poker", "screed", "line"]
+
+## "Pumpy · Line hand": the trade first, then the seat.
+static func job_full(role: String, sep := " · ") -> String:
+	if not TRADE.has(role):
+		return String(ROLE_NAME.get(role, role))
+	return String(TRADE[role]) + sep + String(ROLE_NAME[role])
 const ROLE_SHORT := {
 	"boom": "Steers the placing boom and pours, bay by bay.",
 	"line": "Trucks and slump tests. Slings and pins on climb days.",
@@ -130,9 +146,9 @@ const ROLE_CLIMB := {"boom": "Climb days: dogman", "line": "Climb days: slinger 
 ## stick), what to do, words in the game's own button prompts that mean
 ## you're on this step].
 const JOB_CARD := {
-	"boom": {"goal": "Steer the boom and fill each bay.", "watch": "where the hose hand is heading. Fast swings whip the hose.",
+	"boom": {"goal": "Steer the boom and fill each bay.", "watch": "where the line hand is heading. Fast swings whip the hose.",
 		"steps": [["stick", "Swing the hose over the bay: SPEED bar for faster (pad: push harder)", ["boom remote", "steer", "swing"]],
-			["stick", "Keep the boom over the hose hand: they call the pump", ["pump", "bin"]],
+			["stick", "Keep the boom over the line hand: they call the pump", ["pump", "bin"]],
 			["B", "Put the remote down", ["put down", "step off"]]]},
 	"line": {"goal": "Get good concrete off every truck.", "watch": "the docket. Wrong mix or too old: send it back.",
 		"steps": [["A", "Hold to wave the truck back. Let go at STOP", ["wave", "stop", "let go", "truck in"]],
@@ -219,10 +235,17 @@ static func job_ticket(role: String, who: String, pi: int, compact := false, cli
 	hat.icon = role if ROLE.has(role) else ""
 	hat.custom_minimum_size = Vector2(36, 30)
 	top.add_child(hat)
+	# (the trade first, small, then the seat in it)
+	var names := VBoxContainer.new()
+	names.add_theme_constant_override("separation", -2)
+	names.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	names.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	top.add_child(names)
+	if TRADE.has(role):
+		names.add_child(head(String(TRADE[role]).to_upper(), 15, soft))
 	var jn := head(ROLE_NAME.get(role, role).to_upper(), 24, ink)
 	jn.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	jn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	top.add_child(jn)
+	names.add_child(jn)
 	if pi > 0:
 		var tag := ptag(pi, 16)
 		tag.size_flags_vertical = Control.SIZE_SHRINK_CENTER

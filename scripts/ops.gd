@@ -704,7 +704,7 @@ func update(delta: float) -> void:
 			_next()
 			return
 		if not bot_like and step_t > t0 + PERSON_AUTO:
-			game.hud.toast("The boom operator saw it anyway: carry on", 1.6)
+			game.hud.toast("The boom op saw it anyway: carry on", 1.6)
 			_next()
 			return
 	var who = game.crew.crew.get(role()) if role() != "" else null

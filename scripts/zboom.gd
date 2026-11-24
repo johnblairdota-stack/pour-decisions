@@ -59,6 +59,90 @@ static func joints(length: float) -> Array:
 		out.append(y)
 	return out
 
+## The X base ("crucifix") a free-standing column stands on, from John's photo of unit 531 and
+## Putzmeister's "compact cruciform base with tie-rod basket": a white box hub under the column's flange,
+## four short box arms out on the diagonals (two round holes in each side, a red lifting lug on top).
+## Built from the slab (y 0) up; the column's foot sits down in the hub. ARM_R: the arms' ends from the
+## middle. (Sizes read off the photo against the 1 m column: not published.)
+const XB_R := 1.62
+const XB_H := 0.42
+static func xbase() -> Node3D:
+	var n := Node3D.new()
+	n.name = "XBase"
+	var white := F.color_mat(Color("eceeed"))
+	var red := F.color_mat(Color("d3202f"))
+	var dark := F.color_mat(Color("1d1f22"))
+	var bolt := F.color_mat(Color("8d9196"))
+	n.add_child(F.box(Vector3(1.34, XB_H, 1.34), white, Vector3(0, XB_H * 0.5, 0)))
+	n.add_child(F.box(Vector3(1.5, 0.05, 1.5), white, Vector3(0, XB_H + 0.025, 0)))
+	for i in 4:
+		var a := PI * 0.25 + i * PI * 0.5
+		var arm := Node3D.new()
+		arm.rotation.y = -a
+		n.add_child(arm)
+		# (along the arm's own +x)
+		arm.add_child(F.box(Vector3(XB_R - 0.5, XB_H, 0.4), white, Vector3((XB_R + 0.5) * 0.5, XB_H * 0.5, 0)))
+		for hx in [0.95, 1.3]:
+			for sz in [-0.205, 0.205]:
+				var hole := F.cylinder(0.075, 0.01, dark, Vector3(hx, XB_H * 0.5, sz), 10)
+				hole.rotation.x = PI * 0.5
+				arm.add_child(hole)
+		arm.add_child(F.box(Vector3(0.16, 0.14, 0.04), red, Vector3(1.0, XB_H + 0.07, 0)))
+	# (the ring of M30 bolts through the column's flange)
+	for i in 16:
+		var a := i * TAU / 16.0
+		var q := Vector3(cos(a), 0, sin(a)) * 0.68
+		q.x = clampf(q.x * 1.3, -0.62, 0.62)
+		q.z = clampf(q.z * 1.3, -0.62, 0.62)
+		n.add_child(F.cylinder(0.025, 0.05, bolt, Vector3(q.x, XB_H + 0.07, q.z), 6))
+	return n
+
+## What holds the X base down: two threaded rods cast in the slab either side of each arm's end, on timber
+## packers (`rods`), and the rusty clamp plate across each arm on them, nutted down (`clamps` of them on).
+static func xbase_hold(clamps := 4) -> Node3D:
+	var n := Node3D.new()
+	n.name = "XBaseHold"
+	var rust := F.color_mat(Color("7a4a2c"))
+	var rod := F.color_mat(Color("6d5a4a"))
+	var timber := F.color_mat(Color("b08a55"))
+	for i in 4:
+		var a := PI * 0.25 + i * PI * 0.5
+		var arm := Node3D.new()
+		arm.rotation.y = -a
+		n.add_child(arm)
+		for sz in [-0.3, 0.3]:
+			arm.add_child(F.cylinder(0.018, XB_H + 0.3, rod, Vector3(XB_R - 0.22, (XB_H + 0.3) * 0.5, sz), 6))
+			arm.add_child(F.box(Vector3(0.2, 0.05, 0.12), timber, Vector3(XB_R - 0.22, 0.025, sz)))
+		if i < clamps:
+			arm.add_child(F.box(Vector3(0.14, 0.04, 0.78), rust, Vector3(XB_R - 0.22, XB_H + 0.04, 0)))
+			for sz in [-0.3, 0.3]:
+				arm.add_child(F.cylinder(0.04, 0.05, rust, Vector3(XB_R - 0.22, XB_H + 0.085, sz), 6))
+	return n
+
+## One column section on its own, `length` long, for the crane to stand up: hung from its top (the
+## origin), the red delivery pipe in its face and the galvanised ladder over it, as it comes off the truck.
+static func section(length: float, h: float) -> Node3D:
+	var n := Node3D.new()
+	var white := F.color_mat(Color("eceeed"))
+	var red := F.color_mat(Color("d3202f"))
+	var galv := F.color_mat(Color("b4bcc1"))
+	var dark := F.color_mat(Color("1d1f22"))
+	n.add_child(F.box(Vector3(h * 2.0, length, h * 2.0), white, Vector3(0, -length * 0.5, 0)))
+	n.add_child(F.cylinder(0.08, length, red, Vector3(h + 0.02, -length * 0.5, 0.12), 8))
+	for sz in [-0.28, 0.28]:
+		n.add_child(F.box(Vector3(0.05, length, 0.05), galv, Vector3(h + 0.27, -length * 0.5, 0.12 + sz)))
+	var y := 0.3
+	while y < length:
+		n.add_child(F.box(Vector3(0.05, 0.05, 0.56), galv, Vector3(h + 0.27, -y, 0.12)))
+		y += 0.7
+	for ey in [0.25, length - 0.25]:
+		for sx in [-0.3, 0.3]:
+			for f in [-1.0, 1.0]:
+				n.add_child(F.box(Vector3(0.12, 0.12, 0.01), dark, Vector3(sx, -ey, f * (h + 0.005))))
+	for sx in [-0.16, 0.16]:
+		n.add_child(F.box(Vector3(0.05, 0.3, 0.22), red, Vector3(sx, 0.15, 0)))
+	return n
+
 ## The paint and fittings an SCP column carries, from John's photos of unit 531: the four black pin
 ## holes each side of every section joint (joints()), the upright
 ## name between two red bars and the unit number on the face looking `face` (+1/-1 along z), the red
@@ -287,6 +371,8 @@ func pose(d: float, ty: float, fold := 0.0, shake := 0.0, dt := 0.0) -> void:
 			_at[i] = move_toward(_at[i], q[i], float(RATE[i]) * k * dt)
 	else:
 		_at = q.duplicate()
+	# (folded for a lift, its end hose is off)
+	(tip.get_node("Hose") as Node3D).visible = fold < 0.5
 	ang = _at.duplicate()
 	ang[0] += shake
 	ang[1] -= shake * 0.6

@@ -319,7 +319,7 @@ func _refresh() -> void:
 				if a.begins_with("role:"):
 					var role := a.substr(5)
 					var p = game.crew.crew[role]
-					l.text = UI.ROLE_NAME[role]
+					l.text = UI.job_full(role)
 					var tag := UI.ptag(p.index, 15, p.bot)
 					tag.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 					tags.add_child(tag)
@@ -458,7 +458,7 @@ func _note_for(action: String) -> String:
 		"incidents":
 			return ["Nothing goes wrong on the line. Just pour.",
 				"One thing goes wrong per pour low down. More the higher you build: up to four near the top.",
-				"Something per bay from level 3. Keep the truck hand busy.",
+				"Something per bay from level 3. Keep the gate hand busy.",
 				"Something every bay, blockages too, from level 1."][int(Settings.value("incidents"))] + "  (from the next pour)"
 		"ui_scale":
 			return "Bigger HUD and menus, for a big TV across the room."
