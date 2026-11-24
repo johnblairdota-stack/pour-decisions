@@ -1,7 +1,7 @@
 """The Spire fly-in as a film: one camera flight through the Brisbane model, frame by frame, from high
 in the cloud in the cloud down to the floor pick's own view, where the game takes over standing still.
 
-    python tools/blender/spire/render_film.py <out_dir> [from=0] [to=N] [w=1280] [fps=24] [--cams]
+    python tools/blender/spire/render_film.py <out_dir> [tower=spire] [from=0] [to=N] [w=1280] [fps=24] [--cams]
 
 The camera swings round the tower as it comes down (so the city really moves past: near things faster
 than far ones), always looking at the tower, and closes on it at a steady rate: every second takes
@@ -34,6 +34,46 @@ OVER_OUT, OVER_Z = 28.0, 154.0
 LEG = (2.1, 1.9)                  # s: to the point over the street, and down the face
 TOTAL = DUR + LEG[0] + LEG[1]
 CUT_Z = float(os.environ.get("CUT_Z", "42.35"))   # AHD: the tower's cut off here (the game's first deck: it isn't built yet)
+
+
+# Every tower's flight is this one, with its own numbers. `end` is the game's floor pick camera where
+# the tower has one. The others are PROVISIONAL (a view of the tower's lower floors from `hdir`, set
+# only so the flight can be judged): they get the game's real view, the cut at the first deck and a
+# full render once their level exists. None of this says anything about equipment or how a tower's
+# poured. Places are in the model's metres (x east, y north of Spire, z AHD).
+TOWERS = {
+    "spire": {"t": T, "hdir": HDIR, "end": END, "over": (OVER_OUT, OVER_Z), "cut": CUT_Z},
+    # Howard Smith Wharves: low, on the river bank under the Story Bridge (deck about 80 m AHD overhead):
+    # in from over the river, well over the bridge until it's close.
+    "hsw": {"t": (621.0, 25.0, 12.0), "hdir": (0.26, -0.966), "s": (2800.0, 320.0), "el": (36.0, 26.0),
+            "end_at": (95.0, 22.0, 10.0), "over": (140.0, 118.0)},
+    # 1 William St: 267 m, the river and the expressway on its south-west side: in from over the river.
+    "william1": {"t": (-494.0, -1345.0, 120.0), "hdir": (-0.707, -0.707), "s": (3000.0, 420.0), "el": (36.0, 22.0),
+                 "end_at": (150.0, 60.0, 55.0), "over": (190.0, 200.0)},
+    # Queen's Wharf: beside it, the same bank: in from over the river and the Neville Bonner Bridge.
+    "queenswharf": {"t": (-533.0, -1168.0, 70.0), "hdir": (-0.80, -0.60), "s": (3000.0, 380.0), "el": (36.0, 22.0),
+                    "end_at": (170.0, 55.0, 45.0), "over": (200.0, 170.0)},
+    # Brisbane Skytower: 277 m, the City Botanic Gardens to its south-east: in from over the gardens.
+    "skytower": {"t": (-207.0, -978.0, 125.0), "hdir": (0.50, -0.866), "s": (3000.0, 430.0), "el": (36.0, 22.0),
+                 "end_at": (160.0, 65.0, 60.0), "over": (200.0, 215.0)},
+}
+TOWER = "spire"
+
+
+def use(tower):
+    """Fly this tower's flight from here on."""
+    global TOWER, T, HDIR, S0, S1, EL0, EL1, END, OVER_OUT, OVER_Z, CUT_Z
+    c = TOWERS[tower]
+    TOWER, T, HDIR = tower, c["t"], c["hdir"]
+    S0, S1 = c.get("s", (2800.0, 270.0))
+    EL0, EL1 = c.get("el", (36.0, 24.0))
+    OVER_OUT, OVER_Z = c["over"]
+    CUT_Z = c.get("cut")
+    if "end" in c:
+        END = c["end"]
+    else:
+        out, z, look_z = c["end_at"]         # (m out along hdir, the camera's height, the height it looks at)
+        END = ((T[0] + HDIR[0] * out, T[1] + HDIR[1] * out, z), (T[0], T[1], look_z))
 
 
 def smooth(a, b, x):
@@ -82,6 +122,8 @@ def cam_at(t):
 
 
 def cut_tower(_meta):
+    if CUT_Z is None:          # (a provisional flight: the finished tower)
+        return
     """The tower's not built yet in the game: cut it (and its core) off level at the first deck."""
     import bmesh
     import bpy
@@ -123,10 +165,11 @@ def main():
     os.makedirs(out, exist_ok=True)
     num = lambda k, d: type(d)(next((a[len(k) + 1:] for a in argv if a.startswith(k + "=")), d))
     fps, w = num("fps", 24), num("w", 1280)
+    use(next((a[6:] for a in argv if a.startswith("tower=")), "spire"))
     n = int(round(TOTAL * fps)) + 1
     f0, f1 = num("from", 0), min(n, num("to", n))
     h = w * 9 // 16
-    json.dump({"fps": fps, "frames": n, "dur": TOTAL, "run_in": DUR, "target": T, "lens": LENS,
+    json.dump({"tower": TOWER, "provisional": "end" not in TOWERS[TOWER], "fps": fps, "frames": n, "dur": TOTAL, "run_in": DUR, "target": T, "lens": LENS,
                "cams": [[round(v, 2) for v in cam_at(i / fps)[0]] for i in range(n)],
                "looks": [[round(v, 2) for v in cam_at(i / fps)[1]] for i in range(n)]}, open(os.path.join(out, "cams.json"), "w"))
     if "--cams" in argv:
