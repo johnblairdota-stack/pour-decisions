@@ -167,6 +167,11 @@ func arrive_fade(f: float) -> void:
 	_site_page.modulate.a = f
 	_shade.modulate.a = f
 
+## The floor pick's own shading alone (the fly-in's film has it on from the start, so nothing comes
+## down over the picture on landing).
+func arrive_shade(f: float) -> void:
+	_shade.modulate.a = f
+
 func arrive_done() -> void:
 	arriving = false
 	arrive_fade(1.0)
