@@ -4321,7 +4321,7 @@ func _toolbox(wait: bool) -> Dictionary:
 			notes.push_front("Transfer slab: 1250 mm deep. More trucks, a longer pour. The bot crew's pouring B with the other boom.")
 	if bool(cfg.get("quiet", false)):
 		chips.append(["A QUIET ONE", ""])
-		notes.append("Good loads all day. Pump operator: one spike, and you'll see the needle climb first.")
+		notes.append("Good loads all day. Pump op: one spike, and you'll see the needle climb first.")
 	elif not tutorial and incident_level() == 1 and _trouble_n() >= 2:
 		notes.append("The higher the line runs, the more goes wrong on it: expect about %d faults today." % _trouble_n())
 	if is_dawn():
@@ -4552,7 +4552,7 @@ func _tour_camera(delta: float, fin: Vector3) -> void:
 		var role := String(stop[3])
 		var who := ""
 		if role != "":
-			who = String(UI.ROLE_NAME.get(role, "")).to_upper()
+			who = UI.job_full(role).to_upper()
 			var p = crew.crew.get(role)
 			if p != null and not p.bot:
 				who = "P%d · %s" % [p.index, who]
@@ -5453,7 +5453,7 @@ func join_phone():
 		return null
 	var p = crew.join(true)
 	if p != null:
-		hud.toast("P%d joined: %s, %s" % [p.index, p.char_name, UI.ROLE_NAME[p.role].to_lower()], 2.0)
+		hud.toast("P%d joined: %s, %s" % [p.index, p.char_name, UI.job_full(p.role).to_lower()], 2.0)
 	return p
 
 func _join_text() -> String:
@@ -5479,7 +5479,7 @@ func _join_players() -> void:
 		if crew.human(i) == null and InputMap.has_action("p%d_action" % i) and Input.is_action_just_pressed("p%d_action" % i) and not autotest:
 			var p = crew.join(false, i)
 			if p != null:
-				hud.toast("P%d joined: %s, %s" % [i, p.char_name, UI.ROLE_NAME[p.role].to_lower()], 2.0)
+				hud.toast("P%d joined: %s, %s" % [i, p.char_name, UI.job_full(p.role).to_lower()], 2.0)
 	var open_slots: bool = crew.humans().size() < crew.MAX_PEOPLE and not autotest
 	hud.set_join(_join_text() if phase != "topout" and phase != "select" and phase != "roles" else "", phones.join_url() if phones.running and open_slots and phase != "topout" else "")
 
@@ -5496,10 +5496,10 @@ func _job_intros() -> void:
 			continue
 		_intro_seen[key] = k
 		var jc: Dictionary = UI.JOB_CARD.get(p.role, {})
-		hud.job_intro("P%d · %s" % [p.index, String(UI.ROLE_NAME.get(p.role, "")).to_upper()],
+		hud.job_intro("P%d · %s" % [p.index, UI.job_full(p.role).to_upper()],
 			String(UI.ROLE_DO.get(p.role, "")) + ("  Watch " + String(jc["watch"]) if jc.has("watch") else ""), UI.ROLE.get(p.role, UI.GOLD))
 
-## P1's number keys swap jobs on the fly (1 boom, 2 line, 3 pump, 4 poker, 5 screed, 6 hose hand).
+## P1's number keys swap jobs on the fly (1 boom, 2 gate, 3 pump, 4 poker, 5 screed, 6 line hand).
 func _swap_keys() -> void:
 	if autotest:
 		return
@@ -7982,7 +7982,7 @@ func assembly_state() -> Dictionary:
 func _assembly_fault(tall: float) -> Dictionary:
 	var op = crew.crew.get("pump") if crew != null else null
 	var hand = crew.crew.get("line") if crew != null else null
-	var op_n: String = _who(op) if op != null else "PUMP OPERATOR"
+	var op_n: String = _who(op) if op != null else "PUMP OP"
 	var bad: int = line.fix_i if line.fix_i >= 0 else line.fail_i
 	var at := 0.5
 	if bad >= 0 and bad < line.clamps.size():
@@ -8001,7 +8001,7 @@ func _assembly_fault(tall: float) -> Dictionary:
 	if line.tripped:
 		return {"title": "PUMP OFF", "sub": "%s: %s" % [op_n, "fix the line, then restart" if line.repair_pending() else "restart at the panel"], "where": "pump"}
 	if line.hopper < line.HOPPER_CAP * 0.1 and line.live and ops.primed:
-		return {"title": "HOPPER RUNNING DRY", "sub": "%s: get the next truck in" % (_who(hand) if hand != null else "TRUCK HAND"), "where": "pump"}
+		return {"title": "HOPPER RUNNING DRY", "sub": "%s: get the next truck in" % (_who(hand) if hand != null else "GATE HAND"), "where": "pump"}
 	return {}
 
 ## What happens next, and when, for the boom's inner arm: so a wait always

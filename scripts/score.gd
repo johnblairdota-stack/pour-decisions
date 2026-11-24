@@ -85,7 +85,7 @@ const COST_HINT := {
 	"Clamp burst": "A spike was left too long. Kill the pump the moment the gauge flashes, then fix the clamp.",
 	"Line blocked": "A stiff or old load on HIGH packs the line. Drop to LOW while the gauge creeps.",
 	"Pumped into a blockage": "When A goes red and shakes, let go and wait for the fix.",
-	"Hose whip": "The boom swung too fast. Small pushes near the hose hand.",
+	"Hose whip": "The boom swung too fast. Small pushes near the line hand.",
 	"Bad load accepted": "Slump test every truck. Too wet or too old goes back with B.",
 	"Bad concrete in before the call": "Make the load call before that truck's concrete goes in.",
 	"Driver had to make the call": "The truck sat waiting. Test it before the driver gives up.",

@@ -210,7 +210,7 @@ func _tip(p) -> String:
 			if p.busy != "boom":
 				return "Press A at the BOOM REMOTE."
 			if g.pipe_calls():
-				return "Steer the hose to the hose hand."
+				return "Steer the hose to the line hand."
 			if not line.pumping:
 				return "Hold A to pump. Steer with the stick."
 			return "Keep it on the wet edge."

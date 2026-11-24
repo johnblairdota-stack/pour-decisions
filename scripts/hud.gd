@@ -771,7 +771,7 @@ var _intros: Array = []        # [head, body, colour] waiting their turn
 var _intro_t := 0.0
 const INTRO_T := 7.0
 
-## A person's first go at a job: "P2 · TRUCK HAND" and what it's for, along
+## A person's first go at a job: "P2 · CONCRETER · GATE HAND" and what it's for, along
 ## the bottom for a few seconds. Several queue up, one at a time.
 func job_intro(head: String, body: String, col: Color, secs := INTRO_T) -> void:
 	_intros.append([head, body, col, secs])
@@ -1111,7 +1111,7 @@ func _hat_card(r: Dictionary, star: bool) -> PanelContainer:
 	var tag := UI.ptag(int(r["p"]), 14, bool(r["bot"]))
 	tag.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	th.add_child(tag)
-	var jn := UI.head(UI.ROLE_NAME.get(r["role"], "").to_upper(), 15, col)
+	var jn := UI.head(UI.job_full(String(r["role"])).to_upper(), 15, col)
 	jn.clip_text = true
 	jn.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	v.add_child(jn)
@@ -1376,7 +1376,7 @@ func show_toolbox(d: Dictionary) -> void:
 		var top := HBoxContainer.new()
 		top.add_theme_constant_override("separation", 6)
 		v.add_child(top)
-		top.add_child(UI.head(UI.ROLE_NAME.get(m["role"], m["role"]).to_upper(), 17, ink))
+		top.add_child(UI.head(UI.job_full(String(m["role"])).to_upper(), 17, ink))
 		var tag := UI.ptag(int(m["p"]), 13, bool(m["bot"]))
 		tag.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		top.add_child(tag)
