@@ -261,19 +261,12 @@ var _hole := Rect2()
 func _build_column(length: float) -> void:
 	for c in mast.get_children():
 		c.queue_free()
-	var cream := F.color_mat(Color("e7e2d2"))
-	var angle := F.color_mat(Color("b9b4a4"))
+	var cream := F.color_mat(Color("eceeed"))
+	var galv := F.color_mat(Color("b4bcc1"))
 	var red := F.color_mat(Color("d3202f"))
 	var rail := F.color_mat(Color("e3e5e2"))
 	var h := SpireSite.COLUMN * 0.5
 	mast.add_child(F.box(Vector3(SpireSite.COLUMN, length, SpireSite.COLUMN), cream, Vector3(0, length * 0.5, 0)))
-	for sx in [-1.0, 1.0]:
-		for sz in [-1.0, 1.0]:
-			mast.add_child(F.box(Vector3(0.12, length, 0.12), angle, Vector3(sx * (h - 0.03), length * 0.5, sz * (h - 0.03))))
-	var y := length - 3.0
-	while y > 0.5:
-		mast.add_child(F.box(Vector3(SpireSite.COLUMN + 0.06, 0.16, SpireSite.COLUMN + 0.06), angle, Vector3(0, y, 0)))
-		y -= 3.0
 	mast.add_child(F.box(Vector3(1.2, 0.26, 1.2), cream, Vector3(0, length + 0.13, 0)))
 	for sx in [-0.42, 0.42]:
 		for sz in [-0.42, 0.42]:
@@ -281,7 +274,7 @@ func _build_column(length: float) -> void:
 	# The work platform
 	var py := length - 1.15
 	var w := 2.5
-	mast.add_child(F.box(Vector3(w, 0.08, w), F.mat("steel"), Vector3(-0.25, py, 0)))
+	mast.add_child(F.box(Vector3(w, 0.08, w), rail, Vector3(-0.25, py, 0)))
 	for side in 4:
 		var along := Vector3(w, 0.06, 0.06) if side < 2 else Vector3(0.06, 0.06, w)
 		var at := Vector3(-0.25, 0, (w * 0.5) * (1.0 if side == 0 else -1.0)) if side < 2 else Vector3(-0.25 + (w * 0.5) * (1.0 if side == 2 else -1.0), 0, 0)
@@ -291,31 +284,34 @@ func _build_column(length: float) -> void:
 	for cx in [-1.0, 1.0]:
 		for cz in [-1.0, 1.0]:
 			mast.add_child(F.box(Vector3(0.06, 1.1, 0.06), rail, Vector3(-0.25 + cx * w * 0.5, py + 0.55, cz * w * 0.5)))
-	# The delivery line up the column's far face, a clamp at each joint
-	var px := -h - 0.16
-	mast.add_child(F.cylinder(0.07, length, F.mat("pipe"), Vector3(px, length * 0.5, -0.2), 8))
-	y = 1.5
+	# The delivery line: one red pipe sat in the V recess down the column's far face, and the
+	# galvanised ladder bolted over it, caged from a man's height over the deck to the platform
+	var px := -h - 0.02
+	var lz := 0.12
+	mast.add_child(F.cylinder(0.16, length, red, Vector3(px, length * 0.5, lz), 10))
+	var y := 2.1
 	while y < length:
-		mast.add_child(F.box(Vector3(0.2, 0.08, 0.2), F.color_mat(Color("4a5058")), Vector3(px, y, -0.2)))
+		mast.add_child(F.box(Vector3(0.08, 0.1, 0.62), galv, Vector3(px - 0.19, y, lz)))
 		y += 3.0
-	# The ladder beside it, caged from a man's height over the deck to the platform
-	var lx := -h - 0.75
-	for sz in [0.05, 0.45]:
-		mast.add_child(F.box(Vector3(0.05, py, 0.05), rail, Vector3(lx, py * 0.5, sz)))
+	var lx := -h - 0.27
+	for sz in [-0.28, 0.28]:
+		mast.add_child(F.box(Vector3(0.05, py, 0.05), galv, Vector3(lx, py * 0.5, lz + sz)))
 	y = 0.3
 	while y < py:
-		mast.add_child(F.box(Vector3(0.03, 0.03, 0.4), rail, Vector3(lx, y, 0.25)))
-		y += 0.3
+		mast.add_child(F.box(Vector3(0.05, 0.05, 0.56), galv, Vector3(lx, y, lz)))
+		y += 0.35
 	var cage0: float = 3.0 * float(game.FH) + 2.4
 	y = cage0
 	while y < py - 0.3:
-		mast.add_child(F.box(Vector3(0.05, 0.05, 0.84), rail, Vector3(lx - 0.72, y, 0.25)))
-		for sz in [-0.17, 0.67]:
-			mast.add_child(F.box(Vector3(0.72, 0.05, 0.05), rail, Vector3(lx - 0.36, y, sz)))
+		mast.add_child(F.box(Vector3(0.05, 0.05, 0.84), galv, Vector3(lx - 0.72, y, lz)))
+		for sz in [-0.42, 0.42]:
+			mast.add_child(F.box(Vector3(0.72, 0.05, 0.05), galv, Vector3(lx - 0.36, y, lz + sz)))
 		y += 0.9
 	if py - cage0 > 0.5:
-		for cz in [-0.17, 0.25, 0.67]:
-			mast.add_child(F.box(Vector3(0.04, py - cage0, 0.04), rail, Vector3(lx - 0.72 if cz == 0.25 else lx - 0.36, (py + cage0) * 0.5, cz)))
+		for cz in [-0.42, 0.0, 0.42]:
+			mast.add_child(F.box(Vector3(0.04, py - cage0, 0.04), galv, Vector3(lx - 0.72 if cz == 0.0 else lx - 0.36, (py + cage0) * 0.5, lz + cz)))
+	# The name down its outer face, the pin holes, the red rail on the line's side (zboom.gd)
+	ZBoom.dress_column(mast, length, h, -1.0, -1.0, "531", py)
 
 ## The hand rail round the opening on their deck (its origin at deck level).
 func _pen_rail() -> Node3D:

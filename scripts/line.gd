@@ -143,13 +143,15 @@ static func use_site(kerb: bool, wall_z := 0.0, roof_y := 1.0e9, set_back := 0.0
 	PIPE_IN = Vector3.INF
 	if STACK:
 		# Spire (John, 21 Nov): the line goes up through the slabs' openings on the boom's square column,
-		# the way it did at The Tannery. Its pipe's on the column's +x face, the caged ladder beside it
+		# the way it did at The Tannery. Its pipe's in the column's +x face, the caged ladder over it
 		# (a climber faces -x, onto the column), the haul rope down the opening's far corner. The ground
 		# line runs from the pump along the podium's wall on the footpath, turns in through the podium at
 		# the column's x and meets the 90 degree bend under the stack on the ground floor.
 		var h := 0.95 * 0.5
-		RISER = Vector3(stack.x + h + 0.21, 0, stack.y - 0.4)
-		LADDER = Vector3(stack.x + h + 0.08, 0, stack.y + 0.12)
+		# (John's photo of unit 531, 24 Nov: ONE red pipe up the column, sat in the V recess down its
+		# face, and the galvanised ladder bolted over it. Not a pipe beside the ladder.)
+		RISER = Vector3(stack.x + h + 0.02, 0, stack.y + 0.12)
+		LADDER = Vector3(stack.x + h + 0.12, 0, stack.y + 0.12)
 		LADDER_FOOT = Vector3(LADDER.x + 0.6, 0, stack.y + 1.45)
 		HAUL = Vector3(stack.x + 1.2, 0, stack.y - 0.42)
 		PIPE_IN = Vector3(RISER.x, 0, wall_z + 0.22)
@@ -1118,15 +1120,18 @@ func rebuild_riser() -> void:
 	if STAIRS:
 		_build_stairs(ladder_top)
 	elif kit == "tower":
+		var galv := F.color_mat(Color("b4bcc1"))
 		for i in ladder_rails.size():
 			var rr := ladder_rails[i]
+			if STACK:
+				rr.material_override = galv
 			rr.position = Vector3(LADDER.x + 0.15, ladder_top * 0.5, LADDER.z + (-0.28 if i == 0 else 0.28))
 			rr.scale.y = ladder_top
 		var mm := MultiMesh.new()
 		mm.transform_format = MultiMesh.TRANSFORM_3D
 		var bm := BoxMesh.new()
 		bm.size = Vector3(0.05, 0.05, 0.56)
-		bm.material = F.mat("yellow_dark")
+		bm.material = galv if STACK else F.mat("yellow_dark")
 		mm.mesh = bm
 		var n := int(ladder_top / 0.35)
 		mm.instance_count = n
@@ -1197,6 +1202,8 @@ func rebuild_riser() -> void:
 			# the run across and the rest)
 			b = Vector3(a.x, STEP_Y + 0.35, a.z)
 		_line(sm, a + (b - a).normalized() * 0.08, b - (b - a).normalized() * 0.08, 0.16)
+		if STACK:
+			sm.material_override = F.color_mat(Color("c4281c"))     # (SCP's line up the column is red)
 		sections.append({"a": a, "b": b, "node": sm})
 	for b in brackets:
 		b.queue_free()
@@ -1204,9 +1211,9 @@ func rebuild_riser() -> void:
 	if kit == "tower":
 		var by := 2.1
 		while by < top - 0.5:
-			# (Spire: a short bracket back onto the column's face)
+			# (Spire: the ladder's own bracket, across the pipe)
 			var br := F.box(Vector3(0.14, 0.12, 0.55), F.mat("yellow_dark"), riser_at(by) + Vector3(0, 0, -0.38)) if not STACK \
-				else F.box(Vector3(0.3, 0.12, 0.14), F.mat("yellow_dark"), riser_at(by) + Vector3(-0.16, 0, 0))
+				else F.box(Vector3(0.08, 0.1, 0.62), F.color_mat(Color("b4bcc1")), riser_at(by) + Vector3(0.19, 0, 0))
 			add_child(br)
 			brackets.append(br)
 			by += PIPE
