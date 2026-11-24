@@ -22,6 +22,8 @@ const COVER_MIN := 6.0        # m: nothing smaller than this hides the site
 const FLAT_PARTS := ["ground", "roads", "river", "footpaths", "footways", "kerb", "streetname", "busonly", "line", "car_park", "area_flat_", "street", "far_land"]
 const SITE := preload("res://shaders/fly_site.gdshader")
 const COVER := preload("res://shaders/fly_cover.gdshader")
+const STAY_M := 0.12         # m: the camera's left the view the film ended on
+const LEAVE_T := 0.6         # s: the film's city gives way to the game's own, once it has
 const SAME := 0.75          # m: nearer the floor pick's own camera than this, the film ends on it
 
 ## The film of a flight ("film" in Flight.TOWERS): {"video", "cams"}.
@@ -64,7 +66,7 @@ static func dur(layer: CanvasLayer) -> float:
 	return float(layer.get_meta("cams")["dur"])
 
 ## Lay the film out for this frame, t s in. `gone`: skipped, the film's off and the live flight runs on.
-static func draw(layer: CanvasLayer, t: float, gone: bool) -> void:
+static func draw(layer: CanvasLayer, t: float, gone: bool, stay := false) -> void:
 	var v := layer.get_child(0) as VideoStreamPlayer
 	var r := layer.get_child(2) as ColorRect
 	var d := dur(layer)
@@ -75,13 +77,17 @@ static func draw(layer: CanvasLayer, t: float, gone: bool) -> void:
 		var fit := maxf(vs.x / ts.x, vs.y / ts.y)
 		v.size = ts * fit
 		v.position = (vs - v.size) * 0.5
-	var left := 0.0 if gone else 1.0 - smoothstep(d - BLEND_T, d + HAND_T, t)
+	# (`stay`: it ends on the floor pick's own view, and stays up behind it: main._film_stay)
+	var left := 0.0 if gone else (1.0 if stay else 1.0 - smoothstep(d - BLEND_T, d + HAND_T, t))
 	v.modulate.a = left
 	# (the site's own layer goes with the last of the film: by then the game's picture under it is the same)
 	var o := layer.get_child(1) as TextureRect
 	if o.material != null:
 		(o.material as ShaderMaterial).set_shader_parameter("show", smoothstep(0.0, 0.35, left))
-	if (gone or t >= d + HAND_T) and v.is_playing():
+	if stay and not gone:
+		if t >= d + 0.3:
+			v.paused = true           # (held on its last frame)
+	elif (gone or t >= d + HAND_T) and v.is_playing():
 		v.stop()
 	var m := r.material as ShaderMaterial
 	m.set_shader_parameter("cloud", 0.0 if gone else 1.0 - smoothstep(0.1, CLOUD_T, t))
@@ -230,3 +236,10 @@ static func _box(n: Node) -> AABB:
 			first = false
 		stack.append_array(x.get_children())
 	return out
+
+## The film's city gives way (main._film_stay): k 1..0.
+static func leave(layer: CanvasLayer, k: float) -> void:
+	(layer.get_child(0) as CanvasItem).modulate.a = k
+	var o := layer.get_child(1) as TextureRect
+	if o.material != null:
+		(o.material as ShaderMaterial).set_shader_parameter("show", smoothstep(0.0, 0.5, k))

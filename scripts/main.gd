@@ -2873,7 +2873,7 @@ func _arrive_film(delta: float, fin: Vector3, a: Dictionary) -> void:
 	a["t"] = minf(float(a["t"]) + dt, ARRIVE_T)
 	var t: float = a["t"]
 	TowerHand.uncover(smoothstep(0.0, 0.6, t), 0.03 * t)
-	FlyFilm.draw(_fall_layer, t, a.get("skip", false))
+	FlyFilm.draw(_fall_layer, t, a.get("skip", false), same)
 	if t < ft:
 		# (under the film: the same camera, so the live site's already there as the film fades)
 		var c: Array = FlyFilm.cam(_fall_layer, t)
@@ -2906,9 +2906,13 @@ func _arrive_film(delta: float, fin: Vector3, a: Dictionary) -> void:
 		_arrive_snd = {}
 		_arrive_fl = {}
 		TowerHand.uncover(1.0)
-		FlyFilm.done(_fall_layer, camera)
-		_fall_layer.queue_free()
-		_fall_layer = null
+		if same and not a.get("skip", false):
+			_fall_stay = fin              # (the film's city stays behind the floor pick: _film_stay)
+			_fall_out = 1.0
+		else:
+			FlyFilm.done(_fall_layer, camera)
+			_fall_layer.queue_free()
+			_fall_layer = null
 		_caption.queue_free()
 		_caption = null
 		if _pick_boat != null:
@@ -2916,6 +2920,27 @@ func _arrive_film(delta: float, fin: Vector3, a: Dictionary) -> void:
 			_pick_wake.queue_free()
 			_pick_boat = null
 		selector.arrive_done()
+
+## The film's city stays behind the floor pick it ended on, with the game's own site over it: nothing
+## changes when the flight's over. It only gives way to the game's own city once the camera leaves
+## that view (another floor's picked, or the pour starts), and then quickly, while the picture's moving.
+var _fall_stay := Vector3.INF
+var _fall_out := 1.0
+
+func _film_stay(delta: float, picking: bool) -> void:
+	if _fall_layer == null or _fall_stay == Vector3.INF:
+		return
+	if _fall_out >= 1.0 and picking and camera.position.distance_to(_fall_stay) < FlyFilm.STAY_M:
+		FlyFilm.follow(_fall_layer, camera)
+		return
+	_fall_out -= delta / FlyFilm.LEAVE_T
+	FlyFilm.follow(_fall_layer, camera)
+	FlyFilm.leave(_fall_layer, maxf(0.0, _fall_out))
+	if _fall_out <= 0.0:
+		FlyFilm.done(_fall_layer, camera)
+		_fall_layer.queue_free()
+		_fall_layer = null
+		_fall_stay = Vector3.INF
 
 ## The truck dispatcher must never sit idle while the slab still needs concrete: nothing in the
 ## hopper, no truck anywhere between the plant and the pump, and the slab not full. Logged (an error
@@ -9033,6 +9058,7 @@ func _update_camera_views(delta: float) -> void:
 			_tour_camera(delta, want)
 		else:
 			_tour_end()
+	_film_stay(delta, phase == "select" and _shot_cam.is_empty())
 	if _shot_cam.is_empty() and (phase == "roles" or phase == "select") and is_instance_valid(selector):
 		if not TowerHand.arrival.is_empty() and (selector.page == "arrive" or selector.arriving):
 			_hand_veil_set(0.0)
