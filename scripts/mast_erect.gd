@@ -624,6 +624,8 @@ func _finish() -> void:
 func update(delta: float) -> void:
 	if not active:
 		return
+	# (the building's opened up along the column while the work's on the floor below)
+	open_air = not bool(focus()[2])
 	step_t += delta
 	var s: Dictionary = steps[si]
 	match String(s["kind"]):
@@ -881,9 +883,6 @@ func focus() -> Array:
 	if si < 0 or si >= steps.size():
 		return [m + Vector3(0, 2, 0), 20.0, false]
 	var s: Dictionary = steps[si]
-	if String(s["id"]) == "land_col" and prog > 0.12:
-		# (into the building with it: the cutaway shows its foot coming down to the pads' floor)
-		return [Vector3(m.x, lerpf(foot + 1.0, col_foot + 1.5, prog), m.z), 22.0, true]
 	match String(s["kind"]):
 		"fly", "land":
 			var seat: Vector3 = s["seat"]
@@ -893,5 +892,5 @@ func focus() -> Array:
 			return [Vector3(m.x, (foot + to_head) * 0.5 + 4.0, m.z), 40.0, false]
 	if String(s["zone"]) == "ladder":
 		var inside: bool = float(s["y"]) < foot - 1.0      # (the floor below: the legs, the pads, the wedges)
-		return [Vector3(m.x, float(s["y"]) + 1.0, m.z), 13.0 if inside else 16.0, inside]
+		return [Vector3(m.x, float(s["y"]) + 0.8, m.z), 9.0 if inside else 16.0, inside, inside]
 	return [(s["at"] as Vector3) + Vector3(0, 1.5, 0), 16.0, false]

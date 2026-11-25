@@ -9162,7 +9162,12 @@ func _update_camera_views(delta: float) -> void:
 		var gap: float = (focus - (mf[0] as Vector3)).length() if not main_follow.is_empty() else 0.0
 		# (someone a long way from it, down on the street or halfway up the ladder, keeps their own
 		# camera: half way between them and the job shows neither. John, 22 Nov)
-		if gap < MAST_VIEW_GAP:
+		if mf.size() > 3 and bool(mf[3]):
+			# (the install day's legs, pads and wedges on the floor below: right in on them, whoever's followed)
+			focus = mf[0]
+			dist = float(mf[1])
+			mast_view = bool(mf[2])
+		elif gap < MAST_VIEW_GAP:
 			focus = focus.lerp(mf[0], 0.6 if not main_follow.is_empty() else 1.0)
 			dist = clampf(maxf(float(mf[1]), gap * 1.1 + spread * 1.2 + 8.0), 12.0, 44.0)
 			mast_view = bool(mf[2])
