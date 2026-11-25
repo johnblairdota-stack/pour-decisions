@@ -1,6 +1,8 @@
 """Renders from the same point of view as a reference photo (mega showcase pairs), Cycles CPU in the cloud.
 
-    CYC_SAMPLES=32 python tools/blender/spire/render_pairs.py <pairs.json> <out_dir> [only=id,id] [width=1000]
+    CYC_SAMPLES=32 python tools/blender/spire/render_pairs.py <pairs.json> <out_dir> [only=id,id] [width=1000] [tiles=<dir>]
+
+tiles=<dir>: skip the build and load only the tiles the cameras see (made by tools/city/tiles.py bake <dir>).
 
 pairs.json: [{"id", "lat", "lon" (camera, e.g. the photo's GPS), "f35" (35 mm equivalent lens), "size": [w, h] of the
 photo, "target": [x, y, z] (a point in the Spire frame, z m AHD) and "at": [u, v] (where that point sits in the
@@ -23,7 +25,12 @@ import preview as P  # noqa: E402
 import render_cbd as RC  # noqa: E402
 
 
+TILE_GROUND = None          # set when rendering from saved tiles (tools/city/tiles.py): no builders have run
+
+
 def ground(x, y):
+    if TILE_GROUND:
+        return TILE_GROUND.z(x, y)
     b = L.LIDAR_BOX
     if b[0] <= x < b[2] and b[1] < y <= b[3]:
         return L.ground_z(x, y)
@@ -245,7 +252,18 @@ def main():
     os.makedirs(out, exist_ok=True)
     only = next((a[5:].split(",") for a in argv if a.startswith("only=")), None)
     width = int(next((a[6:] for a in argv if a.startswith("width=")), 1000))
-    build_all.build_all(None, write_meta=False)
+    tiles_dir = next((a[6:] for a in argv if a.startswith("tiles=")), None)
+    if tiles_dir:                                          # load only the 1 km tiles these cameras can see
+        global TILE_GROUND
+        sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "city"))
+        import tiles as T
+        index = json.load(open(os.path.join(tiles_dir, "index.json")))
+        want = T.tiles_for(index, [T.camera_xy(p) for p in pairs if not only or p["id"] in only])
+        st = T.load(tiles_dir, want)
+        TILE_GROUND = st.pop("ground")
+        print("tiles loaded:", json.dumps(st), flush=True)
+    else:
+        build_all.build_all(None, write_meta=False)
     P.setup_morning()
     az, el = L.sun_position("2019-01", 11.5)               # the photos are clear late-morning summer days
     P.apply_light(az, el)

@@ -50,6 +50,31 @@ The model builds from what is in git (`reference/sites/spire/`). The raw downloa
 OpenStreetMap extracts) are only needed to remake that data, and live on John's PC under
 `Documents\PourDecisions-sites\data`.
 
+## Rendering from tiles
+
+    $CITY_VENV/bin/python tools/city/tiles.py bake /tmp/city/tiles          # once per model change, about 5 minutes
+    CYC_SAMPLES=32 $CITY_VENV/bin/python tools/blender/spire/render_pairs.py tools/city/showcase/pairs.json out \
+        only=skytower_kp_2019 width=1000 tiles=/tmp/city/tiles
+
+The bake builds the city once and cuts it into the 1 km tiles of the coverage map, each saved as a `near` file
+(everything) and a `far` file (no small street furniture, foliage thinned to a quarter). A render with
+`tiles=` skips the build and loads only the tiles its cameras can see: `near` within 1.5 km, `far` beyond.
+Render one view per process so each loads only its own tiles. The tile files are a cache and are never
+committed. Without `tiles=` everything works as before.
+
+First results (26 Nov 2026, same pictures to within render noise):
+
+| View | Old way | From tiles |
+| --- | --- | --- |
+| skytower_kp_2019 | 218 s, 12.6 GB | 54 s, 5.4 GB |
+| qw_sign_2024_a | 195 s, 12.0 GB | 51 s, 9.3 GB |
+| still_riverside_expressway | not timed | 26 s, 2.6 GB |
+| sa_aerial_ne_dusk (looks down on the centre) | not timed | 95 s, 9.6 GB |
+
+Still to do for step 2 of the plan: the centre tile (503_6962) holds a third of the city's triangles, so views
+of it stay heavy until it gets lighter middle-distance versions; and the bake still builds the whole city in
+one go (9.6 GB), so the builders need to run per tile before the model can grow much past today's area.
+
 ## What is where
 
 | Path | What |
@@ -58,6 +83,7 @@ OpenStreetMap extracts) are only needed to remake that data, and live on John's 
 | `tools/city/check.py`, `known.json` | data check run by CI; `known.json` holds ceilings that only go down |
 | `tools/city/landmarks.json` | places a local would look for, built or not |
 | `tools/city/tiles_plan.json` | the next LiDAR orders |
+| `tools/city/tiles.py` | cuts the built city into 1 km tiles and loads them for a camera |
 | `tools/city/measure_build.py` | time, memory and triangles of the whole build, per module |
 | `tools/city/showcase/` | the mega showcase builder, its photo camera lists and render jobs |
 | `tools/sites/` | data scripts: raw downloads to `reference/sites/` (river, roads, paths, buildings, roof colours) |
