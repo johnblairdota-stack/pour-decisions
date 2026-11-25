@@ -1601,23 +1601,25 @@ func spire_mast_head(lvl: int) -> float:
 ## Spire: the slab the column's feet stand on for level `lvl` (two floors under the deck it was climbed
 ## from), and the deck it's wedged at above that.
 func spire_foot_y(lvl: int) -> float:
-	# (till the first climb it stands free on its X base on the podium's roof, 11 m + 9 m of column)
-	if spire_climb_base(lvl) == 0:
-		return level_y(0)
+	# (from its first day it hangs in the penetration: lowered in from the top, its legs pushed out onto
+	# rubber pads a floor under the podium's roof. No X base on Spire: John, 25 Nov)
 	return level_y(spire_climb_base(lvl) - 1)
 
-## Spire: the column's free-standing on its X base (the first levels, before its first climb).
-func spire_free(lvl: int) -> bool:
-	return spire_climb_base(lvl) == 0
+## Spire: never free-standing (the X base is the water tower's).
+func spire_free(_lvl: int) -> bool:
+	return false
 
 var spire_col_force := -1.0      # the erection day: this much of the column's stood so far (mast_erect.gd)
 var spire_col_bare := false      # ...and its top's still bare (no platform or adaptor yet)
+var spire_col_nest := 0          # ...with the crow's nest platform on it: 1 its U (three sides), 2 the last side on too
+var spire_col_fix := 2           # ...its legs out on the pads (1), and wedged at both floors (2)
 var erect: Node3D                # Spire's first day: the X base, the column and the boom go up (mast_erect.gd)
 var _erected := false
 var _mast_keep: Node3D
 
 func spire_wedge_y(lvl: int) -> float:
-	return level_y(spire_climb_base(lvl) + 1)
+	# (before its first climb the upper wedges are in the podium roof's opening)
+	return level_y(maxi(1, spire_climb_base(lvl)) + (1 if spire_climb_base(lvl) > 0 else -1))
 
 ## Spire: the boom stands on a Putzmeister RS 850 square column (1 m square, cream, pinned sections)
 ## up through a penetration in each slab, with its delivery line and caged ladder on it (line.gd: the
@@ -1627,6 +1629,7 @@ func spire_wedge_y(lvl: int) -> float:
 ## the opening ride on it), `head_y`: the boom's head, `lvl`: which level's feet and wedges to show.
 var _col_len := -1.0
 var _col_bare := false
+var _col_nest := 0
 func _spire_tower(deck: float, head_y: float, lvl := -1) -> void:
 	lattice.visible = false
 	var m := SpireSite.mast_xz()
@@ -1655,9 +1658,11 @@ func spire_column(head_y: float, foot_y: float, wedge_y: float, feet := true, we
 		_spire_pen_rail = _pen_rail()
 		rig.add_child(_spire_pen_rail)
 	var bare := spire_col_force >= 0.0 and spire_col_bare
-	if absf(length - _col_len) > 0.005 or bare != _col_bare:
+	var nest := spire_col_nest if bare else 0
+	if absf(length - _col_len) > 0.005 or bare != _col_bare or nest != _col_nest:
 		_col_len = length
 		_col_bare = bare
+		_col_nest = nest
 		_build_column(length, bare)
 	_spire_mast.visible = length > 0.05
 	_spire_mast.position = Vector3(m.x, top - _col_len, m.y)
@@ -1698,13 +1703,18 @@ var _fix_at := Vector4.INF
 ## lifting lugs under it, and the ladder's cage over the deck. Built along +y from 0.
 func _build_column(length: float, bare := false) -> void:
 	for c in _spire_mast.get_children():
+		# (out of the tree now: a queued "Adaptor" would still hold the name, and a second build in the
+		# same frame would get an auto-renamed one that spire_adaptor() can't find)
+		_spire_mast.remove_child(c)
 		c.queue_free()
 	if bare:
 		# (a section or two stood, nothing on top yet: mast_erect.gd)
 		_spire_mast.add_child(F.box(Vector3(SpireSite.COLUMN, length, SpireSite.COLUMN), F.color_mat(Color("eceeed")), Vector3(0, length * 0.5, 0)))
 		for sx in [-0.16, 0.16]:
 			_spire_mast.add_child(F.box(Vector3(0.05, 0.3, 0.22), F.color_mat(Color("d3202f")), Vector3(sx, length + 0.15, 0)))
-		ZBoom.dress_column(_spire_mast, length, SpireSite.COLUMN * 0.5, 1.0, 1.0, "532", -100.0)
+		ZBoom.dress_column(_spire_mast, length, SpireSite.COLUMN * 0.5, 1.0, 1.0, "532", -100.0, 0.12, true, _col_nest > 0)
+		if _col_nest > 0:
+			_nest_platform(length - 1.15, _col_nest > 1)
 		return
 	var cream := F.color_mat(Color("eceeed"))       # (SCP white, as unit 531: John's photos, 24 Nov)
 	var red := F.color_mat(Color("d3202f"))
@@ -1755,7 +1765,13 @@ func _build_column(length: float, bare := false) -> void:
 		if run > 0.5:
 			_spire_mast.add_child(F.box(Vector3(0.04, run, 0.04), galv, Vector3(lx + 0.72 if sz == 0.0 else lx + 0.36, 2.0 * FH + 2.4 + run * 0.5, lz + sz)))
 	# The name down its street face, the pin holes, the red rail on the line's side
-	ZBoom.dress_column(_spire_mast, length, h, 1.0, 1.0, "532", py)
+	ZBoom.dress_column(_spire_mast, length, h, 1.0, 1.0, "532", py, 0.12, true)
+
+## The crow's nest's platform on the bare column (the erection day): its U, three sides round the column
+## with the ladder's side open (that flat side is what it lay on), and with `whole` the last side clicked in.
+func _nest_platform(py: float, whole: bool) -> void:
+	for n in ZBoom.nest_parts(py, whole):
+		_spire_mast.add_child(n)
 
 ## The feet on their pads, and the corner plates and wedges in the opening at the foot slab and at the
 ## deck above, where it's held. Only rebuilt when the climb's moved them.
@@ -1768,8 +1784,8 @@ func _set_fixings(foot_y: float, wedge_y: float, col_y: float, feet := true, wed
 	for c in _spire_fixings.get_children():
 		c.queue_free()
 	var steel := F.color_mat(Color("6d7178"))
-	var timber := F.color_mat(Color("8a6a43"))
-	var wedge := F.mat("yellow_dark")
+	var wedge := F.mat("yellow")
+	var leg_red := F.color_mat(Color("d3202f"))
 	var h := SpireSite.COLUMN * 0.5
 	if seated and free:
 		# (free-standing: bolted down on its X base, no feet out and no wedges)
@@ -1783,10 +1799,12 @@ func _set_fixings(foot_y: float, wedge_y: float, col_y: float, feet := true, wed
 	# (the feet come out of the column only where its base is on the foot slab)
 	if seated:
 		for d in [Vector2(1, 1), Vector2(1, -1), Vector2(-1, 1), Vector2(-1, -1)]:
-			var at := Vector3(d.x * (h + 0.35), foot_y, d.y * (h + 0.35))
-			_spire_fixings.add_child(F.box(Vector3(0.7, 0.08, 0.7), timber, at + Vector3(0, 0.04, 0)))
-			_spire_fixings.add_child(F.box(Vector3(0.36, 0.14, 0.36), steel, at + Vector3(0, 0.15, 0)))
-			var arm := F.beam(Vector3(d.x * (h - 0.05), foot_y + 0.5, d.y * (h - 0.05)), at + Vector3(0, 0.22, 0), 0.07, steel)
+			var at := Vector3(d.x * (h + 0.5), foot_y, d.y * (h + 0.5))
+			# (a red leg pushed out of each corner, its foot plate down on a round rubber pad: John, 25 Nov)
+			_spire_fixings.add_child(F.cylinder(0.42, 0.09, F.color_mat(Color("1d1f22")), at + Vector3(0, 0.045, 0), 16))
+			_spire_fixings.add_child(F.box(Vector3(0.4, 0.06, 0.4), leg_red, at + Vector3(0, 0.12, 0)))
+			_spire_fixings.add_child(F.box(Vector3(0.16, 0.42, 0.16), leg_red, at + Vector3(0, 0.33, 0)))
+			var arm := F.beam(Vector3(d.x * (h - 0.05), foot_y + 0.48, d.y * (h - 0.05)), at + Vector3(0, 0.48, 0), 0.1, leg_red)
 			_spire_fixings.add_child(arm)
 	for y in ([foot_y, wedge_y] if wedged else []):
 		for d in [Vector2(1, 1), Vector2(1, -1), Vector2(-1, 1), Vector2(-1, -1)]:
@@ -1794,8 +1812,8 @@ func _set_fixings(foot_y: float, wedge_y: float, col_y: float, feet := true, wed
 			var c := Vector3(d.x * (h + 0.07), y + 0.05, d.y * (h + 0.07))
 			_spire_fixings.add_child(F.box(Vector3(0.34, 0.1, 0.06), steel, c + Vector3(-d.x * 0.14, 0, 0)))
 			_spire_fixings.add_child(F.box(Vector3(0.06, 0.1, 0.34), steel, c + Vector3(0, 0, -d.y * 0.14)))
-			_spire_fixings.add_child(F.box(Vector3(0.16, 0.2, 0.05), wedge, c + Vector3(-d.x * 0.18, 0.12, 0.04 * d.y)))
-			_spire_fixings.add_child(F.box(Vector3(0.05, 0.2, 0.16), wedge, c + Vector3(0.04 * d.x, 0.12, -d.y * 0.18)))
+			_spire_fixings.add_child(F.box(Vector3(0.24, 0.34, 0.09), wedge, c + Vector3(-d.x * 0.18, 0.2, 0.06 * d.y)))
+			_spire_fixings.add_child(F.box(Vector3(0.09, 0.34, 0.24), wedge, c + Vector3(0.06 * d.x, 0.2, -d.y * 0.18)))
 
 ## The hand rail round the column's opening on the deck, with a gap where the ladder comes up.
 func _pen_rail() -> Node3D:
@@ -6204,6 +6222,8 @@ func _on_erect_done() -> void:
 		return
 	spire_col_force = -1.0
 	spire_col_bare = false
+	spire_col_nest = 0
+	spire_col_fix = 2
 	_spire_tower(level_y(k + 1) - 0.3, spire_mast_head(k))
 	line.rebuild_riser()
 	_set_phase("columns")
@@ -6230,7 +6250,11 @@ func erect_column(stood: float, bare: bool) -> void:
 	var f := spire_foot_y(0)
 	spire_col_force = stood
 	spire_col_bare = bare
-	spire_column(f + stood + 0.62, f, f, false, false)
+	spire_column(f + stood + 0.62, f, spire_wedge_y(0), spire_col_fix >= 1, spire_col_fix >= 2)
+
+## ...and the deck the day's worked from (Spire: the podium's roof; the column's foot is a floor under it).
+func erect_deck_y() -> float:
+	return 0.0 if tutorial else level_y(0)
 
 ## The water tower: the boom's free-standing column, 11 m + 9 m on the X base (unit 531's set-up).
 const TUT_COL := 20.0
@@ -6301,7 +6325,7 @@ func _tut_column(length: float, bare: bool, base: bool) -> void:
 			hy2 += 0.9
 		for sz in [-0.42, 0.0, 0.42]:
 			_tut_col.add_child(F.box(Vector3(0.04, py - 2.5, 0.04), galv, Vector3(lx + 0.72 if sz == 0.0 else lx + 0.36, 2.5 + (py - 2.5) * 0.5, 0.12 + sz)))
-	ZBoom.dress_column(_tut_col, length, 0.5, 1.0, 1.0, "531", py)
+	ZBoom.dress_column(_tut_col, length, 0.5, 1.0, 1.0, "531", py, 0.12, false, not bare or length > TUT_COL - 0.1)
 
 func _on_mast_done() -> void:
 	_spire_tower(level_y(k + 1) - 0.3, spire_mast_head(k))
@@ -9172,7 +9196,12 @@ func _update_camera_views(delta: float) -> void:
 		var gap: float = (focus - (mf[0] as Vector3)).length() if not main_follow.is_empty() else 0.0
 		# (someone a long way from it, down on the street or halfway up the ladder, keeps their own
 		# camera: half way between them and the job shows neither. John, 22 Nov)
-		if gap < MAST_VIEW_GAP:
+		if mf.size() > 3 and bool(mf[3]):
+			# (the install day's legs, pads and wedges on the floor below: right in on them, whoever's followed)
+			focus = mf[0]
+			dist = float(mf[1])
+			mast_view = bool(mf[2])
+		elif gap < MAST_VIEW_GAP:
 			focus = focus.lerp(mf[0], 0.6 if not main_follow.is_empty() else 1.0)
 			dist = clampf(maxf(float(mf[1]), gap * 1.1 + spread * 1.2 + 8.0), 12.0, 44.0)
 			mast_view = bool(mf[2])

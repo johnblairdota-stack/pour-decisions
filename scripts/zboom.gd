@@ -49,7 +49,15 @@ static func white_kit() -> Dictionary:
 ## Where a column `length` m tall is pinned together, m up from its foot. It's made of 11 m, 9 m and
 ## 2 m sections (John, 24 Nov): an 11 at the bottom, a 9 on that, then 2 m make-up pieces, with the
 ## foot's own pins just above the base as on unit 531.
-static func joints(length: float) -> Array:
+static func joints(length: float, top_down := false) -> Array:
+	if top_down:
+		# (Spire's column in its penetration: the 9 m crow's nest section on top, an 11 m under it, a
+		# short foot section making up the rest)
+		var down: Array = []
+		for d in [20.0, 9.0]:
+			if length - d > 1.4:
+				down.append(length - d)
+		return down
 	var out: Array = [0.9]
 	var y := 0.0
 	for sec in [11.0, 9.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0]:
@@ -148,11 +156,11 @@ static func section(length: float, h: float) -> Node3D:
 ## name between two red bars and the unit number on the face looking `face` (+1/-1 along z), the red
 ## rail the delivery line clamps to on the side `side` (+1/-1 along x), and the hose and cable bundle
 ## coiled on the platform (`plat_y`). `col`: the column, built along +y from 0, `h` half its width.
-static func dress_column(col: Node3D, length: float, h: float, face: float, side: float, unit: String, plat_y: float, line_z := 0.12) -> void:
+static func dress_column(col: Node3D, length: float, h: float, face: float, side: float, unit: String, plat_y: float, line_z := 0.12, top_down := false, logo := true) -> void:
 	var red := F.color_mat(Color("d3202f"))
 	var black := F.color_mat(Color("1d2126"))
 	var seam := F.color_mat(Color("aeb3b3"))
-	for y in joints(length):
+	for y in joints(length, top_down):
 		col.add_child(F.box(Vector3(h * 2.0 + 0.012, 0.025, h * 2.0 + 0.012), seam, Vector3(0, y, 0)))
 		for dy in [-0.2, 0.2]:
 			for a in [-0.3, 0.3]:
@@ -160,8 +168,9 @@ static func dress_column(col: Node3D, length: float, h: float, face: float, side
 					col.add_child(F.box(Vector3(0.1, 0.1, 0.02), black, Vector3(a, y + dy, f * (h + 0.006))))
 					col.add_child(F.box(Vector3(0.02, 0.1, 0.1), black, Vector3(f * (h + 0.006), y + dy, a)))
 	# The name, read down the column
+	# (only the crow's nest section carries it: John, 25 Nov)
 	var name_y := length - 4.2
-	if name_y > 3.0:
+	if name_y > 3.0 and logo:
 		var txt := "\n".join(Settings.brand("pumper").split(""))
 		var lab := Label3D.new()
 		lab.text = txt
@@ -191,6 +200,28 @@ static func dress_column(col: Node3D, length: float, h: float, face: float, side
 	# The bundle on the platform
 	var coil := F.cylinder(0.3, 0.22, black, Vector3(-side * 0.75, plat_y + 0.16, face * 0.8), 10)
 	col.add_child(coil)
+
+## The crow's nest's work platform round the column's top, at `py` up it: its U (chequer plate and rails
+## on three sides, the -x side open: the flat side the section lies on), and with `whole` the last side too.
+static func nest_parts(py: float, whole: bool) -> Array:
+	var out: Array = []
+	var grate := F.color_mat(Color("e3e5e2"))
+	var kick := F.color_mat(Color("c3c7c6"))
+	var x0 := -1.0 if whole else -0.5
+	var x1 := 1.5
+	var w := 2.5
+	out.append(F.box(Vector3(x1 - x0, 0.08, w), grate, Vector3((x0 + x1) * 0.5, py, 0)))
+	for sz in [-1.0, 1.0]:
+		for hy in [0.55, 1.1]:
+			out.append(F.box(Vector3(x1 - x0, 0.06, 0.06), grate, Vector3((x0 + x1) * 0.5, py + hy, sz * w * 0.5)))
+		out.append(F.box(Vector3(x1 - x0, 0.15, 0.06), kick, Vector3((x0 + x1) * 0.5, py + 0.08, sz * w * 0.5)))
+		for px in [x0, x1]:
+			out.append(F.box(Vector3(0.06, 1.1, 0.06), grate, Vector3(px, py + 0.55, sz * w * 0.5)))
+	for px in ([x1, x0] if whole else [x1]):
+		for hy in [0.55, 1.1]:
+			out.append(F.box(Vector3(0.06, 0.06, w), grate, Vector3(px, py + hy, 0)))
+		out.append(F.box(Vector3(0.06, 0.15, w), kick, Vector3(px, py + 0.08, 0)))
+	return out
 
 static func reach() -> float:
 	return L[0] + L[1] + L[2] + L[3]

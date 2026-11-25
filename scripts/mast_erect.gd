@@ -41,6 +41,8 @@ var foot := 0.0             # the roof it stands on
 var to_head := 0.0          # the boom's head once it's up
 var stood := 0.0            # m of column stood and fixed
 var _absent := {}
+var pen := false            # Spire: the column's lowered into its penetration, no X base (John, 25 Nov)
+var col_foot := 0.0         # the slab its legs sit on (Spire: a floor under the roof the day's worked from)
 var zn := "deck"            # where the work is: Spire's podium roof ("deck"), the water tower's yard ("ground")
 
 # The crane (climb.gd's, borrowed)
@@ -77,7 +79,8 @@ func _ready() -> void:
 # ------------------------------------------------------------------ places
 
 func _m() -> Vector3:
-	return game.erect_foot()
+	var m: Vector3 = game.erect_foot()
+	return Vector3(m.x, foot, m.z)
 
 ## The nearest spot on the roof's slab to `p`.
 func _on_deck(p: Vector3) -> Vector3:
@@ -99,11 +102,44 @@ func _lay(key: String) -> Vector3:
 		"boom": Vector3(9.5, 0, -1.2), "dog": Vector3(2.8, 0, -1.8), "remote": Vector3(4.2, 0, -2.4)}
 	return (water if zn == "ground" else spire)[key]
 
+## Spire: the roof the kit's laid out on, as bare grey concrete, so the white column, base and boom
+## read against it (the model's slab is near white: John, 25 Nov).
+func _roof_slab() -> void:
+	var poly: PackedVector2Array = SpireSite.poly("plate")
+	var tris := Geometry2D.triangulate_polygon(poly)
+	if tris.is_empty():
+		return
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	st.set_normal(Vector3.UP)
+	for i in tris:
+		var q := poly[i]
+		st.add_vertex(Vector3(q.x, 0, q.y))
+	var mi := MeshInstance3D.new()
+	mi.mesh = st.commit()
+	mi.material_override = F.color_mat(Color("7c807d"))
+	mi.position.y = foot + 0.03
+	add_child(mi)
+
 func _base_rest() -> Vector3:
 	return _on_deck(_m() + _lay("base"))
 
-func _sec_rest(i: int) -> Vector3:
+func _sec_rest(i: int, l := 11.0) -> Vector3:
 	var p := _on_deck(_m() + _lay("sec") + _lay("sec_dz") * i)
+	if zn == "deck":
+		# (a section lies from here out to +x: slid back along the roof till the whole length, and a
+		# metre past each end, is inside the edge scaffold)
+		for back in 40:
+			var q := p - Vector3(0.5 * back, 0, 0)
+			var ok := true
+			for t in [-1.0, 0.0, l * 0.25, l * 0.5, l * 0.75, l, l + 1.0]:
+				for dz in [-0.7, 0.7]:
+					var e := Vector3(q.x + t, foot, q.z + dz)
+					if not game.on_pad(e):
+						ok = false
+			if ok:
+				p = q
+				break
 	return Vector3(p.x, foot + LIE_Y, p.z)
 
 func _adaptor_rest() -> Vector3:
@@ -133,7 +169,7 @@ func _deck_wait(role: String) -> Vector3:
 	return _on_deck(_m() + o)
 
 func _col_top() -> Vector3:
-	return _m() + Vector3(0, stood, 0)
+	return Vector3(_m().x, col_foot + stood, _m().z)
 
 # ------------------------------------------------------------------ the day
 
@@ -141,14 +177,19 @@ func start() -> void:
 	var g = game
 	active = true
 	zn = "ground" if g.tutorial else "deck"
-	foot = g.erect_foot().y
+	pen = not g.tutorial
+	foot = g.erect_deck_y()
+	col_foot = g.erect_foot().y
 	to_head = g.erect_head_y()
 	stood = 0.0
 	_absent = {}
 	_col_slung = false
 	_load = null
 	_hold_n = 0
-	var length: float = to_head - 0.62 - foot
+	var length: float = to_head - 0.62 - col_foot
+	if pen:
+		_start_pen(length)
+		return
 	# (an 11 m section on the base, then a 9 m: ZBoom.joints)
 	var lens: Array = []
 	var prev := 0.0
@@ -177,6 +218,8 @@ func start() -> void:
 	_hold = ZBoom.xbase_hold(0)
 	_hold.position = _m()
 	add_child(_hold)
+	if zn == "deck":
+		_roof_slab()
 	_base = ZBoom.xbase()
 	_base.position = _base_rest() + Vector3(0, 0.1, 0)
 	_base.set_meta("att", [Vector3(0.7, 0.5, 0.7), Vector3(-0.7, 0.5, 0.7), Vector3(0.7, 0.5, -0.7), Vector3(-0.7, 0.5, -0.7)])
@@ -184,7 +227,7 @@ func start() -> void:
 	_secs = []
 	for i in lens.size():
 		var n := ZBoom.section(float(lens[i]), SpireSite.COLUMN * 0.5)
-		n.position = _sec_rest(i)
+		n.position = _sec_rest(i, float(lens[i]))
 		n.rotation.z = PI * 0.5
 		n.set_meta("len", float(lens[i]))
 		n.set_meta("att", [Vector3(0.16, 0.25, 0), Vector3(-0.16, 0.25, 0)])
@@ -212,6 +255,143 @@ func start() -> void:
 		if g.crew.crew.get(role) != null:
 			lines.append("%s · %s" % [who_text(role), JOBS[role]])
 	g.hud.job_intro("ERECTION DAY · WHO DOES WHAT", "\n".join(lines), UI.GOLD, 14.0)
+
+# ------------------------------------------------------------------ Spire: into the penetration
+
+var _nest_part: Node3D      # the crow's nest's loose last side, waiting on the roof
+var _hold_att: Array = []   # where the slings are while the crane holds a lying length's weight at a joint
+var _col_lie: Node3D        # the whole column lying on the roof, its sections in a line, top at its origin
+var _joint_at: Array = []   # where each lying joint is on the roof
+const GAP := 0.45           # m the lying sections are apart till they're pinned
+
+## Spire's day: the sections are pinned together lying on the roof (all of it at floor level), the crane
+## stands the whole column up and lowers it down through the opening while a rigger at the opening radios
+## it to its mark, its red legs go out onto the rubber pads on the floor below and it's wedged at both
+## floors; then the crow's nest's last side, the adaptor, the boom, the test.
+func _start_pen(length: float) -> void:
+	var g = game
+	var lens: Array = []        # from the top down: the crow's nest section first
+	var prev := length
+	var js: Array = ZBoom.joints(length, true)
+	js.reverse()
+	for jy in js:
+		lens.append(prev - float(jy))
+		prev = float(jy)
+	lens.append(prev)
+	g.spire_col_nest = 0
+	g.spire_col_fix = 0
+	g.erect_column(0.0, true)
+	g.line.rebuild_riser()
+	g.climb.park_stage = "done"
+	g.climb.park_slew = 1.0
+	g.climb.park_fold = 1.0
+	g.head.position = _boom_rest()
+	_hold = null
+	_base = null
+	_roof_slab()
+	# The column, lying: the crow's nest section on the flat side of its U platform
+	_col_lie = Node3D.new()
+	_col_lie.position = _sec_rest(0, length + GAP * (lens.size() - 1))
+	_col_lie.rotation.z = PI * 0.5
+	_col_lie.set_meta("len", length)
+	_col_lie.set_meta("att", [Vector3(0.16, 0.25, 0), Vector3(-0.16, 0.25, 0)])
+	add_child(_col_lie)
+	_secs = []
+	_joint_at = []
+	var cum := 0.0
+	for i in lens.size():
+		var n := ZBoom.section(float(lens[i]), SpireSite.COLUMN * 0.5)
+		n.position.y = -(cum + GAP * i)
+		n.set_meta("y", -cum)
+		_col_lie.add_child(n)
+		if i == 0:
+			for part in ZBoom.nest_parts(-1.15, false):
+				n.add_child(part)
+		_secs.append({"node": n, "len": float(lens[i])})
+		cum += float(lens[i])
+		if i < lens.size() - 1:
+			_joint_at.append(_col_lie.position + Vector3(cum + GAP * i, 0, 0))
+	# The crow's nest's last side, upright on the roof (on dunnage) till it's lifted on
+	_nest_part = Node3D.new()
+	var grate := F.color_mat(Color("e3e5e2"))
+	_nest_part.add_child(F.box(Vector3(0.5, 0.08, 2.5), grate))
+	for hy in [0.55, 1.1]:
+		_nest_part.add_child(F.box(Vector3(0.06, 0.06, 2.5), grate, Vector3(-0.25, hy, 0)))
+	_nest_part.add_child(F.box(Vector3(0.06, 0.15, 2.5), F.color_mat(Color("c3c7c6")), Vector3(-0.25, 0.08, 0)))
+	for sz in [-1.25, 0.0, 1.25]:
+		_nest_part.add_child(F.box(Vector3(0.06, 1.1, 0.06), grate, Vector3(-0.25, 0.55, sz)))
+	for sz in [-0.8, 0.8]:
+		_nest_part.add_child(F.box(Vector3(0.9, 0.1, 0.1), F.color_mat(Color("8a6a43")), Vector3(0, -0.09, sz)))
+	var np := _on_deck(_m() + _lay("adaptor") + Vector3(0, 0, 3.0))
+	_nest_part.position = Vector3(np.x, foot + 0.18, np.z)
+	_nest_part.set_meta("att", [Vector3(0, 0.1, 1.0), Vector3(0, 0.1, -1.0)])
+	add_child(_nest_part)
+	_adaptor = Node3D.new()
+	_adaptor.add_child(F.box(Vector3(1.2, 0.26, 1.2), F.color_mat(Color("eceeed"))))
+	for sx in [-0.42, 0.42]:
+		for sz in [-0.42, 0.42]:
+			_adaptor.add_child(F.box(Vector3(0.1, 0.32, 0.24), F.color_mat(Color("d3202f")), Vector3(sx, 0.29, sz)))
+	_adaptor.position = _adaptor_rest()
+	_adaptor.set_meta("att", [Vector3(0.45, 0.3, 0.0), Vector3(-0.45, 0.3, 0.0)])
+	add_child(_adaptor)
+	g.head.set_meta("att", [Vector3(0.7, 1.0, 0.5), Vector3(-0.7, 1.0, 0.5), Vector3(0.7, 1.0, -0.5), Vector3(-0.7, 1.0, -0.5)])
+	_saved_borrow = g.climb.borrow
+	g.climb.borrow = Callable(self, "_crane")
+	hook_pos = Vector3(g.climb.trolley_xz.x, g.climb.CRANE_H - g.climb.cable_len, g.climb.trolley_xz.y)
+	_way = []
+	_build_steps_pen(lens, length)
+	si = -1
+	_next()
+	g.hud.toast("Install day: %.0f m of column goes down into the penetration, then the boom" % length, 3.5)
+	var lines: Array = []
+	for role in ["boom", "pump", "poker", "hose", "line", "screed"]:
+		if g.crew.crew.get(role) != null:
+			lines.append("%s · %s" % [who_text(role), JOBS_PEN[role]])
+	g.hud.job_intro("INSTALL DAY · WHO DOES WHAT", "\n".join(lines), UI.GOLD, 14.0)
+
+const JOBS_PEN := {
+	"boom": "tests the boom on the remote: unfold, swing, emergency stop",
+	"pump": "pins the sections together on the roof, then the crow's nest's last side, the adaptor's 4 pins and the boom's 4, harnessed",
+	"poker": "stands at the opening and radios the crane up and down to the mark, pushes the legs out onto the pads, wedges it",
+	"hose": "clamps the pipe and ladder across each joint, fits the bend and the power lead",
+	"line": "slings each load for the crane: the lengths at each joint, the column, the crow's nest side, adaptor, boom",
+	"screed": "radios the crane to hold the weight at each joint, and the crow's nest side, the adaptor and the boom down onto their seats"}
+
+func _build_steps_pen(lens: Array, length: float) -> void:
+	steps = []
+	var m := _m()
+	var top := col_foot + length
+	var open_at := _on_deck(m + Vector3(1.5, 0, 1.3))
+	# 1. pinned together lying on the roof: no one works off the hook
+	for j in _joint_at.size():
+		var at: Vector3 = _joint_at[j]
+		var spot := _on_deck(Vector3(at.x + GAP * 0.5, foot, at.z + 1.0))
+		# (the crane takes the next length's weight, on the dogger's radio, so the holes line up for the pins: John, 25 Nov)
+		steps.append(_job("strop_joint%d" % j, 0, "line", "sling the next length", 2, 0.6, "Joint %d of %d: sling the next length" % [j + 1, _joint_at.size()], spot + Vector3(1.6, 0, 0)))
+		steps.append(_job("hold_joint%d" % j, 0, "screed", "hold: radio the crane to take the weight", 1, 2.4, "Dogger: crane holds the weight at the joint", _on_deck(Vector3(at.x - 1.2, foot, at.z + 2.2))))
+		steps.append(_job("pin_joint%d" % j, 0, "pump", "drive a joint pin", 4, 0.5, "Joint %d of %d: pins in, on the roof" % [j + 1, _joint_at.size()], spot))
+		steps.append(_job("pipe_joint%d" % j, 0, "hose", "clamp the pipe and ladder", 2, 0.7, "Clamp pipe and ladder over the joint", spot + Vector3(0.9, 0, 0)))
+	# 2. stood up and lowered in
+	var seat := Vector3(m.x, top, m.z)
+	var drop := (foot - col_foot) + 1.0
+	steps.append(_job("sling_col", 1, "line", "shackle its two lugs", 2, 0.6, "Sling the column by its top lugs", _on_deck(_col_lie.position + Vector3(-0.9, -LIE_Y, 0.6))))
+	steps.append({"id": "fly_col", "kind": "fly", "stage": 1, "load": _col_lie, "seat": seat, "hover": drop, "say": "Crane stands the column up over the opening"})
+	steps.append({"id": "land_col", "kind": "land", "stage": 1, "role": "poker", "zone": zn, "at": open_at, "verb": "hold: radio it down to the mark", "n": 1, "t": 5.0, "load": _col_lie, "seat": seat, "hover": drop,
+		"say": "At the opening: radio it down to the mark"})
+	# 3. legs and wedges
+	steps.append(_job("legs", 2, "poker", "push a leg out onto its pad", 4, 0.7, "Floor below: legs out onto the rubber pads", null, col_foot + 0.2))
+	steps.append(_job("wedge_low", 2, "poker", "drive a corner wedge", 4, 0.5, "Corner plates and wedges, floor below", null, col_foot + 0.2))
+	steps.append(_job("wedge_top", 2, "hose", "drive a corner wedge", 4, 0.5, "Corner plates and wedges at the roof", open_at))
+	steps.append(_job("unsling_col", 2, "pump", "let the hook go", 2, 0.6, "Up its ladder: hook off", null, top - 1.13))
+	# 4. the crow's nest
+	var nest_seat := Vector3(m.x - 0.75, top - 1.15, m.z)
+	steps.append(_job("sling_nest", 3, "line", "sling the crow's nest side", 2, 0.6, "Sling the crow's nest's last side", _on_deck(_nest_part.position + Vector3(0, 0, 1.3))))
+	steps.append({"id": "fly_nest", "kind": "fly", "stage": 3, "load": _nest_part, "seat": nest_seat, "say": "Crane lifts the crow's nest side"})
+	steps.append({"id": "land_nest", "kind": "land", "stage": 3, "role": "screed", "zone": zn, "at": _dog_spot(), "verb": "hold: radio it down", "n": 1, "t": 2.2, "load": _nest_part, "seat": nest_seat, "say": "Radio it in to the platform"})
+	steps.append(_job("nest", 3, "pump", "harness on, click the last side in", 2, 0.9, "Harness on: crow's nest, last side on", null, top - 1.13))
+	# 5. the adaptor, 6. the boom, 7. plug in, 8. the test: as the water tower's
+	_steps_top(4, m, top)
+	_stage_names = ["JOIN ON ROOF", "LOWER IN", "LEGS + WEDGES", "CROW'S NEST", "ADAPTOR", "BOOM ON", "PLUG IN", "TEST"]
 
 ## Who does what, by trade (trades.gd CLIMB_SEAT "erect"): doggers sling and call the loads, riggers
 ## nut, bolt, pin and let the hook go, pumpies fit the pipe, the bend and the power and test the boom.
@@ -255,7 +435,7 @@ func _build_steps(lens: Array) -> void:
 		var n: Node3D = _secs[i]["node"]
 		var seat := m + Vector3(0, cum + l, 0)
 		var st := 1 + i
-		var rest := _sec_rest(i)
+		var rest := _sec_rest(i, float(lens[i]))
 		steps.append(_job("sling_sec%d" % i, st, "line", "shackle its two lugs", 2, 0.6, "Sling the %s" % names[i], _on_deck(Vector3(rest.x - 0.9, foot, rest.z + 0.3))))
 		steps.append({"id": "fly_sec%d" % i, "kind": "fly", "stage": st, "load": n, "seat": seat, "say": "Crane stands the %s up" % names[i]})
 		steps.append({"id": "land_sec%d" % i, "kind": "land", "stage": st, "role": "screed", "zone": zn, "at": _dog_spot(), "verb": "hold: radio it down", "n": 1, "t": 2.6, "load": n, "seat": seat,
@@ -269,6 +449,14 @@ func _build_steps(lens: Array) -> void:
 		cum += l
 	var top := foot + cum
 	var st2 := 1 + lens.size()
+	_steps_top(st2, m, top)
+	_stage_names = ["X BASE"]
+	for nm in names:
+		_stage_names.append(String(nm).to_upper())
+	_stage_names.append_array(["ADAPTOR", "BOOM ON", "PLUG IN", "TEST"])
+
+## The adaptor, the boom, plugging in and the mobilisation test, from stage `st2`: the same on any column.
+func _steps_top(st2: int, m: Vector3, top: float) -> void:
 	# 3. the adaptor
 	steps.append(_job("sling_ad", st2, "line", "sling the adaptor", 2, 0.6, "Sling the adaptor", _adaptor_rest() + Vector3(0.2, -0.2, 1.1)))
 	steps.append({"id": "fly_ad", "kind": "fly", "stage": st2, "load": _adaptor, "seat": Vector3(m.x, top + 0.13, m.z), "say": "Crane lifts the adaptor"})
@@ -289,10 +477,6 @@ func _build_steps(lens: Array) -> void:
 	steps.append({"id": "test_slew", "kind": "test", "stage": st2 + 3, "role": "boom", "zone": zn, "at": _remote_spot(), "verb": "hold: swing it round", "n": 1, "t": 4.0, "say": "Test: swing it round"})
 	steps.append(_job("test_estop", st2 + 3, "boom", "hit the emergency stop", 1, 0.5, "Test: emergency stop", _remote_spot()))
 	steps.append(_job("test_look", st2 + 3, "pump", "check pins, hoses, leaks", 3, 0.8, "Check pins, hoses, leaks", null, top - 1.13))
-	_stage_names = ["X BASE"]
-	for nm in names:
-		_stage_names.append(String(nm).to_upper())
-	_stage_names.append_array(["ADAPTOR", "BOOM ON", "PLUG IN", "TEST"])
 
 var _stage_names: Array = []
 
@@ -323,6 +507,9 @@ func _next() -> void:
 	if game.autotest:
 		print("[autotest]   mast erect: %s (stood %.1f m) at %.0fs" % [step, stood, game.phase_t])
 	game.line.extra_stops = [s["y"]] if s.get("zone", "") == "ladder" else []
+	if String(s["id"]).begins_with("strop_joint"):
+		var jo: Vector3 = _joint_at[int(String(s["id"]).right(1))] + Vector3(GAP + 0.8, 2.8, 0)
+		_way = [Vector3(hook_pos.x, maxf(hook_pos.y, jo.y + 6.0), hook_pos.z), Vector3(jo.x, maxf(hook_pos.y, jo.y + 6.0), jo.z), jo]
 	if String(s["id"]).begins_with("sling_") and _load == null and not _col_slung:
 		# (the hook comes over to it while it's slung)
 		var to := _hook_on(steps[si + 1]["load"])
@@ -337,7 +524,8 @@ func _next() -> void:
 			_load_off = load.global_position - _hook_on(load)
 			hook_pos = _hook_on(load)
 		var lift: float = float(load.get_meta("len", 0.0))
-		_way = [Vector3(hook_pos.x, maxf(clear, hook_pos.y + lift), hook_pos.z), Vector3(seat.x, clear, seat.z), _seat_hook(load, seat) + Vector3(0, HOVER, 0)]
+		var up := maxf(clear, hook_pos.y + lift)
+		_way = [Vector3(hook_pos.x, up, hook_pos.z), Vector3(seat.x, up, seat.z), _seat_hook(load, seat) + Vector3(0, float(s.get("hover", HOVER)), 0)]
 
 ## Where the hook hangs over `load` as it lies.
 func _hook_on(load: Node3D) -> Vector3:
@@ -359,6 +547,52 @@ func _done() -> void:
 		hook_pos = _hook_on(load)
 		_load_off = load.global_position - hook_pos
 		g.sfx.hit("clank")
+	elif id.begins_with("strop_joint"):
+		var ja: Vector3 = _joint_at[int(id.right(1))]
+		_hold_att = [ja + Vector3(GAP + 0.8, 0.5, 0.25), ja + Vector3(GAP + 0.8, 0.5, -0.25)]
+		_way = []
+		hook_pos = ja + Vector3(GAP + 0.8, 2.8, 0)
+		g.sfx.hit("clank")
+	elif id.begins_with("hold_joint"):
+		g.pop("WEIGHT'S ON", hook_pos + Vector3(0, 0.8, 0), Color("7cd992"))
+	elif id.begins_with("pipe_joint"):
+		_hold_att = []
+		_way = [hook_pos + Vector3(0, 6.0, 0)]
+	elif id == "nest":
+		_load = null
+		_nest_part.visible = false
+		_way = [hook_pos + Vector3(0, 6.0, 0)]
+		g.spire_col_nest = 2
+		g.erect_column(stood, true)
+		g.sfx.hit("clank")
+	elif id.begins_with("pin_joint"):
+		# (the next section's drawn up tight to the one above it)
+		var j := int(id.right(1))
+		for i in range(j + 1, _secs.size()):
+			var n: Node3D = _secs[i]["node"]
+			n.position.y += GAP
+		g.sfx.hit("clank")
+	elif id == "land_col":
+		stood = float(_col_lie.get_meta("len"))
+		_col_lie.visible = false
+		_load = null
+		_col_slung = true
+		hook_pos = _col_top() + Vector3(0, 2.2, 0)
+		g.spire_col_nest = 1
+		g.erect_column(stood, true)
+		g.line.rebuild_riser()
+		g.sfx.hit("thunk")
+		g.pop("ON THE MARK", _m() + Vector3(1.5, 1.6, 0), Color("7cd992"))
+	elif id == "legs":
+		g.spire_col_fix = 1
+		g.erect_column(stood, true)
+		g.sfx.hit("clank")
+	elif id == "wedge_top":
+		g.spire_col_fix = 2
+		g.erect_column(stood, true)
+	elif id == "unsling_col":
+		_col_slung = false
+		_way = [hook_pos + Vector3(0, 8.0, 0)]
 	elif id == "pack_base":
 		pass
 	elif id == "unsling_base":
@@ -416,10 +650,17 @@ func _finish() -> void:
 	for d in _secs:
 		(d["node"] as Node).queue_free()
 	_secs = []
+	if _col_lie != null:
+		_col_lie.queue_free()
+		_col_lie = null
+	if _nest_part != null:
+		_nest_part.queue_free()
+		_nest_part = null
+	_hold_att = []
 	g.climb.park_stage = ""
 	g.climb.park_slew = 0.0
 	g.climb.park_fold = 0.0
-	g.hud.toast("The boom's up, free-standing on its X base, and tested.", 3.0)
+	g.hud.toast("The boom's up, on its legs in the penetration, and tested." if pen else "The boom's up, free-standing on its X base, and tested.", 3.0)
 	g.score.award(g.crew.crew.get("pump"), 30, "Erection day")
 	finished.emit()
 
@@ -428,6 +669,8 @@ func _finish() -> void:
 func update(delta: float) -> void:
 	if not active:
 		return
+	# (the building's opened up along the column while the work's on the floor below)
+	open_air = not bool(focus()[2])
 	step_t += delta
 	var s: Dictionary = steps[si]
 	match String(s["kind"]):
@@ -437,7 +680,7 @@ func update(delta: float) -> void:
 		"land":
 			# (down the last metre as the dogger radios it)
 			var seat_hook := _seat_hook(s["load"], s["seat"])
-			hook_pos = seat_hook + Vector3(0, HOVER * (1.0 - prog), 0)
+			hook_pos = seat_hook + Vector3(0, float(s.get("hover", HOVER)) * (1.0 - prog), 0)
 	# A section comes up off the roof by its top, its foot trailing till it hangs plumb
 	if _load != null and _load.has_meta("len"):
 		var l: float = _load.get_meta("len")
@@ -582,6 +825,8 @@ func _draw() -> void:
 	if _load != null:
 		for a in _load.get_meta("att", []):
 			att.append(_load.to_global(a))
+	elif not _hold_att.is_empty():
+		att = _hold_att
 	elif _col_slung:
 		var t := _col_top()
 		att = [t + Vector3(0.16, 0.25, 0), t + Vector3(-0.16, 0.25, 0)]
@@ -693,5 +938,6 @@ func focus() -> Array:
 		"test":
 			return [Vector3(m.x, (foot + to_head) * 0.5 + 4.0, m.z), 40.0, false]
 	if String(s["zone"]) == "ladder":
-		return [Vector3(m.x, float(s["y"]) + 1.0, m.z), 16.0, false]
+		var inside: bool = float(s["y"]) < foot - 1.0      # (the floor below: the legs, the pads, the wedges)
+		return [Vector3(m.x, float(s["y"]) + 0.8, m.z), 9.0 if inside else 16.0, inside, inside]
 	return [(s["at"] as Vector3) + Vector3(0, 1.5, 0), 16.0, false]
