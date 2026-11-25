@@ -11,6 +11,7 @@ Godot 4.7 (Forward+, standard build, GDScript only), couch co-op concrete pours.
 - Dogging: slew left and right are always from the crane operator's point of view. Signal text belongs in the arrows, not floating.
 - Real site practice wins. The slump test follows AS 1012.3.1 (scripts/slump.gd).
 - The recurring critique themes are what we're fixing first: bots too perfect, no difficulty curve, idle jobs, text too small for a TV, colour-only marking, and the game making decisions for the player.
+- Those themes are scored in `docs/scoreboard.md`. A core-loop PR says which row it moves and updates that row in the same PR.
 
 ## How work flows
 - One PR per change. John merges each PR himself by saying "merge N". Never merge without that.
