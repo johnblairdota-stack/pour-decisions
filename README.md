@@ -114,7 +114,7 @@ Every menu keeps casual players moving the same way: one gold default that any p
 
 ![Slab report](docs/screenshots/report.png)
 
-During the pour the crew bar in the bottom left shows all six hats; the one the game's waiting on glows gold. If a person doesn't act, 8 seconds on a crewmate calls them by name, and at 20 seconds the leading hand does just that one step for them; pressing anything takes it back. Keyboard P1 can swap jobs mid-game with **1–6**, and keeps their character.
+During the pour the crew bar in the bottom left shows all six hats; the one the game's waiting on glows gold. If a person doesn't act, 8 seconds on a crewmate calls them by name, and at 20 seconds the leading hand does just that one step for them; pressing anything takes it back. Keyboard P1 can swap jobs mid-game with **1–6**, and keeps their character. **Your trade's tasks are yours to take:** walk up to a trade-mate bot at its task (a pumpy at the boom remote, end hose or pump panel; a concreter on the poker, the screed or at the truck bay) and press **Y**. The bot says "All yours" and goes to the job you left, so nothing's ever left empty. Each task spot shows who's on it, a P tag or the bot's name.
 
 Every job belongs to a real site trade, and the game names the trade first ("Pumpy · Line hand"). A tower pour has three **pumpies** (boom op, line hand, pump op) and three **concreters** (poker hand, screeder, and the gate hand on the truck bay and slump tests).
 

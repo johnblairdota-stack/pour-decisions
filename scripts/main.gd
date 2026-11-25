@@ -38,6 +38,7 @@ const PhonesScript := preload("res://scripts/phones.gd")
 const SelectScript := preload("res://scripts/select.gd")
 const CrewScript := preload("res://scripts/crew.gd")
 const BotsScript := preload("res://scripts/bots.gd")
+const TradeSwap := preload("res://scripts/trade_swap.gd")
 const ScoreScript := preload("res://scripts/score.gd")
 const SignsScript := preload("res://scripts/signs.gd")
 const ScreedScript := preload("res://scripts/screed.gd")
@@ -223,6 +224,7 @@ var poker
 var screed
 var crew
 var bots
+var trade_swap               # trade_swap.gd: Y takes a trade-mate bot's task
 var score
 var signs
 var urgent := {}                 # role -> how urgent its most pressing job is (0..2)
@@ -399,6 +401,9 @@ func _ready() -> void:
 	bots = BotsScript.new()
 	add_child(bots)
 	bots.setup(self)
+	trade_swap = TradeSwap.new()
+	add_child(trade_swap)
+	trade_swap.setup(self)
 	if autotest:
 		print("[autotest] started")
 		# `--human=<job>`: leave that job to an idle "person", to test the rest
@@ -5454,6 +5459,8 @@ func _process(delta: float) -> void:
 				_changeover.handle(p, delta)
 		elif phase != "sign":
 			_handle_player(p, delta)
+			if not p.bot:
+				trade_swap.offer(p, delta)
 		p.end_frame()
 	perf.mark("players")
 	if autotest and phase == "columns" and k == 0 and OS.get_cmdline_user_args().has("--skip") and kit == "tower":
@@ -5470,6 +5477,7 @@ func _process(delta: float) -> void:
 		_dev_skip(_start_level - 1)
 	_clear_trucks_of_people()
 	bots.tick(delta)
+	trade_swap.tick()
 	perf.mark("bots")
 	if climb.active:
 		climb.bot(delta)
