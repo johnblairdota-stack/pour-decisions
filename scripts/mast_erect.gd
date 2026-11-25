@@ -1,12 +1,12 @@
 ## Spire's first day: the placing boom goes up. It stands free on its X base ("crucifix") on the
 ## podium's roof till the first climb, as SCP's unit 531 does (John's photos, 24 Nov 2026):
-##   1. X BASE    the truck hand slings it, the crane flies it over the cast-in rods, the dogman calls
+##   1. X BASE    a dogger slings it, the crane flies it over the cast-in rods, the dogger radios
 ##                it down, it's packed level on timber and the clamp plates are nutted down
 ##   2. COLUMN    the 11 m section, then the 9 m: slung lying down, stood up on the hook, called down,
 ##                bolted to the base's flange (M30s) or pinned to the section under it, and the rigger
 ##                goes up its ladder to let the hook go. The pipe in its face is clamped on as it goes
 ##   3. ADAPTOR   on the crane, 4 pins
-##   4. BOOM      folded, on four chains: 8 pins, and the rigger's out on it to unchain it
+##   4. BOOM      folded, on four chains: 4 pins (like the adaptor), and the rigger's out on it to unchain it
 ##   5. PLUG IN   the bend onto the foot of the line, the power lead in
 ##   6. TEST      the mobilisation test: unfold it, swing it, and the emergency stop
 ## Every step's a row in `steps` (built in start()); bots do any job nobody's doing.
@@ -20,11 +20,12 @@ const F := preload("res://scripts/factory.gd")
 const LineScript := preload("res://scripts/line.gd")
 const SpireSite := preload("res://scripts/spire_site.gd")
 const UI := preload("res://scripts/ui.gd")
+const Trades := preload("res://scripts/trades.gd")
 const ZBoom := preload("res://scripts/zboom.gd")
 
 const HELP_T := 25.0        # s before a bot takes over a job a person's left
 const REACH := 1.5          # m from a job on the roof
-const HOVER := 1.0          # m over its seat the crane stops with a load, for the dogman to call down
+const HOVER := 1.0          # m over its seat the crane stops with a load, for the dogger to radio down
 const LIE_Y := 0.62         # m a section's middle is off the roof, lying on its dunnage
 
 var game
@@ -207,17 +208,20 @@ func start() -> void:
 	_next()
 	g.hud.toast("Erection day: the X base, %.0f m of column and the boom go up on the crane" % length, 3.5)
 	var lines: Array = []
-	for role in ["boom", "pump", "hose", "line"]:
+	for role in ["boom", "pump", "poker", "hose", "line", "screed"]:
 		if g.crew.crew.get(role) != null:
 			lines.append("%s · %s" % [who_text(role), JOBS[role]])
-	lines.append("Everyone else: stand clear of the lifts and watch.")
 	g.hud.job_intro("ERECTION DAY · WHO DOES WHAT", "\n".join(lines), UI.GOLD, 14.0)
 
+## Who does what, by trade (trades.gd CLIMB_SEAT "erect"): doggers sling and call the loads, riggers
+## nut, bolt, pin and let the hook go, pumpies fit the pipe, the bend and the power and test the boom.
 const JOBS := {
-	"boom": "is the DOGMAN: calls every load down onto its seat, then runs the mobilisation test on the remote",
-	"pump": "RIGGER: nuts, bolts and pins, and up the column to let the hook go",
-	"hose": "packs the X base level, clamps the pipe, fits the bend and the power lead",
-	"line": "slings each load for the crane: base, column, adaptor, boom"}
+	"boom": "tests the boom on the remote: unfold, swing, emergency stop",
+	"pump": "nuts the clamp plates, bolts the flange, drives the joint pins, the adaptor's 4 pins, then harnessed on the boom its 4 pins and the chains off",
+	"poker": "packs the base level, and climbs the column to let the hook go",
+	"hose": "clamps the pipe up the column, fits the bend and the power lead",
+	"line": "slings each load for the crane: base, column, adaptor, boom",
+	"screed": "radios every load down onto its seat: the crane op goes on what they say"}
 
 func _job(id: String, stage: int, role: String, verb: String, n: int, t: float, say: String, at = null, y := -1000.0) -> Dictionary:
 	var d := {"id": id, "kind": "job", "stage": stage, "role": role, "verb": verb, "n": n, "t": t, "say": say}
@@ -230,7 +234,7 @@ func _job(id: String, stage: int, role: String, verb: String, n: int, t: float, 
 	return d
 
 ## The day, a row a step. kind "job": a hand job (n goes of t seconds); "fly": the crane brings `load` to
-## hover over `seat`; "land": the dogman holds to call it down onto `seat`; "test": the boom on the remote.
+## hover over `seat`; "land": the dogger holds to radio it down onto `seat`; "test": the boom on the remote.
 func _build_steps(lens: Array) -> void:
 	steps = []
 	var m := _m()
@@ -240,8 +244,8 @@ func _build_steps(lens: Array) -> void:
 	# 1. the X base
 	steps.append(_job("sling_base", 0, "line", "sling the X base", 4, 0.5, "Sling the X base", _base_rest() + Vector3(1.5, 0, 0.9)))
 	steps.append({"id": "fly_base", "kind": "fly", "stage": 0, "load": _base, "seat": m, "say": "Crane flies the X base in"})
-	steps.append({"id": "land_base", "kind": "land", "stage": 0, "role": "boom", "zone": zn, "at": _dog_spot(), "verb": "hold: call it down", "n": 1, "t": 2.6, "load": _base, "seat": m, "say": "Call it down between the rods"})
-	steps.append(_job("pack_base", 0, "hose", "pack it level", 4, 0.7, "Pack the base level", _base_spot(0)))
+	steps.append({"id": "land_base", "kind": "land", "stage": 0, "role": "screed", "zone": zn, "at": _dog_spot(), "verb": "hold: radio it down", "n": 1, "t": 2.6, "load": _base, "seat": m, "say": "Radio it down between the rods"})
+	steps.append(_job("pack_base", 0, "poker", "pack it level", 4, 0.7, "Pack the base level", _base_spot(0)))
 	steps.append(_job("nut_base", 0, "pump", "nut down the clamp plate", 4, 0.9, "Clamp plates on, nuts down", _base_spot(1)))
 	steps.append(_job("unsling_base", 0, "line", "unhook the base", 1, 0.8, "Slings off the base", _base_spot(2)))
 	# 2. the column
@@ -254,27 +258,28 @@ func _build_steps(lens: Array) -> void:
 		var rest := _sec_rest(i)
 		steps.append(_job("sling_sec%d" % i, st, "line", "shackle its two lugs", 2, 0.6, "Sling the %s" % names[i], _on_deck(Vector3(rest.x - 0.9, foot, rest.z + 0.3))))
 		steps.append({"id": "fly_sec%d" % i, "kind": "fly", "stage": st, "load": n, "seat": seat, "say": "Crane stands the %s up" % names[i]})
-		steps.append({"id": "land_sec%d" % i, "kind": "land", "stage": st, "role": "boom", "zone": zn, "at": _dog_spot(), "verb": "hold: call it down", "n": 1, "t": 2.6, "load": n, "seat": seat,
-			"say": "Call it down onto the %s" % ("base" if i == 0 else "joint")})
+		steps.append({"id": "land_sec%d" % i, "kind": "land", "stage": st, "role": "screed", "zone": zn, "at": _dog_spot(), "verb": "hold: radio it down", "n": 1, "t": 2.6, "load": n, "seat": seat,
+			"say": "Radio it down onto the %s" % ("base" if i == 0 else "joint")})
 		if i == 0:
 			steps.append(_job("fix_sec0", st, "pump", "bolt the flange (M30)", 8, 0.5, "Bolt the flange to the base", _base_spot(1)))
 		else:
 			steps.append(_job("fix_sec%d" % i, st, "pump", "drive a joint pin", 8, 0.5, "8 joint pins, hand tight", null, foot + cum - 0.6))
-			steps.append(_job("pipe_sec%d" % i, st, "pump", "clamp the pipe and ladder", 2, 0.7, "Clamp pipe and ladder", null, foot + cum - 0.6))
-		steps.append(_job("unsling_sec%d" % i, st, "pump", "let the hook go", 2, 0.6, "Up the ladder: hook off", null, foot + cum + l - 0.9))
+			steps.append(_job("pipe_sec%d" % i, st, "hose", "clamp the pipe and ladder", 2, 0.7, "Clamp pipe and ladder", null, foot + cum - 0.6))
+		steps.append(_job("unsling_sec%d" % i, st, "poker", "let the hook go", 2, 0.6, "Up the ladder: hook off", null, foot + cum + l - 0.9))
 		cum += l
 	var top := foot + cum
 	var st2 := 1 + lens.size()
 	# 3. the adaptor
 	steps.append(_job("sling_ad", st2, "line", "sling the adaptor", 2, 0.6, "Sling the adaptor", _adaptor_rest() + Vector3(0.2, -0.2, 1.1)))
 	steps.append({"id": "fly_ad", "kind": "fly", "stage": st2, "load": _adaptor, "seat": Vector3(m.x, top + 0.13, m.z), "say": "Crane lifts the adaptor"})
-	steps.append({"id": "land_ad", "kind": "land", "stage": st2, "role": "boom", "zone": zn, "at": _dog_spot(), "verb": "hold: call it down", "n": 1, "t": 2.2, "load": _adaptor, "seat": Vector3(m.x, top + 0.13, m.z), "say": "Call the adaptor down"})
+	steps.append({"id": "land_ad", "kind": "land", "stage": st2, "role": "screed", "zone": zn, "at": _dog_spot(), "verb": "hold: radio it down", "n": 1, "t": 2.2, "load": _adaptor, "seat": Vector3(m.x, top + 0.13, m.z), "say": "Radio the adaptor down"})
 	steps.append(_job("pin_ad", st2, "pump", "pin the adaptor", 4, 0.5, "4 adaptor pins", null, top - 1.13))
 	# 4. the boom
 	steps.append(_job("sling_boom", st2 + 1, "line", "chain the boom", 4, 0.6, "Chain the folded boom", _boom_rest() + Vector3(0.4, -0.1, 1.6)))
 	steps.append({"id": "fly_boom", "kind": "fly", "stage": st2 + 1, "load": game.head, "seat": Vector3(m.x, to_head, m.z), "say": "Crane lifts the boom"})
-	steps.append({"id": "land_boom", "kind": "land", "stage": st2 + 1, "role": "boom", "zone": zn, "at": _dog_spot(), "verb": "hold: call it down", "n": 1, "t": 3.0, "load": game.head, "seat": Vector3(m.x, to_head, m.z), "say": "Call the boom down"})
-	steps.append(_job("pin_boom", st2 + 1, "pump", "pin the boom", 8, 0.5, "8 boom pins", null, top - 1.13))
+	steps.append({"id": "land_boom", "kind": "land", "stage": st2 + 1, "role": "screed", "zone": zn, "at": _dog_spot(), "verb": "hold: radio it down", "n": 1, "t": 3.0, "load": game.head, "seat": Vector3(m.x, to_head, m.z), "say": "Radio the boom down"})
+	steps.append(_job("harness", st2 + 1, "pump", "harness on, climb onto the boom", 1, 1.2, "Harness on, onto the boom", null, top - 1.13))
+	steps.append(_job("pin_boom", st2 + 1, "pump", "pin the boom", 4, 0.5, "4 boom pins", null, top - 1.13))
 	steps.append(_job("unchain", st2 + 1, "pump", "unchain the boom", 4, 0.6, "Clip on, chains off", null, top - 1.13))
 	# 5. plug in
 	steps.append(_job("bend", st2 + 2, "hose", "clamp the bend on", 2, 0.8, "Bend onto the line's foot", _base_spot(0)))
@@ -430,7 +435,7 @@ func update(delta: float) -> void:
 			if _way.is_empty():
 				_next()
 		"land":
-			# (down the last metre as the dogman calls it)
+			# (down the last metre as the dogger radios it)
 			var seat_hook := _seat_hook(s["load"], s["seat"])
 			hook_pos = seat_hook + Vector3(0, HOVER * (1.0 - prog), 0)
 	# A section comes up off the roof by its top, its foot trailing till it hangs plumb
@@ -513,14 +518,14 @@ func bot(p, role: String, delta: float) -> bool:
 	if not j.is_empty() and not mine and step_t > (6.0 if _absent.has(j["role"]) else HELP_T):
 		# (a person's job, and they haven't got to it: a bot steps in for them)
 		var owner = game.crew.crew.get(j["role"])
-		var back := {"pump": "hose", "hose": "pump", "boom": "poker", "line": "screed"}
+		var back := {"pump": "poker", "poker": "pump", "hose": "boom", "boom": "hose", "line": "screed", "screed": "line"}
 		if owner != null and not owner.bot and not owner.covering and back.get(j["role"], "") == role:
 			_absent[j["role"]] = true
 			mine = true
 	if not mine:
 		if p.zone == "ladder":
 			# (the rigger waits up the column while the crane brings the next piece, if that's theirs)
-			if role == "pump" and _next_zone("pump") == "ladder":
+			if role in ["pump", "poker", "hose"] and _next_zone(role) == "ladder":
 				return true
 			b._ladder_to(p, game.work_y if zn == "deck" else 0.0, true)
 		elif p.zone == zn:
@@ -603,7 +608,7 @@ func stage_i() -> int:
 
 func who_text(role: String) -> String:
 	var p = game.crew.crew.get(role)
-	var job_name := String(UI.ROLE_NAME.get(role, role)).to_upper()
+	var job_name := Trades.climb_full(role, "erect", " ").to_upper()
 	if p == null:
 		return job_name
 	if p.bot:

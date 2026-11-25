@@ -39,6 +39,8 @@ const PerfClock := preload("res://scripts/perf.gd")
 
 const Wallet := preload("res://scripts/wallet.gd")
 const CashArt := preload("res://scripts/cash_art.gd")
+const Trades := preload("res://scripts/trades.gd")
+const MastClimb := preload("res://scripts/mast_climb.gd")
 const UtePreview := preload("res://scripts/ute_preview.gd")
 ## Phones with the wallet shop's turning ute at once (each is a small
 ## off-screen render)
@@ -681,7 +683,8 @@ func card(role: String) -> Dictionary:
 	var jc: Dictionary = UI.JOB_CARD.get(role, {})
 	return {"t": "card", "role": role, "name": UI.job_full(role), "trade": UI.trade(role), "col": UI.ROLE.get(role, Color.WHITE).to_html(false),
 		"goal": jc.get("goal", ""), "steps": UI.how(role), "watch": jc.get("watch", ""),
-		"climb": UI.ROLE_CLIMB.get(role, ""), "climbsteps": UI.how(role, "climb")}
+		"climb": ("Climb days: %s, %s" % [Trades.climb_full(role, "spire"), MastClimb.CLIMB_JOB.get(role, "")]) if game.spire else UI.ROLE_CLIMB.get(role, ""),
+		"climbsteps": UI.how(role, "climb")}
 
 func _toast(c: Dictionary, msg: String) -> void:
 	(c["ws"] as WebSocketPeer).send_text("J " + JSON.stringify({"t": "toast", "msg": msg}))
