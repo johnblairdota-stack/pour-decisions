@@ -53,6 +53,12 @@ Godot 4.7 (Forward+, standard build, GDScript only), couch co-op concrete pours.
 - If a changed image still looks old, the `.godot\imported` cache is stale. The release script clears stale entries.
 - The tablet (Galaxy Tab S10 Ultra) gets files over USB/MTP from `sync_to_tablet.ps1`. It must be unlocked with File transfer allowed. Only one sync runs at a time.
 
+## The Brisbane model (renders)
+- Rules, the detail ladder and the plan are in `docs/city/METHOD.md`. Where the model stands is `docs/city/coverage.md`.
+- It takes the one design/research slot and never edits game scripts.
+- Blender runs in the cloud only: `tools/city/setup_cloud.sh` (one version for every thread).
+- A model PR runs `python3 tools/city/coverage.py` and `python3 tools/city/check.py` and says which coverage number moved. CI runs the check ("City model check").
+
 ## Repo hygiene
 - Large reference material (photos, LiDAR, render pairs) belongs in the project files folder, not in git. Don't add files over ~5 MB without a reason.
 - Never commit secrets or John's own site photos.

@@ -1,0 +1,43 @@
+name: City model check
+
+# Runs when a PR touches the Brisbane model (its tools or its data). No Blender: a few seconds of plain
+# Python that catches buildings in the river, impossible heights and a stale coverage map.
+# See tools/city/check.py and docs/city/METHOD.md.
+on:
+  pull_request:
+    paths:
+      - "tools/city/**"
+      - "tools/sites/**"
+      - "tools/blender/spire/**"
+      - "reference/sites/**"
+      - "docs/city/**"
+      - ".github/workflows/city.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: city-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  city:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Check the model data
+        run: python3 tools/city/check.py
+      - name: Coverage summary
+        if: always()
+        run: |
+          python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          s = json.load(open("docs/city/coverage.json"))["summary"]
+          print("### Brisbane model coverage")
+          print("| Measure | Now |\n| --- | --- |")
+          for k in ("tiles_measured", "share_of_brisbane_pct", "buildings", "trees", "tiles_with_heroes",
+                    "landmarks_hand_built", "photo_pairs", "wide_buildings_one_recipe_pct"):
+              print("| %s | %s |" % (k.replace("_", " "), s[k]))
+          PY
