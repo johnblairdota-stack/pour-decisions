@@ -39,7 +39,7 @@ const STAGES := [
 ]
 
 static var _cycles: Array = []     # every storey's, oldest first
-static var _cols: Array = []       # the column plan: [Vector2 at, float yaw]
+static var _cols: Array = []       # the column plan: [Vector2 at, float yaw, length, thickness]
 
 var fh := 2.9
 var age := 0                       # 0 the storey being built; 1 the one under it; ...
@@ -111,7 +111,7 @@ static func columns() -> Array:
 						if Geometry2D.is_point_in_polygon(at, ko):
 							ok = false
 					if ok:
-						_cols.append([at, -atan2(b.y - a.y, b.x - a.x)])
+						_cols.append([at, -atan2(b.y - a.y, b.x - a.x), COL_L, COL_T])
 					want += gap
 				walked += ln
 	return _cols
@@ -125,8 +125,6 @@ func _build() -> void:
 	_built = true
 	var h := _h()
 	var rust := F.color_mat(Color("9a4a2c"))
-	var shutter := F.mat("yellow")
-	var brace := F.color_mat(Color("c9422e"))
 	var conc := F.mat("column")
 	_col_root = Node3D.new()
 	_col_root.name = "Columns"
@@ -135,27 +133,28 @@ func _build() -> void:
 		var at: Vector2 = c[0]
 		var here := Transform3D(Basis(Vector3.UP, float(c[1])), Vector3(at.x, 0, at.y))
 		# The cage: eight bars and their ties, made up on the ground and flown in whole
+		var cl := float(c[2])
+		var ct := float(c[3])
 		var cage := Node3D.new()
 		cage.transform = here
-		for i in 4:
-			for s in [-1.0, 1.0]:
-				cage.add_child(F.box(Vector3(0.03, h, 0.03), rust, Vector3(lerpf(-COL_L * 0.5 + 0.06, COL_L * 0.5 - 0.06, i / 3.0), h * 0.5, s * (COL_T * 0.5 - 0.05))))
-		var ties := 6
+		var bars := maxi(2, int(round(cl / 0.3)) + 1)
+		for i in bars:
+			for sd in [-1.0, 1.0]:
+				# (the bars run on past the form's top: the lap for the next storey's cage)
+				cage.add_child(F.box(Vector3(0.03, h + 0.25, 0.03), rust, Vector3(lerpf(-cl * 0.5 + 0.06, cl * 0.5 - 0.06, float(i) / (bars - 1)), (h + 0.25) * 0.5, sd * (ct * 0.5 - 0.05))))
+		var ties := 9
 		for i in ties:
-			var ty := lerpf(0.15, h - 0.15, float(i) / (ties - 1))
-			for s in [-1.0, 1.0]:
-				cage.add_child(F.box(Vector3(COL_L - 0.08, 0.02, 0.02), rust, Vector3(0, ty, s * (COL_T * 0.5 - 0.035))))
+			var ty := lerpf(0.12, h - 0.12, float(i) / (ties - 1))
+			for sd in [-1.0, 1.0]:
+				cage.add_child(F.box(Vector3(cl - 0.08, 0.02, 0.02), rust, Vector3(0, ty, sd * (ct * 0.5 - 0.035))))
+				cage.add_child(F.box(Vector3(0.02, 0.02, ct - 0.07), rust, Vector3(sd * (cl * 0.5 - 0.045), ty, 0)))
 		add_child(cage)
 		F.bake(cage)
 		cage.visible = false
 		_cages.append(cage)
-		# The form: two shutters and two stop ends, with a push-pull prop each side down to the slab
-		var form := Node3D.new()
+		# The form: a ganged steel-framed shutter, craned on as two halves and clamped (_form)
+		var form := _form(float(c[2]), float(c[3]), h)
 		form.transform = here
-		for s in [-1.0, 1.0]:
-			form.add_child(F.box(Vector3(COL_L + 0.2, h - 0.05, 0.06), shutter, Vector3(0, (h - 0.05) * 0.5, s * (COL_T * 0.5 + 0.03))))
-			form.add_child(F.box(Vector3(0.06, h - 0.05, COL_T), shutter, Vector3(s * (COL_L * 0.5 + 0.03), (h - 0.05) * 0.5, 0)))
-			form.add_child(F.beam(Vector3(s * 0.3, h * 0.7, s * (COL_T * 0.5 + 0.06)), Vector3(s * 0.3, 0.05, s * (COL_T * 0.5 + 1.3)), 0.06, brace))
 		add_child(form)
 		F.bake(form)
 		form.visible = false
@@ -163,12 +162,68 @@ func _build() -> void:
 		# The column itself: poured from the bottom up
 		var fill := Node3D.new()
 		fill.transform = here
-		fill.add_child(F.box(Vector3(COL_L, h, COL_T), conc, Vector3(0, h * 0.5, 0)))
+		fill.add_child(F.box(Vector3(cl, h, ct), conc, Vector3(0, h * 0.5, 0)))
 		fill.scale.y = 0.01
 		fill.visible = false
 		_col_root.add_child(fill)
 		_fills.append(fill)
 	_build_props()
+
+## A column form the way it comes on a tower job: two L-shaped halves of steel-framed panel faced with
+## black formply, ribs outside, paired walers clamped through with tie rods, push-pull props down to
+## shoes bolted to the slab on two faces, and a pour platform with a handrail bracketed on near the top.
+## `l` by `t`: the column; `h`: its height. The column's long side runs along x.
+func _form(l: float, t: float, h: float) -> Node3D:
+	var form := Node3D.new()
+	var ply := F.color_mat(Color("3b2a1f"))
+	var frame := F.mat("yellow")
+	var waler := F.color_mat(Color("c9422e"))
+	var galv := F.mat("steel")
+	var plank := F.color_mat(Color("b98a55"))
+	var fh2 := h - 0.04
+	var out := t * 0.5 + 0.02            # the ply's outside face, on the long sides
+	for s in [-1.0, 1.0]:
+		# The ply faces, and the frame's ribs standing off them
+		form.add_child(F.box(Vector3(l + 0.04, fh2, 0.02), ply, Vector3(0, fh2 * 0.5, s * (t * 0.5 + 0.01))))
+		form.add_child(F.box(Vector3(0.02, fh2, t + 0.04), ply, Vector3(s * (l * 0.5 + 0.01), fh2 * 0.5, 0)))
+		var ribs := maxi(2, int(round(l / 0.3)) + 1)
+		for i in ribs:
+			form.add_child(F.box(Vector3(0.05, fh2, 0.1), frame, Vector3(lerpf(-l * 0.5, l * 0.5, float(i) / (ribs - 1)), fh2 * 0.5, s * (out + 0.05))))
+		form.add_child(F.box(Vector3(0.1, fh2, t + 0.1), frame, Vector3(s * (l * 0.5 + 0.07), fh2 * 0.5, 0)))
+		# Walers in pairs at four heights, run past the corners, with the tie rods' ends and wing nuts
+		for y in [0.3, 0.3 + (fh2 - 0.6) / 3.0, 0.3 + (fh2 - 0.6) * 2.0 / 3.0, fh2 - 0.3]:
+			for dy in [-0.05, 0.05]:
+				form.add_child(F.box(Vector3(l + 0.7, 0.07, 0.05), waler, Vector3(0, y + dy, s * (out + 0.125))))
+			for x in [-l * 0.5 - 0.22, l * 0.5 + 0.22]:
+				var rod := F.cylinder(0.014, 0.16, galv, Vector3(x, y, s * (out + 0.2)), 6)
+				rod.rotation.x = PI * 0.5
+				form.add_child(rod)
+				form.add_child(F.box(Vector3(0.09, 0.09, 0.03), galv, Vector3(x, y, s * (out + 0.165))))
+		# Lifting lugs on top
+		form.add_child(F.box(Vector3(0.05, 0.14, 0.02), galv, Vector3(s * l * 0.3, fh2 + 0.07, out + 0.05)))
+	# Push-pull props: two on one long face, one on an end, each with a short kicker under it
+	var feet := [[Vector3(-l * 0.3, 0, -out - 0.1), Vector3(0, 0, -1.0)], [Vector3(l * 0.3, 0, -out - 0.1), Vector3(0, 0, -1.0)],
+		[Vector3(l * 0.5 + 0.12, 0, 0), Vector3(1.0, 0, 0)]]
+	for f in feet:
+		var at: Vector3 = f[0]
+		var dir: Vector3 = f[1]
+		var shoe: Vector3 = at + dir * 1.5 + Vector3(0, 0.04, 0)
+		form.add_child(F.beam(at + Vector3(0, fh2 * 0.72, 0), shoe, 0.06, waler))
+		form.add_child(F.beam(at + Vector3(0, fh2 * 0.72, 0) + (shoe - at - Vector3(0, fh2 * 0.72, 0)) * 0.35, at + Vector3(0, fh2 * 0.72, 0) + (shoe - at - Vector3(0, fh2 * 0.72, 0)) * 0.85, 0.045, galv))
+		form.add_child(F.beam(at + Vector3(0, 0.35, 0), shoe, 0.045, waler))
+		form.add_child(F.box(Vector3(0.22, 0.03, 0.22), galv, shoe - Vector3(0, 0.03, 0)))
+	# The pour platform on the other long face: brackets, planks, posts, two rails and a toe board
+	var py := fh2 - 1.05
+	var pz := out + 0.15
+	for x in [-l * 0.5 - 0.1, l * 0.5 + 0.1]:
+		form.add_child(F.box(Vector3(0.05, 0.05, 0.75), frame, Vector3(x, py - 0.03, pz + 0.375)))
+		form.add_child(F.beam(Vector3(x, py - 0.6, pz), Vector3(x, py - 0.05, pz + 0.7), 0.04, frame))
+		form.add_child(F.box(Vector3(0.05, 1.05, 0.05), frame, Vector3(x, py + 0.52, pz + 0.72)))
+	form.add_child(F.box(Vector3(l + 0.5, 0.04, 0.7), plank, Vector3(0, py + 0.02, pz + 0.37)))
+	for y in [0.5, 1.0]:
+		form.add_child(F.box(Vector3(l + 0.3, 0.04, 0.04), frame, Vector3(0, py + y, pz + 0.72)))
+	form.add_child(F.box(Vector3(l + 0.3, 0.15, 0.025), frame, Vector3(0, py + 0.11, pz + 0.72)))
+	return form
 
 ## Just the finished columns (a storey the game skipped past, or one too far down to need the rest).
 func _build_plain() -> void:
@@ -182,7 +237,7 @@ func _build_plain() -> void:
 	add_child(_col_root)
 	for c in columns():
 		var at: Vector2 = c[0]
-		var col := F.box(Vector3(COL_L, h, COL_T), F.mat("column"), Vector3(at.x, h * 0.5, at.y))
+		var col := F.box(Vector3(float(c[2]), h, float(c[3])), F.mat("column"), Vector3(at.x, h * 0.5, at.y))
 		col.rotation.y = float(c[1])
 		_col_root.add_child(col)
 	F.bake(_col_root)
