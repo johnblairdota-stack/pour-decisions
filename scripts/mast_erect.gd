@@ -99,11 +99,44 @@ func _lay(key: String) -> Vector3:
 		"boom": Vector3(9.5, 0, -1.2), "dog": Vector3(2.8, 0, -1.8), "remote": Vector3(4.2, 0, -2.4)}
 	return (water if zn == "ground" else spire)[key]
 
+## Spire: the roof the kit's laid out on, as bare grey concrete, so the white column, base and boom
+## read against it (the model's slab is near white: John, 25 Nov).
+func _roof_slab() -> void:
+	var poly: PackedVector2Array = SpireSite.poly("plate")
+	var tris := Geometry2D.triangulate_polygon(poly)
+	if tris.is_empty():
+		return
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	st.set_normal(Vector3.UP)
+	for i in tris:
+		var q := poly[i]
+		st.add_vertex(Vector3(q.x, 0, q.y))
+	var mi := MeshInstance3D.new()
+	mi.mesh = st.commit()
+	mi.material_override = F.color_mat(Color("9a9d98"))
+	mi.position.y = foot + 0.03
+	add_child(mi)
+
 func _base_rest() -> Vector3:
 	return _on_deck(_m() + _lay("base"))
 
-func _sec_rest(i: int) -> Vector3:
+func _sec_rest(i: int, l := 11.0) -> Vector3:
 	var p := _on_deck(_m() + _lay("sec") + _lay("sec_dz") * i)
+	if zn == "deck":
+		# (a section lies from here out to +x: slid back along the roof till the whole length, and a
+		# metre past each end, is inside the edge scaffold)
+		for back in 40:
+			var q := p - Vector3(0.5 * back, 0, 0)
+			var ok := true
+			for t in [-1.0, 0.0, l * 0.25, l * 0.5, l * 0.75, l, l + 1.0]:
+				for dz in [-0.7, 0.7]:
+					var e := Vector3(q.x + t, foot, q.z + dz)
+					if not game.on_pad(e):
+						ok = false
+			if ok:
+				p = q
+				break
 	return Vector3(p.x, foot + LIE_Y, p.z)
 
 func _adaptor_rest() -> Vector3:
@@ -177,6 +210,8 @@ func start() -> void:
 	_hold = ZBoom.xbase_hold(0)
 	_hold.position = _m()
 	add_child(_hold)
+	if zn == "deck":
+		_roof_slab()
 	_base = ZBoom.xbase()
 	_base.position = _base_rest() + Vector3(0, 0.1, 0)
 	_base.set_meta("att", [Vector3(0.7, 0.5, 0.7), Vector3(-0.7, 0.5, 0.7), Vector3(0.7, 0.5, -0.7), Vector3(-0.7, 0.5, -0.7)])
@@ -184,7 +219,7 @@ func start() -> void:
 	_secs = []
 	for i in lens.size():
 		var n := ZBoom.section(float(lens[i]), SpireSite.COLUMN * 0.5)
-		n.position = _sec_rest(i)
+		n.position = _sec_rest(i, float(lens[i]))
 		n.rotation.z = PI * 0.5
 		n.set_meta("len", float(lens[i]))
 		n.set_meta("att", [Vector3(0.16, 0.25, 0), Vector3(-0.16, 0.25, 0)])
@@ -255,7 +290,7 @@ func _build_steps(lens: Array) -> void:
 		var n: Node3D = _secs[i]["node"]
 		var seat := m + Vector3(0, cum + l, 0)
 		var st := 1 + i
-		var rest := _sec_rest(i)
+		var rest := _sec_rest(i, float(lens[i]))
 		steps.append(_job("sling_sec%d" % i, st, "line", "shackle its two lugs", 2, 0.6, "Sling the %s" % names[i], _on_deck(Vector3(rest.x - 0.9, foot, rest.z + 0.3))))
 		steps.append({"id": "fly_sec%d" % i, "kind": "fly", "stage": st, "load": n, "seat": seat, "say": "Crane stands the %s up" % names[i]})
 		steps.append({"id": "land_sec%d" % i, "kind": "land", "stage": st, "role": "screed", "zone": zn, "at": _dog_spot(), "verb": "hold: radio it down", "n": 1, "t": 2.6, "load": n, "seat": seat,
