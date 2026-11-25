@@ -56,6 +56,7 @@ const ZBoom := preload("res://scripts/zboom.gd")
 const SpireStreet := preload("res://scripts/spire_street.gd")
 const TowerHand := preload("res://scripts/tower_hand.gd")
 const Flight := preload("res://scripts/flight.gd")
+const FlyFilm := preload("res://scripts/fly_film.gd")
 const RoofSet := preload("res://scripts/roof_set.gd")
 const LookFx := preload("res://scripts/look_fx.gd")
 
@@ -2572,6 +2573,9 @@ func _high_open(delta: float) -> void:
 	if _high == null:
 		if _high_done:
 			return
+		if not TowerHand.arrival.is_empty():
+			_high_done = true       # (the scene's come up straight into a tower's fly-in: that's the picture now)
+			return
 		_high_done = true
 		if (autotest and not OS.get_cmdline_user_args().has("--highopen")) or not ResourceLoader.exists(HIGH_PIC):
 			return
@@ -2807,14 +2811,26 @@ func _arrive_camera(delta: float, fin: Vector3) -> void:
 		# (the floor pick is set up behind the picture: its floors, the crew on the deck, its camera)
 		a["on"] = true
 		a["t"] = 0.0
+		if _high != null:
+			# (a card played while the opening picture was still up: it's only moved on from the hand's
+			# camera, and would sit there under the whole flight)
+			_high.queue_free()
+			_high = null
+			_high_a = 0.0
+			_high_marks = []
+			_high_seen = true
 		_arrive_keys = []
 		_arrive_line = []
 		_arrive_fl = Flight.of(String(a["card"].get("id", "")))
 		ARRIVE_RIVER_T = float(_arrive_fl["river_t"])
 		ARRIVE_T = float(_arrive_fl["total_t"])
 		_arrive_apex = -1.0
+		a["film"] = FlyFilm.ready(_arrive_fl) and not OS.get_cmdline_user_args().has("--riverflight")
 		selector.arrive_site(a["card"])
 		_light_snap = true       # (behind the picture: straight to that floor's own light, so nothing shifts on landing)
+		return
+	if a.get("film", false):
+		_arrive_film(delta, fin, a)
 		return
 	if _human_a and float(a["t"]) > 0.4:
 		a["skip"] = true                 # (A: the rest of it at six times the speed)
@@ -2874,6 +2890,109 @@ func _arrive_camera(delta: float, fin: Vector3) -> void:
 			_pick_wake.queue_free()
 			_pick_boat = null
 		selector.arrive_done()
+
+## The fly-in as a film (scripts/fly_film.gd): out of the cloud over Brisbane and down to the tower
+## on one camera flight rendered from the model, the game's own camera flying the same line under it;
+## then live from where the film ends onto the floor pick. No boat, no banking, no float.
+var _fall_layer: CanvasLayer
+
+## The model's own metres (x east, y north, z AHD) in the game's.
+func _spire_local(p: Vector3) -> Vector3:
+	var q := SpireSite.g([p.x, p.y])
+	return Vector3(q.x, p.z - SpireSite.street, q.y)
+
+func _arrive_film(delta: float, fin: Vector3, a: Dictionary) -> void:
+	var fl := _arrive_fl
+	if _fall_layer == null:
+		_fall_layer = FlyFilm.make(self, fl)
+		if _spire_world != null:
+			FlyFilm.site(_fall_layer, _spire_world, camera, env)
+	var ft := FlyFilm.dur(_fall_layer)
+	var last: Array = FlyFilm.cam(_fall_layer, ft)
+	var from := _spire_local(last[0])
+	var aim := _spire_local(last[1])
+	# (the film ends on the first deck's floor pick. On that deck the game just fades up over its held
+	# last frame; on any other the camera goes on to that deck's own view as it fades.)
+	var same := from.distance_to(fin) < FlyFilm.SAME
+	ARRIVE_T = ft + (FlyFilm.HAND_T if same else FlyFilm.LIVE_T)
+	if _human_a and float(a["t"]) > 0.4:
+		a["skip"] = true                 # (A: the film's dropped and the rest goes by at six times the speed)
+	var dt := minf(delta, 0.1) * (6.0 if a.get("skip", false) else 1.0)
+	a["t"] = minf(float(a["t"]) + dt, ARRIVE_T)
+	var t: float = a["t"]
+	TowerHand.uncover(smoothstep(0.0, 0.6, t), 0.03 * t)
+	FlyFilm.draw(_fall_layer, t, a.get("skip", false), same)
+	if t < ft:
+		# (under the film: the same camera, so the live site's already there as the film fades)
+		var c: Array = FlyFilm.cam(_fall_layer, t)
+		camera.position = _spire_local(c[0])
+		camera.look_at(_spire_local(c[1]), Vector3.UP)
+	elif same:
+		camera.position = fin
+		camera.look_at(cam_focus, Vector3.UP)
+	else:
+		var keys: Array = [[0.0, from, aim], [FlyFilm.LIVE_T, fin, cam_focus]]
+		camera.position = Flight.at(keys, t - ft, 1)
+		camera.look_at(Flight.at(keys, t - ft, 2), Vector3.UP)
+	FlyFilm.follow(_fall_layer, camera)
+	if OS.get_cmdline_user_args().has("--arrivedbg"):      # (dev: where the floor pick stands, for render_film.py's END)
+		print("FILMDBG fin=%s focus=%s th=%.5f off=%s street=%.3f" % [str(fin), str(cam_focus), SpireSite.th, str(SpireSite.off), SpireSite.street])
+	camera.fov = Flight.FOV
+	if _caption == null:
+		_caption = CanvasLayer.new()
+		_caption.layer = 6
+		add_child(_caption)
+		var strip := UI.pill(Color(0.05, 0.06, 0.08, 0.8), Vector4(24, 8, 28, 8))
+		strip.add_child(UI.head(String(a["card"]["caption"]), 34, Color("f4f2ec")))
+		_caption.add_child(strip)
+		UI.place(strip, Vector2(0, 1), Vector2(48, -56))
+	(_caption.get_child(0) as CanvasItem).modulate.a = smoothstep(1.2, 2.0, t) * (1.0 - smoothstep(ARRIVE_T - ARRIVE_UI_T - 1.2, ARRIVE_T - ARRIVE_UI_T - 0.2, t))
+	_arrive_snd = {"t": t, "fall": clampf(t / ARRIVE_T, 0.0, 1.0)}
+	selector.arrive_fade(smoothstep(ARRIVE_T - ARRIVE_UI_T, ARRIVE_T - 0.2, t))
+	# (the floor pick's shading is over the film from the moment the cloud parts: the picture it lands
+	# on is the picture it flew in)
+	if not a.get("skip", false):
+		selector.arrive_shade(maxf(smoothstep(ARRIVE_T - ARRIVE_UI_T, ARRIVE_T - 0.2, t), smoothstep(0.2, FlyFilm.CLOUD_T + 0.4, t)))
+	if t >= ARRIVE_T:
+		TowerHand.arrival = {}
+		_arrive_snd = {}
+		_arrive_fl = {}
+		TowerHand.uncover(1.0)
+		if same and not a.get("skip", false):
+			_fall_stay = fin              # (the film's city stays behind the floor pick: _film_stay)
+			_fall_out = 1.0
+		else:
+			FlyFilm.done(_fall_layer, camera)
+			_fall_layer.queue_free()
+			_fall_layer = null
+		_caption.queue_free()
+		_caption = null
+		if _pick_boat != null:
+			_pick_boat.queue_free()
+			_pick_wake.queue_free()
+			_pick_boat = null
+		selector.arrive_done()
+
+## The film's city stays behind the floor pick it ended on, with the game's own site over it: nothing
+## changes when the flight's over. It only gives way to the game's own city once the camera leaves
+## that view (another floor's picked, or the pour starts), and then quickly, while the picture's moving.
+var _fall_stay := Vector3.INF
+var _fall_out := 1.0
+
+func _film_stay(delta: float, picking: bool) -> void:
+	if _fall_layer == null or _fall_stay == Vector3.INF:
+		return
+	if _fall_out >= 1.0 and picking and camera.position.distance_to(_fall_stay) < FlyFilm.STAY_M:
+		FlyFilm.follow(_fall_layer, camera)
+		return
+	_fall_out -= delta / FlyFilm.LEAVE_T
+	FlyFilm.follow(_fall_layer, camera)
+	FlyFilm.leave(_fall_layer, maxf(0.0, _fall_out))
+	if _fall_out <= 0.0:
+		FlyFilm.done(_fall_layer, camera)
+		_fall_layer.queue_free()
+		_fall_layer = null
+		_fall_stay = Vector3.INF
 
 ## The truck dispatcher must never sit idle while the slab still needs concrete: nothing in the
 ## hopper, no truck anywhere between the plant and the pump, and the slab not full. Logged (an error
@@ -5913,6 +6032,15 @@ func _update_places() -> void:
 		amb["dawn"] = 0.0
 		amb["wind"] = 0.2 * water + 0.8 * smoothstep(8.0, 14.0, _fly_t) * (1.0 - 0.5 * smoothstep(16.0, 20.0, _fly_t))
 		amb["city"] = smoothstep(12.0, 18.0, _fly_t)
+	elif _arrive_snd.has("fall"):
+		# (the rendered fall: the wind high up, the city coming up under it, then the site's own morning)
+		var fall := float(_arrive_snd["fall"])
+		var land := smoothstep(0.6, 0.97, fall)
+		var high := {"wind": 0.9 - 0.5 * fall, "city": 0.6 * smoothstep(0.15, 0.7, fall)}
+		for name in amb:
+			amb[name] = lerpf(float(high.get(name, 0.0)), float(amb[name]), land)
+		boat = 0.0
+		quick = 5.0
 	elif not _arrive_snd.is_empty():
 		# (flying in to a tower: the flight kit's score, handing over to the site as it settles)
 		var sc := Flight.score(float(_arrive_snd["t"]), ARRIVE_RIVER_T, _arrive_apex, _arrive_gate, ARRIVE_T, spire, amb)
@@ -9017,6 +9145,7 @@ func _update_camera_views(delta: float) -> void:
 			_tour_camera(delta, want)
 		else:
 			_tour_end()
+	_film_stay(delta, phase == "select" and _shot_cam.is_empty())
 	if _shot_cam.is_empty() and (phase == "roles" or phase == "select") and is_instance_valid(selector):
 		if not TowerHand.arrival.is_empty() and (selector.page == "arrive" or selector.arriving):
 			_hand_veil_set(0.0)
