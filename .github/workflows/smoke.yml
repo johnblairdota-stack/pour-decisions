@@ -1,0 +1,60 @@
+name: Smoke test
+
+# Every PR (and every push to main) gets a short all-bot autotest in headless
+# Godot. Green means the game still starts, pours and tops out with no
+# script errors. See tools/ci/smoke.sh and CLAUDE.md.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+
+      - name: Cache Godot
+        id: godot-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/godot
+          key: godot-4.7.2-stable
+
+      - name: Download Godot 4.7.2
+        if: steps.godot-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ~/godot
+          curl -sSL -o /tmp/godot.zip https://github.com/godotengine/godot/releases/download/4.7.2-stable/Godot_v4.7.2-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d ~/godot
+          chmod +x ~/godot/Godot_v4.7.2-stable_linux.x86_64
+
+      - name: Run smoke autotests
+        env:
+          GODOT: /home/runner/godot/Godot_v4.7.2-stable_linux.x86_64
+          SMOKE_LOGS: /tmp/smoke-logs
+        run: tools/ci/smoke.sh
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Smoke test" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          cat /tmp/smoke-logs/summary.txt >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || echo "no summary" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Keep logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-logs
+          path: /tmp/smoke-logs
+          retention-days: 14
