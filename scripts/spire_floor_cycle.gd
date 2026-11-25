@@ -6,14 +6,17 @@ extends Node3D
 ##   forms   the formworkers close a form round each cage and brace it with push-pull props
 ##   pour    the columns are poured, a lift at a time
 ##   strip   the forms come off
+##   (the cages lap onto the starter bars left standing out of the slab below, and this storey's own
+##   slab is cast with starters for the next: _build_starters)
 ##   props   the formworkers stand the props, set bearers over them and joists over those (450 mm
 ##           apart), and the formply goes on from the edge in
 ##
 ## One of these hangs on each storey (main.floor_nodes[k]: y 0 is the slab it stands on). Once the
 ## deck over it is poured the props come out and back-props stay for two more floors; the columns stay.
 ##
-## Sizes are trade practice, not from a drawing of Spire: blade columns 1.2 x 0.3 m about 6 m apart
-## round the edge with a ring inside, props 1.5 m apart both ways, back-props at every other one.
+## Sizes are trade practice, not from a drawing of Spire: blade columns 1.2 x 0.3 m set in the party
+## walls of the architect's typical floor plan (WALLS) and about 6 m apart round the rest of the edge,
+## staggered level to level; props 1.5 m apart both ways, back-props at every other one.
 
 const F := preload("res://scripts/factory.gd")
 const SpireSite := preload("res://scripts/spire_site.gd")
@@ -23,7 +26,6 @@ const COL_L := 1.2           # blade column: along the edge, and through
 const COL_T := 0.3
 const COL_STEP := 6.2        # m between columns round the edge
 const COL_IN := 0.8          # m in from the slab edge to a column's middle
-const RING_IN := 8.0         # the inside ring: this far in from the edge
 const PROP_STEP := 1.5       # m between props, both ways
 const JOIST_STEP := 0.45     # m between joists
 const BANDS := 8             # the deck's props go up in this many strips
@@ -39,9 +41,10 @@ const STAGES := [
 ]
 
 static var _cycles: Array = []     # every storey's, oldest first
-static var _cols: Array = []       # the column plan: [Vector2 at, float yaw, length, thickness]
+static var _cols := {}             # the two column set-outs: 0/1 -> [[Vector2 at, float yaw, length, thickness]]
 
 var fh := 2.9
+var odd := false                   # which of the two column set-outs this storey has
 var age := 0                       # 0 the storey being built; 1 the one under it; ...
 var done := false
 var _built := false
@@ -51,9 +54,10 @@ var _fills: Array = []
 var _bands: Array = []
 var _col_root: Node3D
 var _back: Node3D
+var _starters: Node3D
 
 ## Starts a storey's cycle on `floor_node`; every storey under it gets a floor older.
-static func begin(floor_node: Node3D, floor_h: float):
+static func begin(floor_node: Node3D, floor_h: float, level := 0):
 	var live: Array = []
 	for c in _cycles:
 		if is_instance_valid(c):
@@ -64,6 +68,7 @@ static func begin(floor_node: Node3D, floor_h: float):
 	var cy = new()
 	cy.name = "FloorCycle"
 	cy.fh = floor_h
+	cy.odd = level % 2 == 1
 	floor_node.add_child(cy)
 	_cycles.append(cy)
 	return cy
@@ -80,41 +85,92 @@ static func task(u: float) -> String:
 			return str(s[4])
 	return str(STAGES[-1][4])
 
-## Where the columns stand (game x/z) and which way each one's long side runs.
-static func columns() -> Array:
-	if not _cols.is_empty():
-		return _cols
+## The party walls between apartments on the architect's typical floor plan (data/spire_site.json's
+## frame, metres), read off the plan image and fitted to the plate's outline. The plan is a sales plan:
+## it draws no columns, so the blades are put where a tower like this hides them, in these walls.
+## The last three are short walls the plan shows less clearly.
+const WALLS := [
+	[Vector2(-15.58, 9.17), Vector2(-9.27, 2.40)],     # N1
+	[Vector2(-10.26, 13.59), Vector2(-4.38, 7.28)],    # N2 (a twin wall)
+	[Vector2(-5.40, 18.61), Vector2(1.21, 11.53)],     # N3
+	[Vector2(1.13, 11.56), Vector2(9.57, 19.75)],      # E1
+	[Vector2(7.09, 6.66), Vector2(15.73, 14.18)],      # E2
+	[Vector2(-16.43, -4.86), Vector2(-8.20, 2.01)],    # W1
+	[Vector2(-10.43, -11.12), Vector2(-2.70, -2.74)],  # W2
+	[Vector2(-1.49, -1.45), Vector2(4.31, -7.67)],     # S1
+	[Vector2(5.91, 5.45), Vector2(14.06, -3.29)],      # S4
+	[Vector2(7.06, -5.27), Vector2(9.39, -7.76)],      # S2
+	[Vector2(8.64, -2.02), Vector2(12.20, -5.84)],     # S3
+	[Vector2(13.08, 2.76), Vector2(15.09, 0.61)],      # SE1
+]
+const WALL_STEP := 5.5       # m between blades along a party wall
+const STAGGER := 0.5         # m the blades shift along their walls, one way then the other, level by level
+
+## Where the columns stand (game x/z), which way each one's long side runs, and its size. `odd`: the
+## other of the two set-outs (Spire's columns are staggered level to level, ANCR's project write-up).
+static func columns(odd := false) -> Array:
+	var key := 1 if odd else 0
+	if _cols.has(key):
+		return _cols[key]
+	var out: Array = []
 	var plate := SpireSite.poly("plate")
-	var keep_out: Array = [Geometry2D.offset_polygon(SpireSite.poly("core"), 1.2)[0],
+	var mid := SpireSite.centroid(SpireSite.poly("core"))
+	var keep_out: Array = [Geometry2D.offset_polygon(SpireSite.poly("core"), 1.0)[0],
 		Geometry2D.offset_polygon(SpireSite.opening(), 0.8)[0], Geometry2D.offset_polygon(SpireSite.opening(false), 0.8)[0]]
-	for inset in [COL_IN, RING_IN]:
-		var rings: Array = Geometry2D.offset_polygon(plate, -inset)
-		for ring in rings:
-			if Geometry2D.is_polygon_clockwise(ring):
-				continue
-			var n: int = ring.size()
-			var per := 0.0
-			for i in n:
-				per += ring[i].distance_to(ring[(i + 1) % n])
-			var count := maxi(3, int(round(per / COL_STEP)))
-			var gap := per / count
-			var want := gap * 0.5
-			var walked := 0.0
-			for i in n:
-				var a: Vector2 = ring[i]
-				var b: Vector2 = ring[(i + 1) % n]
-				var ln := a.distance_to(b)
-				while want <= walked + ln and ln > 0.001:
-					var at := a.lerp(b, (want - walked) / ln)
-					var ok := true
-					for ko in keep_out:
-						if Geometry2D.is_point_in_polygon(at, ko):
-							ok = false
-					if ok:
-						_cols.append([at, -atan2(b.y - a.y, b.x - a.x), COL_L, COL_T])
-					want += gap
-				walked += ln
-	return _cols
+	var inside: PackedVector2Array = Geometry2D.offset_polygon(plate, -COL_IN)[0]
+	var clear := func(at: Vector2) -> bool:
+		if not Geometry2D.is_point_in_polygon(at, inside):
+			return false
+		for ko in keep_out:
+			if Geometry2D.is_point_in_polygon(at, ko):
+				return false
+		return true
+	# Blades along the party walls: the first just in from the slab edge, then every 5.5 m in towards the core
+	var shift := STAGGER * (1.0 if odd else -1.0)
+	for w in WALLS:
+		var a: Vector2 = SpireSite.g([w[0].x, w[0].y])
+		var b: Vector2 = SpireSite.g([w[1].x, w[1].y])
+		if a.distance_to(mid) < b.distance_to(mid):
+			var t := a
+			a = b
+			b = t
+		# (a: the wall's end at the slab edge. Walk in from the edge itself, wherever the wall's drawn to)
+		var dir := (b - a).normalized()
+		var hit := Geometry2D.intersect_polyline_with_polygon(PackedVector2Array([a - dir * 6.0, b]), plate)
+		if not hit.is_empty():
+			a = hit[0][0]
+		var ln := a.distance_to(b)
+		var s := COL_IN + COL_L * 0.5 + 0.5 + shift
+		while s < ln + 0.3:
+			var at := a + dir * s
+			if clear.call(at):
+				out.append([at, -atan2(dir.y, dir.x), COL_L, COL_T])
+			s += WALL_STEP
+	# ...and along the slab edge wherever it's left more than a span from any of those (the corners)
+	var walls_n := out.size()
+	var n := inside.size()
+	var per := 0.0
+	for i in n:
+		per += inside[i].distance_to(inside[(i + 1) % n])
+	var gap := per / maxi(3, int(round(per / COL_STEP)))
+	var want := gap * 0.5 + shift
+	var walked := 0.0
+	for i in n:
+		var a: Vector2 = inside[i]
+		var b: Vector2 = inside[(i + 1) % n]
+		var ln := a.distance_to(b)
+		while want <= walked + ln and ln > 0.001:
+			var at := a.lerp(b, (want - walked) / ln)
+			var near := false
+			for k in walls_n:
+				if (out[k][0] as Vector2).distance_to(at) < COL_STEP * 0.7:
+					near = true
+			if not near and clear.call(a.lerp(b, (want - walked) / ln) + (mid - at).normalized() * 0.05):
+				out.append([at, -atan2(b.y - a.y, b.x - a.x), COL_L, COL_T])
+			want += gap
+		walked += ln
+	_cols[key] = out
+	return out
 
 func _h() -> float:
 	return fh - 0.42            # floor to the underside of the formply
@@ -129,7 +185,7 @@ func _build() -> void:
 	_col_root = Node3D.new()
 	_col_root.name = "Columns"
 	add_child(_col_root)
-	for c in columns():
+	for c in columns(odd):
 		var at: Vector2 = c[0]
 		var here := Transform3D(Basis(Vector3.UP, float(c[1])), Vector3(at.x, 0, at.y))
 		# The cage: eight bars and their ties, made up on the ground and flown in whole
@@ -235,12 +291,13 @@ func _build_plain() -> void:
 	_col_root = Node3D.new()
 	_col_root.name = "Columns"
 	add_child(_col_root)
-	for c in columns():
+	for c in columns(odd):
 		var at: Vector2 = c[0]
 		var col := F.box(Vector3(float(c[2]), h, float(c[3])), F.mat("column"), Vector3(at.x, h * 0.5, at.y))
 		col.rotation.y = float(c[1])
 		_col_root.add_child(col)
 	F.bake(_col_root)
+	_build_starters()
 
 func _prop_points(step: float) -> Array:
 	var plate := SpireSite.poly("plate")
@@ -337,6 +394,31 @@ func _build_back() -> void:
 			_back.add_child(F.cylinder(0.028, h * 0.45, inner, Vector3(q.x, h * 0.775, q.y), 6))
 	F.bake(_back)
 
+## The starter bars cast into this storey's slab for the columns of the storey above (the other
+## set-out): they stand up out of the deck through the steel and the pour, and the next cages lap
+## onto them. That's what carries the columns on from one level to the next.
+func _build_starters() -> void:
+	if _starters != null:
+		return
+	_starters = Node3D.new()
+	_starters.name = "Starters"
+	add_child(_starters)
+	var rust := F.color_mat(Color("9a4a2c"))
+	var y0 := fh - 0.3
+	var y1 := fh + 0.8
+	for c in columns(not odd):
+		var at: Vector2 = c[0]
+		var cl := float(c[2])
+		var ct := float(c[3])
+		var here := Transform3D(Basis(Vector3.UP, float(c[1])), Vector3(at.x, 0, at.y))
+		var bars := maxi(2, int(round(cl / 0.3)) + 1)
+		for i in bars:
+			for sd in [-1.0, 1.0]:
+				var bar := F.box(Vector3(0.03, y1 - y0, 0.03), rust, Vector3(lerpf(-cl * 0.5 + 0.09, cl * 0.5 - 0.09, float(i) / (bars - 1)), (y0 + y1) * 0.5, sd * (ct * 0.5 - 0.08)))
+				bar.transform = here * bar.transform
+				_starters.add_child(bar)
+	F.bake(_starters)
+
 ## Shows the cycle as it stands at `u` (0 nothing yet .. 1 ready for the deck's steel).
 func show_at(u: float) -> void:
 	if done:
@@ -382,6 +464,7 @@ func _finish() -> void:
 	F.bake(_col_root)
 	for b in _bands:
 		b.visible = true
+	_build_starters()
 
 ## The deck's moved on a floor: the props under a poured slab come out and back-props stay for a
 ## couple of floors.
@@ -394,6 +477,10 @@ func _older() -> void:
 	for b in _bands:
 		b.queue_free()
 	_bands = []
+	if age >= 2 and _starters != null:
+		# (cast into the columns over them by now)
+		_starters.queue_free()
+		_starters = null
 	if age <= BACK_FLOORS:
 		_build_back()
 	elif _back != null:

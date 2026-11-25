@@ -4614,7 +4614,7 @@ func _start_floor() -> void:
 	elif spire:
 		# (Spire: the core and the slabs are spire_site.gd's; the columns and the deck's props go up
 		# stage by stage, spire_floor_cycle.gd)
-		SpireFloorCycle.begin(f, FH)
+		SpireFloorCycle.begin(f, FH, k)
 	else:
 		for c in _column_xz():
 			frame.add_child(F.box(Vector3(0.6, FH - 0.3, 0.6), col, Vector3(SC.x + c.x, (FH - 0.3) * 0.5, SC.z + c.y)))
