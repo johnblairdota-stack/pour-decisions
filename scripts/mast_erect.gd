@@ -258,6 +258,8 @@ func start() -> void:
 
 # ------------------------------------------------------------------ Spire: into the penetration
 
+var _nest_part: Node3D      # the crow's nest's loose last side, waiting on the roof
+var _hold_att: Array = []   # where the slings are while the crane holds a lying length's weight at a joint
 var _col_lie: Node3D        # the whole column lying on the roof, its sections in a line, top at its origin
 var _joint_at: Array = []   # where each lying joint is on the roof
 const GAP := 0.45           # m the lying sections are apart till they're pinned
@@ -309,6 +311,21 @@ func _start_pen(length: float) -> void:
 		cum += float(lens[i])
 		if i < lens.size() - 1:
 			_joint_at.append(_col_lie.position + Vector3(cum + GAP * i, 0, 0))
+	# The crow's nest's last side, upright on the roof (on dunnage) till it's lifted on
+	_nest_part = Node3D.new()
+	var grate := F.color_mat(Color("e3e5e2"))
+	_nest_part.add_child(F.box(Vector3(0.5, 0.08, 2.5), grate))
+	for hy in [0.55, 1.1]:
+		_nest_part.add_child(F.box(Vector3(0.06, 0.06, 2.5), grate, Vector3(-0.25, hy, 0)))
+	_nest_part.add_child(F.box(Vector3(0.06, 0.15, 2.5), F.color_mat(Color("c3c7c6")), Vector3(-0.25, 0.08, 0)))
+	for sz in [-1.25, 0.0, 1.25]:
+		_nest_part.add_child(F.box(Vector3(0.06, 1.1, 0.06), grate, Vector3(-0.25, 0.55, sz)))
+	for sz in [-0.8, 0.8]:
+		_nest_part.add_child(F.box(Vector3(0.9, 0.1, 0.1), F.color_mat(Color("8a6a43")), Vector3(0, -0.09, sz)))
+	var np := _on_deck(_m() + _lay("adaptor") + Vector3(0, 0, 3.0))
+	_nest_part.position = Vector3(np.x, foot + 0.18, np.z)
+	_nest_part.set_meta("att", [Vector3(0, 0.1, 1.0), Vector3(0, 0.1, -1.0)])
+	add_child(_nest_part)
 	_adaptor = Node3D.new()
 	_adaptor.add_child(F.box(Vector3(1.2, 0.26, 1.2), F.color_mat(Color("eceeed"))))
 	for sx in [-0.42, 0.42]:
@@ -337,8 +354,8 @@ const JOBS_PEN := {
 	"pump": "pins the sections together on the roof, then the crow's nest's last side, the adaptor's 4 pins and the boom's 4, harnessed",
 	"poker": "stands at the opening and radios the crane up and down to the mark, pushes the legs out onto the pads, wedges it",
 	"hose": "clamps the pipe and ladder across each joint, fits the bend and the power lead",
-	"line": "slings each load for the crane: column, adaptor, boom",
-	"screed": "radios the adaptor and the boom down onto their seats"}
+	"line": "slings each load for the crane: the lengths at each joint, the column, the crow's nest side, adaptor, boom",
+	"screed": "radios the crane to hold the weight at each joint, and the crow's nest side, the adaptor and the boom down onto their seats"}
 
 func _build_steps_pen(lens: Array, length: float) -> void:
 	steps = []
@@ -349,6 +366,9 @@ func _build_steps_pen(lens: Array, length: float) -> void:
 	for j in _joint_at.size():
 		var at: Vector3 = _joint_at[j]
 		var spot := _on_deck(Vector3(at.x + GAP * 0.5, foot, at.z + 1.0))
+		# (the crane takes the next length's weight, on the dogger's radio, so the holes line up for the pins: John, 25 Nov)
+		steps.append(_job("strop_joint%d" % j, 0, "line", "sling the next length", 2, 0.6, "Joint %d of %d: sling the next length" % [j + 1, _joint_at.size()], spot + Vector3(1.6, 0, 0)))
+		steps.append(_job("hold_joint%d" % j, 0, "screed", "hold: radio the crane to take the weight", 1, 2.4, "Dogger: crane holds the weight at the joint", _on_deck(Vector3(at.x - 1.2, foot, at.z + 2.2))))
 		steps.append(_job("pin_joint%d" % j, 0, "pump", "drive a joint pin", 4, 0.5, "Joint %d of %d: pins in, on the roof" % [j + 1, _joint_at.size()], spot))
 		steps.append(_job("pipe_joint%d" % j, 0, "hose", "clamp the pipe and ladder", 2, 0.7, "Clamp pipe and ladder over the joint", spot + Vector3(0.9, 0, 0)))
 	# 2. stood up and lowered in
@@ -364,6 +384,10 @@ func _build_steps_pen(lens: Array, length: float) -> void:
 	steps.append(_job("wedge_top", 2, "hose", "drive a corner wedge", 4, 0.5, "Corner plates and wedges at the roof", open_at))
 	steps.append(_job("unsling_col", 2, "pump", "let the hook go", 2, 0.6, "Up its ladder: hook off", null, top - 1.13))
 	# 4. the crow's nest
+	var nest_seat := Vector3(m.x - 0.75, top - 1.15, m.z)
+	steps.append(_job("sling_nest", 3, "line", "sling the crow's nest side", 2, 0.6, "Sling the crow's nest's last side", _on_deck(_nest_part.position + Vector3(0, 0, 1.3))))
+	steps.append({"id": "fly_nest", "kind": "fly", "stage": 3, "load": _nest_part, "seat": nest_seat, "say": "Crane lifts the crow's nest side"})
+	steps.append({"id": "land_nest", "kind": "land", "stage": 3, "role": "screed", "zone": zn, "at": _dog_spot(), "verb": "hold: radio it down", "n": 1, "t": 2.2, "load": _nest_part, "seat": nest_seat, "say": "Radio it in to the platform"})
 	steps.append(_job("nest", 3, "pump", "harness on, click the last side in", 2, 0.9, "Harness on: crow's nest, last side on", null, top - 1.13))
 	# 5. the adaptor, 6. the boom, 7. plug in, 8. the test: as the water tower's
 	_steps_top(4, m, top)
@@ -483,6 +507,9 @@ func _next() -> void:
 	if game.autotest:
 		print("[autotest]   mast erect: %s (stood %.1f m) at %.0fs" % [step, stood, game.phase_t])
 	game.line.extra_stops = [s["y"]] if s.get("zone", "") == "ladder" else []
+	if String(s["id"]).begins_with("strop_joint"):
+		var jo: Vector3 = _joint_at[int(String(s["id"]).right(1))] + Vector3(GAP + 0.8, 2.8, 0)
+		_way = [Vector3(hook_pos.x, maxf(hook_pos.y, jo.y + 6.0), hook_pos.z), Vector3(jo.x, maxf(hook_pos.y, jo.y + 6.0), jo.z), jo]
 	if String(s["id"]).begins_with("sling_") and _load == null and not _col_slung:
 		# (the hook comes over to it while it's slung)
 		var to := _hook_on(steps[si + 1]["load"])
@@ -520,6 +547,24 @@ func _done() -> void:
 		hook_pos = _hook_on(load)
 		_load_off = load.global_position - hook_pos
 		g.sfx.hit("clank")
+	elif id.begins_with("strop_joint"):
+		var ja: Vector3 = _joint_at[int(id.right(1))]
+		_hold_att = [ja + Vector3(GAP + 0.8, 0.5, 0.25), ja + Vector3(GAP + 0.8, 0.5, -0.25)]
+		_way = []
+		hook_pos = ja + Vector3(GAP + 0.8, 2.8, 0)
+		g.sfx.hit("clank")
+	elif id.begins_with("hold_joint"):
+		g.pop("WEIGHT'S ON", hook_pos + Vector3(0, 0.8, 0), Color("7cd992"))
+	elif id.begins_with("pipe_joint"):
+		_hold_att = []
+		_way = [hook_pos + Vector3(0, 6.0, 0)]
+	elif id == "nest":
+		_load = null
+		_nest_part.visible = false
+		_way = [hook_pos + Vector3(0, 6.0, 0)]
+		g.spire_col_nest = 2
+		g.erect_column(stood, true)
+		g.sfx.hit("clank")
 	elif id.begins_with("pin_joint"):
 		# (the next section's drawn up tight to the one above it)
 		var j := int(id.right(1))
@@ -548,10 +593,6 @@ func _done() -> void:
 	elif id == "unsling_col":
 		_col_slung = false
 		_way = [hook_pos + Vector3(0, 8.0, 0)]
-	elif id == "nest":
-		g.spire_col_nest = 2
-		g.erect_column(stood, true)
-		g.sfx.hit("clank")
 	elif id == "pack_base":
 		pass
 	elif id == "unsling_base":
@@ -612,6 +653,10 @@ func _finish() -> void:
 	if _col_lie != null:
 		_col_lie.queue_free()
 		_col_lie = null
+	if _nest_part != null:
+		_nest_part.queue_free()
+		_nest_part = null
+	_hold_att = []
 	g.climb.park_stage = ""
 	g.climb.park_slew = 0.0
 	g.climb.park_fold = 0.0
@@ -780,6 +825,8 @@ func _draw() -> void:
 	if _load != null:
 		for a in _load.get_meta("att", []):
 			att.append(_load.to_global(a))
+	elif not _hold_att.is_empty():
+		att = _hold_att
 	elif _col_slung:
 		var t := _col_top()
 		att = [t + Vector3(0.16, 0.25, 0), t + Vector3(-0.16, 0.25, 0)]
