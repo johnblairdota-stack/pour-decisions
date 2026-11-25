@@ -39,13 +39,14 @@ if (-not $Godot) {
   if (-not $Godot) { Fail "Couldn't find Godot 4.7. Pass -Godot <path to the .exe>." }
 }
 if (-not (Test-Path $Play)) { Fail "No play folder at $Play" }
+Say "using Godot at $Godot"
 $log = Join-Path $Tools "releases.log"
 
 # 2. Fresh copy of main
 $rel = "r" + (Get-Date -Format "yyyyMMdd-HHmm")
 $tmp = Join-Path $env:TEMP "pd_release_$rel"
 if (Test-Path $tmp) { Remove-Item -Recurse -Force $tmp }
-Say "release $rel: cloning main"
+Say "release ${rel}: cloning main"
 git clone --quiet --depth 50 --branch main $Repo $tmp
 if ($LASTEXITCODE -ne 0) { Fail "git clone failed" }
 $sha = (git -C $tmp rev-parse --short HEAD).Trim()
