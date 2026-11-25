@@ -1698,6 +1698,9 @@ var _fix_at := Vector4.INF
 ## lifting lugs under it, and the ladder's cage over the deck. Built along +y from 0.
 func _build_column(length: float, bare := false) -> void:
 	for c in _spire_mast.get_children():
+		# (out of the tree now: a queued "Adaptor" would still hold the name, and a second build in the
+		# same frame would get an auto-renamed one that spire_adaptor() can't find)
+		_spire_mast.remove_child(c)
 		c.queue_free()
 	if bare:
 		# (a section or two stood, nothing on top yet: mast_erect.gd)
