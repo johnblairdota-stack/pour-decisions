@@ -101,6 +101,12 @@ const TASKS := {
 const CLIMB_SEAT := {
 	"spire": {"boom": ["pumpy", "Boom op"], "pump": ["rigger", "Top rigger"], "poker": ["rigger", "Lug rigger"],
 		"hose": ["rigger", "Opening rigger"], "line": ["dogger", "Bottom dogger"], "screed": ["dogger", "Top dogger"]},
+	# Spire's install day (mast_erect.gd pen mode, John 25 Nov): no X base, the column's joined
+	# lying on the roof and lowered into its penetration. A rigger at the opening radios it to the
+	# mark, then legs and wedges at both floors; the top rigger pins (harnessed on the boom and the
+	# crow's nest); the line hand runs the pipe across the joints, the bend and the power.
+	"pen": {"boom": ["pumpy", "Boom op"], "pump": ["rigger", "Top rigger"], "poker": ["rigger", "Opening rigger"],
+		"hose": ["pumpy", "Line hand"], "line": ["dogger", "Slinging dogger"], "screed": ["dogger", "Calling dogger"]},
 	"erect": {"boom": ["pumpy", "Boom op"], "pump": ["rigger", "Rigger"], "poker": ["rigger", "Hook rigger"],
 		"hose": ["pumpy", "Line hand"], "line": ["dogger", "Slinging dogger"], "screed": ["dogger", "Calling dogger"]},
 	"lattice": {"boom": ["dogger", "Dogman"], "line": ["dogger", "Slinger"], "pump": ["rigger", "Rigger"],
