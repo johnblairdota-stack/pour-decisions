@@ -352,8 +352,8 @@ func _start_pen(length: float) -> void:
 const JOBS_PEN := {
 	"boom": "tests the boom on the remote: unfold, swing, emergency stop",
 	"pump": "pins the sections together on the roof, then the crow's nest's last side, the adaptor's 4 pins and the boom's 4, harnessed",
-	"poker": "stands at the opening and radios the crane up and down to the mark, pushes the legs out onto the pads, wedges it",
-	"hose": "clamps the pipe and ladder across each joint, fits the bend and the power lead",
+	"poker": "stands at the opening and radios the crane up and down to the mark, pushes the legs out onto the pads, then the corner wedges at both floors",
+	"hose": "clamps the pipe and ladder across each joint on the roof, then the bend and the power lead",
 	"line": "slings each load for the crane: the lengths at each joint, the column, the crow's nest side, adaptor, boom",
 	"screed": "radios the crane to hold the weight at each joint, and the crow's nest side, the adaptor and the boom down onto their seats"}
 
@@ -381,7 +381,7 @@ func _build_steps_pen(lens: Array, length: float) -> void:
 	# 3. legs and wedges
 	steps.append(_job("legs", 2, "poker", "push a leg out onto its pad", 4, 0.7, "Floor below: legs out onto the rubber pads", null, col_foot + 0.2))
 	steps.append(_job("wedge_low", 2, "poker", "drive a corner wedge", 4, 0.5, "Corner plates and wedges, floor below", null, col_foot + 0.2))
-	steps.append(_job("wedge_top", 2, "hose", "drive a corner wedge", 4, 0.5, "Corner plates and wedges at the roof", open_at))
+	steps.append(_job("wedge_top", 2, "poker", "drive a corner wedge", 4, 0.5, "Corner plates and wedges at the roof", open_at))
 	steps.append(_job("unsling_col", 2, "pump", "let the hook go", 2, 0.6, "Up its ladder: hook off", null, top - 1.13))
 	# 4. the crow's nest
 	var nest_seat := Vector3(m.x - 0.75, top - 1.15, m.z)
@@ -851,9 +851,13 @@ func stages() -> Array:
 func stage_i() -> int:
 	return int(steps[si]["stage"]) if si >= 0 and si < steps.size() else 0
 
+## Which trades.gd CLIMB_SEAT map this day's crew is on: Spire's penetration install, or the X base.
+func seat_kind() -> String:
+	return "pen" if pen else "erect"
+
 func who_text(role: String) -> String:
 	var p = game.crew.crew.get(role)
-	var job_name := Trades.climb_full(role, "erect", " ").to_upper()
+	var job_name := Trades.climb_full(role, seat_kind(), " ").to_upper()
 	if p == null:
 		return job_name
 	if p.bot:

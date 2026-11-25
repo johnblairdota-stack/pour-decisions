@@ -5550,7 +5550,7 @@ func _process(delta: float) -> void:
 					erect.finished.connect(_on_erect_done)
 				_mast_keep = mast
 				mast = erect
-				_change_over("erect", func():
+				_change_over("pen" if spire else "erect", func():
 					_set_phase("mastclimb")
 					erect.start())
 			var u := clampf(phase_t / 1.8, 0.0, 1.0)
