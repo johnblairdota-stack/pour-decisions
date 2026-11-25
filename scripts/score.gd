@@ -8,6 +8,7 @@ extends Node
 
 const F := preload("res://scripts/factory.gd")
 const Wallet := preload("res://scripts/wallet.gd")
+const Trades := preload("res://scripts/trades.gd")
 const CashArt := preload("res://scripts/cash_art.gd")
 
 ## The site's rate card: what each kind of work is worth against the
@@ -71,6 +72,7 @@ var game
 var total := 0
 var level := 0                 # this slab's points so far
 var by_role := {}              # role -> points this slab
+var by_trade := {}             # trade (trades.gd) -> points this slab, "crew" for the whole crew
 var by_person := {}            # "P1" etc -> dollars over the chapter
 var wallet_pour := {}          # char id -> dollars into their wallet this slab
 var log_rows := {}             # what earned them this slab: label -> points
@@ -120,6 +122,7 @@ func start_level() -> void:
 	level = 0
 	wallet_pour = {}
 	by_role = {}
+	by_trade = {}
 	log_rows = {}
 	role_rows = {}
 	costs = []
@@ -227,9 +230,12 @@ func award(who, pts: int, why: String, at := Vector3.INF) -> void:
 	level += pts
 	var role: String = who.role if who != null else "crew"
 	if pts < 0:
-		costs.append({"why": base, "pts": pts, "role": role if who != null else String(COST_OWNER.get(base, "crew")),
+		var owner: String = role if who != null else String(COST_OWNER.get(base, "crew"))
+		costs.append({"why": base, "pts": pts, "role": owner, "trade": Trades.of_role(owner),
 			"t": float(game.pour_clock) if game != null and "pour_clock" in game else 0.0})
 	by_role[role] = int(by_role.get(role, 0)) + pts
+	var trade: String = String(who.trade) if who != null and "trade" in who and String(who.trade) != "" else "crew"
+	by_trade[trade] = int(by_trade.get(trade, 0)) + pts
 	log_rows[why] = int(log_rows.get(why, 0)) + pts
 	var rr: Dictionary = role_rows.get(role, {})
 	rr[why] = int(rr.get(why, 0)) + pts

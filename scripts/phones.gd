@@ -671,7 +671,7 @@ func roster() -> Dictionary:
 	var sel = game.selector if is_instance_valid(game.selector) else null
 	for role in UI.PICK_ORDER:
 		var q = game.crew.crew[role]
-		out.append({"id": role, "name": UI.job_full(role), "trade": UI.TRADE[role], "seat": UI.ROLE_NAME[role], "col": UI.ROLE[role].to_html(false), "line": UI.ROLE_DO[role], "ask": UI.ROLE_ASK[role],
+		out.append({"id": role, "name": UI.job_full(role), "trade": UI.trade(role), "seat": UI.ROLE_NAME[role], "col": UI.ROLE[role].to_html(false), "line": UI.ROLE_DO[role], "ask": UI.ROLE_ASK[role],
 			"p": 0 if q.bot else q.index, "pc": q.tag_color.to_html(false), "who": q.char_name,
 			"lock": (not q.bot) and sel != null and bool(sel._ready_p.get(q.index, false))})
 	return {"t": "roster", "r": out}
@@ -679,7 +679,7 @@ func roster() -> Dictionary:
 ## A job's ticket: its goal, its steps, what to watch for, climb days.
 func card(role: String) -> Dictionary:
 	var jc: Dictionary = UI.JOB_CARD.get(role, {})
-	return {"t": "card", "role": role, "name": UI.job_full(role), "trade": UI.TRADE.get(role, ""), "col": UI.ROLE.get(role, Color.WHITE).to_html(false),
+	return {"t": "card", "role": role, "name": UI.job_full(role), "trade": UI.trade(role), "col": UI.ROLE.get(role, Color.WHITE).to_html(false),
 		"goal": jc.get("goal", ""), "steps": UI.how(role), "watch": jc.get("watch", ""),
 		"climb": UI.ROLE_CLIMB.get(role, ""), "climbsteps": UI.how(role, "climb")}
 

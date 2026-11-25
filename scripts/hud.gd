@@ -912,12 +912,27 @@ func show_slab(d: Dictionary, seconds := 6.0) -> void:
 	hl.add_child(q)
 	var note := UI.label(String(d.get("medal_note", "")), 14, UI.DIM, 0)
 	tv.add_child(note)
-	# The crew: one card per hard hat
+	# The crew: one card per hard hat, grouped by trade with the trade's take
+	# over its cards
 	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 8)
+	row.add_theme_constant_override("separation", 14)
 	_card_box.add_child(row)
-	for r in d.get("crew", []):
-		row.add_child(_hat_card(r, String(r["role"]) == String(d.get("star", ""))))
+	var groups: Array = d.get("trades", [])
+	if groups.is_empty():
+		groups = [{"id": "", "name": "", "pts": 0}]
+	for gr in groups:
+		var gv := VBoxContainer.new()
+		gv.add_theme_constant_override("separation", 4)
+		row.add_child(gv)
+		if String(gr["id"]) != "":
+			var gp := int(gr["pts"])
+			gv.add_child(UI.head("%s  ·  %s$%s" % [String(gr["name"]).to_upper(), "+" if gp >= 0 else "-", _thousands(absi(gp))], 15, UI.DIM))
+		var gh := HBoxContainer.new()
+		gh.add_theme_constant_override("separation", 8)
+		gv.add_child(gh)
+		for r in d.get("crew", []):
+			if String(gr["id"]) == "" or String(r.get("trade", "")) == String(gr["id"]):
+				gh.add_child(_hat_card(r, String(r["role"]) == String(d.get("star", ""))))
 	# What went wrong: the three biggest costs, whose job it was, when it
 	# first happened and how not to do it again
 	var wrong: Array = d.get("wrong", [])
@@ -1111,7 +1126,7 @@ func _hat_card(r: Dictionary, star: bool) -> PanelContainer:
 	var tag := UI.ptag(int(r["p"]), 14, bool(r["bot"]))
 	tag.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	th.add_child(tag)
-	var jn := UI.head(UI.job_full(String(r["role"])).to_upper(), 15, col)
+	var jn := UI.head(String(UI.ROLE_NAME.get(r["role"], "") if r.has("trade") else UI.job_full(String(r["role"]))).to_upper(), 15, col)
 	jn.clip_text = true
 	jn.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	v.add_child(jn)

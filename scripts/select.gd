@@ -297,7 +297,7 @@ func _build_crew_page(root: Control) -> void:
 		hat.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 		col.add_child(hat)
 		# (the trade first, then the seat in it)
-		var tn := UI.head(String(UI.TRADE[role]).to_upper(), 20, Color("6b5a3e"))
+		var tn := UI.head(UI.trade(role).to_upper(), 20, Color("6b5a3e"))
 		tn.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		col.add_child(tn)
 		var jn := UI.head(UI.ROLE_NAME[role], 30, Color("1b1308"))

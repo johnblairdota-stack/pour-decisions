@@ -15,22 +15,23 @@ const DEFAULT_CHAR := Roster.DEFAULT_CHAR
 const ROLES := ["boom", "line", "pump", "poker", "screed", "hose"]
 const JOIN_ORDER := ["boom", "hose", "poker", "line", "pump", "screed"]
 const UI := preload("res://scripts/ui.gd")
+const Trades := preload("res://scripts/trades.gd")
 const F := preload("res://scripts/factory.gd")
 ## Up to six people, P1-P6, each with their own tag colour (bots do the rest)
 const MAX_PEOPLE := 6
 const PLAYER_COLORS := UI.P_COLORS
 const INFO := {
-	"boom": {"name": "Boom op", "trade": "Pumpy", "hat": Color("ffc72c"), "climb": "dogman",
+	"boom": {"name": "Boom op", "trade": "Pumpy", "hat": Color("ff7a1a"), "climb": "dogman",
 		"text": "Steer the placing boom from the radio remote and pump the concrete where it's needed, bay by bay. Keep an eye on the hopper.\n\nClimb days: dogman, whistling the crane in."},
 	"line": {"name": "Gate hand", "trade": "Concreter", "hat": Color("7cd992"), "climb": "slinger",
 		"text": "Run the truck bay. Wave trucks in and spot them back onto the hopper, check each docket against the order, slump-test the loads that are due one, then use it, add the water held back, or send it back. Keep the changeovers tight for a streak.\n\nClimb days: sling the next section and send the pins up."},
 	"pump": {"name": "Pump op", "trade": "Pumpy", "hat": Color("ff7a1a"), "climb": "rigger",
 		"text": "Watch the pressure gauge. The moment it spikes, kill the pump (A): the faster you react, the more it's worth. A spike is often the line going (a clamp letting go, a plug forming): kill it, then grab the parts, climb up, fix it and restart the pump. You run the washout valve too.\n\nClimb days: rigger, pinning the new sections."},
-	"poker": {"name": "Poker hand", "trade": "Concreter", "hat": Color("c49bff"), "climb": "tag line",
+	"poker": {"name": "Poker hand", "trade": "Concreter", "hat": Color("7cd992"), "climb": "tag line",
 		"text": "Vibrate the concrete as it lands: plunge, feel it shudder, lift out when the bubbles stop, move on. Tow your drive unit along.\n\nClimb days: the tag line."},
-	"hose": {"name": "Line hand", "trade": "Pumpy", "hat": Color("2fd3e8"), "climb": "",
+	"hose": {"name": "Line hand", "trade": "Pumpy", "hat": Color("ff7a1a"), "climb": "",
 		"text": "Runs the pour: you decide where it lands and when it flows, and the boom follows you. On the end of the rubber hose: walk it where the concrete's wanted, right into the corners the boom can't quite reach, and call the pump on and off. On the radio for the start-up: the dragon's breathing, slurry out, concrete's on."},
-	"screed": {"name": "Screeder", "trade": "Concreter", "hat": Color("f4f7fa"), "climb": "",
+	"screed": {"name": "Screeder", "trade": "Concreter", "hat": Color("7cd992"), "climb": "",
 		"text": "Follow the pokers with the screed board. Saw it side to side to strike the slab flat, rolling the surplus into the low spots, before it goes off.\n\nInspections: fix the defects."},
 }
 
@@ -160,6 +161,26 @@ func human(i: int):
 
 func is_bot(role: String) -> bool:
 	return crew[role].bot
+
+## Everyone working `trade` today (trades.gd id), people and bots, in pick order.
+func in_trade(trade: String) -> Array:
+	var out: Array = []
+	for role in Trades.roles(trade):
+		if crew.has(role):
+			out.append(crew[role])
+	return out
+
+## The people (not bots) working `trade` today.
+func humans_in(trade: String) -> Array:
+	return in_trade(trade).filter(func(p): return not p.bot)
+
+## The first seat in `trade` a bot's sitting in ("" when the trade's full of
+## people): where a person picking that trade starts.
+func free_seat(trade: String) -> String:
+	for p in in_trade(trade):
+		if p.bot:
+			return p.role
+	return ""
 
 ## Moves person `i` onto the chibi doing `role` (if no other person has it).
 ## Their old chibi goes back to a bot.
