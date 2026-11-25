@@ -167,6 +167,11 @@ func arrive_fade(f: float) -> void:
 	_site_page.modulate.a = f
 	_shade.modulate.a = f
 
+## The floor pick's own shading alone (the fly-in's film has it on from the start, so nothing comes
+## down over the picture on landing).
+func arrive_shade(f: float) -> void:
+	_shade.modulate.a = f
+
 func arrive_done() -> void:
 	arriving = false
 	arrive_fade(1.0)
@@ -297,7 +302,7 @@ func _build_crew_page(root: Control) -> void:
 		hat.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 		col.add_child(hat)
 		# (the trade first, then the seat in it)
-		var tn := UI.head(String(UI.TRADE[role]).to_upper(), 20, Color("6b5a3e"))
+		var tn := UI.head(UI.trade(role).to_upper(), 20, Color("6b5a3e"))
 		tn.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		col.add_child(tn)
 		var jn := UI.head(UI.ROLE_NAME[role], 30, Color("1b1308"))
