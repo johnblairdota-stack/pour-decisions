@@ -147,7 +147,9 @@ const ROLE_ASK := {
 	"poker": "Can you tell when the bubbles stop?",
 	"screed": "Can you walk backwards dead straight?",
 }
-const ROLE_CLIMB := {"boom": "Climb days: dogman", "line": "Climb days: slinger and pins", "poker": "Climb days: tag line", "pump": "Climb days: rigger", "screed": "", "hose": "Climb days: tag line 2"}
+## On Riverlight's lattice climb days each job works a climb trade too (trades.gd CLIMB_SEAT).
+## Spire's column climb has its own (mast_climb.gd CLIMB_JOB).
+const ROLE_CLIMB := {"boom": "Climb days: Dogger, the dogman", "line": "Climb days: Dogger, slings the sections and sends the pins up", "poker": "Climb days: Dogger on the tag line", "pump": "Climb days: Rigger, pins the new sections", "screed": "", "hose": "Climb days: Dogger on tag line 2"}
 ## The job ticket: what each job is for and its steps on a pour, in order,
 ## as the phone shows it (with the live step highlighted), the pause menu's
 ## "Your job" card and the toolbox talk. Each step: [button ("stick" for the

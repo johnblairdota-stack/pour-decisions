@@ -15,6 +15,12 @@
 ##   8. BOOM ON   shackles off, the adaptor and the boom back on, 4 + 8 pins
 ##   9. CHECK     the mobilisation check: the boom operator unfolds it and swings it on the remote
 ## Bots do any job nobody's doing (bots.gd hands them to bot()).
+##
+## The crew work the real trades on a climb day (trades.gd CLIMB_SEAT "spire"): the boom op (a pumpy)
+## parks the boom and does the check; the top rigger knocks the boom pins; the lug rigger the adaptor
+## pins and the shackles; the opening rigger the wedges, feet and pipes down the ladder; the BOTTOM
+## dogger, at the pipe feed, whistles the column to its mark and sends each pipe up; the TOP dogger,
+## on the deck, radios the crane for the boom and adaptor lifts. The crane listens to both.
 extends Node3D
 
 signal finished
@@ -23,6 +29,7 @@ const F := preload("res://scripts/factory.gd")
 const LineScript := preload("res://scripts/line.gd")
 const SpireSite := preload("res://scripts/spire_site.gd")
 const UI := preload("res://scripts/ui.gd")
+const Trades := preload("res://scripts/trades.gd")
 
 const PIPES := 5
 const HOIST_V := 0.32       # m/s the crane lifts the column
@@ -77,6 +84,12 @@ var _absent := {}           # roles a bot's had to stand in for today (it waits 
 var _who: Dictionary = {}     # player -> the label over them: their turn, or who they're waiting on
 var open_air := false       # (the erection day's is out on the roof: mast_erect.gd)
 var _shot_next := ""        # (dev: shoot this step a few seconds in, once things are moving)
+var _radio_ok := false      # the top dogger's called this crane lift (the crane waits for the call)
+const CRANE_STEPS := ["boom_off", "adaptor_off", "hook_down", "adaptor_on", "boom_on"]
+## What the top dogger radios for each crane lift, and the crane op's answer.
+const RADIO := {"boom_off": ["Take the boom up", "Boom's coming up"], "adaptor_off": ["Adaptor's free, take it up", "Adaptor up"],
+	"hook_down": ["Hook down to the lugs", "Hook coming down"], "adaptor_on": ["Bring the adaptor back", "Adaptor coming in"],
+	"boom_on": ["Bring the boom back on", "Boom coming in"]}
 
 func _ready() -> void:
 	for i in 2:
@@ -130,10 +143,9 @@ func start() -> void:
 	g.hud.toast("Climb day: the crane lifts the boom's column %.0f m up through the slabs" % rise, 3.0)
 	# The roll call: who has which job today, by player tag
 	var lines: Array = []
-	for role in ["boom", "pump", "hose", "line"]:
+	for role in ["boom", "pump", "poker", "hose", "line", "screed"]:
 		if g.crew.crew.get(role) != null:
 			lines.append("%s · %s" % [who_text(role), CLIMB_JOB[role]])
-	lines.append("Everyone else: stand clear of the column and watch.")
 	g.hud.job_intro("CLIMB DAY · WHO DOES WHAT", "\n".join(lines), UI.GOLD, 14.0)
 
 func _place_column() -> void:
@@ -157,9 +169,9 @@ func job() -> Dictionary:
 		"boom_pins":
 			return {"role": "pump", "zone": "ladder", "y": top_y, "verb": "knock out boom pin", "n": 8, "t": PIN_T}
 		"adaptor_pins":
-			return {"role": "pump", "zone": "ladder", "y": top_y, "verb": "knock out adaptor pin", "n": 4, "t": PIN_T}
+			return {"role": "poker", "zone": "ladder", "y": top_y, "verb": "knock out adaptor pin", "n": 4, "t": PIN_T}
 		"shackle":
-			return {"role": "pump", "zone": "ladder", "y": top_y, "verb": "shackle the lugs", "n": 2, "t": 0.8}
+			return {"role": "poker", "zone": "ladder", "y": top_y, "verb": "shackle the lugs", "n": 2, "t": 0.8}
 		"wedges_out":
 			if g.spire_free(g.k - 1):
 				# (its first climb: it's stood free on the X base till now)
@@ -179,20 +191,24 @@ func job() -> Dictionary:
 		"wedges_in":
 			return {"role": "hose", "zone": "ladder", "y": wedge1, "verb": "drive the wedges", "n": 4, "t": 0.6}
 		"unshackle":
-			return {"role": "pump", "zone": "ladder", "y": to_head - 1.75, "verb": "unshackle", "n": 2, "t": 0.6}
+			return {"role": "poker", "zone": "ladder", "y": to_head - 1.75, "verb": "unshackle", "n": 2, "t": 0.6}
 		"adaptor_in":
-			return {"role": "pump", "zone": "ladder", "y": to_head - 1.75, "verb": "pin the adaptor", "n": 4, "t": PIN_T}
+			return {"role": "poker", "zone": "ladder", "y": to_head - 1.75, "verb": "pin the adaptor", "n": 4, "t": PIN_T}
 		"boom_in":
 			return {"role": "pump", "zone": "ladder", "y": to_head - 1.75, "verb": "pin the boom", "n": 8, "t": PIN_T}
 		"check":
 			return {"role": "boom", "zone": "deck", "at": _boom_spot(), "verb": "hold: mobilisation check", "n": 1, "t": 0.0}
 		"lift":
-			return {"role": "boom", "zone": "deck", "at": _dog_spot(), "verb": "", "n": 0, "t": 0.0}
+			return {"role": "line", "zone": "ground", "at": _haul_spot(), "verb": "", "n": 0, "t": 0.0}
+		"boom_off", "adaptor_off", "hook_down", "adaptor_on", "boom_on":
+			if not _radio_ok:
+				return {"role": "screed", "zone": "deck", "at": _dog_spot(), "verb": "radio: " + String(RADIO[step][0]).to_lower(), "n": 1, "t": 0.0, "radio": true}
 	return {}
 
 func _go(s: String) -> void:
 	step = s
 	step_t = 0.0
+	_radio_ok = false
 	prog = 0.0
 	count = 0
 	var j := job()
@@ -202,15 +218,15 @@ func _go(s: String) -> void:
 		if p != null:
 			who = " · " + p.char_name
 	var say := {
-		"park": "Park the boom", "boom_pins": "Boom pins out, up on the column", "boom_off": "Crane: boom off",
-		"adaptor_pins": "Adaptor pins out", "adaptor_off": "Crane: adaptor off", "hook_down": "Crane: hook down to the lugs",
+		"park": "Park the boom", "boom_pins": "Boom pins out, up on the column", "boom_off": "Top dogger: call the boom off",
+		"adaptor_pins": "Adaptor pins out", "adaptor_off": "Top dogger: call the adaptor off", "hook_down": "Top dogger: hook down to the lugs",
 		"shackle": "Shackle the lugs", "wedges_out": "Wedges out", "feet_in": "Feet in off the pads",
-		"lift": "Lift %d of %d: dogman, whistle STOP at the mark" % [lift_i + 1, PIPES], "send_pipe": "Pipe up the rope",
+		"lift": "Lift %d of %d: bottom dogger, whistle STOP at the mark" % [lift_i + 1, PIPES], "send_pipe": "Pipe up the rope",
 		"fit_pipe": "Pipe in under the column", "feet_out": "Feet out onto the pads", "wedges_in": "Wedges in",
-		"unshackle": "Shackles off", "adaptor_on": "Crane: adaptor back on", "adaptor_in": "Pin the adaptor",
-		"boom_on": "Crane: boom back on", "boom_in": "Pin the boom", "check": "Mobilisation check: unfold it and swing it"}
+		"unshackle": "Shackles off", "adaptor_on": "Top dogger: adaptor back on", "adaptor_in": "Pin the adaptor",
+		"boom_on": "Top dogger: boom back on", "boom_in": "Pin the boom", "check": "Mobilisation check: unfold it and swing it"}
 	if say.has(s):
-		game.hud.toast("Climb · %s%s" % [say[s], who if j.get("n", 0) > 0 or s in ["park", "check", "lift"] else ""], 2.2)
+		game.hud.toast("Climb · %s%s" % [say[s], who if j.get("n", 0) > 0 or s in ["park", "check", "lift"] or s in CRANE_STEPS else ""], 2.2)
 	if game._spire_shots != "" and s in ["boom_off", "wedges_out", "fit_pipe", "boom_on", "check"] and (s != "fit_pipe" or lift_i == 2):
 		game.mast_shot = s if s != "boom_off" else ""
 		_shot_next = "boom_off" if s == "boom_off" else ""
@@ -335,7 +351,7 @@ func update(delta: float) -> void:
 			if prog >= 1.0:
 				_done_step()
 		"boom_off", "adaptor_off", "hook_down", "adaptor_on", "boom_on":
-			if _way.is_empty():
+			if _radio_ok and _way.is_empty():
 				if step in ["boom_off", "adaptor_off"]:
 					# (set down: off the hook)
 					_load = null
@@ -354,7 +370,7 @@ func update(delta: float) -> void:
 ## the mark they inch it with held calls.
 func _lift(delta: float) -> void:
 	var target := rise * float(lift_i + 1) / float(PIPES)
-	var dog = game.crew.crew.get("boom")
+	var dog = game.crew.crew.get("line")
 	match hoist:
 		"up":
 			lifted += HOIST_V * delta
@@ -384,7 +400,7 @@ func _lift(delta: float) -> void:
 	if hoist == "held" and absf(lifted - target) <= STOP_TOL and step_t > 0.3:
 		_done_step()
 
-## The dogman's whistles, from whoever's the boom operator (a bot: bot()).
+## The bottom dogger's whistles, at the pipe feed (a bot: bot()).
 func _dog(p, delta: float) -> void:
 	var target := rise * float(lift_i + 1) / float(PIPES)
 	var err := lifted - target
@@ -418,10 +434,17 @@ func _update_pipe(delta: float) -> void:
 func handle_player(p, delta: float) -> bool:
 	if not active:
 		return false
-	if step == "lift" and (p == game.crew.crew.get("boom") or (p.bot and p.role == "poker" and _absent.has("boom"))):
+	if step == "lift" and (p == game.crew.crew.get("line") or (p.bot and p.role == "screed" and _absent.has("line"))):
 		_dog(p, delta)
 		return p.zone != "ladder"
 	var j := job()
+	if j.get("radio", false):
+		if not _at(p, j):
+			return false
+		p.cue("action", j["verb"], -1.0, true)
+		if p.action_pressed():
+			_call_lift(p)
+		return true
 	if j.is_empty() or (int(j.get("n", 0)) <= 0 and not (step in ["park", "check"])):
 		return false
 	if not _at(p, j):
@@ -479,6 +502,15 @@ func handle_player(p, delta: float) -> bool:
 					_done_step()
 	return true
 
+## The top dogger's call on the radio, and the crane op's answer: the lift goes.
+func _call_lift(p) -> void:
+	_radio_ok = true
+	_jobs_done[step] = p
+	game.sfx.hit("tink")
+	var r: Array = RADIO.get(step, ["Take it up", "Coming up"])
+	game.hud.toast("Radio · %s: \"%s\" · Crane: \"%s\"" % [p.char_name, r[0], r[1]], 2.0)
+	game.score.award(p, 5, "Climb day")
+
 func _at(p, j: Dictionary) -> bool:
 	match String(j["zone"]):
 		"ladder":
@@ -501,15 +533,15 @@ func bot(p, role: String, delta: float) -> bool:
 	# (a job that's a person's, and they haven't got to it: after a while a bot steps in for them)
 	if not j.is_empty() and j.get("role", "") != role and step_t > (6.0 if _absent.has(j.get("role", "")) else HELP_T):
 		var owner = game.crew.crew.get(j["role"])
-		var back := {"pump": "hose", "hose": "pump", "boom": "poker", "line": "screed"}
+		var back := {"pump": "poker", "poker": "pump", "hose": "pump", "line": "screed", "screed": "line", "boom": "screed"}
 		if owner != null and not owner.bot and not owner.covering and back.get(j["role"], "") == role:
 			_absent[j["role"]] = true
 			j["role"] = role
 			if step == "lift":
-				role = "boom"
-	if step == "lift" and role == "boom":
-		# (walking over to where they can see it, and calling it from wherever they are)
-		b.go(p, "deck", _dog_spot(), 0.6)
+				role = "line"
+	if step == "lift" and role == "line":
+		# (at the pipe feed, where the column's foot comes up past the mark)
+		b.go(p, "ground", _haul_spot(), 0.6)
 		var target := rise * float(lift_i + 1) / float(PIPES)
 		var err := lifted - target
 		var prev: bool = p._ai_prev["action"]
@@ -522,16 +554,18 @@ func bot(p, role: String, delta: float) -> bool:
 	if j.is_empty() or j.get("role", "") != role or (int(j.get("n", 0)) <= 0 and not (step in ["park", "check"])):
 		# (nothing for them right now: off the ladder, out of the way; up top, the pump operator waits
 		# on the platform while the crane's at work)
-		if p.zone == "ladder" and role == "pump" and step in ["boom_off", "adaptor_off", "hook_down", "adaptor_on", "boom_on"]:
+		if p.zone == "ladder" and role in ["pump", "poker"] and step in CRANE_STEPS:
 			return true
 		if p.zone == "ladder":
 			b._ladder_to(p, game.work_y if game.work_y > p.position.y - 6.0 else 0.0, true)
-		elif role in ["pump", "hose"] and p.zone == "deck":
+		elif role in ["pump", "poker", "hose"] and p.zone == "deck":
 			b.walk(p, _deck_wait(role), 0.6)
 		elif role == "line":
 			b.go(p, "ground", _haul_spot() + Vector3(0, 0, 1.2), 0.6)
-		elif role == "boom":
+		elif role == "screed":
 			b.go(p, "deck", _dog_spot(), 0.6)
+		elif role == "boom":
+			b.go(p, "deck", _boom_spot(), 0.6)
 		else:
 			b.go(p, "deck", _deck_wait(role), 0.6)
 		return true
@@ -550,7 +584,8 @@ func bot(p, role: String, delta: float) -> bool:
 					p.ai_action = b._tap()
 		_:
 			if b.go(p, j["zone"], j["at"], 0.45):
-				p.ai_action = true
+				# (a radio call's one press, a beat after they're there)
+				p.ai_action = b._tap() if j.get("radio", false) else true
 	return true
 
 # ------------------------------------------------------------------ the crane
@@ -559,6 +594,11 @@ func bot(p, role: String, delta: float) -> bool:
 func _crane(delta: float) -> bool:
 	var c = game.climb
 	# (the sling marker in the waypoints: the load comes on here)
+	# (a lift waits on the top dogger's call)
+	if step in CRANE_STEPS and not _radio_ok:
+		c.trolley_xz = Vector2(hook_pos.x, hook_pos.z)
+		c.cable_len = c.CRANE_H - hook_pos.y
+		return true
 	if not _way.is_empty() and _way[0] is Dictionary:
 		var d: Dictionary = _way.pop_front()
 		_load = d["sling"]
@@ -692,14 +732,17 @@ const STEP_SAY := {
 	"boom_in": "8 boom pins in", "check": "mobilisation check on the remote"}
 
 ## Which job each step is (the rest are the tower crane's), and what each job does on a climb day.
-const STEP_ROLE := {"park": "boom", "boom_pins": "pump", "adaptor_pins": "pump", "shackle": "pump", "wedges_out": "hose",
-	"feet_in": "hose", "lift": "boom", "send_pipe": "line", "fit_pipe": "hose", "feet_out": "hose", "wedges_in": "hose",
-	"unshackle": "pump", "adaptor_in": "pump", "boom_in": "pump", "check": "boom"}
+const STEP_ROLE := {"park": "boom", "boom_pins": "pump", "boom_off": "screed", "adaptor_pins": "poker", "adaptor_off": "screed",
+	"hook_down": "screed", "shackle": "poker", "wedges_out": "hose", "feet_in": "hose", "lift": "line", "send_pipe": "line",
+	"fit_pipe": "hose", "feet_out": "hose", "wedges_in": "hose", "unshackle": "poker", "adaptor_on": "screed", "adaptor_in": "poker",
+	"boom_on": "screed", "boom_in": "pump", "check": "boom"}
 const CLIMB_JOB := {
-	"boom": "parks the boom, then is the DOGMAN: whistles the crane to STOP at each mark",
-	"pump": "RIGGER up on the column: pins out, shackles on, pins back in",
-	"hose": "down the ladder inside: wedges, feet, and fits each pipe under the column",
-	"line": "at the haul rope on the ground: sends the 5 pipes up"}
+	"boom": "parks the boom, and does the mobilisation check at the end",
+	"pump": "up on the column: knocks the 8 boom pins out, and back in",
+	"poker": "up on the column: the 4 adaptor pins and the shackles on the red lugs",
+	"hose": "down the ladder in the openings: wedges, feet, and each pipe under the column",
+	"line": "at the pipe feed: whistles STOP at each mark, and sends the 5 pipes up",
+	"screed": "on the deck: radios the crane for the boom and adaptor lifts"}
 ## The day in eight stages, for the strip on the HUD.
 const STAGES := ["BOOM OFF", "ADAPTOR OFF", "HOOK ON", "WEDGES OUT", "LIFT + PIPES", "FEET + WEDGES", "BOOM ON", "CHECK"]
 const STAGE_OF := {"park": 0, "boom_pins": 0, "boom_off": 0, "adaptor_pins": 1, "adaptor_off": 1, "hook_down": 2, "shackle": 2,
@@ -718,9 +761,9 @@ func stage_i() -> int:
 ## "P2 TASH" for a person, "JULES (bot)" for a bot, on `role`.
 func who_text(role: String) -> String:
 	var p = game.crew.crew.get(role)
+	var job_name := Trades.climb_full(role, "spire", " ").to_upper()
 	if p == null:
-		return UI.job_full(role, " ").to_upper()
-	var job_name := UI.job_full(role, " ").to_upper()
+		return job_name
 	if p.bot:
 		return "%s (bot) · %s" % [String(p.char_name).to_upper(), job_name]
 	return "P%d %s · %s" % [p.index, String(p.char_name).to_upper(), job_name]
@@ -730,7 +773,7 @@ func next_role() -> String:
 	match step:
 		"lift": return "line"
 		"send_pipe": return "hose"
-		"fit_pipe": return "boom" if lift_i + 1 < PIPES else "hose"
+		"fit_pipe": return "line" if lift_i + 1 < PIPES else "hose"
 	var i := STEP_ORDER.find(step)
 	for n in range(i + 1, STEP_ORDER.size()):
 		if STEP_ROLE.has(STEP_ORDER[n]):

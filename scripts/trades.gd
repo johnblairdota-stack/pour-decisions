@@ -71,20 +71,46 @@ const TASKS := {
 	"mob_check": {"trade": "pumpy", "name": "Mobilisation check", "kind": "once", "day": "climb", "role": "boom", "in_game": true},
 	# Rigger, climb day
 	"chain_boom": {"trade": "rigger", "name": "Chain the boom", "kind": "once", "day": "climb", "role": "", "in_game": false},
-	"pins": {"trade": "rigger", "name": "Boom and adaptor pins", "kind": "once", "day": "climb", "role": "pump", "in_game": true},
-	"shackles": {"trade": "rigger", "name": "Shackle the lugs", "kind": "once", "day": "climb", "role": "pump", "in_game": true},
+	"pins": {"trade": "rigger", "name": "Boom pins", "kind": "once", "day": "climb", "role": "pump", "in_game": true},
+	"adaptor_pins": {"trade": "rigger", "name": "Adaptor pins", "kind": "once", "day": "climb", "role": "poker", "in_game": true},
+	"shackles": {"trade": "rigger", "name": "Shackle the lugs", "kind": "once", "day": "climb", "role": "poker", "in_game": true},
 	"wedges": {"trade": "rigger", "name": "Wedges and corner plates", "kind": "once", "day": "climb", "role": "hose", "in_game": true},
 	"feet": {"trade": "rigger", "name": "Feet in and out", "kind": "once", "day": "climb", "role": "hose", "in_game": true},
 	"fit_pipes": {"trade": "rigger", "name": "Fit the pipes", "kind": "once", "day": "climb", "role": "hose", "in_game": true},
 	"ladders": {"trade": "rigger", "name": "Fit the ladders", "kind": "once", "day": "climb", "role": "", "in_game": false},
 	# Dogger, climb day (the builder's crane crew)
-	"dog_bottom": {"trade": "dogger", "name": "Bottom dogger: call the height", "kind": "lift", "day": "climb", "role": "boom", "in_game": true},
-	"dog_top": {"trade": "dogger", "name": "Top dogger: call the lifts", "kind": "lift", "day": "climb", "role": "", "in_game": false},
+	"dog_bottom": {"trade": "dogger", "name": "Bottom dogger: call the height", "kind": "lift", "day": "climb", "role": "line", "in_game": true},
+	"dog_top": {"trade": "dogger", "name": "Top dogger: call the lifts", "kind": "lift", "day": "climb", "role": "screed", "in_game": true},
 	"tag_line": {"trade": "dogger", "name": "Tag line", "kind": "lift", "day": "climb", "role": "poker", "in_game": true},
 	"send_pipes": {"trade": "dogger", "name": "Send the pipes up", "kind": "lift", "day": "climb", "role": "line", "in_game": true},
 	# Crane op, climb day (a bot crane today)
 	"crane_cab": {"trade": "crane", "name": "Crane cab", "kind": "held", "day": "climb", "role": "", "in_game": false},
 }
+
+## Who each crew chibi is on a climb day, by the kind of climb: [trade, seat].
+## Spire's column climb (mast_climb.gd), as at the Tannery: the boom op parks
+## the boom and does the check; two riggers up on the column's platform (boom
+## pins; adaptor pins and the shackles); a rigger down the ladder in the
+## openings (wedges, feet, pipes); the bottom dogger at the pipe feed calls the
+## height and sends the pipes up; the top dogger on the deck calls the boom
+## and adaptor lifts. The crane op listens to both doggers.
+## Riverlight's lattice climb (climb.gd) sorts its jobs the same way: riggers
+## pin, doggers call and tag.
+const CLIMB_SEAT := {
+	"spire": {"boom": ["pumpy", "Boom op"], "pump": ["rigger", "Top rigger"], "poker": ["rigger", "Lug rigger"],
+		"hose": ["rigger", "Opening rigger"], "line": ["dogger", "Bottom dogger"], "screed": ["dogger", "Top dogger"]},
+	"lattice": {"boom": ["dogger", "Dogman"], "line": ["dogger", "Slinger"], "pump": ["rigger", "Rigger"],
+		"poker": ["dogger", "Tag line"], "hose": ["dogger", "Tag line 2"], "screed": ["", "Breather"]},
+}
+
+## The trade a crew chibi works on a climb day of `kind` ("spire" / "lattice").
+static func climb_trade(role: String, kind := "spire") -> String:
+	return String(((CLIMB_SEAT.get(kind, {}) as Dictionary).get(role, ["", ""]) as Array)[0])
+
+## "Rigger · Top rigger": a chibi's climb-day trade and seat.
+static func climb_full(role: String, kind := "spire", sep := " · ") -> String:
+	var s: Array = (CLIMB_SEAT.get(kind, {}) as Dictionary).get(role, ["", role])
+	return String(s[1]) if String(s[0]) == "" else trade_name(String(s[0])) + sep + String(s[1])
 
 ## The trade a job (crew.gd role key) belongs to, "" if none.
 static func of_role(role: String) -> String:
