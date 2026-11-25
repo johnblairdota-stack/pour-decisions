@@ -32,7 +32,7 @@ const RATE := {
 const RANKS := [
 	[0, "Labourer"],
 	[25000, "Apprentice"],
-	[70000, "Concreter"],
+	[70000, "Tradie"],
 	[130000, "Leading Hand"],
 	[200000, "Foreman"],
 	[260000, "Site Super"],
