@@ -4551,6 +4551,12 @@ func _toolbox(wait: bool) -> Dictionary:
 func _set_phase(p: String) -> void:
 	if autotest and phase != "":
 		print("[autotest]   (%s took %.1fs)" % [phase, phase_t])
+	if not _pour_seats.is_empty() and not p in ["changeover", "climb", "mastclimb"]:
+		# (the climb's done: everyone back on their pour-day hats)
+		Changeover.restore(crew, _pour_seats)
+		_pour_seats = {}
+		if autotest:
+			print("[autotest]   back on pour hats: %s" % ", ".join(crew.humans().map(func(h): return "P%d %s" % [h.index, h.role])))
 	phase = p
 	phase_t = 0.0
 	# (the far things are built after the sun, and some come and go)
@@ -4563,6 +4569,28 @@ func _set_phase(p: String) -> void:
 				crew.crew[arg.substr(12)].set_driver(crew.human_identity(1, true))
 	if autotest or _dbg:
 		print("[autotest] level %d: %s (head %.1f m, sections %d)" % [k + 1, p, head.position.y, section_count])
+
+## The crews change over before a climb day (changeover.gd): the people playing take their climb
+## seats (the cab too, on Spire), then `go` starts the climb. Bots-only crews go straight on.
+const Changeover := preload("res://scripts/changeover.gd")
+var _changeover = null
+var _pour_seats := {}        # person index -> pour-day job, while they're on climb seats
+
+func _change_over(climb_kind: String, go: Callable) -> void:
+	if not Changeover.wanted(self):
+		go.call()
+		return
+	_pour_seats = Changeover.seats_now(crew)
+	_set_phase("changeover")
+	_changeover = Changeover.new()
+	_changeover.setup(self, climb_kind)
+	add_child(_changeover)
+	_changeover.done.connect(func(cab):
+		_changeover.queue_free()
+		_changeover = null
+		if cab != null and mast != null and mast.has_method("take_cab"):
+			mast.take_cab(cab)
+		go.call())
 
 func _start_floor() -> void:
 	var f := Node3D.new()
@@ -5396,7 +5424,7 @@ func _process(delta: float) -> void:
 		var tired: float = 0.75 if _weary_all else 0.0
 		p.weary = move_toward(p.weary, tired, delta * 0.6)
 		p.speed = 6.0 * screed.speed_k(p) * poker.speed_k(p) * climb.smoko.speed_k() * (HOSE_WALK_K if p.busy == "hose" else 1.0)
-		if phase != "sign":
+		if phase != "sign" and phase != "changeover":
 			p.walk(delta, Callable(self, "_walkable").bind(p), cam_yaw)
 			if p.stepped:
 				sfx.step(_underfoot(p), 0.3 if p.bot else 1.0)
@@ -5421,7 +5449,10 @@ func _process(delta: float) -> void:
 		if not p.bot and not p.covering and p.action_pressed():
 			_human_a = true
 			_a_by = p
-		if phase != "sign":
+		if phase == "changeover":
+			if _changeover != null:
+				_changeover.handle(p, delta)
+		elif phase != "sign":
 			_handle_player(p, delta)
 		p.end_frame()
 	perf.mark("players")
@@ -5511,8 +5542,9 @@ func _process(delta: float) -> void:
 					erect.finished.connect(_on_erect_done)
 				_mast_keep = mast
 				mast = erect
-				_set_phase("mastclimb")
-				erect.start()
+				_change_over("erect", func():
+					_set_phase("mastclimb")
+					erect.start())
 			var u := clampf(phase_t / 1.8, 0.0, 1.0)
 			var frame: Node3D = floor_nodes[k].get_node("Frame")
 			frame.scale.y = maxf(0.01, ease(u, 0.4))
@@ -5526,12 +5558,14 @@ func _process(delta: float) -> void:
 			if phase_t > 1.0:
 				if spire and _mast_due and mast != null:
 					_mast_due = false
-					_set_phase("mastclimb")
-					mast.start()
+					_change_over("spire", func():
+						_set_phase("mastclimb")
+						mast.start())
 				elif kit == "tower" and k in climb_levels():
-					_set_phase("climb")
-					_climb_kit(true)
-					climb.start(sections_per_climb())
+					_change_over("lattice", func():
+						_set_phase("climb")
+						_climb_kit(true)
+						climb.start(sections_per_climb()))
 				elif kit == "truck":
 					outriggers = [0.0, 0.0, 0.0, 0.0]
 					_set_phase("setup")
@@ -9687,6 +9721,8 @@ func _maybe_shot() -> void:
 		key = _next_ext()
 	elif phase == "topout" and phase_t > 0.6:
 		key = "topout"
+	elif phase == "changeover" and phase_t > 1.2 and not _shots_taken.has("changeover"):
+		key = "changeover"
 	if key != "" and not _shot_only.is_empty() and not (key in _shot_only) and not key.begins_with("every"):
 		_shots_taken[key] = true
 	var want := key != "" and not _shots_taken.has(key)

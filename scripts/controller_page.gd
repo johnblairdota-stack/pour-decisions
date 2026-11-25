@@ -288,6 +288,10 @@ body.boomsp #B{left:22%;top:12%}
 #lobby .sub{font-size:3.4vmin;color:#b9b6ad}
 #ljobs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:2vmin;flex-grow:1}
 #ljobs .job{background:#1a1c23;border-color:#2c2f39}
+#ljobs .lt{grid-column:1/-1;display:flex;align-items:baseline;gap:2vmin;border-bottom:.6vmin solid var(--c);padding:.4vmin .4vmin .6vmin;margin-top:.6vmin}
+#ljobs .lt b{font-size:4.4vmin;color:var(--c);text-transform:uppercase;letter-spacing:.06em}
+#ljobs .lt span{font-size:3vmin;color:#9a9da6}
+#ljobs .job .lbot{font-size:2.8vmin;color:#9a9da6;font-weight:400;margin-left:1vmin}
 #ljobs .job .n{color:var(--bone)}
 #ljobs .job .n .sq{width:7vmin;height:7vmin;border-radius:2vmin;background:var(--c);display:flex;align-items:center;justify-content:center;color:#111;flex-shrink:0}
 #ljobs .job .n .sq svg{width:6.4vmin;height:5.4vmin}
@@ -459,12 +463,12 @@ body.boomsp #B{left:22%;top:12%}
   <div class="hd" style="font-size:3.4vmin;color:#f4f2ec">STICK ◀ ▶ TO FAN · A TO PLAY THE CARD</div>
 </div>
 <div id="lobby" class="screen">
-  <div class="row"><div class="pdisc" id="lp">P?</div><div class="t hd">Pick your job</div><div class="sub" id="lsub"></div></div>
+  <div class="row"><div class="pdisc" id="lp">P?</div><div class="t hd">Take a seat</div><div class="sub" id="lsub"></div></div>
   <div id="ljobs"></div>
   <div class="row">
     <div class="charpick"><button id="cprev" aria-label="Previous character" class="hd">&lt;</button><span class="hd" id="cname">…</span><button id="cnext" aria-label="Next character" class="hd">&gt;</button></div>
     <button class="newbie" id="newbie">First time on the tools?<b>FULL HELP: OFF</b></button>
-    <div class="sub" style="flex-grow:1">Tap a job, then hold LOCK IN. Greyed jobs belong to another player.</div>
+    <div class="sub" style="flex-grow:1">Tap a seat in a trade, then hold LOCK IN. Greyed seats belong to another player.</div>
     <button class="holdbtn" id="lockgo"><div class="fill"></div><span>HOLD TO LOCK IN</span></button>
   </div>
 </div>
@@ -1103,10 +1107,19 @@ function drawLobby() {
   $('lp').textContent = 'P' + me.p; $('lp').style.background = '#' + me.pc;
   const people = roster.filter(r => r.p > 0), lockedN = people.filter(r => r.lock).length;
   $('lsub').textContent = lockedN + ' of ' + people.length + ' locked · bots take the rest';
-  $('ljobs').innerHTML = roster.map(r => {
-    if (r.p === me.p) return jobCard(r, 'mine', '<span class="ptag" style="background:#' + r.pc + '">P' + r.p + '</span>');
-    if (r.p > 0) return jobCard(r, 'taken', '<span class="ptag" style="background:#' + r.pc + '">P' + r.p + (r.lock ? ' ' + LOCK : '') + '</span>');
-    return jobCard(r, '', '');
+  // (a heading per trade, its seats under it: the seat's name on the card)
+  let lastTrade = '';
+  $('ljobs').innerHTML = roster.map(r0 => {
+    const r = Object.assign({}, r0, {name: r0.seat || r0.name});
+    let head = '';
+    if (r.trade && r.trade !== lastTrade) {
+      lastTrade = r.trade;
+      const n = roster.filter(q => q.trade === r.trade).length, open = roster.filter(q => q.trade === r.trade && !q.p).length;
+      head = '<div class="lt" style="--c:#' + r.col + '"><b>' + esc(r.trade) + '</b><span>' + n + ' seats · ' + (open ? open + ' open, bots in them' : 'full') + '</span></div>';
+    }
+    if (r.p === me.p) return head + jobCard(r, 'mine', '<span class="ptag" style="background:#' + r.pc + '">P' + r.p + '</span>');
+    if (r.p > 0) return head + jobCard(r, 'taken', '<span class="ptag" style="background:#' + r.pc + '">P' + r.p + (r.lock ? ' ' + LOCK : '') + '</span>');
+    return head + jobCard(r, '', '<span class="lbot">bot · ' + esc(r.who) + '</span>');
   }).join('');
   const m = mine();
   if (m) { $('ln').textContent = m.name; document.documentElement.style.setProperty('--job', '#' + m.col); $('lhat').innerHTML = hatInner(m.id, '#' + m.col, true); }
