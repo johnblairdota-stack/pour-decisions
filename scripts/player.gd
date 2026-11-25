@@ -15,6 +15,7 @@ const Icons := preload("res://scripts/icons.gd")
 const CUE := preload("res://shaders/cue.gdshader")
 const PILL := preload("res://shaders/pill.gdshader")
 const UI := preload("res://scripts/ui.gd")
+const Trades := preload("res://scripts/trades.gd")
 const BALLOON := preload("res://shaders/balloon.gdshader")
 const HandSigns := preload("res://scripts/hand_signs.gd")
 const Settings := preload("res://scripts/settings.gd")
@@ -73,7 +74,16 @@ var touched := false
 var char_id := ""
 var char_name := ""      # someone has used the keyboard or pad for this player
 var bot := false          # a crew bot is driving the virtual input
-var role := ""            # the job this chibi does: boom, line, pump, poker, screed
+var role := "":           # the job this chibi does: boom, line, pump, poker, screed, hose
+	set(v):
+		role = v
+		trade = Trades.of_role(v)
+		task = String(Trades.ROLE_TASK.get(v, ""))
+## The trade this chibi works for the day (trades.gd: "pumpy", "concreter"),
+## and the task in it they're on. Each person still starts on their job's task
+## and stays there; later stages let them move between their trade's tasks.
+var trade := ""
+var task := ""
 var hurry := false        # bots run for urgent work
 var pace := 1.0           # a bot's stick, scaled by how sharp the bots are working (bronze/silver/gold)
 ## A person who's gone quiet while their job waits gets covered by a crewmate

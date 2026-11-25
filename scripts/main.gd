@@ -13,6 +13,7 @@
 extends Node3D
 
 const UI := preload("res://scripts/ui.gd")
+const Trades := preload("res://scripts/trades.gd")
 const PauseScript := preload("res://scripts/pause.gd")
 const PerfScript := preload("res://scripts/perf.gd")
 const CoachScript := preload("res://scripts/coach.gd")
@@ -404,6 +405,16 @@ func _ready() -> void:
 		for arg in args:
 			if arg.begins_with("--human="):
 				crew.crew[arg.substr(8)].set_driver(crew.human_identity(1, true))
+			# `--trade=<trade>[:<n>]`: the same, by trade: an idle person in that
+			# trade's first free seat, or its nth (1-based)
+			if arg.begins_with("--trade="):
+				var tp := arg.substr(8).split(":")
+				var seats: Array = Trades.roles(tp[0])
+				var at := clampi(int(tp[1]) - 1, 0, seats.size() - 1) if tp.size() > 1 else -1
+				var seat: String = String(seats[at]) if at >= 0 and not seats.is_empty() else crew.free_seat(tp[0])
+				if seat != "":
+					crew.crew[seat].set_driver(crew.human_identity(1, true))
+					print("[autotest] P1 is a %s on the %s" % [Trades.trade_name(tp[0]), seat])
 	else:
 		crew.crew["boom"].set_driver(crew.human_identity(1, false))
 		crew.restore_carry()       # (back from the tower pick on the other site: same people, same jobs)
@@ -5017,6 +5028,7 @@ func _grade() -> void:
 	if autotest:
 		print("[autotest]   footprints in the finish: %d blamed, %d forgiven" % [prints_n[0], prints_n[1]])
 		prints_n = [0, 0]
+		print("[autotest]   trades: %s" % str(score.by_trade))
 		print("[autotest]   level %d: +%d pts (total %d, %s), quality %.0f, medal %s in %.1fs (silver %.0f, gold %.0f, fault slack %.0f) (bots %s) | %s | %s" % [k + 1, score.level, score.total, score.rank_name(), quality, score.MEDALS[medal], pour_clock, tg.x, tg.y, _fault_slack, score.MEDALS[was_tier], " | ".join(score.report_rows()), " | ".join(rows)])
 
 ## The slab report's contents: the medal, each hard hat's points and what
@@ -5025,12 +5037,12 @@ func _slab_report(quality: float, verdict: String, medal: int, note: String, los
 	var crew_rows: Array = []
 	var star := ""
 	var star_pts := 0
-	for role in ["boom", "line", "pump", "hose", "poker", "screed"]:
+	for role in UI.PICK_ORDER:
 		var p = crew.crew[role]
 		var pts := int(score.by_role.get(role, 0))
 		var why: String = score.top_reason(role)
 		var cov := int(round(float(covered_t.get(role, 0.0))))
-		crew_rows.append({"role": role, "p": p.index, "bot": p.bot, "name": p.char_name, "pts": pts, "why": why if why != "" else "Kept out of trouble",
+		crew_rows.append({"role": role, "trade": Trades.of_role(role), "p": p.index, "bot": p.bot, "name": p.char_name, "pts": pts, "why": why if why != "" else "Kept out of trouble",
 			"covered": cov, "lh": lead_hand.lh_name()})
 		if role == "line" and line.wash.clean:
 			crew_rows[-1]["good"] = "Hopper hosed clean"
@@ -5053,7 +5065,20 @@ func _slab_report(quality: float, verdict: String, medal: int, note: String, los
 		nxt = "Level %d" % (k + 2) + (" · climb day first" if (k + 1) in climb_levels() else "")
 	return {"title": ("WATER TOWER" if tutorial else "LEVEL %d" % (k + 1)) + " · SLAB REPORT", "points": score.level,
 		"quality": quality, "verdict": verdict, "medal": medal, "medal_note": note, "crew": crew_rows,
+		"trades": _trade_totals(crew_rows),
 		"star": star, "losses": losses, "wrong": score.worst(3), "next": nxt, "last": k + 1 >= floors()}
+
+## Each trade's take on the slab report, in pick order: [{id, name, pts}].
+## (A trade's points are its people's and bots' jobs added up.)
+func _trade_totals(crew_rows: Array) -> Array:
+	var out: Array = []
+	for t in Trades.POUR_TRADES:
+		var pts := 0
+		for r in crew_rows:
+			if r["trade"] == t:
+				pts += int(r["pts"])
+		out.append({"id": t, "name": Trades.plural(t), "pts": pts})
+	return out
 
 ## Keeps the best medal for each of the building's floors, for the site page.
 ## Till this save's finished a slab on the building, nothing moves on by

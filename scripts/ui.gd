@@ -3,6 +3,7 @@
 extends RefCounted
 
 const Icons := preload("res://scripts/icons.gd")
+const Trades := preload("res://scripts/trades.gd")
 
 const INK := Color("0f1b2d")
 const GLASS := Color(0.04, 0.07, 0.12, 0.78)
@@ -92,25 +93,32 @@ static func ptag(i: int, size := 18, bot := false) -> PanelContainer:
 	p.add_child(l)
 	return p
 
-## Job colours: the same as the hard hats, so a colour always means a job
-const ROLE := {"boom": Color("ffc72c"), "line": Color("7cd992"), "pump": Color("ff7a1a"), "poker": Color("c49bff"), "screed": Color("f4f7fa"), "hose": Color("2fd3e8")}
+## Job colours: the same as the hard hats. A colour means a TRADE (John, 25
+## Nov 2026): every pumpy's hat is pumpy orange and every concreter's is
+## concreter green, so a trade's crew and the places they can work share one
+## colour. Each job keeps its own icon on the hat, so nothing is told apart by
+## colour alone. (trades.gd COL holds the same two colours.)
+const ROLE := {"boom": Color("ff7a1a"), "hose": Color("ff7a1a"), "pump": Color("ff7a1a"), "poker": Color("7cd992"), "screed": Color("7cd992"), "line": Color("7cd992")}
 ## Each job's seat in its trade, as a real site would say it. The trade
-## (TRADE) always goes first where a job is named on a ticket, a phone card or
+## (trade(), from trades.gd) always goes first where a job is named on a ticket, a phone card or
 ## the role call: "PUMPY · LINE HAND". The end hose is the line hand, a pumpy;
 ## the truck bay and slump tests are a concreter on the gate.
 const ROLE_NAME := {"boom": "Boom op", "line": "Gate hand", "pump": "Pump op", "poker": "Poker hand", "screed": "Screeder", "hose": "Line hand"}
-## The trade each job belongs to (John, 24 Nov 2026): three pumpies run the
-## boom, the end hose and the pump; three concreters run the deck and the gate.
-const TRADE := {"boom": "Pumpy", "hose": "Pumpy", "pump": "Pumpy", "poker": "Concreter", "screed": "Concreter", "line": "Concreter"}
+## The trade a job belongs to, by name (John, 24 Nov 2026): three pumpies run
+## the boom, the end hose and the pump; three concreters run the deck and the
+## gate. "" for no trade.
+static func trade(role: String) -> String:
+	var t := Trades.of_role(role)
+	return "" if t == "" else Trades.trade_name(t)
 ## The jobs in trade order, pumpies then concreters: the hat rack, the phone
 ## lobby and left / right on the crew page.
 const PICK_ORDER := ["boom", "hose", "pump", "poker", "screed", "line"]
 
 ## "Pumpy · Line hand": the trade first, then the seat.
 static func job_full(role: String, sep := " · ") -> String:
-	if not TRADE.has(role):
+	if trade(role) == "":
 		return String(ROLE_NAME.get(role, role))
-	return String(TRADE[role]) + sep + String(ROLE_NAME[role])
+	return trade(role) + sep + String(ROLE_NAME[role])
 const ROLE_SHORT := {
 	"boom": "Steers the placing boom and pours, bay by bay.",
 	"line": "Trucks and slump tests. Slings and pins on climb days.",
@@ -241,8 +249,8 @@ static func job_ticket(role: String, who: String, pi: int, compact := false, cli
 	names.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	names.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	top.add_child(names)
-	if TRADE.has(role):
-		names.add_child(head(String(TRADE[role]).to_upper(), 15, soft))
+	if trade(role) != "":
+		names.add_child(head(trade(role).to_upper(), 15, soft))
 	var jn := head(ROLE_NAME.get(role, role).to_upper(), 24, ink)
 	jn.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	names.add_child(jn)
