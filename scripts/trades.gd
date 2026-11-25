@@ -72,7 +72,8 @@ const TASKS := {
 	# Rigger, climb day
 	"chain_boom": {"trade": "rigger", "name": "Chain the boom", "kind": "once", "day": "climb", "role": "", "in_game": false},
 	"pins": {"trade": "rigger", "name": "Boom pins", "kind": "once", "day": "climb", "role": "pump", "in_game": true},
-	"adaptor_pins": {"trade": "rigger", "name": "Adaptor pins", "kind": "once", "day": "climb", "role": "poker", "in_game": true},
+	"adaptor_pins": {"trade": "rigger", "name": "Adaptor pins", "kind": "once", "day": "climb", "role": "pump", "in_game": true},
+	"harness": {"trade": "rigger", "name": "Harness on, onto the boom", "kind": "once", "day": "climb", "role": "pump", "in_game": true},
 	"shackles": {"trade": "rigger", "name": "Shackle the lugs", "kind": "once", "day": "climb", "role": "poker", "in_game": true},
 	"wedges": {"trade": "rigger", "name": "Wedges and corner plates", "kind": "once", "day": "climb", "role": "hose", "in_game": true},
 	"feet": {"trade": "rigger", "name": "Feet in and out", "kind": "once", "day": "climb", "role": "hose", "in_game": true},
@@ -89,8 +90,9 @@ const TASKS := {
 
 ## Who each crew chibi is on a climb day, by the kind of climb: [trade, seat].
 ## Spire's column climb (mast_climb.gd), as at the Tannery: the boom op parks
-## the boom and does the check; two riggers up on the column's platform (boom
-## pins; adaptor pins and the shackles); a rigger down the ladder in the
+## the boom and does the check; two riggers up on the column's platform (the
+## top rigger, harnessed on the boom, its 4 pins and the adaptor's 4; the lug
+## rigger the shackles); a rigger down the ladder in the
 ## openings (wedges, feet, pipes); the bottom dogger at the pipe feed calls the
 ## height and sends the pipes up; the top dogger on the deck calls the boom
 ## and adaptor lifts. The crane op listens to both doggers.
@@ -99,6 +101,8 @@ const TASKS := {
 const CLIMB_SEAT := {
 	"spire": {"boom": ["pumpy", "Boom op"], "pump": ["rigger", "Top rigger"], "poker": ["rigger", "Lug rigger"],
 		"hose": ["rigger", "Opening rigger"], "line": ["dogger", "Bottom dogger"], "screed": ["dogger", "Top dogger"]},
+	"erect": {"boom": ["pumpy", "Boom op"], "pump": ["rigger", "Rigger"], "poker": ["rigger", "Hook rigger"],
+		"hose": ["pumpy", "Line hand"], "line": ["dogger", "Slinging dogger"], "screed": ["dogger", "Calling dogger"]},
 	"lattice": {"boom": ["dogger", "Dogman"], "line": ["dogger", "Slinger"], "pump": ["rigger", "Rigger"],
 		"poker": ["dogger", "Tag line"], "hose": ["dogger", "Tag line 2"], "screed": ["", "Breather"]},
 }
