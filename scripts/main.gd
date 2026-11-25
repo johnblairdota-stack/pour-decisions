@@ -1784,7 +1784,7 @@ func _set_fixings(foot_y: float, wedge_y: float, col_y: float, feet := true, wed
 	for c in _spire_fixings.get_children():
 		c.queue_free()
 	var steel := F.color_mat(Color("6d7178"))
-	var wedge := F.mat("yellow_dark")
+	var wedge := F.mat("yellow")
 	var leg_red := F.color_mat(Color("d3202f"))
 	var h := SpireSite.COLUMN * 0.5
 	if seated and free:
@@ -1799,12 +1799,12 @@ func _set_fixings(foot_y: float, wedge_y: float, col_y: float, feet := true, wed
 	# (the feet come out of the column only where its base is on the foot slab)
 	if seated:
 		for d in [Vector2(1, 1), Vector2(1, -1), Vector2(-1, 1), Vector2(-1, -1)]:
-			var at := Vector3(d.x * (h + 0.35), foot_y, d.y * (h + 0.35))
+			var at := Vector3(d.x * (h + 0.5), foot_y, d.y * (h + 0.5))
 			# (a red leg pushed out of each corner, its foot plate down on a round rubber pad: John, 25 Nov)
-			_spire_fixings.add_child(F.cylinder(0.3, 0.06, F.color_mat(Color("1d1f22")), at + Vector3(0, 0.03, 0), 14))
-			_spire_fixings.add_child(F.box(Vector3(0.3, 0.05, 0.3), leg_red, at + Vector3(0, 0.085, 0)))
-			_spire_fixings.add_child(F.box(Vector3(0.12, 0.3, 0.12), leg_red, at + Vector3(0, 0.25, 0)))
-			var arm := F.beam(Vector3(d.x * (h - 0.05), foot_y + 0.36, d.y * (h - 0.05)), at + Vector3(0, 0.36, 0), 0.07, leg_red)
+			_spire_fixings.add_child(F.cylinder(0.42, 0.09, F.color_mat(Color("1d1f22")), at + Vector3(0, 0.045, 0), 16))
+			_spire_fixings.add_child(F.box(Vector3(0.4, 0.06, 0.4), leg_red, at + Vector3(0, 0.12, 0)))
+			_spire_fixings.add_child(F.box(Vector3(0.16, 0.42, 0.16), leg_red, at + Vector3(0, 0.33, 0)))
+			var arm := F.beam(Vector3(d.x * (h - 0.05), foot_y + 0.48, d.y * (h - 0.05)), at + Vector3(0, 0.48, 0), 0.1, leg_red)
 			_spire_fixings.add_child(arm)
 	for y in ([foot_y, wedge_y] if wedged else []):
 		for d in [Vector2(1, 1), Vector2(1, -1), Vector2(-1, 1), Vector2(-1, -1)]:
@@ -1812,8 +1812,8 @@ func _set_fixings(foot_y: float, wedge_y: float, col_y: float, feet := true, wed
 			var c := Vector3(d.x * (h + 0.07), y + 0.05, d.y * (h + 0.07))
 			_spire_fixings.add_child(F.box(Vector3(0.34, 0.1, 0.06), steel, c + Vector3(-d.x * 0.14, 0, 0)))
 			_spire_fixings.add_child(F.box(Vector3(0.06, 0.1, 0.34), steel, c + Vector3(0, 0, -d.y * 0.14)))
-			_spire_fixings.add_child(F.box(Vector3(0.16, 0.2, 0.05), wedge, c + Vector3(-d.x * 0.18, 0.12, 0.04 * d.y)))
-			_spire_fixings.add_child(F.box(Vector3(0.05, 0.2, 0.16), wedge, c + Vector3(0.04 * d.x, 0.12, -d.y * 0.18)))
+			_spire_fixings.add_child(F.box(Vector3(0.24, 0.34, 0.09), wedge, c + Vector3(-d.x * 0.18, 0.2, 0.06 * d.y)))
+			_spire_fixings.add_child(F.box(Vector3(0.09, 0.34, 0.24), wedge, c + Vector3(0.06 * d.x, 0.2, -d.y * 0.18)))
 
 ## The hand rail round the column's opening on the deck, with a gap where the ladder comes up.
 func _pen_rail() -> Node3D:
