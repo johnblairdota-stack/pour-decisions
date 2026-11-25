@@ -7153,6 +7153,14 @@ func nudge_level(p) -> int:
 func _cover(p, delta: float) -> void:
 	if p.bot:
 		return
+	if phase == "mastclimb" and mast != null and mast.get("cab") == p:
+		# (up in the crane cab: their own job's a trade-mate bot's, nobody covers them)
+		p.idle_in = 0.0
+		p.lost_t = 0.0
+		if p.covering:
+			p.uncover()
+			lead_hand.stop(p, true)
+		return
 	if p.covering:
 		covered_t[p.role] = float(covered_t.get(p.role, 0.0)) + delta
 	_lost_check(p, delta)
@@ -9044,7 +9052,10 @@ func _update_camera_views(delta: float) -> void:
 	var up: Array = []
 	var down: Array = []
 	var mid: Array = []
+	var cab_p = mast.get("cab") if phase == "mastclimb" and mast != null else null
 	for p in humans():
+		if p == cab_p:
+			continue   # (up in the crane cab: the camera stays on the load, as the doggers see it)
 		match _height_group(p):
 			"deck": up.append(p)
 			"street": down.append(p)
