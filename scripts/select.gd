@@ -23,6 +23,7 @@ const Settings := preload("res://scripts/settings.gd")
 const QR := preload("res://scripts/qr.gd")
 const Story := preload("res://scripts/story.gd")
 const TowerHand := preload("res://scripts/tower_hand.gd")
+const Trades := preload("res://scripts/trades.gd")
 
 const KITS := [
 	{"id": "tower", "name": "Tower boom", "sub": "Pump on the street, boom up a lattice tower", "ok": true, "tag": "WHAT SCP RAN HERE"},
@@ -273,18 +274,26 @@ func _build_crew_page(root: Control) -> void:
 	var rt := HBoxContainer.new()
 	rt.add_theme_constant_override("separation", 14)
 	rv.add_child(rt)
-	rt.add_child(UI.head("Grab a hat", 36, Color("1b1308")))
-	var rs := UI.label("On your phone, or left / right for the job and up / down for who. Then lock in.", 24, Color("3d2c18"), 0)
+	rt.add_child(UI.head("Pick a trade, take a seat", 36, Color("1b1308")))
+	var rs := UI.label("On your phone, or left / right for the seat and up / down for who. Then lock in.", 24, Color("3d2c18"), 0)
 	rs.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	rt.add_child(rs)
 	var rail := ColorRect.new()
 	rail.color = Color("5b5f68")
 	rail.custom_minimum_size = Vector2(0, 10)
 	rv.add_child(rail)
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 14)
-	rv.add_child(row)
+	var cards := HBoxContainer.new()
+	cards.add_theme_constant_override("separation", 22)
+	rv.add_child(cards)
+	# One card per trade (the pour day's: Pumpy and Concreter), its seats
+	# along it. Every seat's a hat: a person's P tag, or a bot by name.
+	var row: HBoxContainer = null
+	var card_trade := ""
 	for role in RACK_ORDER:
+		var tr_id: String = Trades.of_role(role)
+		if tr_id != card_trade:
+			card_trade = tr_id
+			row = _trade_card(cards, tr_id)
 		var col := VBoxContainer.new()
 		col.add_theme_constant_override("separation", 6)
 		col.custom_minimum_size = Vector2(212, 0)
@@ -301,10 +310,6 @@ func _build_crew_page(root: Control) -> void:
 		hat.custom_minimum_size = Vector2(120, 100)
 		hat.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 		col.add_child(hat)
-		# (the trade first, then the seat in it)
-		var tn := UI.head(UI.trade(role).to_upper(), 20, Color("6b5a3e"))
-		tn.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		col.add_child(tn)
 		var jn := UI.head(UI.ROLE_NAME[role], 30, Color("1b1308"))
 		jn.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		col.add_child(jn)
@@ -385,6 +390,36 @@ func _build_crew_page(root: Control) -> void:
 	gv.add_child(_go_title)
 	_go_sub = UI.label("", 24, Color("c9c6bd"), 0)
 	gv.add_child(_go_sub)
+
+## A trade's card on the crew page: its name on a band of its hat colour,
+## how many seats it has today and its one line, then a row for its seats
+## (returned).
+func _trade_card(parent: Control, trade: String) -> HBoxContainer:
+	var col: Color = Trades.COL.get(trade, UI.GOLD)
+	var card := UI.panel(Color(1, 0.97, 0.9, 0.18), 16, col.darkened(0.25), 4, Vector4(14, 10, 14, 12))
+	parent.add_child(card)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 6)
+	card.add_child(v)
+	var band := UI.panel(col, 10, Color(0, 0, 0, 0), 0, Vector4(14, 4, 14, 4))
+	v.add_child(band)
+	var bh := HBoxContainer.new()
+	bh.add_theme_constant_override("separation", 14)
+	band.add_child(bh)
+	var tn := UI.head(Trades.trade_name(trade).to_upper(), 34, Color("1b1308"))
+	tn.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	bh.add_child(tn)
+	# (how many seats it has today, and its one line)
+	var ln := UI.label("%d seats · %s" % [Trades.seats(trade, "pour"), String((Trades.TRADES[trade] as Dictionary)["line"])], 21, Color("1b1308"), 0)
+	ln.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	ln.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	ln.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	ln.custom_minimum_size = Vector2(440, 0)
+	bh.add_child(ln)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	v.add_child(row)
+	return row
 
 ## A button and what it does, for the bottom bars.
 func _key_hint(letter: String, text: String, bright := true) -> HBoxContainer:
@@ -473,8 +508,8 @@ func _refresh_crew() -> void:
 		_count_sub.text = "%s %s still choosing. When the ring runs out they keep the hat they're on." % [" and ".join(choosing), "is" if choosing.size() == 1 else "are"]
 	else:
 		_ring.frac = -1.0
-		_count_title.text = "Grab a hat"
-		_count_sub.text = "Pick a job, then lock in. You can swap on site. First time? Y gives you full help."
+		_count_title.text = "Take a seat"
+		_count_sub.text = "Pick a trade and a seat, then lock in. You can swap on site. First time? Y gives you full help."
 	_ring.visible = any_locked
 
 ## A person locks in (or changes their mind).
