@@ -1499,7 +1499,8 @@ func climb_levels() -> Array:
 	if spire:
 		# (no climb days on Spire yet: its booms jump with the crane between pours: _spire_level)
 		return []
-	return [TUT_LAST] if tutorial else CLIMB_LEVELS
+	# (the water tower's boom stands free on its X base at its full height: no climb)
+	return [] if tutorial else CLIMB_LEVELS
 
 ## Spire: the frame. The players' slab is pour A (the Ann St side of the joint): the pour grid is its
 ## box in the game's frame, the boom tower stands at its Ann St face, and the deck sits on the podium.
@@ -1824,6 +1825,8 @@ func riser_top_y(_deck := INF) -> float:
 	if spire and _spire_mast != null and _col_len > 0.0:
 		# (the column's head: where the boom sits on it, even while the boom's off on a climb day)
 		return _spire_mast.position.y + _col_len + 0.62 + 0.6
+	if tutorial and _tut_col != null:
+		return _tut_col_len + 0.62 + 0.6
 	return head.position.y + 0.6
 
 ## The story's day for level k (Spire has 34 levels; the days go round).
@@ -3353,6 +3356,7 @@ func _apply_kit(which: String) -> void:
 		tutorial = true
 		_use_tut_frame()
 		which = "tower"
+		LineScript.use_column(Vector2(LAT_X, 0))
 	kit = which
 	if is_instance_valid(selector) and not tutorial and _start_level <= 1:
 		_start_level = selector.start_level
@@ -3371,7 +3375,10 @@ func _apply_kit(which: String) -> void:
 		_build_boom(19.0, 19.0)
 		hud.toast("Truck boom it is. Mind the reach up top.", 2.4)
 	elif tutorial:
-		_build_boom(12.0, 12.0)
+		# The water tower's is SCP's free-standing set-up (John, 25 Nov): the square column on its X base,
+		# the four-arm boom on top
+		_build_boom(18.0, 18.0, true)
+		_tut_free_mast()
 	elif spire:
 		# Spire ran separate placing booms, one per pour area. Ours stands on a square column up through
 		# the slabs' openings (the Tannery's set-up, John 21 Nov: an MXR 36-4 T, about 36 m), climbed every
@@ -5277,15 +5284,15 @@ func _process(delta: float) -> void:
 	if west != null:
 		west.visible = phase != "topout"
 		west.update(delta, _filled_ratio() if phase == "pour" else 0.0)
+	if mast != null and mast.active:
+		# (the column going up on the crane: Spire's climb day, or an erection day)
+		mast.update(delta)
 	if spire and _spire_b != null:
 		var fb := 0.0
 		if phase == "pour":
 			fb = _filled_ratio()
 		elif phase in ["screed", "cure", "sign", "report"]:
 			fb = 1.0
-		if mast != null and mast.active:
-			# the column going up through the openings on the crane
-			mast.update(delta)
 		_spire_b.update(delta, fb, phase, deck_top(), spire_mast_head(k) if erect != null and erect.active else head.position.y)
 	perf.mark("climb")
 	line.update(delta, phase == "pour")
@@ -5331,7 +5338,7 @@ func _process(delta: float) -> void:
 
 	match phase:
 		"columns":
-			if phase_t > 0.3 and spire and k == 0 and not _erected and mast != null and _start_level <= 1 and not OS.get_cmdline_user_args().has("--noerect"):
+			if phase_t > 0.3 and ((spire and k == 0 and mast != null and _start_level <= 1) or (tutorial and k == TUT_FIRST)) and not _erected and not OS.get_cmdline_user_args().has("--noerect"):
 				# (the first day: the boom's not up yet. The X base, the column and the boom go up on
 				# the crane, then the mobilisation test)
 				_erected = true
@@ -6002,11 +6009,112 @@ func _climb_kit(on: bool) -> void:
 
 func _on_erect_done() -> void:
 	mast = _mast_keep
+	if tutorial:
+		_tut_column(TUT_COL, false, true)
+		head.position = Vector3(LAT_X, TUT_COL + 0.62, 0)
+		line.rebuild_riser()
+		_set_phase("columns")
+		return
 	spire_col_force = -1.0
 	spire_col_bare = false
 	_spire_tower(level_y(k + 1) - 0.3, spire_mast_head(k))
 	line.rebuild_riser()
 	_set_phase("columns")
+
+## The erection day's site (mast_erect.gd): where the column stands, and the head's height once it's up.
+func erect_foot() -> Vector3:
+	if tutorial:
+		return Vector3(LAT_X, 0, 0)
+	var m := SpireSite.mast_xz()
+	return Vector3(m.x, spire_foot_y(0), m.y)
+
+func erect_head_y() -> float:
+	return TUT_COL + 0.62 if tutorial else spire_mast_head(0)
+
+## ...how high the crane carries a load to clear everything.
+func erect_clear_y() -> float:
+	return (TUT_COL + 0.62 if tutorial else maxf(spire_head_y(k), spire_mast_head(0))) + 6.0
+
+## ...and this much of the column stood so far (`bare`: nothing on its top yet).
+func erect_column(stood: float, bare: bool) -> void:
+	if tutorial:
+		_tut_column(stood, bare, false)
+		return
+	var f := spire_foot_y(0)
+	spire_col_force = stood
+	spire_col_bare = bare
+	spire_column(f + stood + 0.62, f, f, false, false)
+
+## The water tower: the boom's free-standing column, 11 m + 9 m on the X base (unit 531's set-up).
+const TUT_COL := 20.0
+var _tut_col: Node3D
+var _tut_col_len := -1.0
+
+func _tut_free_mast() -> void:
+	lattice.visible = false
+	for d in head_deco:
+		d.visible = false
+	# (SCP's white, not the tower kit's yellow)
+	var old := yaw_node.get_child(0)
+	yaw_node.remove_child(old)
+	old.queue_free()
+	var turret := F.prop("BoomTurret", ZBoom.white_kit(), F.TOWERS)
+	yaw_node.add_child(turret)
+	yaw_node.move_child(turret, 0)
+	_tut_column(TUT_COL, false, true)
+	head.position = Vector3(LAT_X, TUT_COL + 0.62, 0)
+
+## `length` of it stood (0: none yet); `bare`: no platform or adaptor on top; `base`: on its X base, held down.
+func _tut_column(length: float, bare: bool, base: bool) -> void:
+	if _tut_col == null:
+		_tut_col = Node3D.new()
+		_tut_col.name = "TutColumn"
+		_tut_col.position = Vector3(LAT_X, 0, 0)
+		add_child(_tut_col)
+	for c in _tut_col.get_children():
+		c.queue_free()
+	_tut_col_len = length
+	if base:
+		_tut_col.add_child(ZBoom.xbase())
+		_tut_col.add_child(ZBoom.xbase_hold(4))
+	if length < 0.05:
+		return
+	var white := F.color_mat(Color("eceeed"))
+	var red := F.color_mat(Color("d3202f"))
+	var rail := F.color_mat(Color("e3e5e2"))
+	var galv := F.color_mat(Color("b4bcc1"))
+	_tut_col.add_child(F.box(Vector3(1.0, length, 1.0), white, Vector3(0, length * 0.5, 0)))
+	for sx in [-0.16, 0.16]:
+		_tut_col.add_child(F.box(Vector3(0.05, 0.3, 0.22), red, Vector3(sx, length + 0.15, 0)))
+	var py := -100.0
+	if not bare:
+		_tut_col.add_child(F.box(Vector3(1.2, 0.26, 1.2), white, Vector3(0, length + 0.13, 0)))
+		for sx in [-0.42, 0.42]:
+			for sz in [-0.42, 0.42]:
+				_tut_col.add_child(F.box(Vector3(0.1, 0.32, 0.24), red, Vector3(sx, length + 0.42, sz)))
+		# (the work platform round the top, flush with it as on unit 531)
+		py = length - 1.15
+		var w := 2.5
+		_tut_col.add_child(F.box(Vector3(w, 0.08, w), rail, Vector3(0.25, py, 0)))
+		for side in 4:
+			var along := Vector3(w, 0.06, 0.06) if side < 2 else Vector3(0.06, 0.06, w)
+			var at := Vector3(0.25, 0, (w * 0.5) * (1.0 if side == 0 else -1.0)) if side < 2 else Vector3(0.25 + (w * 0.5) * (1.0 if side == 2 else -1.0), 0, 0)
+			for hy in [0.55, 1.1]:
+				_tut_col.add_child(F.box(along, rail, at + Vector3(0, py + hy, 0)))
+		for cx in [-1.0, 1.0]:
+			for cz in [-1.0, 1.0]:
+				_tut_col.add_child(F.box(Vector3(0.06, 1.1, 0.06), rail, Vector3(0.25 + cx * w * 0.5, py + 0.55, cz * w * 0.5)))
+		# (the ladder's cage, from 2.5 m up to the platform)
+		var lx := 0.5 + 0.27
+		var hy2 := 2.5
+		while hy2 < py - 0.3:
+			_tut_col.add_child(F.box(Vector3(0.05, 0.05, 0.84), galv, Vector3(lx + 0.72, hy2, 0.12)))
+			for sz in [-0.42, 0.42]:
+				_tut_col.add_child(F.box(Vector3(0.72, 0.05, 0.05), galv, Vector3(lx + 0.36, hy2, 0.12 + sz)))
+			hy2 += 0.9
+		for sz in [-0.42, 0.0, 0.42]:
+			_tut_col.add_child(F.box(Vector3(0.04, py - 2.5, 0.04), galv, Vector3(lx + 0.72 if sz == 0.0 else lx + 0.36, 2.5 + (py - 2.5) * 0.5, 0.12 + sz)))
+	ZBoom.dress_column(_tut_col, length, 0.5, 1.0, 1.0, "531", py)
 
 func _on_mast_done() -> void:
 	_spire_tower(level_y(k + 1) - 0.3, spire_mast_head(k))

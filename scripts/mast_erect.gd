@@ -40,6 +40,7 @@ var foot := 0.0             # the roof it stands on
 var to_head := 0.0          # the boom's head once it's up
 var stood := 0.0            # m of column stood and fixed
 var _absent := {}
+var zn := "deck"            # where the work is: Spire's podium roof ("deck"), the water tower's yard ("ground")
 
 # The crane (climb.gd's, borrowed)
 var hook_pos := Vector3.ZERO
@@ -75,8 +76,7 @@ func _ready() -> void:
 # ------------------------------------------------------------------ places
 
 func _m() -> Vector3:
-	var m := SpireSite.mast_xz()
-	return Vector3(m.x, foot, m.y)
+	return game.erect_foot()
 
 ## The nearest spot on the roof's slab to `p`.
 func _on_deck(p: Vector3) -> Vector3:
@@ -85,38 +85,51 @@ func _on_deck(p: Vector3) -> Vector3:
 		for a in 12:
 			var q: Vector3 = p + Vector3(cos(a * TAU / 12.0), 0, sin(a * TAU / 12.0)) * r
 			q.y = foot
-			if g.on_pad(q) and g._walkable(q, "deck"):
+			if (zn == "ground" or g.on_pad(q)) and g._walkable(q, zn):
 				return q
 	return Vector3(p.x, foot, p.z)
 
+## Where the kit's laid out, from the column's foot. The water tower's yard runs off to +x on the far
+## side of the tower from the tank; Spire's roof is open to +x and +z.
+func _lay(key: String) -> Vector3:
+	var spire := {"base": Vector3(5.5, 0, 2.5), "sec": Vector3(3.5, 0, 5.0), "sec_dz": Vector3(0, 0, 1.7), "adaptor": Vector3(8.0, 0, 2.5),
+		"boom": Vector3(11.0, 0, 2.5), "dog": Vector3(2.6, 0, 2.4), "remote": Vector3(4.0, 0, 3.6)}
+	var water := {"base": Vector3(4.5, 0, -1.0), "sec": Vector3(3.2, 0, -3.3), "sec_dz": Vector3(0, 0, -1.6), "adaptor": Vector3(6.8, 0, -1.0),
+		"boom": Vector3(9.5, 0, -1.2), "dog": Vector3(2.8, 0, -1.8), "remote": Vector3(4.2, 0, -2.4)}
+	return (water if zn == "ground" else spire)[key]
+
 func _base_rest() -> Vector3:
-	return _on_deck(_m() + Vector3(5.5, 0, 2.5))
+	return _on_deck(_m() + _lay("base"))
 
 func _sec_rest(i: int) -> Vector3:
-	var p := _on_deck(_m() + Vector3(3.5, 0, 5.0 + 1.7 * i))
+	var p := _on_deck(_m() + _lay("sec") + _lay("sec_dz") * i)
 	return Vector3(p.x, foot + LIE_Y, p.z)
 
 func _adaptor_rest() -> Vector3:
-	var p := _on_deck(_m() + Vector3(8.0, 0, 2.5))
+	var p := _on_deck(_m() + _lay("adaptor"))
 	return Vector3(p.x, foot + 0.2, p.z)
 
 func _boom_rest() -> Vector3:
-	var p := _on_deck(_m() + Vector3(11.0, 0, 2.5))
+	var p := _on_deck(_m() + _lay("boom"))
 	return Vector3(p.x, foot + 0.1, p.z)
 
 func _dog_spot() -> Vector3:
-	return _on_deck(_m() + Vector3(2.6, 0, 2.4))
+	return _on_deck(_m() + _lay("dog"))
 
 func _base_spot(i: int) -> Vector3:
-	return _on_deck(_m() + [Vector3(1.9, 0, 1.2), Vector3(-0.2, 0, 2.1), Vector3(1.4, 0, 2.0)][i])
+	var s := -1.0 if zn == "ground" else 1.0
+	return _on_deck(_m() + [Vector3(1.9, 0, 1.2 * s), Vector3(-0.2, 0, 2.1 * s), Vector3(1.4, 0, 2.0 * s)][i])
 
 func _remote_spot() -> Vector3:
-	return _on_deck(_m() + Vector3(4.0, 0, 3.6))
+	return _on_deck(_m() + _lay("remote"))
 
 func _deck_wait(role: String) -> Vector3:
 	var off := {"pump": Vector3(2.4, 0, 3.4), "hose": Vector3(3.4, 0, 3.8), "boom": Vector3(2.6, 0, 2.4), "line": Vector3(5.0, 0, 4.0),
 		"poker": Vector3(6.5, 0, 6.5), "screed": Vector3(7.5, 0, 5.5)}
-	return _on_deck(_m() + off.get(role, Vector3(6, 0, 6)))
+	var o: Vector3 = off.get(role, Vector3(6, 0, 6))
+	if zn == "ground":
+		o.z = -o.z * 0.6
+	return _on_deck(_m() + o)
 
 func _col_top() -> Vector3:
 	return _m() + Vector3(0, stood, 0)
@@ -126,8 +139,9 @@ func _col_top() -> Vector3:
 func start() -> void:
 	var g = game
 	active = true
-	foot = g.spire_foot_y(0)
-	to_head = g.spire_mast_head(0)
+	zn = "ground" if g.tutorial else "deck"
+	foot = g.erect_foot().y
+	to_head = g.erect_head_y()
 	stood = 0.0
 	_absent = {}
 	_col_slung = false
@@ -146,10 +160,15 @@ func start() -> void:
 	else:
 		lens[lens.size() - 1] += length - prev
 	# Nothing's stood yet: the boom's folded on the roof, the column's in lengths beside it
-	g.spire_col_force = 0.0
-	g.spire_col_bare = true
-	g.spire_column(foot + 0.62, foot, foot, false, false)
+	g.erect_column(0.0, true)
 	g.line.rebuild_riser()
+	if zn == "ground":
+		# (nothing's up to climb yet: the whole crew starts the day in the yard)
+		for p in g.players:
+			if p.zone != "ground":
+				p.zone = "ground"
+				p.busy = ""
+				p.position = _deck_wait(p.role)
 	g.climb.park_stage = "done"
 	g.climb.park_slew = 1.0
 	g.climb.park_fold = 1.0
@@ -206,7 +225,7 @@ func _job(id: String, stage: int, role: String, verb: String, n: int, t: float, 
 		d["zone"] = "ladder"
 		d["y"] = y
 	else:
-		d["zone"] = "deck"
+		d["zone"] = zn
 		d["at"] = at
 	return d
 
@@ -221,7 +240,7 @@ func _build_steps(lens: Array) -> void:
 	# 1. the X base
 	steps.append(_job("sling_base", 0, "line", "sling the X base", 4, 0.5, "Sling the X base", _base_rest() + Vector3(1.5, 0, 0.9)))
 	steps.append({"id": "fly_base", "kind": "fly", "stage": 0, "load": _base, "seat": m, "say": "Crane flies the X base in"})
-	steps.append({"id": "land_base", "kind": "land", "stage": 0, "role": "boom", "zone": "deck", "at": _dog_spot(), "verb": "hold: call it down", "n": 1, "t": 2.6, "load": _base, "seat": m, "say": "Call it down between the rods"})
+	steps.append({"id": "land_base", "kind": "land", "stage": 0, "role": "boom", "zone": zn, "at": _dog_spot(), "verb": "hold: call it down", "n": 1, "t": 2.6, "load": _base, "seat": m, "say": "Call it down between the rods"})
 	steps.append(_job("pack_base", 0, "hose", "pack it level", 4, 0.7, "Pack the base level", _base_spot(0)))
 	steps.append(_job("nut_base", 0, "pump", "nut down the clamp plate", 4, 0.9, "Clamp plates on, nuts down", _base_spot(1)))
 	steps.append(_job("unsling_base", 0, "line", "unhook the base", 1, 0.8, "Slings off the base", _base_spot(2)))
@@ -235,7 +254,7 @@ func _build_steps(lens: Array) -> void:
 		var rest := _sec_rest(i)
 		steps.append(_job("sling_sec%d" % i, st, "line", "shackle its two lugs", 2, 0.6, "Sling the %s" % names[i], _on_deck(Vector3(rest.x - 0.9, foot, rest.z + 0.3))))
 		steps.append({"id": "fly_sec%d" % i, "kind": "fly", "stage": st, "load": n, "seat": seat, "say": "Crane stands the %s up" % names[i]})
-		steps.append({"id": "land_sec%d" % i, "kind": "land", "stage": st, "role": "boom", "zone": "deck", "at": _dog_spot(), "verb": "hold: call it down", "n": 1, "t": 2.6, "load": n, "seat": seat,
+		steps.append({"id": "land_sec%d" % i, "kind": "land", "stage": st, "role": "boom", "zone": zn, "at": _dog_spot(), "verb": "hold: call it down", "n": 1, "t": 2.6, "load": n, "seat": seat,
 			"say": "Call it down onto the %s" % ("base" if i == 0 else "joint")})
 		if i == 0:
 			steps.append(_job("fix_sec0", st, "pump", "bolt the flange (M30)", 8, 0.5, "Bolt the flange to the base", _base_spot(1)))
@@ -249,20 +268,20 @@ func _build_steps(lens: Array) -> void:
 	# 3. the adaptor
 	steps.append(_job("sling_ad", st2, "line", "sling the adaptor", 2, 0.6, "Sling the adaptor", _adaptor_rest() + Vector3(0.2, -0.2, 1.1)))
 	steps.append({"id": "fly_ad", "kind": "fly", "stage": st2, "load": _adaptor, "seat": Vector3(m.x, top + 0.13, m.z), "say": "Crane lifts the adaptor"})
-	steps.append({"id": "land_ad", "kind": "land", "stage": st2, "role": "boom", "zone": "deck", "at": _dog_spot(), "verb": "hold: call it down", "n": 1, "t": 2.2, "load": _adaptor, "seat": Vector3(m.x, top + 0.13, m.z), "say": "Call the adaptor down"})
+	steps.append({"id": "land_ad", "kind": "land", "stage": st2, "role": "boom", "zone": zn, "at": _dog_spot(), "verb": "hold: call it down", "n": 1, "t": 2.2, "load": _adaptor, "seat": Vector3(m.x, top + 0.13, m.z), "say": "Call the adaptor down"})
 	steps.append(_job("pin_ad", st2, "pump", "pin the adaptor", 4, 0.5, "4 adaptor pins", null, top - 1.13))
 	# 4. the boom
 	steps.append(_job("sling_boom", st2 + 1, "line", "chain the boom", 4, 0.6, "Chain the folded boom", _boom_rest() + Vector3(0.4, -0.1, 1.6)))
 	steps.append({"id": "fly_boom", "kind": "fly", "stage": st2 + 1, "load": game.head, "seat": Vector3(m.x, to_head, m.z), "say": "Crane lifts the boom"})
-	steps.append({"id": "land_boom", "kind": "land", "stage": st2 + 1, "role": "boom", "zone": "deck", "at": _dog_spot(), "verb": "hold: call it down", "n": 1, "t": 3.0, "load": game.head, "seat": Vector3(m.x, to_head, m.z), "say": "Call the boom down"})
+	steps.append({"id": "land_boom", "kind": "land", "stage": st2 + 1, "role": "boom", "zone": zn, "at": _dog_spot(), "verb": "hold: call it down", "n": 1, "t": 3.0, "load": game.head, "seat": Vector3(m.x, to_head, m.z), "say": "Call the boom down"})
 	steps.append(_job("pin_boom", st2 + 1, "pump", "pin the boom", 8, 0.5, "8 boom pins", null, top - 1.13))
 	steps.append(_job("unchain", st2 + 1, "pump", "unchain the boom", 4, 0.6, "Clip on, chains off", null, top - 1.13))
 	# 5. plug in
 	steps.append(_job("bend", st2 + 2, "hose", "clamp the bend on", 2, 0.8, "Bend onto the line's foot", _base_spot(0)))
 	steps.append(_job("power", st2 + 2, "hose", "plug in the power lead", 1, 1.2, "Plug in the power lead", _base_spot(2)))
 	# 6. the mobilisation test
-	steps.append({"id": "test_unfold", "kind": "test", "stage": st2 + 3, "role": "boom", "zone": "deck", "at": _remote_spot(), "verb": "hold: unfold it, arm by arm", "n": 1, "t": 5.0, "say": "Test: unfold on the remote"})
-	steps.append({"id": "test_slew", "kind": "test", "stage": st2 + 3, "role": "boom", "zone": "deck", "at": _remote_spot(), "verb": "hold: swing it round", "n": 1, "t": 4.0, "say": "Test: swing it round"})
+	steps.append({"id": "test_unfold", "kind": "test", "stage": st2 + 3, "role": "boom", "zone": zn, "at": _remote_spot(), "verb": "hold: unfold it, arm by arm", "n": 1, "t": 5.0, "say": "Test: unfold on the remote"})
+	steps.append({"id": "test_slew", "kind": "test", "stage": st2 + 3, "role": "boom", "zone": zn, "at": _remote_spot(), "verb": "hold: swing it round", "n": 1, "t": 4.0, "say": "Test: swing it round"})
 	steps.append(_job("test_estop", st2 + 3, "boom", "hit the emergency stop", 1, 0.5, "Test: emergency stop", _remote_spot()))
 	steps.append(_job("test_look", st2 + 3, "pump", "check pins, hoses, leaks", 3, 0.8, "Check pins, hoses, leaks", null, top - 1.13))
 	_stage_names = ["X BASE"]
@@ -306,7 +325,7 @@ func _next() -> void:
 	if s["kind"] == "fly":
 		var load: Node3D = s["load"]
 		var seat: Vector3 = s["seat"]
-		var clear: float = maxf(game.spire_head_y(game.k), to_head) + 6.0
+		var clear: float = game.erect_clear_y()
 		if _load != load:
 			# (the hook's not on it yet: over to it first)
 			_load = load
@@ -348,8 +367,7 @@ func _done() -> void:
 	elif id == "pin_ad":
 		_load = null
 		_adaptor.visible = false
-		g.spire_col_bare = false
-		g.spire_column(foot + stood + 0.62, foot, foot, false, false)
+		g.erect_column(stood, false)
 		_way = [hook_pos + Vector3(0, 6.0, 0)]
 	elif id == "unchain":
 		_load = null
@@ -369,9 +387,7 @@ func _stand(i: int) -> void:
 	_load = null
 	_col_slung = true
 	hook_pos = _col_top() + Vector3(0, 2.2, 0)
-	g.spire_col_force = stood
-	g.spire_col_bare = true
-	g.spire_column(foot + stood + 0.62, foot, foot, false, false)
+	g.erect_column(stood, true)
 	g.line.rebuild_riser()
 	g.sfx.hit("thunk")
 	g.pop("%.0f m UP" % stood, _col_top() + Vector3(1.5, 0.5, 0), Color("7cd992"))
@@ -398,7 +414,7 @@ func _finish() -> void:
 	g.climb.park_stage = ""
 	g.climb.park_slew = 0.0
 	g.climb.park_fold = 0.0
-	g.hud.toast("The boom's up, free-standing on its X base, and tested. First pour.", 3.0)
+	g.hud.toast("The boom's up, free-standing on its X base, and tested.", 3.0)
 	g.score.award(g.crew.crew.get("pump"), 30, "Erection day")
 	finished.emit()
 
@@ -478,7 +494,7 @@ func _at(p, j: Dictionary) -> bool:
 	if String(j["zone"]) == "ladder":
 		return p.zone == "ladder" and absf(p.position.y - float(j["y"])) < 1.2
 	var at: Vector3 = j["at"]
-	return p.zone == "deck" and Vector2(p.position.x - at.x, p.position.z - at.z).length() < REACH
+	return p.zone == zn and Vector2(p.position.x - at.x, p.position.z - at.z).length() < REACH
 
 # ------------------------------------------------------------------ bots
 
@@ -506,11 +522,11 @@ func bot(p, role: String, delta: float) -> bool:
 			# (the rigger waits up the column while the crane brings the next piece, if that's theirs)
 			if role == "pump" and _next_zone("pump") == "ladder":
 				return true
-			b._ladder_to(p, game.work_y, true)
-		elif p.zone == "deck":
+			b._ladder_to(p, game.work_y if zn == "deck" else 0.0, true)
+		elif p.zone == zn:
 			b.walk(p, _deck_wait(role), 0.6)
 		else:
-			b.go(p, "deck", _deck_wait(role), 0.6)
+			b.go(p, zn, _deck_wait(role), 0.6)
 		return true
 	if String(j["zone"]) == "ladder":
 		if p.zone == "ladder":
@@ -522,7 +538,7 @@ func bot(p, role: String, delta: float) -> bool:
 		else:
 			if b.walk(p, b._gnd("ladder_g"), 0.5):
 				p.ai_action = b._tap()
-	elif b.go(p, "deck", j["at"], 0.45):
+	elif b.go(p, zn, j["at"], 0.45):
 		p.ai_action = true
 	return true
 

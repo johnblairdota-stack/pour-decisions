@@ -45,6 +45,7 @@ static var STAIRS := false
 ## Spire: the line rides up the boom's column through the slabs' openings (use_site), with a caged
 ## ladder beside it; PIPE_IN is where the ground line turns in through the podium to the stack.
 static var STACK := false
+static var COLUMN := false       # the water tower: the line and the ladder ride a free-standing square column (use_column)
 static var PIPE_IN := Vector3.INF
 static var RAMP := Vector3.INF          # (Spire: where the ground line crosses the footpath from the pump)
 static var STEP_Y := 1.0e9
@@ -128,9 +129,17 @@ const KERB_LOAD_K := 1.5       # ...and the loads are bigger, so there are fewer
 const KERB_TRUST_K := 1.6      # ...and the chute runs faster on trust while the slump's tested
 const KERB_CALL_M3 := 3.0      # m3 left in the truck on the hopper when the next can be called round
 
+## The water tower's boom stands on a free-standing 1 m square column at `c` (on its X base): one red
+## pipe in the column's +x face and the galvanised ladder over it, as on Spire's.
+static func use_column(c: Vector2) -> void:
+	COLUMN = true
+	RISER = Vector3(c.x + 0.52, 0, c.y + 0.12)
+	LADDER = Vector3(c.x + 0.62, 0, c.y + 0.12)
+
 ## Sets the site's layout. Riverlight: the yard, at 45 degrees. Spire: along the kerb.
 static func use_site(kerb: bool, wall_z := 0.0, roof_y := 1.0e9, set_back := 0.0, stack := Vector2.INF) -> void:
 	KERB = kerb
+	COLUMN = false
 	STACK = kerb and stack.x != INF
 	STAIRS = kerb and not STACK
 	STEP_Y = roof_y if STAIRS else 1.0e9
@@ -1113,7 +1122,7 @@ func rebuild_riser() -> void:
 	var top: float = game.riser_top_y() if kit == "tower" else 0.0
 	riser_top = top
 	# (Spire: the caged ladder goes on up the column to the work platform round its head)
-	var ladder_top: float = top + (-0.9 if STACK else 0.0)
+	var ladder_top: float = top + (-0.9 if STACK or COLUMN else 0.0)
 	for r in ladder_rails:
 		r.visible = kit == "tower" and not STAIRS
 	ladder_rungs.visible = kit == "tower" and not STAIRS
@@ -1123,7 +1132,7 @@ func rebuild_riser() -> void:
 		var galv := F.color_mat(Color("b4bcc1"))
 		for i in ladder_rails.size():
 			var rr := ladder_rails[i]
-			if STACK:
+			if STACK or COLUMN:
 				rr.material_override = galv
 			rr.position = Vector3(LADDER.x + 0.15, ladder_top * 0.5, LADDER.z + (-0.28 if i == 0 else 0.28))
 			rr.scale.y = ladder_top
@@ -1131,7 +1140,7 @@ func rebuild_riser() -> void:
 		mm.transform_format = MultiMesh.TRANSFORM_3D
 		var bm := BoxMesh.new()
 		bm.size = Vector3(0.05, 0.05, 0.56)
-		bm.material = galv if STACK else F.mat("yellow_dark")
+		bm.material = galv if STACK or COLUMN else F.mat("yellow_dark")
 		mm.mesh = bm
 		var n := int(ladder_top / 0.35)
 		mm.instance_count = n
@@ -1202,7 +1211,7 @@ func rebuild_riser() -> void:
 			# the run across and the rest)
 			b = Vector3(a.x, STEP_Y + 0.35, a.z)
 		_line(sm, a + (b - a).normalized() * 0.08, b - (b - a).normalized() * 0.08, 0.16)
-		if STACK:
+		if STACK or COLUMN:
 			sm.material_override = F.color_mat(Color("c4281c"))     # (SCP's line up the column is red)
 		sections.append({"a": a, "b": b, "node": sm})
 	for b in brackets:
@@ -1212,7 +1221,7 @@ func rebuild_riser() -> void:
 		var by := 2.1
 		while by < top - 0.5:
 			# (Spire: the ladder's own bracket, across the pipe)
-			var br := F.box(Vector3(0.14, 0.12, 0.55), F.mat("yellow_dark"), riser_at(by) + Vector3(0, 0, -0.38)) if not STACK \
+			var br := F.box(Vector3(0.14, 0.12, 0.55), F.mat("yellow_dark"), riser_at(by) + Vector3(0, 0, -0.38)) if not (STACK or COLUMN) \
 				else F.box(Vector3(0.08, 0.1, 0.62), F.color_mat(Color("b4bcc1")), riser_at(by) + Vector3(0.19, 0, 0))
 			add_child(br)
 			brackets.append(br)
