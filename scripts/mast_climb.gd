@@ -85,6 +85,13 @@ var _who: Dictionary = {}     # player -> the label over them: their turn, or wh
 var open_air := false       # (the erection day's is out on the roof: mast_erect.gd)
 var _shot_next := ""        # (dev: shoot this step a few seconds in, once things are moving)
 var _radio_ok := false      # the top dogger's called this crane lift (the crane waits for the call)
+## The crane op's seat: a person in the tower crane's cab (null: the crane drives itself). They can't
+## see the load; they go on the doggers' radio calls: X hoists, A lowers, the stick slews, left and
+## right as the op sees it, sat facing out along the jib.
+var cab = null
+var _cab_idle := 0.0        # s the cab's had a call and no hand on the controls
+var _cab_call := ""         # the call the op's on now (for the radio line when it changes)
+const CAB_IDLE := 20.0      # s before the crane's own driver takes back an idle cab
 const CRANE_STEPS := ["boom_off", "adaptor_off", "hook_down", "adaptor_on", "boom_on"]
 ## What the top dogger radios for each crane lift, and the crane op's answer.
 const RADIO := {"boom_off": ["Take the boom up", "Boom's coming up"], "adaptor_off": ["Adaptor's free, take it up", "Adaptor up"],
@@ -122,6 +129,15 @@ func start() -> void:
 	hoist = ""
 	_jobs_done = {}
 	_absent = {}
+	_cab_call = ""
+	_cab_idle = 0.0
+	if cab != null and not is_instance_valid(cab):
+		cab = null
+	if cab != null:
+		_absent[cab.role] = true
+	# (dev: `--cab` puts the first person in the crane cab, driven by cab_ai())
+	if g.autotest and OS.get_cmdline_user_args().has("--cab") and cab == null and not g.crew.humans().is_empty():
+		take_cab(g.crew.humans()[0])
 	from_head = g.spire_mast_head(k - 1)
 	to_head = g.spire_mast_head(k)
 	rise = to_head - from_head
@@ -322,6 +338,8 @@ func _done_step() -> void:
 
 func _finish() -> void:
 	active = false
+	if cab != null:
+		leave_cab()
 	step = ""
 	game.line.extra_stops = []
 	game.climb.borrow = _saved_borrow
@@ -347,6 +365,8 @@ func update(delta: float) -> void:
 	if not active:
 		return
 	step_t += delta
+	if cab != null and is_instance_valid(cab) and cab.ai:
+		cab_ai(cab)
 	if _shot_next != "" and step_t > 8.0:
 		game.mast_shot = _shot_next
 		_shot_next = ""
@@ -378,16 +398,25 @@ func update(delta: float) -> void:
 func _lift(delta: float) -> void:
 	var target := rise * float(lift_i + 1) / float(PIPES)
 	var dog = game.crew.crew.get("line")
+	var drive := 1.0
+	if cab != null:
+		# (the cab's hoist: X takes it up, A lets it down; the dogger's calls say which)
+		drive = 1.0 if cab.alt_held() else 0.0
+		if hoist == "creep_down":
+			drive = 1.0 if cab.action_held() else 0.0
+		if hoist == "stopping" and not cab.alt_held():
+			_stop_in = 0.0
+		_cab_seen(drive > 0.0 or hoist == "held")
 	match hoist:
 		"up":
-			lifted += HOIST_V * delta
+			lifted += HOIST_V * delta * drive
 			if lifted > target + NO_CALL:
 				hoist = "held"
 				game.hud.toast("No call: the driver's stopped it himself, well past the mark", 2.0)
 				game.sfx.hit("clank")
 		"stopping":
-			lifted += HOIST_V * delta
-			_stop_in -= delta
+			lifted += HOIST_V * delta * (1.0 if cab == null or cab.alt_held() else 0.0)
+			_stop_in -= delta if cab == null else 0.0
 			if _stop_in <= 0.0:
 				hoist = "held"
 				var err := lifted - target
@@ -398,9 +427,9 @@ func _lift(delta: float) -> void:
 				else:
 					game.pop("%.0f cm %s" % [absf(err) * 100.0, "short" if err < 0.0 else "over"], _mark.global_position + Vector3(0, 0.5, 0), Color("ff8a1f"))
 		"creep_up":
-			lifted += CREEP_V * delta
+			lifted += CREEP_V * delta * drive
 		"creep_down":
-			lifted -= CREEP_V * delta
+			lifted -= CREEP_V * delta * drive
 	lifted = clampf(lifted, 0.0, rise + NO_CALL)
 	hook_pos = _lug_hook()
 	_place_column()
@@ -443,6 +472,9 @@ func _update_pipe(delta: float) -> void:
 func handle_player(p, delta: float) -> bool:
 	if not active:
 		return false
+	if p == cab:
+		_cab_cues(p)
+		return true
 	if step == "lift" and (p == game.crew.crew.get("line") or (p.bot and p.role == "screed" and _absent.has("line"))):
 		_dog(p, delta)
 		return p.zone != "ladder"
@@ -538,12 +570,14 @@ func bot(p, role: String, delta: float) -> bool:
 	if game.autotest and step_t > 60.0 and fmod(step_t, 30.0) < delta:
 		print("[autotest]     mast step %s hung %.0fs: job %s | %s %s zone %s at %s busy '%s'" % [step, step_t, str(job()), role, p.char_name, p.zone, str(p.position), p.busy])
 	var b = game.bots
+	if p == cab:
+		return true   # (up in the crane cab)
 	var j := job()
 	# (a job that's a person's, and they haven't got to it: after a while a bot steps in for them)
 	if not j.is_empty() and j.get("role", "") != role and step_t > (6.0 if _absent.has(j.get("role", "")) else HELP_T):
 		var owner = game.crew.crew.get(j["role"])
 		var back := {"pump": "poker", "poker": "pump", "hose": "pump", "line": "screed", "screed": "line", "boom": "screed"}
-		if owner != null and not owner.bot and not owner.covering and back.get(j["role"], "") == role:
+		if owner != null and not owner.bot and (not owner.covering or owner == cab) and back.get(j["role"], "") == role:
 			_absent[j["role"]] = true
 			j["role"] = role
 			if step == "lift":
@@ -623,6 +657,11 @@ func _crane(delta: float) -> bool:
 			step_xz = Vector2.ZERO
 		elif to.y < hook_pos.y - 0.05 and dxz.length() > 0.2:
 			dy = 0.0
+		if cab != null:
+			# (the person in the cab moves it: only on the call, and only while they hold it)
+			var k := _cab_move(to, dxz, dy)
+			step_xz *= k
+			dy *= k
 		hook_pos += Vector3(step_xz.x, dy, step_xz.y)
 		if hook_pos.distance_to(to) < 0.05:
 			hook_pos = to
@@ -679,6 +718,131 @@ func _draw(_delta: float) -> void:
 		_mark.text = "MARK" if absf(togo) <= STOP_TOL else ("%.1f m to go" % togo if togo > 0.0 else "%.1f m over" % -togo)
 		_mark.modulate = Color("7cd992") if absf(togo) <= STOP_TOL else (Color("ffc72c") if togo > 0.0 else Color("ff5a4a"))
 		_mark.position = Vector3(LineScript.RISER.x + 0.6, foot0 + lifted + 0.3, LineScript.RISER.z + 0.5)
+
+# ------------------------------------------------------------------ the crane cab
+
+## A person takes the crane op's seat: their own job goes to a bot from their trade.
+func take_cab(p) -> void:
+	if p == null or p.bot:
+		return
+	cab = p
+	_cab_idle = 0.0
+	_cab_call = ""
+	_absent[p.role] = true
+	if game.autotest:
+		print("[autotest]   P%d (%s) takes the crane cab" % [p.index, p.role])
+	game.hud.toast("P%d's in the crane cab. You can't see the load: go on the doggers' radio calls" % p.index, 3.0)
+
+func leave_cab() -> void:
+	if game.autotest and cab != null:
+		print("[autotest]   P%d leaves the crane cab (step %s)" % [cab.index, step])
+	if cab != null and is_instance_valid(cab):
+		_absent.erase(cab.role)
+	cab = null
+	_cab_call = ""
+
+## The call the op's on, from the waypoint the hook's heading for: [call, button].
+func _cab_need(to: Vector3, dxz: Vector2, dy: float) -> Array:
+	if absf(dy) > 0.0001 and (dxz.length() <= 0.2 or dy > 0.0):
+		return ["HOIST UP", "alt"] if dy > 0.0 else ["LOWER, EASY", "action"]
+	if dxz.length() > 0.001:
+		# (left or right as the op sees it, facing out along the jib: anticlockwise from above is left)
+		var base: Vector3 = game.climb.crane.global_position if game.climb.crane != null else Vector3.ZERO
+		var a0 := atan2(-(hook_pos.z - base.z), hook_pos.x - base.x)
+		var a1 := atan2(-(to.z - base.z), to.x - base.x)
+		var turn := wrapf(a1 - a0, -PI, PI)
+		if absf(turn) > 0.01:
+			return ["SLEW LEFT", "left"] if turn > 0.0 else ["SLEW RIGHT", "right"]
+		var r0 := Vector2(hook_pos.x - base.x, hook_pos.z - base.z).length()
+		var r1 := Vector2(to.x - base.x, to.z - base.z).length()
+		return ["TROLLEY OUT", "up"] if r1 > r0 else ["TROLLEY IN", "down"]
+	return ["", ""]
+
+## 0 or 1: the op's holding what the call wants. (The radio line goes out as the call changes.)
+func _cab_move(to: Vector3, dxz: Vector2, dy: float) -> float:
+	if step in ["boom_off", "adaptor_off", "hook_down", "adaptor_on", "boom_on"] and not _radio_ok:
+		return 0.0
+	# (up before across, across before down, as the crane's own driver does it)
+	var ddy := dy
+	if to.y > hook_pos.y + 0.05 and dxz.length() > 0.2:
+		dxz = Vector2.ZERO
+	elif to.y < hook_pos.y - 0.05 and dxz.length() > 0.2:
+		ddy = 0.0
+	var need := _cab_need(to, dxz, ddy)
+	if need[0] != _cab_call:
+		_cab_call = need[0]
+		if _cab_call != "":
+			var dog = game.crew.crew.get("screed")
+			game.hud.toast("Radio · %s: \"%s\"" % [String(dog.char_name) if dog != null else "Top dogger", _cab_call.capitalize()], 1.4)
+	if String(need[1]) == "":
+		return 1.0   # (settling the last few centimetres)
+	var ok := _cab_holding(String(need[1]))
+	_cab_seen(ok)
+	return 1.0 if ok else 0.0
+
+func _cab_holding(what: String) -> bool:
+	var c = cab
+	var m: Vector2 = c.move_input()
+	match what:
+		"alt": return c.alt_held()
+		"action": return c.action_held()
+		"left": return m.x < -0.4
+		"right": return m.x > 0.4
+		"up": return m.y < -0.4
+		"down": return m.y > 0.4
+	return false
+
+## An idle cab: after a while the crane's own driver takes it back, so the climb never stalls.
+func _cab_seen(working: bool) -> void:
+	_cab_idle = 0.0 if working else _cab_idle + get_process_delta_time()
+	if _cab_idle > CAB_IDLE and cab != null:
+		game.hud.toast("No hands on the crane: its own driver's taken it back", 2.2)
+		leave_cab()
+
+## The cab's buttons: what the doggers are asking for now.
+func _cab_cues(p) -> void:
+	if step == "lift":
+		var target := rise * float(lift_i + 1) / float(PIPES)
+		match hoist:
+			"up":
+				p.cue("alt", "hold: HOIST (\"take it up\")", clampf(lifted / maxf(target, 0.01), 0.0, 1.0), true)
+			"stopping":
+				p.cue("alt", "ALL STOP: let go", -1.0, true, Vector2(-1, -1), true)
+			"creep_up":
+				p.cue("alt", "hold: up slow", -1.0, true)
+			"creep_down":
+				p.cue("action", "hold: down slow", -1.0, true)
+			_:
+				p.cue("alt", "waiting on the dogger", -1.0)
+		return
+	if step in ["boom_off", "adaptor_off", "hook_down", "adaptor_on", "boom_on"]:
+		if not _radio_ok:
+			p.cue("alt", "waiting on the top dogger's call", -1.0)
+			return
+		if _cab_call == "":
+			return
+		var btn := {"HOIST UP": "alt", "LOWER, EASY": "action"}
+		p.cue(String(btn.get(_cab_call, "stick")), "hold: " + _cab_call, -1.0, true)
+		return
+	p.cue("alt", "in the cab: next lift soon", -1.0)
+
+## Dev / test: a person in the cab driven like a bot (ai), holding whatever the call wants.
+func cab_ai(p) -> void:
+	p.ai_alt = false
+	p.ai_action = false
+	p.ai_move = Vector2.ZERO
+	if step == "lift":
+		var target := rise * float(lift_i + 1) / float(PIPES)
+		p.ai_alt = hoist in ["up", "creep_up"] or (hoist == "stopping" and lifted < target - 0.02)
+		p.ai_action = hoist == "creep_down"
+		return
+	match _cab_call:
+		"HOIST UP": p.ai_alt = true
+		"LOWER, EASY": p.ai_action = true
+		"SLEW LEFT": p.ai_move = Vector2(-1, 0)
+		"SLEW RIGHT": p.ai_move = Vector2(1, 0)
+		"TROLLEY OUT": p.ai_move = Vector2(0, -1)
+		"TROLLEY IN": p.ai_move = Vector2(0, 1)
 
 # ------------------------------------------------------------------ places
 

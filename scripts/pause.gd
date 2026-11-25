@@ -198,6 +198,9 @@ func _build_page(page: String) -> void:
 			rows.append(["Back", "back"])
 			for role in game.crew.ROLES:
 				rows.append(["", "role:" + role])
+			# (Spire's climb day: the tower crane's cab is a seat too)
+			if _cab_open():
+				rows.append(["", "cab"])
 	for it in rows:
 		_items.append(_make_row(it[0], it[1]))
 	_title.text = PAGE_TITLE.get(page, "SMOKO")
@@ -315,6 +318,9 @@ func _refresh() -> void:
 			"join":
 				var full: bool = game.crew.humans().size() >= game.crew.MAX_PEOPLE
 				l.text = "Add a player" + ("  (crew's full)" if full else "")
+			"cab":
+				var in_cab = game.mast.cab
+				l.text = "Crane op · in the cab" if in_cab == null else ("Crane op · P%d (A: climb down)" % in_cab.index if in_cab == game.crew.human(_who) else "Crane op · P%d" % in_cab.index)
 			_:
 				if a.begins_with("role:"):
 					var role := a.substr(5)
@@ -506,6 +512,8 @@ func _note_for(action: String) -> String:
 			return "Shows frames a second in the corner (F4 does the same). Leave it on for a minute of a pour to get an average and a low."
 		"back":
 			return ""
+	if action == "cab":
+		return "The crane op's seat. You can't see the load: X hoists, A lowers, the stick slews, on the doggers' radio calls. A bot does your own job."
 	if action.begins_with("role:"):
 		var role := action.substr(5)
 		var p = game.crew.crew[role]
@@ -514,11 +522,23 @@ func _note_for(action: String) -> String:
 		return "A swaps P%d onto it. A bot takes over your job where you left it." % _who
 	return ""
 
+## The crane cab's a seat on Spire's column climb day (mast_climb.gd).
+func _cab_open() -> bool:
+	return game.phase == "mastclimb" and game.mast != null and game.mast.has_method("take_cab") and bool(game.mast.active)
+
 # ------------------------------------------------------------------ doing
 
 func _do(action: String) -> void:
 	if action.begins_with("role:"):
 		_swap_to(action.substr(5))
+		return
+	if action == "cab":
+		var me = game.crew.human(_who)
+		if game.mast.cab == me:
+			game.mast.leave_cab()
+		else:
+			game.mast.take_cab(me)
+		close()
 		return
 	match action:
 		"resume":
