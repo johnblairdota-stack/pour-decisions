@@ -323,7 +323,7 @@ The camera swings round to the south while you dog a section in, so the load, th
 
 ## How a level plays
 
-1. Columns, core, formwork deck.
+1. Columns, core, formwork deck. On Spire you watch the real order: steel fixers crane in the column cages, formworkers close and brace the column forms, the columns are poured and stripped, then the props, bearers and joists go up under the new deck while the scaffold's top lift is raised round it.
 2. Climb the boom (tower kit, every 3 levels) or put the outriggers down (truck kit).
 3. Pre-pour briefing and the engineer's hold point. A defect like a missing bar chair has to be fixed first.
 4. Pour the slab in four bays (split across whatever slab there is, so on the water tower they're slices of the round slab), far end first, keeping the edge wet, while the trucks, pump and line keep up. The first truck has already backed onto the hopper during the pre-start, so its slump test can be done while the line's primed, not with everyone watching it reverse in.
