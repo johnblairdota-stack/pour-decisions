@@ -92,7 +92,7 @@ func _story_now() -> Array:
 		"columns", "deck":
 			if g.k == g.TUT_FIRST:
 				return ["WATER TOWER · THE TANK FLOOR", "The forms are going up."]
-			return ["WATER TOWER · THE TANK WALL", "The boom climbs to reach the roof."]
+			return ["WATER TOWER · THE TANK WALL", "The boom reaches the roof from where it stands."]
 		"inspect":
 			return ["WATER TOWER · " + floor_name, "Pre-pour check, then the trucks."]
 		"pour":
