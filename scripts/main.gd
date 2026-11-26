@@ -5501,7 +5501,7 @@ func _process(delta: float) -> void:
 			fb = _filled_ratio()
 		elif phase in ["screed", "cure", "sign", "report"]:
 			fb = 1.0
-		_spire_b.update(delta, fb, phase, deck_top(), spire_mast_head(k) if erect != null and erect.active else head.position.y)
+		_spire_b.update(delta, fb, phase, level_y(k) if phase == "columns" else deck_top(), spire_mast_head(k) if erect != null and erect.active else head.position.y)
 	perf.mark("climb")
 	line.update(delta, phase == "pour")
 	if spire:
