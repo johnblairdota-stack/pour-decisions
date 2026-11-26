@@ -1,6 +1,5 @@
 ## What's inside Spire round the boom's column, for the section view (main._section_slot): the stair
-## shaft climbing beside it, the hand rails round the column's opening on each floor, the props and
-## bearers holding up the deck that's about to be poured and the back-props a floor down, and the
+## shaft climbing beside it, the hand rails round the column's opening on each floor, and the
 ## formworkers' and steel fixers' gear on the floors under it. All dressing: nothing here is walked on
 ## or pressed. Rebuilt when the level changes, and merged into a few meshes.
 extends Node3D
@@ -26,13 +25,9 @@ func build(k: int) -> void:
 	var g = game
 	var m := SpireSite.mast_xz()
 	var fh: float = g.FH
-	var deck: float = g.level_y(k)            # the deck being poured (its top)
 	var under: float = g.level_y(k - 1) if k >= 1 else g.base_y - fh   # the floor under it
 	_stairs(m, under, fh)
 	_rails(m, k)
-	_props(m, deck, under, fh, 1.5, true)
-	if k >= 2:
-		_props(m, under, g.level_y(k - 2), fh, 3.0, false)
 	for i in GEAR_FLOORS:
 		var lv := k - 2 - i
 		if lv >= 0:
@@ -124,40 +119,6 @@ func _on_plate(x: float, z: float) -> bool:
 		return false
 	# (not inside the core's walls, where they'd never show)
 	return not Geometry2D.is_point_in_polygon(Vector2(x, z), Geometry2D.offset_polygon(SpireSite.poly("core"), 0.35)[0])
-
-## Props under a slab: a grid of them `step` apart from the floor at `floor_y` to the soffit of the slab
-## whose top is at `slab_top`, with timber bearers over them (`formwork`: under the deck that's being
-## formed) or just the back-props. Only behind the section view's cut line, where the floor they stand
-## on is still there.
-func _props(m: Vector2, slab_top: float, floor_y: float, _fh: float, step: float, formwork: bool) -> void:
-	var n := _group("Props" if formwork else "BackProps")
-	var steel := F.color_mat(Color("c9422e") if formwork else Color("8d9198"))
-	var inner := F.mat("steel")
-	var timber := F.color_mat(Color("b98a55"))
-	var soffit := slab_top - 0.3 - (0.25 if formwork else 0.0)
-	var h := soffit - floor_y
-	if h < 1.0:
-		return
-	var op := SpireSite.opening()
-	var x := m.x - 4.2
-	while x <= m.x + 5.4:
-		var z := m.y + 0.55
-		var za := INF
-		var zb := -INF
-		while z >= m.y - 5.0:
-			# (none in the opening, on the ladder's side of it, or in the stair shaft)
-			var in_open := x > op[0].x - 0.5 and x < op[2].x + 0.5 and z > op[0].y - 0.5 and z < op[2].y + 0.5
-			var in_stair := x > m.x + 2.0 and x < m.x + 2.6 + SHAFT_W
-			if not in_open and not in_stair and _on_plate(x, z):
-				n.add_child(F.cylinder(0.04, h * 0.55, steel, Vector3(x, floor_y + h * 0.275, z), 6))
-				n.add_child(F.cylinder(0.028, h * 0.45, inner, Vector3(x, floor_y + h * 0.775, z), 6))
-				n.add_child(F.box(Vector3(0.16, 0.02, 0.16), inner, Vector3(x, floor_y + 0.01, z)))
-				za = minf(za, z)
-				zb = maxf(zb, z)
-			z -= step
-		if formwork and zb > za:
-			n.add_child(F.box(Vector3(0.1, 0.15, zb - za + 0.6), timber, Vector3(x, soffit + 0.08, (za + zb) * 0.5)))
-		x += step
 
 ## The trades' gear on a floor under the deck (`i`: 0 the nearest floor clear of the formwork's props,
 ## where the ply and the steel are staged; further down there's less of it). In the strip in front of

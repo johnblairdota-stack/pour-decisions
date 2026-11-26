@@ -55,6 +55,7 @@ const SpireSite := preload("res://scripts/spire_site.gd")
 const SpireB := preload("res://scripts/spire_b.gd")
 const SpireInside := preload("res://scripts/spire_inside.gd")
 const SpireScaffold := preload("res://scripts/spire_scaffold.gd")
+const SpireFloorCycle := preload("res://scripts/spire_floor_cycle.gd")
 const ZBoom := preload("res://scripts/zboom.gd")
 const SpireStreet := preload("res://scripts/spire_street.gd")
 const TowerHand := preload("res://scripts/tower_hand.gd")
@@ -4620,7 +4621,9 @@ func _start_floor() -> void:
 	if tutorial:
 		_tut_frame(frame)
 	elif spire:
-		pass        # (Spire: the core and the slabs are spire_site.gd's)
+		# (Spire: the core and the slabs are spire_site.gd's; the columns and the deck's props go up
+		# stage by stage, spire_floor_cycle.gd)
+		SpireFloorCycle.begin(f, FH, k)
 	else:
 		for c in _column_xz():
 			frame.add_child(F.box(Vector3(0.6, FH - 0.3, 0.6), col, Vector3(SC.x + c.x, (FH - 0.3) * 0.5, SC.z + c.y)))
@@ -5508,7 +5511,7 @@ func _process(delta: float) -> void:
 			fb = _filled_ratio()
 		elif phase in ["screed", "cure", "sign", "report"]:
 			fb = 1.0
-		_spire_b.update(delta, fb, phase, deck_top(), spire_mast_head(k) if erect != null and erect.active else head.position.y)
+		_spire_b.update(delta, fb, phase, level_y(k) if phase == "columns" else deck_top(), spire_mast_head(k) if erect != null and erect.active else head.position.y)
 	perf.mark("climb")
 	line.update(delta, phase == "pour")
 	if spire:
@@ -5567,9 +5570,10 @@ func _process(delta: float) -> void:
 				_change_over("pen" if spire else "erect", func():
 					_set_phase("mastclimb")
 					erect.start())
-			var u := clampf(phase_t / 1.8, 0.0, 1.0)
+			var u := clampf(phase_t / (SpireFloorCycle.TIME if spire else 1.8), 0.0, 1.0)
 			if spire:
 				SpireScaffold.raise(u)   # (the scaffold's top lift goes up round the new deck)
+				SpireFloorCycle.advance(u)
 			var frame: Node3D = floor_nodes[k].get_node("Frame")
 			frame.scale.y = maxf(0.01, ease(u, 0.4))
 			if u >= 1.0:
@@ -8245,8 +8249,9 @@ func _update_hud() -> void:
 	hud.tick_pause_hint(get_process_delta_time(), phase in ["climb", "mastclimb", "inspect", "pour"] and not hud.brief.visible and not get_tree().paused)
 	match phase:
 		"columns":
-			hud.set_task("Build · columns and core")
-			hud.set_progress(phase_t / 1.8)
+			var cyc: float = SpireFloorCycle.TIME if spire else 1.8
+			hud.set_task(SpireFloorCycle.task(phase_t / cyc) if spire else "Build · columns and core")
+			hud.set_progress(phase_t / cyc)
 		"deck":
 			hud.set_task("Build · formwork deck")
 			hud.set_progress(1.0)

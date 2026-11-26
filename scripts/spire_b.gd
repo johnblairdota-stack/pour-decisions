@@ -385,6 +385,9 @@ var _cost_n := 0
 func _update(delta: float, frac: float, phase: String, deck_y: float, head_y: float) -> void:
 	_t += delta
 	visible = phase != "topout"
+	# (no deck yet while the columns under it are still being caged, formed, poured and stripped:
+	# spire_floor_cycle.gd. main hands in the slab below as the height till then)
+	pour.visible = phase != "columns"
 	pour.position.y = deck_y
 	view.rig.position.y = deck_y
 	view.work_y = deck_y
