@@ -2940,6 +2940,7 @@ func _arrive_film(delta: float, fin: Vector3, a: Dictionary) -> void:
 	var fl := _arrive_fl
 	if _fall_layer == null:
 		_fall_layer = FlyFilm.make(self, fl)
+		FlyFilm.set_wide(_fall_layer, _spire_local)
 		if _spire_world != null:
 			FlyFilm.site(_fall_layer, _spire_world, camera, env)
 	# (the film runs down the tower's face past every deck's floor pick and is stopped on the frame of
@@ -2961,9 +2962,10 @@ func _arrive_film(delta: float, fin: Vector3, a: Dictionary) -> void:
 	FlyFilm.draw(_fall_layer, t, a.get("skip", false), same, stop)
 	if t < ft:
 		# (under the film: the same camera, so the live site's already there as the film fades)
-		var c: Array = FlyFilm.cam(_fall_layer, FlyFilm.film_t(t, stop))
-		camera.position = _spire_local(c[0])
-		camera.look_at(_spire_local(c[1]), Vector3.UP)
+		# (and from the end of the run in it looks down onto the deck it's going to stop at: FlyFilm.aim)
+		var film_t := FlyFilm.film_t(t, stop)
+		camera.position = _spire_local(FlyFilm.cam(_fall_layer, film_t)[0])
+		camera.look_at(FlyFilm.aim(_fall_layer, film_t, stop, camera.position, cam_focus, _spire_local), Vector3.UP)
 	elif same:
 		camera.position = fin
 		camera.look_at(cam_focus, Vector3.UP)

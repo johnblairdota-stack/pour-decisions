@@ -40,6 +40,13 @@ TOTAL = DUR + LEG[0] + LEG[1]
 # the deck the crew is up to (cams.json "floors": deck -> frame), so it never flies past them.
 FLOORS = None
 FPS = 24
+# From the end of the run in, those frames are WIDE: a fisheye picture (the angle off its middle is
+# the distance from the picture's middle, WIDE_PPD pixels a degree), looking the floor pick's way but
+# WIDE_PITCH degrees down, that takes in everything from the floor pick's level view to nearly
+# straight down. The game cuts its own view out of it (shaders/fly_wide.gdshader), so its camera can
+# look down onto whichever deck it is going to stop at and level out as it gets there.
+WIDE_PITCH, WIDE_PPD, WIDE_SIZE = -33.0, 14.0, (1280, 1568)
+WIDE_FOV = 140.0                  # degrees across the whole fisheye: its corners are needed, so it is rendered bigger and cut down to WIDE_SIZE
 IN_T = 2.0                        # s, about: from the run in to the top deck's view (rounded so that lands on a frame)
 CUT_Z = float(os.environ.get("CUT_Z", "42.35"))   # AHD: the tower's cut off here (the game's first deck: it isn't built yet)
 
@@ -94,6 +101,41 @@ def top_frame():
 def floor_frame(i):
     """The frame that stands on deck i's view (0 = the first deck, the film's last frame)."""
     return top_frame() + (FLOORS[0] - 1 - i) * FLOORS[2]
+
+
+def wide_from():
+    """The first wide frame (none: -1)."""
+    return int(math.floor(DUR * FPS)) + 1 if FLOORS else -1
+
+
+def wide_dir():
+    """Where the middle of a wide frame looks (a unit vector, the model's metres)."""
+    e, f = END
+    n = math.hypot(f[0] - e[0], f[1] - e[1])
+    c, s_ = math.cos(math.radians(WIDE_PITCH)), math.sin(math.radians(WIDE_PITCH))
+    return ((f[0] - e[0]) / n * c, (f[1] - e[1]) / n * c, s_)
+
+
+def shoot_wide(i, dst, y0=0.0, y1=1.0):
+    """Frame i as a wide frame (y0..y1 of its height, from the bottom)."""
+    import bpy
+    import preview as P
+    from mathutils import Vector
+    cam = P.camera("cam_cbd")
+    cam.data.type = "PANO"
+    cam.data.panorama_type = "FISHEYE_EQUIDISTANT"
+    w, h = WIDE_SIZE
+    cam.data.fisheye_fov = math.radians(WIDE_FOV)
+    full = int(round(WIDE_FOV * WIDE_PPD))            # (the whole square fisheye, of which WIDE_SIZE is the middle)
+    cam.data.sensor_fit = "AUTO"
+    cam.data.clip_start, cam.data.clip_end = 1.0, 8000
+    cam.location = Vector(cam_at(i / FPS)[0])
+    cam.rotation_euler = Vector(wide_dir()).to_track_quat("-Z", "Y").to_euler()
+    sc = bpy.context.scene
+    sc.render.border_min_x, sc.render.border_max_x = (full - w) / 2.0 / full, (full + w) / 2.0 / full
+    sc.render.border_min_y, sc.render.border_max_y = ((full - h) / 2.0 + y0 * h) / full, ((full - h) / 2.0 + y1 * h) / full
+    P.hide(["logistics"], True)
+    P.render(dst, full, full)
 
 
 def _down(t):
@@ -215,6 +257,7 @@ def main():
     h = w * 9 // 16
     json.dump({"tower": TOWER, "provisional": "end" not in TOWERS[TOWER], "fps": fps, "frames": n, "dur": TOTAL, "run_in": DUR, "target": T, "lens": LENS,
                "floors": [floor_frame(i) for i in range(FLOORS[0])] if FLOORS else [],
+               "wide": {"from": wide_from(), "dir": [round(v, 5) for v in wide_dir()], "ppd": WIDE_PPD, "size": list(WIDE_SIZE)} if FLOORS else {},
                "cams": [[round(v, 2) for v in cam_at(i / fps)[0]] for i in range(n)],
                "looks": [[round(v, 2) for v in cam_at(i / fps)[1]] for i in range(n)]}, open(os.path.join(out, "cams.json"), "w"))
     if "--cams" in argv:
@@ -237,7 +280,12 @@ def main():
         if os.path.exists(dst):
             continue
         parts = []
-        for k in range(strips):
+        if 0 <= wide_from() <= i:
+            for k in range(strips):
+                shoot_wide(i, os.path.join(out, "f%04d_s%d.png" % (i, k)), k / strips, (k + 1) / strips)
+                parts.append(os.path.join(out, "f%04d_s%d.png" % (i, k)))
+            w, h = WIDE_SIZE
+        for k in range(0 if parts else strips):
             sc.render.border_min_x, sc.render.border_max_x = 0.0, 1.0
             sc.render.border_min_y, sc.render.border_max_y = k / strips, (k + 1) / strips
             R.shoot({"id": "f%04d_s%d" % (i, k), "pos": cam_at(i / fps)[0], "look_at": cam_at(i / fps)[1], "lens": LENS, "size": (w, h)}, out, 1.0)

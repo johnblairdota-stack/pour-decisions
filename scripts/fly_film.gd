@@ -27,6 +27,9 @@ const STAY_M := 0.12         # m: the camera's left the view the film ended on
 const LEAVE_T := 0.6         # s: the film's city gives way to the game's own, once it has
 const SAME := 0.75          # m: nearer the floor pick's own camera than this, the film ends on it
 const EASE := 0.6           # s of film: it slows to a stop over the last this much (taking twice as long)
+const WIDE := preload("res://shaders/fly_wide.gdshader")
+const DOWN_MAX := 66.0      # degrees: it never looks down more steeply than this (the wide frames end a little past it)
+const LOOK_BY := 0.85       # of the way from the run in to the stop: by then it is looking at the deck's own floor pick
 const CREEP := 0.12         # the slowest the film runs before it stops (so it always gets to its frame)
 
 ## The film of a flight ("film" in Flight.TOWERS): {"video", "cams"}.
@@ -61,8 +64,54 @@ static func make(parent: Node, fl: Dictionary) -> CanvasLayer:
 	layer.add_child(r)
 	var d: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(String(fl["film"]["cams"])))
 	layer.set_meta("cams", d)
+	if _wide(d):
+		# (the film's last part is wide frames, and the game's own view is cut from them: fly_wide.gdshader)
+		var wd: Dictionary = d["wide"]
+		var wm := ShaderMaterial.new()
+		wm.shader = WIDE
+		var sz := Vector2(wd["size"][0], wd["size"][1])
+		var rc: Array = wd["rect"]
+		wm.set_shader_parameter("tex_size", sz)
+		wm.set_shader_parameter("ppd", float(wd["ppd"]))
+		wm.set_shader_parameter("rect", Vector4(rc[0] / sz.x, rc[1] / sz.y, rc[2] / sz.x, rc[3] / sz.y))
+		wm.set_shader_parameter("rect_aspect", float(rc[2]) / float(rc[3]))
+		v.material = wm
 	v.play()
 	return layer
+
+static func _wide(d: Dictionary) -> bool:
+	return d.has("wide") and not (d["wide"] as Dictionary).is_empty() and int(d["wide"]["from"]) >= 0
+
+## Which way the middle of the film's wide frames looks, in the game's own directions (`to_game`
+## turns a place in the model's metres into the game's).
+static func set_wide(layer: CanvasLayer, to_game: Callable) -> void:
+	var d: Dictionary = layer.get_meta("cams")
+	if not _wide(d) or layer.has_meta("wide_basis"):
+		return
+	var w: Array = d["wide"]["dir"]
+	var dir: Vector3 = (to_game.call(Vector3(w[0], w[1], w[2])) as Vector3) - (to_game.call(Vector3.ZERO) as Vector3)
+	layer.set_meta("wide_basis", Basis.looking_at(dir.normalized(), Vector3.UP))
+
+## What the game's camera looks at, `ft` s into the film (film_t), from `at` (the game's metres). To
+## the end of the run in it is the film's own. From there (the wide frames) it turns from the tower
+## onto `focus`, what the floor pick it stops at (`stop`) looks at: down onto that deck from above,
+## levelling out as it comes down to it.
+static func aim(layer: CanvasLayer, ft: float, stop: float, at: Vector3, focus: Vector3, to_game: Callable) -> Vector3:
+	var d: Dictionary = layer.get_meta("cams")
+	var own: Vector3 = to_game.call(cam(layer, ft)[1])
+	var t0 := float(d.get("run_in", 0.0))
+	if not _wide(d) or stop < 0.0 or ft <= t0:
+		return own
+	var tg: Array = d["target"]
+	var from: Vector3 = to_game.call(Vector3(tg[0], tg[1], tg[2]))
+	var to := from.lerp(focus, smoothstep(0.0, LOOK_BY, (ft - t0) / maxf(0.1, stop - t0))) - at
+	# (never steeper than the wide frames go: eased, so there's no corner in the turn)
+	var flat := Vector2(to.x, to.z).length()
+	var lim := deg_to_rad(DOWN_MAX)
+	var pitch := atan2(to.y, flat)
+	if pitch < 0.0:
+		pitch = -lim * tanh(-pitch / lim)
+	return at + Vector3(to.x, tan(pitch) * flat, to.z)
 
 ## How long the film runs, s.
 static func dur(layer: CanvasLayer) -> float:
@@ -105,7 +154,11 @@ static func draw(layer: CanvasLayer, t: float, gone: bool, stay := false, stop :
 	var d := end_t(layer, stop)
 	var vs := r.get_viewport_rect().size
 	var tex := v.get_video_texture()
-	if tex != null and tex.get_width() > 0:
+	if v.material != null:
+		v.position = Vector2.ZERO          # (the whole screen: the shader lays the picture out)
+		v.size = vs
+		(v.material as ShaderMaterial).set_shader_parameter("aspect", vs.x / maxf(1.0, vs.y))
+	elif tex != null and tex.get_width() > 0:
 		var ts := Vector2(tex.get_width(), tex.get_height())
 		var fit := maxf(vs.x / ts.x, vs.y / ts.y)
 		v.size = ts * fit
@@ -236,6 +289,12 @@ static func _layers(n: Node, on: bool) -> void:
 
 ## Every frame, once the game's camera is placed: the site's camera stands where it does.
 static func follow(layer: CanvasLayer, cam: Camera3D) -> void:
+	if layer.has_meta("wide_basis"):
+		# (the game's own view, cut from the film's wide frame by where its camera looks now)
+		var v := layer.get_child(0) as VideoStreamPlayer
+		var m := v.material as ShaderMaterial
+		m.set_shader_parameter("rot", (layer.get_meta("wide_basis") as Basis).inverse() * cam.global_transform.basis.orthonormalized())
+		m.set_shader_parameter("tan_half", tan(deg_to_rad(cam.fov * 0.5)))
 	if not layer.has_meta("site"):
 		return
 	var c := layer.get_meta("site") as Camera3D

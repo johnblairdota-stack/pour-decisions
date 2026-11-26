@@ -40,9 +40,22 @@ def main():
     n = int(cams["frames"])
     have = [i for i in range(n) if os.path.exists(os.path.join(src, "film_%04d.png" % i))]
     tmp = tempfile.mkdtemp()
+    # (a film whose last part is wide frames, render_film.py: the ordinary ones before them are set in
+    # the middle of a frame that size, and cams.json says where: "wide"."rect")
+    wide = cams.get("wide") or {}
+    wfrom = int(wide.get("from", -1))
+    hz_end = float(cams.get("run_in", 1e9)) - (1.6 if wfrom >= 0 else 0.0)
     yv = 0.0
     for i in range(n):
         j = min(have, key=lambda k: abs(k - i))
+        if 0 <= wfrom <= i:
+            if j < wfrom:
+                j = min((k for k in have if k >= wfrom), key=lambda k: abs(k - i), default=j)
+            im = Image.open(os.path.join(src, "film_%04d.png" % j)).convert("RGB")
+            if j < wfrom:                                # (none rendered yet: black)
+                im = Image.new("RGB", tuple(wide["size"]))
+            im.save(os.path.join(tmp, "f%04d.png" % i))
+            continue
         a = np.asarray(Image.open(os.path.join(src, "film_%04d.png" % j)).convert("RGB"), float) / 255.0
         # (the edge only ever goes up the frame as the camera comes down: no flicker from a missed row)
         e = max(edge_row(a), 0.06)
@@ -51,10 +64,16 @@ def main():
         t = np.clip((y - (yv + SOLID)) / FADE, 0.0, 1.0)
         w = 1.0 - t * t * (3.0 - 2.0 * t)
         # (the haze is for the far edge of the model seen from high up: gone by the time it's down at the tower)
-        tt = (i / float(cams["fps"]) - float(cams.get("run_in", 1e9))) / 1.6
+        tt = (i / float(cams["fps"]) - hz_end) / 1.6      # (and before the wide frames, which have none)
         w = w * (1.0 - min(1.0, max(0.0, tt)))
         a = a * (1.0 - w[:, None, None]) + HAZE * w[:, None, None]
-        Image.fromarray((a * 255.0 + 0.5).astype(np.uint8)).save(os.path.join(tmp, "f%04d.png" % i))
+        im = Image.fromarray((a * 255.0 + 0.5).astype(np.uint8))
+        if wfrom >= 0:
+            full = Image.new("RGB", tuple(wide["size"]))
+            wide["rect"] = [(full.width - im.width) // 2, (full.height - im.height) // 2, im.width, im.height]
+            full.paste(im, tuple(wide["rect"][:2]))
+            im = full
+        im.save(os.path.join(tmp, "f%04d.png" % i))
     ogv = os.path.join(out, tower + ".ogv")
     subprocess.check_call(["ffmpeg", "-y", "-loglevel", "error", "-framerate", str(cams["fps"]), "-i", os.path.join(tmp, "f%04d.png"),
                            "-vf", "tpad=stop_mode=clone:stop_duration=%.2f" % HOLD, "-c:v", "libtheora", "-q:v", q, "-pix_fmt", "yuv420p", "-an", ogv])
