@@ -78,6 +78,24 @@ AREAS = {
         "box": (152.9870, -27.5010, 153.0280, -27.4660),
         "sites": [],
     },
+    # The 39 LiDAR tiles ordered 26 Nov 2026 (docs/city/METHOD.md step 3). Boxes sit 60 m inside the 1 km
+    # tile squares so the dem layer fetches exactly those tiles. No sites: --skip=geocode,commons
+    "paddington": {   # tiles E498-500 x N6962-6963: Paddington, Milton, Suncorp Stadium
+        "box": (152.98037, -27.46500, 153.00951, -27.44803),
+        "sites": [],
+    },
+    "gabba": {        # tiles E503-504 x N6958-6959: Woolloongabba, the Gabba
+        "box": (153.03098, -27.50111, 153.05001, -27.48413),
+        "sites": [],
+    },
+    "downriver_n": {  # tiles E503-509 x N6964-6965: Newstead, Hamilton, Portside, Riverlight
+        "box": (153.03097, -27.44694, 153.10057, -27.42994),
+        "sites": [],
+    },
+    "downriver_s": {  # tiles E505-509 x N6961-6963: New Farm, Teneriffe, Bulimba
+        "box": (153.05122, -27.47402, 153.10059, -27.44799),
+        "sites": [],
+    },
 }
 
 COUNCIL = [
