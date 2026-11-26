@@ -39,6 +39,7 @@ const SelectScript := preload("res://scripts/select.gd")
 const CrewScript := preload("res://scripts/crew.gd")
 const BotsScript := preload("res://scripts/bots.gd")
 const TradeSwap := preload("res://scripts/trade_swap.gd")
+const CraneDay := preload("res://scripts/crane_day.gd")
 const ScoreScript := preload("res://scripts/score.gd")
 const SignsScript := preload("res://scripts/signs.gd")
 const ScreedScript := preload("res://scripts/screed.gd")
@@ -53,6 +54,7 @@ const Look := preload("res://scripts/look.gd")
 const SpireSite := preload("res://scripts/spire_site.gd")
 const SpireB := preload("res://scripts/spire_b.gd")
 const SpireInside := preload("res://scripts/spire_inside.gd")
+const SpireScaffold := preload("res://scripts/spire_scaffold.gd")
 const ZBoom := preload("res://scripts/zboom.gd")
 const SpireStreet := preload("res://scripts/spire_street.gd")
 const TowerHand := preload("res://scripts/tower_hand.gd")
@@ -225,6 +227,7 @@ var screed
 var crew
 var bots
 var trade_swap               # trade_swap.gd: Y takes a trade-mate bot's task
+var crane_day                # crane_day.gd: the tower crane lifting for the other trades while we pour
 var score
 var signs
 var urgent := {}                 # role -> how urgent its most pressing job is (0..2)
@@ -404,6 +407,9 @@ func _ready() -> void:
 	trade_swap = TradeSwap.new()
 	add_child(trade_swap)
 	trade_swap.setup(self)
+	crane_day = CraneDay.new()
+	add_child(crane_day)
+	crane_day.setup(self)
 	if autotest:
 		print("[autotest] started")
 		# `--human=<job>`: leave that job to an idle "person", to test the rest
@@ -2196,7 +2202,10 @@ func _make_station(key: String, def: Dictionary, parent: Node3D, zone: String) -
 func _build_walkway() -> void:
 	if spire:
 		# (round the plate's real edge, open at the hoist's landing and the ladder tower's platform)
-		_rect_rails = SpireSite.build_scaffold(rig, WALK_GAP, WALK_W, FH, [[hoist_x - 1.1, hoist_x + 1.1], [12.5, 15.6]], Yard)
+		_rect_rails = SpireScaffold.build(rig, WALK_GAP, WALK_W, FH, [[hoist_x - 1.1, hoist_x + 1.1], [12.5, 15.6]])
+		for sm in SpireScaffold.mesh_mats:   # (its mesh takes the see-through circle as it is)
+			_cut_mats[sm] = sm
+			_cut_made[sm] = true
 		return
 	var grate := F.mat("steel")
 	var rail := F.mat("orange")
@@ -4629,6 +4638,7 @@ func _start_floor() -> void:
 			add_child(west)
 			west.build(self, PackedVector2Array(OTHER_WING))
 		west.start_level(k)
+	crane_day.start_level(k)
 	_set_phase("columns")
 
 func _start_inspect() -> void:
@@ -5554,6 +5564,8 @@ func _process(delta: float) -> void:
 					_set_phase("mastclimb")
 					erect.start())
 			var u := clampf(phase_t / 1.8, 0.0, 1.0)
+			if spire:
+				SpireScaffold.raise(u)   # (the scaffold's top lift goes up round the new deck)
 			var frame: Node3D = floor_nodes[k].get_node("Frame")
 			frame.scale.y = maxf(0.01, ease(u, 0.4))
 			if u >= 1.0:
@@ -9648,6 +9660,8 @@ func _maybe_shot() -> void:
 		key = "cuthoist"
 	elif west != null and phase == "pour" and _west_shot() != "":
 		key = _west_shot()
+	elif phase == "pour" and crane_day.shot_key(_shot_only, _shots_taken) != "":
+		key = crane_day.shot_key(_shot_only, _shots_taken)
 	elif phase == "select":
 		# (asked for by name, it waits for the camera to get to the floor)
 		if not _shots_taken.has("select"):
@@ -9784,6 +9798,9 @@ func _maybe_shot() -> void:
 		if key == "westlift":
 			wf = west.lift_focus()
 		_shot_cam = [wf, 40.0 if key != "westlift" else 22.0]
+		hud.visible = false
+	if key.begins_with("crane"):
+		_shot_cam = crane_day.shot_cam(key)
 		hud.visible = false
 	if key in ["vista", "vista2"]:
 		# Out over the river from the top: downstream to the Gateway Bridge,

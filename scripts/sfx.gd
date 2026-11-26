@@ -32,7 +32,7 @@ var _g_alert := 1.0
 # res://sounds/step/<surface>_<1..4>.ogg with step(). (tools/sounds/ makes them.)
 const KINDS := ["bang", "clank", "thunk", "buzz", "ding", "clang", "tink", "hiss", "knock", "ring", "thud",
 	"beep", "whip", "scrape", "plop", "chime", "birds", "sign_chat", "sign_call", "sign_alarm", "sign_gold",
-	"sign_thanks", "sign_slip", "air_brake", "chute_rattle", "shovel_scrape", "poker_glug"]
+	"sign_thanks", "sign_slip", "air_brake", "chute_rattle", "shovel_scrape", "poker_glug", "horn", "radio"]
 var _hit_samples := {}      # kind -> AudioStreamPlayer
 var _loops := {}            # "amb/<name>" or "loop/<name>" -> {"pl": AudioStreamPlayer or null, "want", "lv", "fade", "db"}
 ## How loud each machine loop sits against the rest, dB (they're all levelled
@@ -80,7 +80,7 @@ var _wq: Array = []         # [s from now, blast, alert] blasts still to blow
 ## How long each made-up hit can be heard, s (2 s when it's not listed). The
 ## mixer stops working a hit out once it's past this.
 const HIT_LEN := {"clank": 0.5, "tink": 0.3, "thunk": 0.9, "hiss": 0.6, "buzz": 0.2, "knock": 0.3, "thud": 0.4,
-	"beep": 0.25, "scrape": 0.26, "plop": 0.3, "sign_chat": 0.1, "sign_call": 0.2, "sign_alarm": 0.25,
+	"beep": 0.25, "horn": 1.3, "radio": 0.12, "scrape": 0.26, "plop": 0.3, "sign_chat": 0.1, "sign_call": 0.2, "sign_alarm": 0.25,
 	"sign_gold": 0.3, "sign_thanks": 0.2, "sign_slip": 0.22, "bleep": 0.42, "bleep_s": 0.2, "birds": 1.4}
 
 const BIRD_CHIRPS := [0.0, 0.16, 0.5, 0.64, 1.0, 1.12, 1.26]   # s, when each chirp of "birds" starts
@@ -646,6 +646,16 @@ func _mix(n: int) -> PackedVector2Array:
 				"beep":
 					if a < 0.25:
 						s += (1.0 if fmod(a * 1100.0, 1.0) < 0.5 else -1.0) * 0.035
+				"horn":
+					# The tower crane's warning horn, far up: two long blasts of a hoarse two-tone
+					if a < 0.5 or (a > 0.75 and a < 1.25):
+						var hb := fmod(a, 0.75)
+						var env := minf(1.0, hb * 30.0) * minf(1.0, (0.5 - hb) * 20.0)
+						s += ((1.0 if fmod(a * 415.0, 1.0) < 0.5 else -1.0) * 0.5 + (1.0 if fmod(a * 523.0, 1.0) < 0.5 else -1.0) * 0.5) * env * 0.04
+				"radio":
+					# A two-way radio's squelch click before a call
+					if a < 0.12:
+						s += (randf() * 2.0 - 1.0) * exp(-a * 25.0) * 0.06
 				"whip":
 					s += ((randf() * 2.0 - 1.0) * 0.5 * exp(-a * 7.0) + sin(TAU * 55.0 * a) * 0.4 * exp(-a * 5.0))
 				"scrape":
