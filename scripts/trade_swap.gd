@@ -70,6 +70,8 @@ func offer(p, delta: float) -> void:
 		_cool[i] = maxf(_cool[i], 1.0)
 	if _cool[i] > 0.0:
 		return
+	if _offer_claim(p):
+		return
 	var q = candidate(p)
 	if q == null:
 		return
@@ -100,10 +102,11 @@ func take(p, q) -> bool:
 		print("[autotest]   P%d takes the %s off %s (bot), who goes to the %s" % [me.index, task_name(role), bot_name, task_name(was)])
 	return true
 
-## Every frame: the task spots say who's on them.
+## Every frame: the task spots say who's on them, and a pop-up's claim is kept up to date.
 func tick() -> void:
 	if game.autotest:
 		_test()
+	_tick_claims()
 	for key in SPOTS:
 		if not game.stations.has(key):
 			continue
@@ -178,3 +181,123 @@ func _uncover(p) -> void:
 	if p.covering:
 		p.uncover()
 		game.lead_hand.stop(p, true)
+
+# ------------------------------------------------------------------ "Mine!": claiming a pop-up
+
+## A pop-up in a trade (today: a line repair, a pumpy's): the bot whose job it
+## is calls it and waits a moment for a person in the trade to say "Mine!" (Y)
+## before going itself. A claim holds while they get on with it, and goes back
+## to the bot if they leave it.
+const CLAIM_WAIT := 4.0       # s the bot waits on a call before it goes
+const CLAIM_IDLE := 15.0      # s a claimant can stand idle before the bot takes it back
+var claims := {}              # pop-up -> the person who said "Mine!"
+var _called_at := {}          # pop-up -> phase_t when the bot called it
+
+## Whether a line repair's waiting on someone (the pump's off and something's broken on the riser).
+func _repair_up() -> bool:
+	var line = game.line
+	if game.phase != "pour" or line == null or line.spike_on:
+		return false
+	if game.let_burst and line.fail_i >= 0 and not line.burst:
+		return false
+	return line.fail_i >= 0 or line.fix_i >= 0 or (line.blocked and not line.block_found)
+
+## The people who could claim the repair: pumpies who aren't the pump op, while a bot is.
+func _claimers() -> Array:
+	var out: Array = []
+	var po = game.crew.crew.get("pump")
+	if po == null or not po.bot:
+		return out
+	for h in game.crew.humans():
+		if h != po and Trades.of_role(h.role) == "pumpy" and not h.covering:
+			out.append(h)
+	return out
+
+## The person who's claimed a pop-up, or null.
+func claimed_by(id: String):
+	var c = claims.get(id)
+	return c if c != null and is_instance_valid(c) and not c.bot else null
+
+## For the pump bot (bots.gd): stay at the panel instead of going up the riser,
+## because a person's said "Mine!", or the call's still out for one.
+func repair_held() -> bool:
+	if not _repair_up():
+		return false
+	if claimed_by("repair") != null:
+		return true
+	return not _claimers().is_empty() and game.phase_t - float(_called_at.get("repair", game.phase_t)) < CLAIM_WAIT
+
+## Dev: `--claimrepair` has P1 (a pumpy, not the pump op) call Mine! on each
+## line repair and do it through the pump bot's own repair moves.
+var _claimtest: bool = OS.get_cmdline_user_args().has("--claimrepair")
+
+func _test_claim() -> void:
+	var people: Array = game.crew.humans()
+	if people.is_empty():
+		return
+	var p = people[0]
+	game.bots._clear(p)
+	if claimed_by("repair") == p:
+		game.bots._repair(p, get_process_delta_time())
+	elif _repair_up() and claimed_by("repair") == null and Trades.of_role(p.role) == "pumpy" and p.role != "pump":
+		# (a person pressing anything takes their job back off the leading hand: so does this)
+		_uncover(p)
+		p.idle_in = 0.0
+		_cool[p.index] = 0.0
+		p.ai_slow = int(game.phase_t * 10.0) % 2 == 0
+
+var _down_t := 0.0            # s the repair's been off (a blink between steps isn't the end of it)
+var _test_ladder := {}        # dev: who was up the ladder while the claim held
+
+func _tick_claims() -> void:
+	if _claimtest and game.autotest:
+		_test_claim()
+	if not _repair_up():
+		_down_t += get_process_delta_time()
+		if _down_t > 1.5:
+			if game.autotest and claims.has("repair") and _claimtest:
+				print("[autotest]   claimed repair done: up the ladder %s" % [_test_ladder.keys()])
+			claims.erase("repair")
+			_called_at.erase("repair")
+			_test_ladder.clear()
+		return
+	_down_t = 0.0
+	if _claimtest and claimed_by("repair") != null:
+		for q in game.crew.crew.values():
+			if q.zone == "ladder":
+				_test_ladder[("P%d " % q.index if not q.bot else "bot ") + q.role] = true
+	if not _called_at.has("repair"):
+		_called_at["repair"] = game.phase_t
+		if not _claimers().is_empty():
+			var po = game.crew.crew["pump"]
+			var j: int = game.line.fix_i if game.line.fix_i >= 0 else game.line.fail_i
+			po.bark(("Clamp's gone on %d! Anyone?" % (j + 1)) if j >= 0 else "Line's blocked! Anyone?")
+	var c = claimed_by("repair")
+	if c != null and (c.idle_in > CLAIM_IDLE or c.covering or Trades.of_role(c.role) != "pumpy" or c.role == "pump"):
+		claims.erase("repair")
+		game.crew.crew["pump"].bark("I'll get it.")
+		if game.autotest:
+			print("[autotest]   P%d's repair claim lapses: the pump bot goes" % c.index)
+
+## Y on a called pop-up: "Mine!". True when the button went to that.
+func _offer_claim(p) -> bool:
+	if not _repair_up() or claimed_by("repair") != null or not _claimers().has(p):
+		return false
+	# (once the bot's on the ladder it's too late to call it)
+	var po = game.crew.crew["pump"]
+	if po.zone in ["ladder", "hoist"]:
+		return false
+	for cu in p.cues:
+		if String(cu[0]) == "Y":
+			return false
+	p.cue("slow", "Mine! fix the line", -1.0, true)
+	if p.slow_pressed():
+		claims["repair"] = p
+		p.bark("Mine!")
+		po.bark("All yours. I'll mind the panel.")
+		game.sfx.hit("ding")
+		game.hud.toast("P%d's got the line repair. %s stays on the panel." % [p.index, po.char_name], 2.4)
+		if game.autotest:
+			print("[autotest]   P%d calls Mine! on the line repair" % p.index)
+		return true
+	return false

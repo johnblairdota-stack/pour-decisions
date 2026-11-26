@@ -72,7 +72,7 @@ Total: **8 of 24.** The core-loop month aims for 16.
 
 **What the critics said.** The poker and screeder wait at the start of every pour; on climb days the rigger pins alone while three watch (review 4, F5 and F10; 29 Oct; both October reviews).
 
-**Fixed so far.** Smoko run for the screeder, second tag line for the hose hand, slinging, pin bags and the hopper wash-down on climb days. Trades (#175 onward) are starting to let a person move between their trade's tasks.
+**Fixed so far.** Smoko run for the screeder, second tag line for the hose hand, slinging, pin bags and the hopper wash-down on climb days. Trades (#175 onward) let a person move between their trade's tasks: Y beside a trade-mate bot takes its task (#180), and when the line goes down the pump bot calls it and waits for a pumpy to say "Mine!" (Y) and climb up to fix it, so the boom op and line hand have the repair to do while the pump's off (stage 5 part 2).
 
 **Still open.** The start-up steps belong to the pump, hose and boom only (`ops.gd` `STEPS`, about line 58). The climb's pin stage is still one person's work.
 

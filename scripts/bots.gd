@@ -785,7 +785,16 @@ func _pump(p, delta: float) -> void:
 		if line.spike_t >= REACT_T[g.score.bot_tier]:
 			p.ai_action = _tap()
 		return
-	# Something broken on the line: up the riser to fix it
+	# Something broken on the line: up the riser to fix it (unless a pumpy's
+	# said "Mine!", or the call's still out for one: then mind the panel)
+	if g.trade_swap != null and g.trade_swap.repair_held():
+		if g.trade_swap.claimed_by("repair") != null:
+			_bark_once(p, "held%d" % line.stats.get("jobs", 0), "I'll mind the panel.")
+		if p.zone != "ground":
+			go(p, "ground", _gnd("panel"))
+		else:
+			walk(p, g.GROUND_STATIONS["panel"]["pos"], 0.6)
+		return
 	if _repair(p, delta):
 		return
 	_tap_y = -1.0
