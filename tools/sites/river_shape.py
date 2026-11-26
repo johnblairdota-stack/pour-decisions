@@ -235,7 +235,7 @@ def main():
             "river_area_ha": round(float(river.sum()) * STEP * STEP / 1e4, 1), "reaches_kept": int(len(keep_ids)),
             "loops": len(out_loops), "aerial_cover": round(float(have.mean()), 3),
             "lidar_cover": round(float(inlid.mean()), 3),
-            "sources": {"aerial": "Qld AerialOrtho newest (area_newest_wide.jpg, cbd + portside + westend)",
+            "sources": {"aerial": "Qld AerialOrtho newest (area_newest_wide.jpg, every area in AREAS)",
                         "lidar": "Brisbane 2019 LiDAR grid2019 (dsm NaN = water)", "dem": "QldDem default 1 m"},
             "credit": "(c) State of Queensland (Department of Resources) CC BY 4.0"}
     json.dump(meta, open(os.path.join(OUT, "river.json"), "w"), indent=1)

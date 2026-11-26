@@ -2,7 +2,7 @@
 
     python3 tools/sites/clean_wide.py <PourDecisions-sites>/data
 
-Mosaics <data>/cbd/elvis/grid2019 (16 x 1 km tiles: dsm, gnd, veg, bld) into Spire's frame and runs
+Mosaics <data>/cbd/elvis/grid2019 (every 1 km tile there: dsm, gnd, veg, bld) into Spire's frame and runs
 clean_ext.shape_buildings (prep_clean.py's rules: roof tiers from LiDAR height clusters, gables, spires,
 facade family) over every OSM building in <data>/cbd/osm/osm_all.json.gz that the scene does not build yet
 (buildings_clean.json inside the +-700 m square, ext/buildings_ext.json). Writes reference/sites/spire/wide/:
@@ -16,7 +16,7 @@ facade family) over every OSM building in <data>/cbd/osm/osm_all.json.gz that th
     features.json         OSM traffic signals, street lamps, motorway junctions (nodes) and parks, pitches,
                           car parks, stadiums (rings), local metres
 
-To go further out: order more Brisbane 2019 LiDAR tiles from ELVIS, grid them with tools/lidar/grid.js into
+To go further out: order more Brisbane 2019 LiDAR tiles from ELVIS, grid them with tools/lidar/grid_spire.js into
 grid2019/<E>_<N>/ and run this again; it takes whatever tiles are there.
 """
 import csv
