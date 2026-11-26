@@ -53,6 +53,7 @@ const Look := preload("res://scripts/look.gd")
 const SpireSite := preload("res://scripts/spire_site.gd")
 const SpireB := preload("res://scripts/spire_b.gd")
 const SpireInside := preload("res://scripts/spire_inside.gd")
+const SpireScaffold := preload("res://scripts/spire_scaffold.gd")
 const ZBoom := preload("res://scripts/zboom.gd")
 const SpireStreet := preload("res://scripts/spire_street.gd")
 const TowerHand := preload("res://scripts/tower_hand.gd")
@@ -2196,7 +2197,10 @@ func _make_station(key: String, def: Dictionary, parent: Node3D, zone: String) -
 func _build_walkway() -> void:
 	if spire:
 		# (round the plate's real edge, open at the hoist's landing and the ladder tower's platform)
-		_rect_rails = SpireSite.build_scaffold(rig, WALK_GAP, WALK_W, FH, [[hoist_x - 1.1, hoist_x + 1.1], [12.5, 15.6]], Yard)
+		_rect_rails = SpireScaffold.build(rig, WALK_GAP, WALK_W, FH, [[hoist_x - 1.1, hoist_x + 1.1], [12.5, 15.6]])
+		for sm in SpireScaffold.mesh_mats:   # (its mesh takes the see-through circle as it is)
+			_cut_mats[sm] = sm
+			_cut_made[sm] = true
 		return
 	var grate := F.mat("steel")
 	var rail := F.mat("orange")
@@ -5554,6 +5558,8 @@ func _process(delta: float) -> void:
 					_set_phase("mastclimb")
 					erect.start())
 			var u := clampf(phase_t / 1.8, 0.0, 1.0)
+			if spire:
+				SpireScaffold.raise(u)   # (the scaffold's top lift goes up round the new deck)
 			var frame: Node3D = floor_nodes[k].get_node("Frame")
 			frame.scale.y = maxf(0.01, ease(u, 0.4))
 			if u >= 1.0:
