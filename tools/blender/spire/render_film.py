@@ -33,6 +33,14 @@ END = ((-21.673, 23.822, 43.978), (-7.386, 8.502, 42.51))
 OVER_OUT, OVER_Z = 28.0, 154.0
 LEG = (2.1, 1.9)                  # s: to the point over the street, and down the face
 TOTAL = DUR + LEG[0] + LEG[1]
+# A tower with decks to pick (FLOORS: how many, m apart, film frames a deck) ends another way: END is
+# the first deck's view, and every deck above it has the same view FLOORS[1] m higher. The film comes
+# in to the TOP deck's view and then runs straight down the face at a steady rate, standing on each
+# deck's own view for exactly one frame, down to the first. The game stops the film on the frame of
+# the deck the crew is up to (cams.json "floors": deck -> frame), so it never flies past them.
+FLOORS = None
+FPS = 24
+IN_T = 2.0                        # s, about: from the run in to the top deck's view (rounded so that lands on a frame)
 CUT_Z = float(os.environ.get("CUT_Z", "42.35"))   # AHD: the tower's cut off here (the game's first deck: it isn't built yet)
 
 
@@ -42,7 +50,7 @@ CUT_Z = float(os.environ.get("CUT_Z", "42.35"))   # AHD: the tower's cut off her
 # full render once their level exists. None of this says anything about equipment or how a tower's
 # poured. Places are in the model's metres (x east, y north of Spire, z AHD).
 TOWERS = {
-    "spire": {"t": T, "hdir": HDIR, "end": END, "over": (OVER_OUT, OVER_Z), "cut": CUT_Z},
+    "spire": {"t": T, "hdir": HDIR, "end": END, "over": (OVER_OUT, OVER_Z), "cut": CUT_Z, "floors": (34, 2.9, 2)},
     # Howard Smith Wharves: low, on the river bank under the Story Bridge (deck about 80 m AHD overhead):
     # in from over the river, well over the bridge until it's close.
     "hsw": {"t": (621.0, 25.0, 12.0), "hdir": (0.26, -0.966), "s": (2800.0, 320.0), "el": (36.0, 26.0),
@@ -62,7 +70,7 @@ TOWER = "spire"
 
 def use(tower):
     """Fly this tower's flight from here on."""
-    global TOWER, T, HDIR, S0, S1, EL0, EL1, END, OVER_OUT, OVER_Z, CUT_Z
+    global TOWER, T, HDIR, S0, S1, EL0, EL1, END, OVER_OUT, OVER_Z, CUT_Z, FLOORS, TOTAL
     c = TOWERS[tower]
     TOWER, T, HDIR = tower, c["t"], c["hdir"]
     S0, S1 = c.get("s", (2800.0, 270.0))
@@ -74,6 +82,38 @@ def use(tower):
     else:
         out, z, look_z = c["end_at"]         # (m out along hdir, the camera's height, the height it looks at)
         END = ((T[0] + HDIR[0] * out, T[1] + HDIR[1] * out, z), (T[0], T[1], look_z))
+    FLOORS = c.get("floors")
+    TOTAL = floor_frame(0) / FPS if FLOORS else DUR + LEG[0] + LEG[1]
+
+
+def top_frame():
+    """The frame that stands on the top deck's view."""
+    return int(math.ceil((DUR + IN_T) * FPS))
+
+
+def floor_frame(i):
+    """The frame that stands on deck i's view (0 = the first deck, the film's last frame)."""
+    return top_frame() + (FLOORS[0] - 1 - i) * FLOORS[2]
+
+
+def _down(t):
+    """In to the top deck's view, then straight down the face."""
+    e, f = END
+    n, dz, per = FLOORS
+    rise = (n - 1) * dz
+    t_top = top_frame() / FPS
+    v = dz * FPS / per                                   # (m/s down the face)
+    top = (e[0], e[1], e[2] + rise)
+    if t >= t_top:
+        z = max(e[2], top[2] - v * (t - t_top))
+        return (e[0], e[1], z), (f[0], f[1], f[2] + z - e[2])
+    p0, a = run_in(DUR), run_in(DUR - 0.01)
+    v0 = tuple((p0[i] - a[i]) / 0.01 for i in range(3))
+    d = t_top - DUR
+    p = _herm(p0, v0, top, (0.0, 0.0, -v), (t - DUR) / d, d)   # (already going down at the face's rate as it gets there)
+    k = smooth(0.0, 0.9, (t - DUR) / d)
+    look = (f[0], f[1], f[2] + rise)
+    return p, tuple(T[i] + (look[i] - T[i]) * k for i in range(3))
 
 
 def smooth(a, b, x):
@@ -108,6 +148,8 @@ def cam_at(t):
     """The camera t s in: (place, what it looks at)."""
     if t <= DUR:
         return run_in(t), T
+    if FLOORS:
+        return _down(t)
     p0, k, e = run_in(DUR), _over(), END[0]
     a = run_in(DUR - 0.01)
     v0 = tuple((p0[i] - a[i]) / 0.01 for i in range(3))             # (it leaves the run in at the run in's own speed)
@@ -164,12 +206,15 @@ def main():
     out = os.path.abspath(argv[0])
     os.makedirs(out, exist_ok=True)
     num = lambda k, d: type(d)(next((a[len(k) + 1:] for a in argv if a.startswith(k + "=")), d))
+    global FPS
     fps, w = num("fps", 24), num("w", 1280)
+    FPS = fps
     use(next((a[6:] for a in argv if a.startswith("tower=")), "spire"))
     n = int(round(TOTAL * fps)) + 1
     f0, f1 = num("from", 0), min(n, num("to", n))
     h = w * 9 // 16
     json.dump({"tower": TOWER, "provisional": "end" not in TOWERS[TOWER], "fps": fps, "frames": n, "dur": TOTAL, "run_in": DUR, "target": T, "lens": LENS,
+               "floors": [floor_frame(i) for i in range(FLOORS[0])] if FLOORS else [],
                "cams": [[round(v, 2) for v in cam_at(i / fps)[0]] for i in range(n)],
                "looks": [[round(v, 2) for v in cam_at(i / fps)[1]] for i in range(n)]}, open(os.path.join(out, "cams.json"), "w"))
     if "--cams" in argv:

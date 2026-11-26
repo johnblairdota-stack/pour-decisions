@@ -1,9 +1,10 @@
 ## The fly-in as a film: one camera flight through the Blender model of Brisbane, rendered frame by
 ## frame (tools/blender/spire/render_film.py, film_pack.py), from high in the cloud all the way down
-## to the floor pick's own view of the first deck. The game's own camera flies the same line under it
-## (the film's cameras are in <tower>_cams.json), and the film only fades off once both are standing
-## still on the same view. If the floor pick stands somewhere else (a later deck), the game's camera
-## goes on there live as the film fades.
+## to the floor pick's own view. Its last part runs straight down the tower's face, standing on every
+## deck's view for one frame (cams.json "floors"), and the film is slowed and stopped on the frame of
+## the deck the crew is up to (`stop_t`, `film_t`): it never flies past them. The game's own camera
+## flies the same line under it (the film's cameras are in <tower>_cams.json). If the floor pick
+## stands on none of the film's frames, the game's camera goes on there live as the film fades.
 ## Nothing here places or shows equipment.
 extends RefCounted
 
@@ -25,6 +26,8 @@ const COVER := preload("res://shaders/fly_cover.gdshader")
 const STAY_M := 0.12         # m: the camera's left the view the film ended on
 const LEAVE_T := 0.6         # s: the film's city gives way to the game's own, once it has
 const SAME := 0.75          # m: nearer the floor pick's own camera than this, the film ends on it
+const EASE := 0.6           # s of film: it slows to a stop over the last this much (taking twice as long)
+const CREEP := 0.12         # the slowest the film runs before it stops (so it always gets to its frame)
 
 ## The film of a flight ("film" in Flight.TOWERS): {"video", "cams"}.
 static func ready(fl: Dictionary) -> bool:
@@ -65,11 +68,41 @@ static func make(parent: Node, fl: Dictionary) -> CanvasLayer:
 static func dur(layer: CanvasLayer) -> float:
 	return float(layer.get_meta("cams")["dur"])
 
+## The film's time, s, of the frame that stands on the floor pick's view (`fin`, the game's metres;
+## `to_game` turns the model's into them), or -1 if none does.
+static func stop_t(layer: CanvasLayer, fin: Vector3, to_game: Callable) -> float:
+	var d: Dictionary = layer.get_meta("cams")
+	var cams: Array = d["cams"]
+	var frames: Array = d.get("floors", [])
+	if frames.is_empty():
+		frames = [cams.size() - 1]
+	var best := -1.0
+	var near := SAME
+	for f in frames:
+		var c: Array = cams[int(f)]
+		var m: float = (to_game.call(Vector3(c[0], c[1], c[2])) as Vector3).distance_to(fin)
+		if m < near:
+			near = m
+			best = float(f) / float(d["fps"])
+	return best
+
+## When the film's over, s: standing on its stop frame (`stop`, from stop_t), or run right out.
+static func end_t(layer: CanvasLayer, stop: float) -> float:
+	return dur(layer) if stop < 0.0 else stop + EASE
+
+## Where the film is, s, t s after it started: it slows evenly to a stop on `stop`.
+static func film_t(t: float, stop: float) -> float:
+	if stop < 0.0 or t <= stop - EASE:
+		return t
+	var u := minf(1.0, (t - (stop - EASE)) / (2.0 * EASE))
+	return stop - EASE + EASE * (2.0 * u - u * u)
+
 ## Lay the film out for this frame, t s in. `gone`: skipped, the film's off and the live flight runs on.
-static func draw(layer: CanvasLayer, t: float, gone: bool, stay := false) -> void:
+## `stop`: the film's time it stops at (stop_t), with `stay`.
+static func draw(layer: CanvasLayer, t: float, gone: bool, stay := false, stop := -1.0) -> void:
 	var v := layer.get_child(0) as VideoStreamPlayer
 	var r := layer.get_child(2) as ColorRect
-	var d := dur(layer)
+	var d := end_t(layer, stop)
 	var vs := r.get_viewport_rect().size
 	var tex := v.get_video_texture()
 	if tex != null and tex.get_width() > 0:
@@ -85,8 +118,17 @@ static func draw(layer: CanvasLayer, t: float, gone: bool, stay := false) -> voi
 	if o.material != null:
 		(o.material as ShaderMaterial).set_shader_parameter("show", smoothstep(0.0, 0.35, left))
 	if stay and not gone:
-		if t >= d + 0.3:
-			v.paused = true           # (held on its last frame)
+		var fps := float(layer.get_meta("cams")["fps"])
+		if stop < 0.0:
+			if t >= d + 0.3:
+				v.paused = true           # (held on its last frame)
+		elif not v.paused:
+			# (slowed by the same rule the camera under it is, and stopped once its frame is up)
+			var rate := clampf(1.0 - (t - (stop - EASE)) / (2.0 * EASE), CREEP, 1.0)
+			if v.stream_position >= stop + 0.3 / fps:
+				v.paused = true
+			elif not is_equal_approx(v.speed_scale, rate):
+				v.speed_scale = rate
 	elif (gone or t >= d + HAND_T) and v.is_playing():
 		v.stop()
 	var m := r.material as ShaderMaterial

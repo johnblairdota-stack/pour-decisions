@@ -2942,13 +2942,15 @@ func _arrive_film(delta: float, fin: Vector3, a: Dictionary) -> void:
 		_fall_layer = FlyFilm.make(self, fl)
 		if _spire_world != null:
 			FlyFilm.site(_fall_layer, _spire_world, camera, env)
-	var ft := FlyFilm.dur(_fall_layer)
+	# (the film runs down the tower's face past every deck's floor pick and is stopped on the frame of
+	# the one the crew is up to: the game just fades up over that held frame. Only a floor pick the
+	# film has no frame for is flown on to live as the film fades.)
+	var stop := FlyFilm.stop_t(_fall_layer, fin, _spire_local)
+	var same := stop >= 0.0
+	var ft := FlyFilm.end_t(_fall_layer, stop)
 	var last: Array = FlyFilm.cam(_fall_layer, ft)
 	var from := _spire_local(last[0])
 	var aim := _spire_local(last[1])
-	# (the film ends on the first deck's floor pick. On that deck the game just fades up over its held
-	# last frame; on any other the camera goes on to that deck's own view as it fades.)
-	var same := from.distance_to(fin) < FlyFilm.SAME
 	ARRIVE_T = ft + (FlyFilm.HAND_T if same else FlyFilm.LIVE_T)
 	if _human_a and float(a["t"]) > 0.4:
 		a["skip"] = true                 # (A: the film's dropped and the rest goes by at six times the speed)
@@ -2956,10 +2958,10 @@ func _arrive_film(delta: float, fin: Vector3, a: Dictionary) -> void:
 	a["t"] = minf(float(a["t"]) + dt, ARRIVE_T)
 	var t: float = a["t"]
 	TowerHand.uncover(smoothstep(0.0, 0.6, t), 0.03 * t)
-	FlyFilm.draw(_fall_layer, t, a.get("skip", false), same)
+	FlyFilm.draw(_fall_layer, t, a.get("skip", false), same, stop)
 	if t < ft:
 		# (under the film: the same camera, so the live site's already there as the film fades)
-		var c: Array = FlyFilm.cam(_fall_layer, t)
+		var c: Array = FlyFilm.cam(_fall_layer, FlyFilm.film_t(t, stop))
 		camera.position = _spire_local(c[0])
 		camera.look_at(_spire_local(c[1]), Vector3.UP)
 	elif same:
