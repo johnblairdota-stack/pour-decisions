@@ -1,0 +1,385 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 762 780" role="img" aria-label="Coverage map of the Brisbane model in 1 km tiles" font-family="system-ui, sans-serif">
+<style>.bg{fill:#f5f7f8}.g0{fill:#e6eaec}.g1{fill:#cfd6da}.g2{fill:#8fb2c9}.g3{fill:#2f6f9a}.ord1{fill:none;stroke:#c2541b;stroke-width:2.5;stroke-dasharray:6 4}.ord2{fill:none;stroke:#7a4fb0;stroke-width:2.5;stroke-dasharray:2 4}.grid{stroke:#fff;stroke-width:1}.t{fill:#1d2327;font-size:11px}.s{fill:#4a5257;font-size:10px}.n{fill:#fff;font-size:10px;font-weight:600}.n2{fill:#1d2327;font-size:10px;font-weight:600}.dot{fill:#1d2327;stroke:#fff;stroke-width:1.5}.dotw{fill:#fff;stroke:#1d2327;stroke-width:1.5}.dn{fill:#fff;font-size:9px;font-weight:700}.dnw{fill:#1d2327;font-size:9px;font-weight:700}</style>
+<rect class="bg" width="100%" height="100%"/>
+<rect class="g0 grid" x="46" y="586" width="44" height="44"/>
+<rect class="g0 grid" x="46" y="542" width="44" height="44"/>
+<rect class="g0 grid" x="46" y="498" width="44" height="44"/>
+<rect class="g0 grid" x="46" y="454" width="44" height="44"/>
+<rect class="g0 grid" x="46" y="410" width="44" height="44"/>
+<rect class="g0 grid" x="46" y="366" width="44" height="44"/>
+<rect class="g0 grid" x="46" y="322" width="44" height="44"/>
+<rect class="g0 grid" x="46" y="278" width="44" height="44"/>
+<rect class="g0 grid" x="46" y="234" width="44" height="44"/>
+<rect class="g0 grid" x="46" y="190" width="44" height="44"/>
+<rect class="g0 grid" x="46" y="146" width="44" height="44"/>
+<rect class="g0 grid" x="46" y="102" width="44" height="44"/>
+<rect class="g0 grid" x="46" y="58" width="44" height="44"/>
+<rect class="g0 grid" x="46" y="14" width="44" height="44"/>
+<rect class="g0 grid" x="90" y="586" width="44" height="44"/>
+<rect class="g0 grid" x="90" y="542" width="44" height="44"/>
+<rect class="g0 grid" x="90" y="498" width="44" height="44"/>
+<rect class="g0 grid" x="90" y="454" width="44" height="44"/>
+<rect class="g0 grid" x="90" y="410" width="44" height="44"/>
+<rect class="g0 grid" x="90" y="366" width="44" height="44"/>
+<rect class="g0 grid" x="90" y="322" width="44" height="44"/>
+<rect class="g0 grid" x="90" y="278" width="44" height="44"/>
+<rect class="g0 grid" x="90" y="234" width="44" height="44"/>
+<rect class="g0 grid" x="90" y="190" width="44" height="44"/>
+<rect class="g0 grid" x="90" y="146" width="44" height="44"/>
+<rect class="g0 grid" x="90" y="102" width="44" height="44"/>
+<rect class="g0 grid" x="90" y="58" width="44" height="44"/>
+<rect class="g0 grid" x="90" y="14" width="44" height="44"/>
+<rect class="g0 grid" x="134" y="586" width="44" height="44"/>
+<rect class="g0 grid" x="134" y="542" width="44" height="44"/>
+<rect class="g0 grid" x="134" y="498" width="44" height="44"/>
+<rect class="g0 grid" x="134" y="454" width="44" height="44"/>
+<rect class="g0 grid" x="134" y="410" width="44" height="44"/>
+<rect class="g0 grid" x="134" y="366" width="44" height="44"/>
+<rect class="g0 grid" x="134" y="322" width="44" height="44"/>
+<rect class="g0 grid" x="134" y="278" width="44" height="44"/>
+<rect class="g0 grid" x="134" y="234" width="44" height="44"/>
+<rect class="g0 grid" x="134" y="190" width="44" height="44"/>
+<rect class="g0 grid" x="134" y="146" width="44" height="44"/>
+<rect class="g0 grid" x="134" y="102" width="44" height="44"/>
+<rect class="g0 grid" x="134" y="58" width="44" height="44"/>
+<rect class="g0 grid" x="134" y="14" width="44" height="44"/>
+<rect class="g0 grid" x="178" y="586" width="44" height="44"/>
+<rect class="g0 grid" x="178" y="542" width="44" height="44"/>
+<rect class="g0 grid" x="178" y="498" width="44" height="44"/>
+<rect class="g0 grid" x="178" y="454" width="44" height="44"/>
+<rect class="g2 grid" x="178" y="410" width="44" height="44"/>
+<text class="n2" x="218" y="449" text-anchor="end">370</text>
+<rect class="g2 grid" x="178" y="366" width="44" height="44"/>
+<text class="n2" x="218" y="405" text-anchor="end">213</text>
+<rect class="g2 grid" x="178" y="322" width="44" height="44"/>
+<text class="n2" x="218" y="361" text-anchor="end">341</text>
+<rect class="g2 grid" x="178" y="278" width="44" height="44"/>
+<text class="n2" x="218" y="317" text-anchor="end">326</text>
+<rect class="g1 grid" x="178" y="234" width="44" height="44"/>
+<rect class="g1 grid" x="178" y="190" width="44" height="44"/>
+<rect class="g1 grid" x="178" y="146" width="44" height="44"/>
+<rect class="g1 grid" x="178" y="102" width="44" height="44"/>
+<rect class="g1 grid" x="178" y="58" width="44" height="44"/>
+<rect class="g0 grid" x="178" y="14" width="44" height="44"/>
+<rect class="g0 grid" x="222" y="586" width="44" height="44"/>
+<rect class="g0 grid" x="222" y="542" width="44" height="44"/>
+<rect class="g0 grid" x="222" y="498" width="44" height="44"/>
+<rect class="g0 grid" x="222" y="454" width="44" height="44"/>
+<rect class="g2 grid" x="222" y="410" width="44" height="44"/>
+<text class="n2" x="262" y="449" text-anchor="end">1.1k</text>
+<rect class="g2 grid" x="222" y="366" width="44" height="44"/>
+<text class="n2" x="262" y="405" text-anchor="end">550</text>
+<rect class="g2 grid" x="222" y="322" width="44" height="44"/>
+<text class="n2" x="262" y="361" text-anchor="end">587</text>
+<rect class="g2 grid" x="222" y="278" width="44" height="44"/>
+<text class="n2" x="262" y="317" text-anchor="end">1.2k</text>
+<rect class="g1 grid" x="222" y="234" width="44" height="44"/>
+<rect class="g1 grid" x="222" y="190" width="44" height="44"/>
+<rect class="g1 grid" x="222" y="146" width="44" height="44"/>
+<rect class="g1 grid" x="222" y="102" width="44" height="44"/>
+<rect class="g1 grid" x="222" y="58" width="44" height="44"/>
+<rect class="g0 grid" x="222" y="14" width="44" height="44"/>
+<rect class="g0 grid" x="266" y="586" width="44" height="44"/>
+<rect class="g0 grid" x="266" y="542" width="44" height="44"/>
+<rect class="g0 grid" x="266" y="498" width="44" height="44"/>
+<rect class="g0 grid" x="266" y="454" width="44" height="44"/>
+<rect class="g2 grid" x="266" y="410" width="44" height="44"/>
+<text class="n2" x="306" y="449" text-anchor="end">791</text>
+<rect class="g2 grid" x="266" y="366" width="44" height="44"/>
+<text class="n2" x="306" y="405" text-anchor="end">1.1k</text>
+<rect class="g2 grid" x="266" y="322" width="44" height="44"/>
+<text class="n2" x="306" y="361" text-anchor="end">781</text>
+<rect class="g2 grid" x="266" y="278" width="44" height="44"/>
+<text class="n2" x="306" y="317" text-anchor="end">491</text>
+<rect class="g1 grid" x="266" y="234" width="44" height="44"/>
+<rect class="g1 grid" x="266" y="190" width="44" height="44"/>
+<rect class="g1 grid" x="266" y="146" width="44" height="44"/>
+<rect class="g1 grid" x="266" y="102" width="44" height="44"/>
+<rect class="g1 grid" x="266" y="58" width="44" height="44"/>
+<rect class="g0 grid" x="266" y="14" width="44" height="44"/>
+<rect class="g0 grid" x="310" y="586" width="44" height="44"/>
+<rect class="g0 grid" x="310" y="542" width="44" height="44"/>
+<rect class="g0 grid" x="310" y="498" width="44" height="44"/>
+<rect class="g0 grid" x="310" y="454" width="44" height="44"/>
+<rect class="g2 grid" x="310" y="410" width="44" height="44"/>
+<text class="n2" x="350" y="449" text-anchor="end">199</text>
+<rect class="g2 grid" x="310" y="366" width="44" height="44"/>
+<text class="n2" x="350" y="405" text-anchor="end">1.0k</text>
+<rect class="g2 grid" x="310" y="322" width="44" height="44"/>
+<text class="n2" x="350" y="361" text-anchor="end">896</text>
+<rect class="g2 grid" x="310" y="278" width="44" height="44"/>
+<text class="n2" x="350" y="317" text-anchor="end">243</text>
+<rect class="g2 grid" x="310" y="234" width="44" height="44"/>
+<text class="n2" x="350" y="273" text-anchor="end">718</text>
+<rect class="g2 grid" x="310" y="190" width="44" height="44"/>
+<text class="n2" x="350" y="229" text-anchor="end">238</text>
+<rect class="g1 grid" x="310" y="146" width="44" height="44"/>
+<rect class="g1 grid" x="310" y="102" width="44" height="44"/>
+<rect class="g1 grid" x="310" y="58" width="44" height="44"/>
+<rect class="g0 grid" x="310" y="14" width="44" height="44"/>
+<rect class="g0 grid" x="354" y="586" width="44" height="44"/>
+<rect class="g0 grid" x="354" y="542" width="44" height="44"/>
+<rect class="g0 grid" x="354" y="498" width="44" height="44"/>
+<rect class="g0 grid" x="354" y="454" width="44" height="44"/>
+<rect class="g2 grid" x="354" y="410" width="44" height="44"/>
+<text class="n2" x="394" y="449" text-anchor="end">315</text>
+<rect class="g2 grid" x="354" y="366" width="44" height="44"/>
+<text class="n2" x="394" y="405" text-anchor="end">983</text>
+<rect class="g3 grid" x="354" y="322" width="44" height="44"/>
+<text class="n" x="394" y="361" text-anchor="end">211</text>
+<rect class="g3 grid" x="354" y="278" width="44" height="44"/>
+<text class="n" x="394" y="317" text-anchor="end">455</text>
+<rect class="g3 grid" x="354" y="234" width="44" height="44"/>
+<text class="n" x="394" y="273" text-anchor="end">894</text>
+<rect class="g2 grid" x="354" y="190" width="44" height="44"/>
+<text class="n2" x="394" y="229" text-anchor="end">284</text>
+<rect class="g1 grid" x="354" y="146" width="44" height="44"/>
+<rect class="g1 grid" x="354" y="102" width="44" height="44"/>
+<rect class="g1 grid" x="354" y="58" width="44" height="44"/>
+<rect class="g0 grid" x="354" y="14" width="44" height="44"/>
+<rect class="g0 grid" x="398" y="586" width="44" height="44"/>
+<rect class="g0 grid" x="398" y="542" width="44" height="44"/>
+<rect class="g0 grid" x="398" y="498" width="44" height="44"/>
+<rect class="g0 grid" x="398" y="454" width="44" height="44"/>
+<rect class="g1 grid" x="398" y="410" width="44" height="44"/>
+<rect class="g1 grid" x="398" y="366" width="44" height="44"/>
+<rect class="g2 grid" x="398" y="322" width="44" height="44"/>
+<text class="n2" x="438" y="361" text-anchor="end">696</text>
+<rect class="g2 grid" x="398" y="278" width="44" height="44"/>
+<text class="n2" x="438" y="317" text-anchor="end">195</text>
+<rect class="g3 grid" x="398" y="234" width="44" height="44"/>
+<text class="n" x="438" y="273" text-anchor="end">693</text>
+<rect class="g2 grid" x="398" y="190" width="44" height="44"/>
+<text class="n2" x="438" y="229" text-anchor="end">416</text>
+<rect class="g1 grid" x="398" y="146" width="44" height="44"/>
+<rect class="g1 grid" x="398" y="102" width="44" height="44"/>
+<rect class="g1 grid" x="398" y="58" width="44" height="44"/>
+<rect class="g0 grid" x="398" y="14" width="44" height="44"/>
+<rect class="g0 grid" x="442" y="586" width="44" height="44"/>
+<rect class="g0 grid" x="442" y="542" width="44" height="44"/>
+<rect class="g0 grid" x="442" y="498" width="44" height="44"/>
+<rect class="g0 grid" x="442" y="454" width="44" height="44"/>
+<rect class="g1 grid" x="442" y="410" width="44" height="44"/>
+<rect class="g1 grid" x="442" y="366" width="44" height="44"/>
+<rect class="g2 grid" x="442" y="322" width="44" height="44"/>
+<text class="n2" x="482" y="361" text-anchor="end">748</text>
+<rect class="g2 grid" x="442" y="278" width="44" height="44"/>
+<text class="n2" x="482" y="317" text-anchor="end">952</text>
+<rect class="g2 grid" x="442" y="234" width="44" height="44"/>
+<text class="n2" x="482" y="273" text-anchor="end">1.4k</text>
+<rect class="g2 grid" x="442" y="190" width="44" height="44"/>
+<text class="n2" x="482" y="229" text-anchor="end">422</text>
+<rect class="g1 grid" x="442" y="146" width="44" height="44"/>
+<rect class="g1 grid" x="442" y="102" width="44" height="44"/>
+<rect class="g1 grid" x="442" y="58" width="44" height="44"/>
+<rect class="g0 grid" x="442" y="14" width="44" height="44"/>
+<rect class="g0 grid" x="486" y="586" width="44" height="44"/>
+<rect class="g0 grid" x="486" y="542" width="44" height="44"/>
+<rect class="g0 grid" x="486" y="498" width="44" height="44"/>
+<rect class="g0 grid" x="486" y="454" width="44" height="44"/>
+<rect class="g1 grid" x="486" y="410" width="44" height="44"/>
+<rect class="g1 grid" x="486" y="366" width="44" height="44"/>
+<rect class="g1 grid" x="486" y="322" width="44" height="44"/>
+<rect class="g1 grid" x="486" y="278" width="44" height="44"/>
+<rect class="g1 grid" x="486" y="234" width="44" height="44"/>
+<rect class="g1 grid" x="486" y="190" width="44" height="44"/>
+<rect class="g1 grid" x="486" y="146" width="44" height="44"/>
+<rect class="g1 grid" x="486" y="102" width="44" height="44"/>
+<rect class="g1 grid" x="486" y="58" width="44" height="44"/>
+<rect class="g0 grid" x="486" y="14" width="44" height="44"/>
+<rect class="g0 grid" x="530" y="586" width="44" height="44"/>
+<rect class="g0 grid" x="530" y="542" width="44" height="44"/>
+<rect class="g0 grid" x="530" y="498" width="44" height="44"/>
+<rect class="g0 grid" x="530" y="454" width="44" height="44"/>
+<rect class="g1 grid" x="530" y="410" width="44" height="44"/>
+<rect class="g1 grid" x="530" y="366" width="44" height="44"/>
+<rect class="g1 grid" x="530" y="322" width="44" height="44"/>
+<rect class="g1 grid" x="530" y="278" width="44" height="44"/>
+<rect class="g1 grid" x="530" y="234" width="44" height="44"/>
+<rect class="g1 grid" x="530" y="190" width="44" height="44"/>
+<rect class="g1 grid" x="530" y="146" width="44" height="44"/>
+<rect class="g1 grid" x="530" y="102" width="44" height="44"/>
+<rect class="g1 grid" x="530" y="58" width="44" height="44"/>
+<rect class="g0 grid" x="530" y="14" width="44" height="44"/>
+<rect class="g0 grid" x="574" y="586" width="44" height="44"/>
+<rect class="g0 grid" x="574" y="542" width="44" height="44"/>
+<rect class="g0 grid" x="574" y="498" width="44" height="44"/>
+<rect class="g0 grid" x="574" y="454" width="44" height="44"/>
+<rect class="g1 grid" x="574" y="410" width="44" height="44"/>
+<rect class="g1 grid" x="574" y="366" width="44" height="44"/>
+<rect class="g1 grid" x="574" y="322" width="44" height="44"/>
+<rect class="g1 grid" x="574" y="278" width="44" height="44"/>
+<rect class="g1 grid" x="574" y="234" width="44" height="44"/>
+<rect class="g1 grid" x="574" y="190" width="44" height="44"/>
+<rect class="g1 grid" x="574" y="146" width="44" height="44"/>
+<rect class="g1 grid" x="574" y="102" width="44" height="44"/>
+<rect class="g1 grid" x="574" y="58" width="44" height="44"/>
+<rect class="g0 grid" x="574" y="14" width="44" height="44"/>
+<rect class="g0 grid" x="618" y="586" width="44" height="44"/>
+<rect class="g0 grid" x="618" y="542" width="44" height="44"/>
+<rect class="g0 grid" x="618" y="498" width="44" height="44"/>
+<rect class="g0 grid" x="618" y="454" width="44" height="44"/>
+<rect class="g1 grid" x="618" y="410" width="44" height="44"/>
+<rect class="g1 grid" x="618" y="366" width="44" height="44"/>
+<rect class="g1 grid" x="618" y="322" width="44" height="44"/>
+<rect class="g1 grid" x="618" y="278" width="44" height="44"/>
+<rect class="g1 grid" x="618" y="234" width="44" height="44"/>
+<rect class="g1 grid" x="618" y="190" width="44" height="44"/>
+<rect class="g1 grid" x="618" y="146" width="44" height="44"/>
+<rect class="g1 grid" x="618" y="102" width="44" height="44"/>
+<rect class="g1 grid" x="618" y="58" width="44" height="44"/>
+<rect class="g0 grid" x="618" y="14" width="44" height="44"/>
+<rect class="g0 grid" x="662" y="586" width="44" height="44"/>
+<rect class="g0 grid" x="662" y="542" width="44" height="44"/>
+<rect class="g0 grid" x="662" y="498" width="44" height="44"/>
+<rect class="g0 grid" x="662" y="454" width="44" height="44"/>
+<rect class="g0 grid" x="662" y="410" width="44" height="44"/>
+<rect class="g0 grid" x="662" y="366" width="44" height="44"/>
+<rect class="g0 grid" x="662" y="322" width="44" height="44"/>
+<rect class="g0 grid" x="662" y="278" width="44" height="44"/>
+<rect class="g0 grid" x="662" y="234" width="44" height="44"/>
+<rect class="g0 grid" x="662" y="190" width="44" height="44"/>
+<rect class="g0 grid" x="662" y="146" width="44" height="44"/>
+<rect class="g0 grid" x="662" y="102" width="44" height="44"/>
+<rect class="g0 grid" x="662" y="58" width="44" height="44"/>
+<rect class="g0 grid" x="662" y="14" width="44" height="44"/>
+<rect class="g0 grid" x="706" y="586" width="44" height="44"/>
+<rect class="g0 grid" x="706" y="542" width="44" height="44"/>
+<rect class="g0 grid" x="706" y="498" width="44" height="44"/>
+<rect class="g0 grid" x="706" y="454" width="44" height="44"/>
+<rect class="g0 grid" x="706" y="410" width="44" height="44"/>
+<rect class="g0 grid" x="706" y="366" width="44" height="44"/>
+<rect class="g0 grid" x="706" y="322" width="44" height="44"/>
+<rect class="g0 grid" x="706" y="278" width="44" height="44"/>
+<rect class="g0 grid" x="706" y="234" width="44" height="44"/>
+<rect class="g0 grid" x="706" y="190" width="44" height="44"/>
+<rect class="g0 grid" x="706" y="146" width="44" height="44"/>
+<rect class="g0 grid" x="706" y="102" width="44" height="44"/>
+<rect class="g0 grid" x="706" y="58" width="44" height="44"/>
+<rect class="g0 grid" x="706" y="14" width="44" height="44"/>
+<rect class="ord1" x="181" y="237" width="38" height="38"/>
+<rect class="ord1" x="181" y="193" width="38" height="38"/>
+<rect class="ord1" x="225" y="237" width="38" height="38"/>
+<rect class="ord1" x="225" y="193" width="38" height="38"/>
+<rect class="ord1" x="269" y="237" width="38" height="38"/>
+<rect class="ord1" x="269" y="193" width="38" height="38"/>
+<rect class="ord1" x="401" y="413" width="38" height="38"/>
+<rect class="ord1" x="401" y="369" width="38" height="38"/>
+<rect class="ord2" x="401" y="149" width="38" height="38"/>
+<rect class="ord2" x="401" y="105" width="38" height="38"/>
+<rect class="ord1" x="445" y="413" width="38" height="38"/>
+<rect class="ord1" x="445" y="369" width="38" height="38"/>
+<rect class="ord2" x="445" y="149" width="38" height="38"/>
+<rect class="ord2" x="445" y="105" width="38" height="38"/>
+<rect class="ord2" x="489" y="281" width="38" height="38"/>
+<rect class="ord2" x="489" y="237" width="38" height="38"/>
+<rect class="ord2" x="489" y="193" width="38" height="38"/>
+<rect class="ord2" x="489" y="149" width="38" height="38"/>
+<rect class="ord2" x="489" y="105" width="38" height="38"/>
+<rect class="ord2" x="533" y="281" width="38" height="38"/>
+<rect class="ord2" x="533" y="237" width="38" height="38"/>
+<rect class="ord2" x="533" y="193" width="38" height="38"/>
+<rect class="ord2" x="533" y="149" width="38" height="38"/>
+<rect class="ord2" x="533" y="105" width="38" height="38"/>
+<rect class="ord2" x="577" y="281" width="38" height="38"/>
+<rect class="ord2" x="577" y="237" width="38" height="38"/>
+<rect class="ord2" x="577" y="193" width="38" height="38"/>
+<rect class="ord2" x="577" y="149" width="38" height="38"/>
+<rect class="ord2" x="577" y="105" width="38" height="38"/>
+<rect class="ord2" x="621" y="281" width="38" height="38"/>
+<rect class="ord2" x="621" y="237" width="38" height="38"/>
+<rect class="ord2" x="621" y="193" width="38" height="38"/>
+<rect class="ord2" x="621" y="149" width="38" height="38"/>
+<rect class="ord2" x="621" y="105" width="38" height="38"/>
+<rect class="ord2" x="665" y="281" width="38" height="38"/>
+<rect class="ord2" x="665" y="237" width="38" height="38"/>
+<rect class="ord2" x="665" y="193" width="38" height="38"/>
+<rect class="ord2" x="665" y="149" width="38" height="38"/>
+<rect class="ord2" x="665" y="105" width="38" height="38"/>
+<text class="s" x="46" y="643" text-anchor="middle">E495</text>
+<text class="s" x="134" y="643" text-anchor="middle">E497</text>
+<text class="s" x="222" y="643" text-anchor="middle">E499</text>
+<text class="s" x="310" y="643" text-anchor="middle">E501</text>
+<text class="s" x="398" y="643" text-anchor="middle">E503</text>
+<text class="s" x="486" y="643" text-anchor="middle">E505</text>
+<text class="s" x="574" y="643" text-anchor="middle">E507</text>
+<text class="s" x="662" y="643" text-anchor="middle">E509</text>
+<text class="s" x="750" y="643" text-anchor="middle">E511</text>
+<text class="s" x="42" y="634" text-anchor="end">N6954</text>
+<text class="s" x="42" y="546" text-anchor="end">N6956</text>
+<text class="s" x="42" y="458" text-anchor="end">N6958</text>
+<text class="s" x="42" y="370" text-anchor="end">N6960</text>
+<text class="s" x="42" y="282" text-anchor="end">N6962</text>
+<text class="s" x="42" y="194" text-anchor="end">N6964</text>
+<text class="s" x="42" y="106" text-anchor="end">N6966</text>
+<text class="s" x="42" y="18" text-anchor="end">N6968</text>
+<circle class="dot" cx="400.0" cy="265.8" r="7.5"/>
+<text class="dn" x="400.0" y="269.0" text-anchor="middle">1</text>
+<circle class="dot" cx="421.6" cy="269.5" r="7.5"/>
+<text class="dn" x="421.6" y="272.7" text-anchor="middle">2</text>
+<circle class="dot" cx="420.3" cy="255.9" r="7.5"/>
+<text class="dn" x="420.3" y="259.1" text-anchor="middle">3</text>
+<circle class="dot" cx="395.6" cy="269.5" r="7.5"/>
+<text class="dn" x="395.6" y="272.7" text-anchor="middle">4</text>
+<circle class="dot" cx="400.8" cy="277.8" r="7.5"/>
+<text class="dn" x="400.8" y="281.0" text-anchor="middle">5</text>
+<circle class="dot" cx="390.8" cy="308.5" r="7.5"/>
+<text class="dn" x="390.8" y="311.7" text-anchor="middle">6</text>
+<circle class="dot" cx="378.2" cy="324.6" r="7.5"/>
+<text class="dn" x="378.2" y="327.8" text-anchor="middle">7</text>
+<circle class="dot" cx="376.0" cy="316.8" r="7.5"/>
+<text class="dn" x="376.0" y="320.0" text-anchor="middle">8</text>
+<circle class="dot" cx="357.3" cy="326.5" r="7.5"/>
+<text class="dn" x="357.3" y="329.7" text-anchor="middle">9</text>
+<circle class="dot" cx="396.4" cy="329.0" r="7.5"/>
+<text class="dn" x="396.4" y="332.2" text-anchor="middle">10</text>
+<circle class="dotw" cx="368.2" cy="294.4" r="7.5"/>
+<text class="dnw" x="368.2" y="297.6" text-anchor="middle">11</text>
+<circle class="dotw" cx="348.6" cy="263.2" r="7.5"/>
+<text class="dnw" x="348.6" y="266.4" text-anchor="middle">12</text>
+<circle class="dotw" cx="307.3" cy="274.4" r="7.5"/>
+<text class="dnw" x="307.3" y="277.6" text-anchor="middle">13</text>
+<circle class="dotw" cx="281.6" cy="298.3" r="7.5"/>
+<text class="dnw" x="281.6" y="301.5" text-anchor="middle">14</text>
+<circle class="dotw" cx="431.6" cy="376.8" r="7.5"/>
+<text class="dnw" x="431.6" y="380.0" text-anchor="middle">15</text>
+<circle class="dotw" cx="409.5" cy="202.3" r="7.5"/>
+<text class="dnw" x="409.5" y="205.5" text-anchor="middle">16</text>
+<circle class="dotw" cx="498.6" cy="291.5" r="7.5"/>
+<text class="dnw" x="498.6" y="294.7" text-anchor="middle">17</text>
+<circle class="dotw" cx="464.7" cy="153.6" r="7.5"/>
+<text class="dnw" x="464.7" y="156.8" text-anchor="middle">18</text>
+<circle class="dotw" cx="568.9" cy="152.4" r="7.5"/>
+<text class="dnw" x="568.9" y="155.6" text-anchor="middle">19</text>
+<circle class="dotw" cx="637.8" cy="171.5" r="7.5"/>
+<text class="dnw" x="637.8" y="174.7" text-anchor="middle">20</text>
+<circle class="dotw" cx="325.5" cy="433.8" r="7.5"/>
+<text class="dnw" x="325.5" y="437.0" text-anchor="middle">21</text>
+<circle class="dotw" cx="87.8" cy="372.9" r="7.5"/>
+<text class="dnw" x="87.8" y="376.1" text-anchor="middle">22</text>
+<circle class="dotw" cx="702.1" cy="176.1" r="7.5"/>
+<text class="dnw" x="702.1" y="179.3" text-anchor="middle">23</text>
+<text class="t" x="8" y="664.0"><tspan font-weight="700">1</tspan> Spire Residences</text>
+<text class="t" x="8" y="677.5"><tspan font-weight="700">2</tspan> Story Bridge</text>
+<text class="t" x="8" y="691.0"><tspan font-weight="700">3</tspan> Howard Smith Wharves</text>
+<text class="t" x="8" y="704.5"><tspan font-weight="700">4</tspan> St John's Cathedral</text>
+<text class="t" x="8" y="718.0"><tspan font-weight="700">5</tspan> Customs House</text>
+<text class="t" x="8" y="731.5"><tspan font-weight="700">6</tspan> Brisbane Skytower</text>
+<text class="t" x="8" y="745.0"><tspan font-weight="700">7</tspan> 1 William St</text>
+<text class="t" x="8" y="758.5"><tspan font-weight="700">8</tspan> Queen's Wharf</text>
+<text class="t" x="258" y="664.0"><tspan font-weight="700">9</tspan> South Bank and BRISBANE sign</text>
+<text class="t" x="258" y="677.5"><tspan font-weight="700">10</tspan> City Botanic Gardens</text>
+<text class="t" x="258" y="691.0"><tspan font-weight="700">11</tspan> City Hall (not built yet)</text>
+<text class="t" x="258" y="704.5"><tspan font-weight="700">12</tspan> Roma Street Parkland (not built yet)</text>
+<text class="t" x="258" y="718.0"><tspan font-weight="700">13</tspan> Suncorp Stadium (not built yet)</text>
+<text class="t" x="258" y="731.5"><tspan font-weight="700">14</tspan> XXXX Brewery (not built yet)</text>
+<text class="t" x="258" y="745.0"><tspan font-weight="700">15</tspan> The Gabba (not built yet)</text>
+<text class="t" x="258" y="758.5"><tspan font-weight="700">16</tspan> RNA Showgrounds (not built yet)</text>
+<text class="t" x="508" y="664.0"><tspan font-weight="700">17</tspan> Brisbane Powerhouse (not built yet)</text>
+<text class="t" x="508" y="677.5"><tspan font-weight="700">18</tspan> Breakfast Creek Hotel (not built yet)</text>
+<text class="t" x="508" y="691.0"><tspan font-weight="700">19</tspan> Portside Wharf (Alcyone) (not built yet)</text>
+<text class="t" x="508" y="704.5"><tspan font-weight="700">20</tspan> Riverlight (not built yet)</text>
+<text class="t" x="508" y="718.0"><tspan font-weight="700">21</tspan> UQ Great Court (not built yet)</text>
+<text class="t" x="508" y="731.5"><tspan font-weight="700">22</tspan> Mt Coot-tha lookout (not built yet)</text>
+<text class="t" x="508" y="745.0"><tspan font-weight="700">23</tspan> Gateway Bridge (not built yet)</text>
+</svg>

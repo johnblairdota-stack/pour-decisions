@@ -1,0 +1,105 @@
+<title>Tower Areas Showcase</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap">
+<style>
+/* Layout: one long site board. Sticky tower rail on top; each tower is a slab with three photo strips and a parts schedule. */
+:root {
+  --bg: #e9e7e1; --panel: #f6f5f1; --ink: #1d2226; --mute: #5c646b; --line: #c9c6bc;
+  --hivis: #d9480f; --steel: #2f4858; --photo: #2f4858; --render: #7a4b9a; --game: #1f7a4d; --aerial: #8a6a14;
+  --remove: #b3261e; --add: #1f7a4d; --keep: #4a5560; --swap: #a15c00; --protect: #1d5fa8; --hide: #6b5b95; --built: #d9480f;
+  --display: "Barlow Condensed", "Arial Narrow", Arial, sans-serif; --body: "Barlow", "Segoe UI", Arial, sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #15191c; --panel: #1e2428; --ink: #ecebe6; --mute: #a2aab0; --line: #353d43;
+  --hivis: #ff7a3d; --steel: #9db8c9; --photo: #8fb4cc; --render: #c39be0; --game: #6fd0a0; --aerial: #e0c060;
+  --remove: #ff8a80; --add: #6fd0a0; --keep: #b4bcc2; --swap: #f0b25a; --protect: #86b8f2; --hide: #b9a8e6; --built: #ff7a3d; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #15191c; --panel: #1e2428; --ink: #ecebe6; --mute: #a2aab0; --line: #353d43;
+  --hivis: #ff7a3d; --steel: #9db8c9; --photo: #8fb4cc; --render: #c39be0; --game: #6fd0a0; --aerial: #e0c060;
+  --remove: #ff8a80; --add: #6fd0a0; --keep: #b4bcc2; --swap: #f0b25a; --protect: #86b8f2; --hide: #b9a8e6; --built: #ff7a3d; color-scheme: dark }
+body { background: var(--bg); color: var(--ink); font: 16px/1.5 var(--body); }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+.wrap { max-width: 1280px; margin: 0 auto; padding-block: 28px 64px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 28px; }
+h1, h2, h3, h4 { font-family: var(--display); margin: 0; text-wrap: balance; line-height: 1.05; }
+h1 { font-size: clamp(40px, 7vw, 76px); font-weight: 700; text-transform: uppercase; letter-spacing: .01em; }
+h1 em { font-style: normal; color: var(--hivis); }
+.lede { max-width: 64ch; color: var(--mute); margin: 10px 0 0; font-size: 17px; }
+.tally { display: flex; flex-wrap: wrap; gap: 6px 22px; margin: 16px 0 0; padding: 0; list-style: none; font-family: var(--display); font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.tally b { color: var(--hivis); font-size: 26px; margin-right: 6px; }
+nav { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); border-block: 2px solid var(--ink); display: flex; gap: 4px 18px; flex-wrap: wrap; padding-block: 8px; }
+nav a { font-family: var(--display); font-weight: 600; font-size: 18px; text-transform: uppercase; letter-spacing: .04em; color: var(--ink); text-decoration: none; }
+nav a:hover, nav a:focus-visible { color: var(--hivis); }
+.tower { background: var(--panel); border-top: 6px solid var(--hivis); padding: 22px clamp(14px, 2.4vw, 28px) 26px; display: flex; flex-direction: column; gap: 26px; scroll-margin-top: 64px; min-width: 0; }
+.th { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: end; gap: 10px 24px; }
+h2 { font-size: clamp(30px, 4.6vw, 52px); font-weight: 700; text-transform: uppercase; }
+.where { margin: 4px 0 0; color: var(--mute); }
+.facts { margin: 0; font-size: 15px; color: var(--mute); display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
+.status { font-family: var(--display); font-weight: 600; text-transform: uppercase; letter-spacing: .06em; font-size: 14px; padding: 2px 10px; border: 2px solid var(--steel); color: var(--steel); }
+.status.s-playable { border-color: var(--add); color: var(--add); }
+.status.s-paused { border-color: var(--mute); color: var(--mute); }
+.theme { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+h3 { font-size: 26px; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; }
+h3 .n { font-size: 16px; color: var(--mute); margin-left: 6px; font-variant-numeric: tabular-nums; }
+.sub { margin: 0; color: var(--mute); font-size: 15px; }
+.strip { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr)); gap: 12px; margin-top: 6px; }
+figure { margin: 0; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+figure button { all: unset; cursor: zoom-in; display: block; aspect-ratio: 16 / 10; overflow: hidden; background: var(--line); border-bottom: 4px solid var(--photo); }
+figure button:focus-visible { outline: 3px solid var(--hivis); outline-offset: 2px; }
+figure img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.k-render button { border-color: var(--render); } .k-game button { border-color: var(--game); } .k-aerial button { border-color: var(--aerial); }
+figcaption { font-size: 13.5px; line-height: 1.35; color: var(--ink); overflow-wrap: anywhere; }
+.tag { font-family: var(--display); font-weight: 600; text-transform: uppercase; letter-spacing: .06em; font-size: 12.5px; margin-right: 7px; color: var(--photo); }
+.k-render .tag { color: var(--render); } .k-game .tag { color: var(--game); } .k-aerial .tag { color: var(--aerial); }
+.credit { display: block; color: var(--mute); font-size: 12px; }
+.cmps { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr)); gap: 16px; margin-top: 6px; align-items: start; }
+.cmpf { gap: 6px; }
+.cmp { position: relative; width: 100%; max-width: 100%; overflow: hidden; background: var(--line); --p: 50%; border-bottom: 4px solid var(--hivis); }
+.cmp img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+.cmp img.top { clip-path: inset(0 calc(100% - var(--p)) 0 0); }
+.cmp::after { content: ""; position: absolute; top: 0; bottom: 0; left: var(--p); width: 3px; margin-left: -1.5px; background: #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.45); pointer-events: none; }
+.cmp input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: ew-resize; }
+.cmp:focus-within { outline: 3px solid var(--hivis); outline-offset: 2px; }
+.lab { position: absolute; top: 8px; font-family: var(--display); font-weight: 600; font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: #fff; background: rgba(20,24,27,.72); padding: 1px 8px; pointer-events: none; }
+.lab.l { left: 8px; } .lab.r { right: 8px; }
+.empty { margin: 4px 0 0; padding: 14px; border: 2px dashed var(--line); color: var(--mute); }
+.tablewrap { overflow-x: auto; margin-top: 6px; }
+table { border-collapse: collapse; width: 100%; min-width: 620px; font-size: 15px; }
+th, td { text-align: left; vertical-align: top; padding: 9px 12px 9px 0; border-bottom: 1px solid var(--line); }
+thead th { font-family: var(--display); text-transform: uppercase; letter-spacing: .06em; font-size: 14px; color: var(--mute); border-bottom: 2px solid var(--ink); }
+tbody th { font-weight: 600; white-space: nowrap; }
+.act { display: inline-block; font-family: var(--display); font-weight: 600; text-transform: uppercase; letter-spacing: .05em; font-size: 13px; padding: 0 8px; margin-right: 8px; border: 2px solid currentColor; }
+.a-remove { color: var(--remove); } .a-add { color: var(--add); } .a-keep { color: var(--keep); } .a-swap { color: var(--swap); } .a-protect { color: var(--protect); } .a-hide { color: var(--hide); } .a-built { color: var(--built); }
+.gaps h4 { font-size: 18px; text-transform: uppercase; letter-spacing: .05em; color: var(--mute); }
+.gaps ul { margin: 6px 0 0; padding-left: 20px; color: var(--mute); font-size: 15px; }
+.key { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; font-size: 14px; color: var(--mute); }
+#lb { position: fixed; inset: 0; z-index: 20; background: rgba(10, 12, 14, .93); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: max(16px, env(safe-area-inset-top, 0px)) 16px max(16px, env(safe-area-inset-bottom, 0px)); cursor: zoom-out; }
+#lb[hidden] { display: none; }
+#lb img { max-width: 100%; max-height: calc(100% - 40px); object-fit: contain; }
+#lb p { margin: 0; color: #ecebe6; font-size: 14px; text-align: center; }
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+</style>
+<div class="wrap">
+  <header>
+    <h1>Tower areas <em>showcase</em></h1>
+    <p class="lede">Every game tower in one place: the streets round it, what the river fly-over passes, the view from the top that sits behind its card, and the finished place broken into parts for the build.</p>
+    <ul class="tally"><li><b>{{TOWERS}}</b>towers</li><li><b>{{N_PAIR}}</b>photo and render sliders</li><li><b>{{N_PHOTO}}</b>photos</li><li><b>{{N_RENDER}}</b>renders</li><li><b>{{N_GAME}}</b>game views</li><li><b>{{N_AERIAL}}</b>aerial sheets</li></ul>
+  </header>
+  <nav aria-label="Towers">{{NAV}}</nav>
+  <p class="key">During the build, each part is one of:
+    <span class="act a-built">Built in play</span><span class="act a-remove">Removed</span><span class="act a-swap">Swapped</span><span class="act a-add">Added</span><span class="act a-keep">Kept</span><span class="act a-protect">Protected</span><span class="act a-hide">Hidden</span></p>
+{{BODY}}
+  <p class="sub">Photos are reference only: your own, Wikimedia Commons under their own licences, and listing or review photos for the views from the top. Renders are the Blender scene. Game views are the current build.</p>
+</div>
+<div id="lb" hidden><img alt=""><p></p></div>
+<script>
+(function () {
+  var lb = document.getElementById("lb"), im = lb.querySelector("img"), cap = lb.querySelector("p"), last = null;
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest("button[data-full]");
+    if (b) { last = b; im.src = b.dataset.full; cap.textContent = b.parentNode.querySelector("figcaption").textContent; lb.hidden = false; return; }
+    if (!lb.hidden) { lb.hidden = true; if (last) last.focus(); }
+  });
+  document.addEventListener("input", function (e) { if (e.target.matches(".cmp input")) e.target.parentNode.style.setProperty("--p", e.target.value + "%"); });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !lb.hidden) { lb.hidden = true; if (last) last.focus(); } });
+})();
+</script>

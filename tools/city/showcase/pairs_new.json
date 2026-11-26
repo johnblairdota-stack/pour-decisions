@@ -1,0 +1,664 @@
+[
+ {
+  "id": "qw_sign_2024_a",
+  "size": [
+   1280,
+   787
+  ],
+  "target": [
+   -567.3,
+   -1227.7,
+   102.0
+  ],
+  "at": [
+   0.835,
+   0.35
+  ],
+  "f35": 28,
+  "photo": "/mnt/user-data/uploads/PourDecisions-sites/showcase_refs/queenswharf/done/Brisbane_Sign__Queen_s_Wharf__Brisbane__2024.jpg",
+  "lat": -27.473942,
+  "lon": 153.020125,
+  "river": [
+   0.15,
+   0.155,
+   0.115
+  ],
+  "pos": [
+   -1044.8,
+   -1216.5
+  ],
+  "z": 7.1
+ },
+ {
+  "id": "qw_sign_2024_b",
+  "size": [
+   1280,
+   1046
+  ],
+  "target": [
+   -567.3,
+   -1227.7,
+   102.0
+  ],
+  "at": [
+   0.557,
+   0.425
+  ],
+  "f35": 40.6,
+  "photo": "/mnt/user-data/uploads/PourDecisions-sites/showcase_refs/queenswharf/done/Brisbane_Sign__Queen_s_Wharf__Brisbane__2024__01.jpg",
+  "river": [
+   0.15,
+   0.155,
+   0.115
+  ],
+  "pos": [
+   -1055.9,
+   -1206.1
+  ],
+  "z": 7.1
+ },
+ {
+  "id": "qw_sign_2024_c",
+  "size": [
+   1280,
+   960
+  ],
+  "target": [
+   -567.3,
+   -1227.7,
+   102.0
+  ],
+  "at": [
+   0.575,
+   0.43
+  ],
+  "f35": 40.1,
+  "photo": "/mnt/user-data/uploads/PourDecisions-sites/showcase_refs/queenswharf/done/Brisbane_Sign__Queen_s_Wharf__Brisbane__2024__02.jpg",
+  "lat": -27.473883,
+  "lon": 153.019897,
+  "river": [
+   0.15,
+   0.155,
+   0.115
+  ],
+  "pos": [
+   -1060.1,
+   -1204.1
+  ],
+  "z": 7.1
+ },
+ {
+  "id": "qw_sb2025_01",
+  "size": [
+   1280,
+   1280
+  ],
+  "target": [
+   -567.3,
+   -1227.7,
+   102.0
+  ],
+  "at": [
+   0.56,
+   0.44
+  ],
+  "f35": 35.7,
+  "photo": "/mnt/user-data/uploads/PourDecisions-sites/showcase_refs/queenswharf/done/Queen_s_Wharf__Brisbane_CBD_seen_from_South_Bank__2025__01.jpg",
+  "lat": -27.474544,
+  "lon": 153.021028,
+  "river": [
+   0.15,
+   0.155,
+   0.115
+  ]
+ },
+ {
+  "id": "qw_sb2025_02",
+  "size": [
+   1280,
+   1707
+  ],
+  "target": [
+   -567.3,
+   -1227.7,
+   102.0
+  ],
+  "at": [
+   0.58,
+   0.39
+  ],
+  "f35": 40.7,
+  "photo": "/mnt/user-data/uploads/PourDecisions-sites/showcase_refs/queenswharf/done/Queen_s_Wharf__Brisbane_CBD_seen_from_South_Bank__2025__02.jpg",
+  "lat": -27.475714,
+  "lon": 153.021911,
+  "river": [
+   0.15,
+   0.155,
+   0.115
+  ]
+ },
+ {
+  "id": "qw_sb2025_03",
+  "size": [
+   1280,
+   960
+  ],
+  "target": [
+   -567.3,
+   -1227.7,
+   102.0
+  ],
+  "at": [
+   0.27,
+   0.46
+  ],
+  "f35": 25.0,
+  "photo": "/mnt/user-data/uploads/PourDecisions-sites/showcase_refs/queenswharf/done/Queen_s_Wharf__Brisbane_CBD_seen_from_South_Bank__2025__03.jpg",
+  "lat": -27.474547,
+  "lon": 153.021011,
+  "river": [
+   0.15,
+   0.155,
+   0.115
+  ]
+ },
+ {
+  "id": "qw_sb2025_04",
+  "size": [
+   1280,
+   964
+  ],
+  "target": [
+   -567.3,
+   -1227.7,
+   102.0
+  ],
+  "at": [
+   0.575,
+   0.465
+  ],
+  "f35": 23.8,
+  "photo": "/mnt/user-data/uploads/PourDecisions-sites/showcase_refs/queenswharf/done/Queen_s_Wharf__Brisbane_CBD_seen_from_South_Bank__2025__04.jpg",
+  "lat": -27.475731,
+  "lon": 153.021881,
+  "river": [
+   0.15,
+   0.155,
+   0.115
+  ]
+ },
+ {
+  "id": "qw_kurilpa_2025_02",
+  "size": [
+   1280,
+   1707
+  ],
+  "target": [
+   -567.3,
+   -1227.7,
+   102.0
+  ],
+  "at": [
+   0.65,
+   0.447
+  ],
+  "f35": 87.4,
+  "photo": "/mnt/user-data/uploads/PourDecisions-sites/showcase_refs/queenswharf/done/Queen_s_Wharf__Brisbane__2025__02.jpg",
+  "lat": -27.469308,
+  "lon": 153.018508,
+  "z": 6.0,
+  "river": [
+   0.15,
+   0.155,
+   0.115
+  ]
+ },
+ {
+  "id": "qw_northquay_2025_03",
+  "size": [
+   1280,
+   1707
+  ],
+  "target": [
+   -494.0,
+   -1344.6,
+   254.0
+  ],
+  "at": [
+   0.66,
+   0.117
+  ],
+  "f35": 54.3,
+  "photo": "/mnt/user-data/uploads/PourDecisions-sites/showcase_refs/queenswharf/done/Queen_s_Wharf__Brisbane__2025__03.jpg",
+  "z": 16.0,
+  "pos": [
+   -1110.0,
+   -667.0
+  ]
+ },
+ {
+  "id": "qw_victoria_2024",
+  "size": [
+   1280,
+   960
+  ],
+  "target": [
+   -567.3,
+   -1227.7,
+   102.0
+  ],
+  "at": [
+   0.66,
+   0.46
+  ],
+  "f35": 30.8,
+  "photo": "/mnt/user-data/uploads/PourDecisions-sites/showcase_refs/queenswharf/done/Queens_Wharf_Brisbane_1.jpg",
+  "pos": [
+   -1018.0,
+   -1016.0
+  ],
+  "z": 18.0
+ },
+ {
+  "id": "qw_southbank_2024",
+  "size": [
+   1280,
+   1707
+  ],
+  "target": [
+   -567.3,
+   -1227.7,
+   102.0
+  ],
+  "at": [
+   0.43,
+   0.5
+  ],
+  "f35": 22.9,
+  "photo": "/mnt/user-data/uploads/PourDecisions-sites/showcase_refs/queenswharf/done/Queens_Wharf_Brisbane_2.jpg",
+  "pos": [
+   -835.0,
+   -1465.0
+  ],
+  "river": [
+   0.15,
+   0.155,
+   0.115
+  ]
+ },
+ {
+  "id": "qw_victoria_dusk_2024",
+  "size": [
+   1280,
+   960
+  ],
+  "target": [
+   -494.0,
+   -1344.6,
+   254.0
+  ],
+  "at": [
+   0.385,
+   0.28
+  ],
+  "f35": 31.9,
+  "photo": "/mnt/user-data/uploads/PourDecisions-sites/showcase_refs/queenswharf/done/Queens_Wharf_and_Neville_Boner_Bridge_Brisbane.jpg",
+  "pos": [
+   -1018.0,
+   -1016.0
+  ],
+  "z": 18.0,
+  "river": [
+   0.15,
+   0.155,
+   0.115
+  ]
+ },
+ {
+  "id": "qw_northquay_2024",
+  "size": [
+   1280,
+   1707
+  ],
+  "target": [
+   -494.0,
+   -1344.6,
+   254.0
+  ],
+  "at": [
+   0.525,
+   0.21
+  ],
+  "f35": 31.6,
+  "photo": "/mnt/user-data/uploads/PourDecisions-sites/showcase_refs/queenswharf/build/North_Quay_below__Queen_s_Wharf__Brisbane__2024__01.jpg",
+  "z": 16.0,
+  "pos": [
+   -1104.0,
+   -667.0
+  ]
+ },
+ {
+  "id": "skytower_69ann_l22",
+  "size": [
+   1280,
+   1707
+  ],
+  "target": [
+   -207.0,
+   -977.9,
+   274.0
+  ],
+  "at": [
+   0.48,
+   0.23
+  ],
+  "f35": 30,
+  "photo": "/mnt/user-data/uploads/PourDecisions-sites/showcase_refs/skytower/top/Brisbane_Skytower_and_Brisbane_CBD_seen_from_level_22_of_69_Ann_Street__Brisbane.jpg",
+  "lat": -27.469472,
+  "lon": 153.022797,
+  "z": 100.0,
+  "clip": 35
+ },
+ {
+  "id": "skytower_217george_a",
+  "size": [
+   1280,
+   1707
+  ],
+  "target": [
+   -207.0,
+   -977.9,
+   274.0
+  ],
+  "at": [
+   0.55,
+   0.166
+  ],
+  "f35": 43,
+  "photo": "/mnt/user-data/uploads/PourDecisions-sites/showcase_refs/skytower/top/Brisbane_Skytower_seen_from_217_George_Street__Brisbane_01.jpg",
+  "lat": -27.470719,
+  "lon": 153.023558,
+  "z": 105.0,
+  "clip": 30
+ },
+ {
+  "id": "skytower_111eagle_l45",
+  "size": [
+   1280,
+   960
+  ],
+  "target": [
+   -207.0,
+   -977.9,
+   274.0
+  ],
+  "at": [
+   0.497,
+   0.17
+  ],
+  "f35": 27,
+  "photo": "/mnt/user-data/uploads/PourDecisions-sites/showcase_refs/skytower/top/Brisbane_Skytower_seen_from_level_45_of_111_Eagle_Street__Brisbane.jpg",
+  "z": 160.0,
+  "clip": 1,
+  "pos": [
+   -80.0,
+   -550.0
+  ]
+ },
+ {
+  "id": "skytower_217george_top",
+  "size": [
+   1280,
+   1707
+  ],
+  "target": [
+   -207.0,
+   -977.9,
+   274.0
+  ],
+  "at": [
+   0.48,
+   0.09
+  ],
+  "f35": 57,
+  "photo": "/mnt/user-data/uploads/PourDecisions-sites/showcase_refs/skytower/top/Brisbane_Skytower_seen_from_the_top_of_217_George_Street__Brisbane_in_November_2018.jpg",
+  "lat": -27.470758,
+  "lon": 153.023589,
+  "z": 105.0,
+  "clip": 30
+ },
+ {
+  "id": "skytower_oneoneone_l45",
+  "size": [
+   1280,
+   1707
+  ],
+  "target": [
+   -207.0,
+   -977.9,
+   274.0
+  ],
+  "at": [
+   0.875,
+   0.27
+  ],
+  "f35": 28,
+  "photo": "/mnt/user-data/uploads/PourDecisions-sites/showcase_refs/skytower/top/Skyline_of_Brisbane__Waterfront_Place_and_Brisbane_Skytower_seen_from_level_45_of_One_One_One_Eagle_Street.jpg",
+  "z": 160.0,
+  "clip": 1,
+  "pos": [
+   -80.0,
+   -550.0
+  ]
+ },
+ {
+  "id": "skytower_l82_south",
+  "size": [
+   1280,
+   854
+  ],
+  "target": [
+   -494.0,
+   -1344.6,
+   254.0
+  ],
+  "at": [
+   0.592,
+   0.325
+  ],
+  "f35": 17.1,
+  "photo": "/tmp/claude-0/-home-user/b8a6c4be-cf60-5aa5-a9ba-3d85c12c3bdb/scratchpad/topweb/img/skytower_top_sky_l82_view_river_south.jpg",
+  "pos": [
+   -235.0,
+   -1005.0
+  ],
+  "z": 237.0,
+  "clip": 2
+ },
+ {
+  "id": "skytower_l82_wheel",
+  "size": [
+   1280,
+   854
+  ],
+  "target": [
+   -972.0,
+   -1360.0,
+   30.0
+  ],
+  "at": [
+   0.335,
+   0.555
+  ],
+  "f35": 13.3,
+  "photo": "/tmp/claude-0/-home-user/b8a6c4be-cf60-5aa5-a9ba-3d85c12c3bdb/scratchpad/topweb/img/skytower_top_sky_l82_view_river_wheel.jpg",
+  "pos": [
+   -240.0,
+   -990.0
+  ],
+  "z": 237.0,
+  "clip": 2
+ },
+ {
+  "id": "spire_petrie_bight",
+  "size": [
+   1600,
+   1209
+  ],
+  "target": [
+   -43.0,
+   -576.0,
+   250.0
+  ],
+  "at": [
+   0.375,
+   0.03
+  ],
+  "f35": 35.0,
+  "photo": "/home/user/pour-decisions/docs/screenshots/pick/river/ref_01.jpg",
+  "pos": [
+   300.0,
+   -240.0
+  ],
+  "river": [
+   0.15,
+   0.155,
+   0.115
+  ],
+  "z": 1.5,
+  "clear": 60
+ },
+ {
+  "id": "spire_river_front",
+  "size": [
+   1600,
+   1170
+  ],
+  "target": [
+   -43.0,
+   -576.0,
+   250.0
+  ],
+  "at": [
+   0.505,
+   0.275
+  ],
+  "f35": 34.0,
+  "photo": "/home/user/pour-decisions/docs/screenshots/pick/river/ref_03.jpg",
+  "pos": [
+   470.0,
+   -60.0
+  ],
+  "z": 36.0
+ },
+ {
+  "id": "still_cbd_from_kangaroo_pt",
+  "pos": [
+   225,
+   -1240
+  ],
+  "z": 40,
+  "size": [
+   1600,
+   900
+  ],
+  "target": [
+   -380,
+   -1150,
+   55
+  ],
+  "at": [
+   0.5,
+   0.5
+  ],
+  "f35": 24
+ },
+ {
+  "id": "still_cbd_from_southbank",
+  "pos": [
+   -880,
+   -1420
+  ],
+  "z": 18,
+  "size": [
+   1600,
+   900
+  ],
+  "target": [
+   -470,
+   -1150,
+   90
+  ],
+  "at": [
+   0.5,
+   0.5
+  ],
+  "f35": 26
+ },
+ {
+  "id": "still_bridges_south_bank",
+  "pos": [
+   -1450,
+   -2050
+  ],
+  "z": 260,
+  "size": [
+   1600,
+   900
+  ],
+  "target": [
+   -900,
+   -900,
+   10
+  ],
+  "at": [
+   0.5,
+   0.5
+  ],
+  "f35": 24
+ },
+ {
+  "id": "still_riverside_expressway",
+  "pos": [
+   -600,
+   -1295
+  ],
+  "z": 21,
+  "size": [
+   1600,
+   900
+  ],
+  "target": [
+   -505,
+   -1440,
+   10
+  ],
+  "at": [
+   0.5,
+   0.5
+  ],
+  "f35": 28
+ },
+ {
+  "id": "qw_treasury_2010",
+  "size": [
+   1280,
+   960
+  ],
+  "target": [
+   -741.0,
+   -977.0,
+   22.0
+  ],
+  "at": [
+   0.6,
+   0.42
+  ],
+  "f35": 18,
+  "photo": "/mnt/user-data/uploads/PourDecisions-sites/showcase_refs/queenswharf/area/Treasury_Casino_William_St_and_motorcycle_park_Queens_Wharf_Rd_Brisbane_P1050756.jpg",
+  "pos": [
+   -790.0,
+   -975.0
+  ]
+ }
+]
