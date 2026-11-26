@@ -385,7 +385,8 @@ def layer_aerial(area, a, out):
     x1, y1 = to_merc(e, n)
     for label, lock in (("newest", None),):
         p = os.path.join(d, "area_%s_wide.jpg" % label)
-        size = (4000, int(4000 * (y1 - y0) / (x1 - x0)))
+        k = 4000.0 / max(x1 - x0, y1 - y0)   # longer side 4000 px: the service refuses anything bigger
+        size = (int((x1 - x0) * k), int((y1 - y0) * k))
         ok = arc_export(AERIAL, (x0, y0, x1, y1), size, p, fmt="jpg", lock=lock)
         log("  aerial wide %s %s" % (label, "ok" if ok else "FAILED"))
     save_json(os.path.join(d, "README.json"), {
