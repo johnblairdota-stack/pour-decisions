@@ -2,13 +2,19 @@
  "note": "What the check lets through today. Counts are ceilings that only go down. Ids are OpenStreetMap way ids.",
  "on_water_ok": [
   740689091,
-  508673079
+  508673079,
+  525502970,
+  525503026
  ],
- "on_water_note": "740689091 The Boathouse (South Bank); 508673079 on the CBD river edge near Eagle St. Both found 26 Nov 2026 and not yet checked against a photo.",
+ "on_water_note": "740689091 The Boathouse (South Bank); 508673079 on the CBD river edge near Eagle St. Both found 26 Nov 2026 and not yet checked against a photo. 525502970 and 525503026 are shipping containers (one a bar) on the Hamilton Northshore wharf, added 26 Nov 2026 with the downriver tiles.",
  "flat_ok": [
   589533605
  ],
  "flat_note": "589533605 measures 0.1 m tall: probably a slab or a demolished building in the 2019 LiDAR. To look at.",
- "max_trees_in_river": 138,
- "max_in_two_sets": 351
+ "max_trees_in_river": 40,
+ "max_in_two_sets": 351,
+ "no_buildings_ok": [
+  "509_6962"
+ ],
+ "no_buildings_note": "509_6962 is river, Colmslie Beach Reserve and sports fields at Murarrie: the map has one building on its edge."
 }

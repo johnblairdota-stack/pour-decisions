@@ -637,7 +637,7 @@ def building_height(t):
     if h is not None:
         return h, "osm height"
     lv = tag_float(t, "building:levels")
-    if lv is not None:
+    if lv is not None and lv >= 1:                          # "0 levels" is a mapper's slip, not a flat building
         return lv * LEVEL_HEIGHT, "osm levels x %.1f m" % LEVEL_HEIGHT
     return DEFAULT_HEIGHT, "default (no tag)"
 

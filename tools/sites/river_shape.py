@@ -35,7 +35,11 @@ import shapes as S  # noqa: E402
 
 AREAS = {"cbd": (153.0080, -27.4870, 153.0520, -27.4500),          # fetch_sites.AREAS boxes (w, s, e, n)
          "portside": (153.0540, -27.4530, 153.0860, -27.4250),
-         "westend": (152.9870, -27.5010, 153.0280, -27.4660)}
+         "westend": (152.9870, -27.5010, 153.0280, -27.4660),
+         "paddington": (152.98037, -27.46500, 153.00951, -27.44803),
+         "gabba": (153.03098, -27.50111, 153.05001, -27.48413),
+         "downriver_n": (153.03097, -27.44694, 153.10057, -27.42994),
+         "downriver_s": (153.05122, -27.47402, 153.10059, -27.44799)}
 MUD = {"westend": (93, 85, 67)}                             # that aerial's river is brown flood water, not dark
 STEP = 2.0
 OUT = os.path.join(L.REF, "river")
@@ -185,7 +189,8 @@ def main():
         n_ = TN0 + 1000 - N[rr * 4, cc * 4]
         ok = (e_ >= 0) & (e_ < 1000) & (n_ >= 0) & (n_ < 1000)
         gnd8[rr[ok], cc[ok]] = a[n_[ok].astype(int), e_[ok].astype(int)]
-    water = np.where(inlid, nolid & have & (luma < 110), dark_smooth)
+    # inside the LiDAR, no surface = water; the aerial only vetoes bright cells, and has thin gaps between areas
+    water = np.where(inlid, nolid & (~have | (luma < 110)), dark_smooth)
     water = erode(dilate(water, 1), 1)                       # fill specks (boats, wakes)
 
     lab = label_coarse(water)

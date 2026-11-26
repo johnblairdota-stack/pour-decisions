@@ -60,7 +60,8 @@ def fill_nan(a):
 TYPE_HEIGHT = {"house": 5.6, "detached": 5.6, "semidetached_house": 5.6, "terrace": 6.0, "bungalow": 4.2, "residential": 5.8,
                "apartments": 12.8, "hotel": 16.0, "dormitory": 12.8, "office": 12.8, "commercial": 8.0, "retail": 6.5,
                "industrial": 7.5, "warehouse": 7.5, "school": 7.0, "university": 12.0, "hospital": 16.0, "church": 9.0,
-               "garage": 2.8, "garages": 2.8, "shed": 2.6, "roof": 3.2, "carport": 2.6, "yes": 5.6}
+               "garage": 2.8, "garages": 2.8, "shed": 2.6, "roof": 3.2, "carport": 2.6, "yes": 5.6,
+               "container": 2.6, "chapel": 7.0, "kindergarten": 4.5, "hut": 2.6, "kiosk": 3.0, "toilets": 3.0}
 
 
 class Dem:
@@ -243,6 +244,15 @@ def main():
             sp["x"], sp["y"] = round(sp["x"] + ox, 2), round(sp["y"] + oy, 2)
         wt = ways[b["osm"]].get("tags", {})
         b["tags"] = {k: wt[k] for k in keep_tags if k in wt}
+    for b in out:                                           # the LiDAR could not measure it (over water, new since 2019)
+        src = b.get("height_src", "")
+        if src.startswith("lidar") or len(b["tiers"]) != 1:
+            continue
+        if src.startswith("default") or b["tiers"][0]["top_ahd"] - b["base_ahd"] < 2.0:
+            kind = b["tags"].get("building", "yes")
+            b["tiers"][0]["top_ahd"] = round(b["base_ahd"] + TYPE_HEIGHT.get(kind, 6.4), 2)
+            b["height_src"] = "usual height for the OSM type (not measured)"
+
     def covered(x, y):                                      # inside a LiDAR tile (the mosaic need not be a rectangle)
         c, r = int(x - box[0]), int(box[3] - y)
         return 0 <= r < H and 0 <= c < W and bool(cover[r, c])
@@ -268,8 +278,14 @@ def main():
     rr, cc = np.nonzero((can > 0) & (can >= m2))
     em = json.load(open(os.path.join(L.REF, "ext", "ext.json")))["box_local"]
     trees, seen = [], set()
+    rj = json.load(open(os.path.join(L.REF, "river", "river.json")))
+    wat = np.frombuffer(gzip.open(os.path.join(L.REF, "river", "water_2m.u8.gz")).read(), "u1").reshape(rj["rows"], rj["cols"]) > 0
+    wb, ws = rj["box_local"], rj["step_m"]
     for r, c in zip(rr.tolist(), cc.tolist()):
         x, y = box[0] + c + 0.5, box[3] - r - 0.5
+        wc, wr_ = int((x - wb[0]) / ws), int((wb[3] - y) / ws)
+        if 0 <= wr_ < rj["rows"] and 0 <= wc < rj["cols"] and wat[wr_, wc]:
+            continue                                        # a canopy return over the river: a mast, a crane, a bridge
         if (lx0 <= x <= lx1 and ly0 <= y <= ly1) or (em[0] <= x <= em[2] and em[1] <= y <= em[3]):
             continue
         key = (int(x // 6), int(y // 6))
