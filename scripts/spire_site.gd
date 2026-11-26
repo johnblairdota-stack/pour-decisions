@@ -991,75 +991,7 @@ static func set_core(parts: Dictionary, bottom: float, top: float, ftf: float) -
 
 # ------------------------------------------------------------------ the scaffold round the deck
 
-## The perimeter scaffold, following the plate's real edge: grating, handrails, toe boards, standards
-## down to the floor below and the blue edge screens. It's open at the hoist landing and at the
-## ladder tower's platform (`gaps`: [x0, x1] runs of the Ann St edge left clear).
-static func build_scaffold(parent: Node3D, walk_gap: float, walk_w: float, fh: float, gaps: Array, yard) -> Array:
-	var parts: Array = []
-	var plate := poly("plate")
-	var mid: Array = Geometry2D.offset_polygon(plate, walk_gap + walk_w * 0.5, Geometry2D.JOIN_MITER)
-	var outer: Array = Geometry2D.offset_polygon(plate, walk_gap + walk_w, Geometry2D.JOIN_MITER)
-	if mid.is_empty() or outer.is_empty():
-		return parts
-	var grate := F.mat("steel")
-	var rail := F.mat("orange")
-	var toe := F.mat("yellow_dark")
-	var c := centroid(plate)
-	# (all of it stands still on the rig: it's merged into a few meshes once it's built, F.bake)
-	var scaf := Node3D.new()
-	scaf.name = "Scaffold"
-	parent.add_child(scaf)
-	parts.append(scaf)
-	var m: PackedVector2Array = mid[0]
-	for j in m.size():
-		var a: Vector2 = m[j]
-		var b: Vector2 = m[(j + 1) % m.size()]
-		var at := (a + b) * 0.5
-		var seg := F.box(Vector3(a.distance_to(b) + 0.25, 0.1, walk_w), grate, Vector3(at.x, -0.05, at.y))
-		seg.rotation.y = -atan2(b.y - a.y, b.x - a.x)
-		scaf.add_child(seg)
-	var o: PackedVector2Array = outer[0]
-	var screens := Node3D.new()
-	screens.name = "EdgeScreens"
-	parent.add_child(screens)
-	parts.append(screens)
-	for j in o.size():
-		var a: Vector2 = o[j]
-		var b: Vector2 = o[(j + 1) % o.size()]
-		# (cut the run at the gaps: only on the Ann St side, where the edge runs along x)
-		var runs: Array = [[a, b]]
-		if absf(b.y - a.y) < absf(b.x - a.x) * 0.3 and (a.y + b.y) * 0.5 > c.y:
-			for gap in gaps:
-				var next: Array = []
-				for r in runs:
-					next.append_array(_cut_run(r[0], r[1], float(gap[0]), float(gap[1])))
-				runs = next
-		for r in runs:
-			var p: Vector2 = r[0]
-			var q: Vector2 = r[1]
-			var ln := p.distance_to(q)
-			if ln < 0.2:
-				continue
-			var at := (p + q) * 0.5
-			var ry := -atan2(q.y - p.y, q.x - p.x)
-			for y in [0.55, 1.08]:
-				var bar := F.box(Vector3(ln, 0.06, 0.06), rail, Vector3(at.x, y, at.y))
-				bar.rotation.y = ry
-				scaf.add_child(bar)
-			var tb := F.box(Vector3(ln, 0.15, 0.03), toe, Vector3(at.x, 0.075, at.y))
-			tb.rotation.y = ry
-			scaf.add_child(tb)
-			var n := maxi(1, int(ln / 2.0))
-			for k in n + 1:
-				var s := p.lerp(q, float(k) / n)
-				for post in [F.box(Vector3(0.07, 1.1, 0.07), rail, Vector3(s.x, 0.55, s.y)), F.box(Vector3(0.06, fh, 0.06), grate, Vector3(s.x, -fh * 0.5, s.y))]:
-					scaf.add_child(post)
-			var out := (at - c).normalized() * 0.25
-			var inward := Vector3(c.x - at.x, 0, c.y - at.y).normalized()
-			yard.screen_line(screens, Vector3(p.x + out.x, 0, p.y + out.y), Vector3(q.x + out.x, 0, q.y + out.y), inward)
-	F.bake(scaf)
-	F.bake(screens)
-	return parts
+## (The perimeter scaffold itself is scripts/spire_scaffold.gd.)
 
 ## The parts of a..b outside x0..x1.
 static func _cut_run(a: Vector2, b: Vector2, x0: float, x1: float) -> Array:

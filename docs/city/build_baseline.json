@@ -1,0 +1,123 @@
+{
+ "blender": "4.5.17 LTS",
+ "total_seconds": 159.4,
+ "tris": 28904385,
+ "objects": 1404,
+ "peak_gb": 9.81,
+ "modules": [
+  {
+   "module": "ground",
+   "seconds": 5.3,
+   "rss_gb": 0.57,
+   "tris_added": 1892990
+  },
+  {
+   "module": "streets",
+   "seconds": 7.0,
+   "rss_gb": 0.73,
+   "tris_added": 370988
+  },
+  {
+   "module": "buildings",
+   "seconds": 1.1,
+   "rss_gb": 0.73,
+   "tris_added": 345096
+  },
+  {
+   "module": "spire",
+   "seconds": 0.1,
+   "rss_gb": 0.73,
+   "tris_added": 51322
+  },
+  {
+   "module": "core",
+   "seconds": 0.0,
+   "rss_gb": 0.73,
+   "tris_added": 84
+  },
+  {
+   "module": "landmarks",
+   "seconds": 0.2,
+   "rss_gb": 0.73,
+   "tris_added": 79644
+  },
+  {
+   "module": "cathedral",
+   "seconds": 0.2,
+   "rss_gb": 0.73,
+   "tris_added": 7258
+  },
+  {
+   "module": "hsw",
+   "seconds": 10.2,
+   "rss_gb": 1.38,
+   "tris_added": 6135566
+  },
+  {
+   "module": "trees",
+   "seconds": 24.3,
+   "rss_gb": 3.01,
+   "tris_added": 8364538
+  },
+  {
+   "module": "logistics",
+   "seconds": 0.0,
+   "rss_gb": 3.01,
+   "tris_added": 0
+  },
+  {
+   "module": "site_plant",
+   "seconds": 0.0,
+   "rss_gb": 3.01,
+   "tris_added": 0
+  },
+  {
+   "module": "streetscape",
+   "seconds": 0.3,
+   "rss_gb": 3.0,
+   "tris_added": 40514
+  },
+  {
+   "module": "area_hero",
+   "seconds": 28.8,
+   "rss_gb": 5.79,
+   "tris_added": -777812
+  },
+  {
+   "module": "cbd_ext",
+   "seconds": 7.8,
+   "rss_gb": 6.15,
+   "tris_added": 3369436
+  },
+  {
+   "module": "city_wide",
+   "seconds": 47.3,
+   "rss_gb": 6.52,
+   "tris_added": 6391320
+  },
+  {
+   "module": "far_roads",
+   "seconds": 4.0,
+   "rss_gb": 6.51,
+   "tris_added": 781258
+  },
+  {
+   "module": "far_paths",
+   "seconds": 4.0,
+   "rss_gb": 6.57,
+   "tris_added": 692421
+  },
+  {
+   "module": "city_detail",
+   "seconds": 5.1,
+   "rss_gb": 6.6,
+   "tris_added": 328374
+  },
+  {
+   "module": "hero_towers",
+   "seconds": 13.7,
+   "rss_gb": 6.39,
+   "tris_added": 831388
+  }
+ ]
+}

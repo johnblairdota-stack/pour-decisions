@@ -1,0 +1,28 @@
+{
+ "note": "Places a Brisbane local would look for. status: hero = built by hand from references; block = only a measured block or nothing special; out = outside the measured model. lat/lon are approximate (good to the 1 km tile, not for placing geometry).",
+ "landmarks": [
+  {"name": "Spire Residences", "lat": -27.46304, "lon": 153.03083, "status": "hero", "game": true},
+  {"name": "Story Bridge", "lat": -27.4638, "lon": 153.0358, "status": "hero"},
+  {"name": "Howard Smith Wharves", "lat": -27.4610, "lon": 153.0355, "status": "hero", "game": true},
+  {"name": "St John's Cathedral", "lat": -27.4638, "lon": 153.0298, "status": "hero"},
+  {"name": "Customs House", "lat": -27.4655, "lon": 153.0310, "status": "hero"},
+  {"name": "Brisbane Skytower", "lat": -27.4718, "lon": 153.0287, "status": "hero", "game": true},
+  {"name": "1 William St", "lat": -27.4751, "lon": 153.0258, "status": "hero", "game": true},
+  {"name": "Queen's Wharf", "lat": -27.4735, "lon": 153.0253, "status": "hero", "game": true},
+  {"name": "South Bank and BRISBANE sign", "lat": -27.4755, "lon": 153.0210, "status": "hero"},
+  {"name": "City Botanic Gardens", "lat": -27.4760, "lon": 153.0300, "status": "hero"},
+  {"name": "City Hall", "lat": -27.4689, "lon": 153.0235, "status": "block"},
+  {"name": "Roma Street Parkland", "lat": -27.4625, "lon": 153.0190, "status": "block"},
+  {"name": "Suncorp Stadium", "lat": -27.4648, "lon": 153.0095, "status": "block"},
+  {"name": "XXXX Brewery", "lat": -27.4697, "lon": 153.0036, "status": "block"},
+  {"name": "The Gabba", "lat": -27.4858, "lon": 153.0381, "status": "block"},
+  {"name": "RNA Showgrounds", "lat": -27.4500, "lon": 153.0330, "status": "block"},
+  {"name": "Brisbane Powerhouse", "lat": -27.4683, "lon": 153.0535, "status": "block"},
+  {"name": "Breakfast Creek Hotel", "lat": -27.4400, "lon": 153.0457, "status": "block"},
+  {"name": "Portside Wharf (Alcyone)", "lat": -27.43975, "lon": 153.06965, "status": "block", "game": true},
+  {"name": "Riverlight", "lat": -27.44367, "lon": 153.08551, "status": "block", "game": true},
+  {"name": "UQ Great Court", "lat": -27.4975, "lon": 153.0137, "status": "block"},
+  {"name": "Mt Coot-tha lookout", "lat": -27.4850, "lon": 152.9590, "status": "block"},
+  {"name": "Gateway Bridge", "lat": -27.4446, "lon": 153.1003, "status": "block"}
+ ]
+}

@@ -1,0 +1,392 @@
+[
+ {
+  "id": "william1_top_gardens",
+  "pos": [
+   -462.0,
+   -1352.0
+  ],
+  "z": 176.0,
+  "f35": 24,
+  "size": [
+   1280,
+   960
+  ],
+  "target": [
+   92.0,
+   -1447.0,
+   10.0
+  ],
+  "at": [
+   0.445,
+   0.53
+  ],
+  "clip": 45,
+  "photo": "/mnt/user-data/uploads/PourDecisions-sites/showcase_refs/william1/top/City_Botanic_Gardens_from_1_William_St_Brisbane_P1100526.jpg",
+  "river": [
+   0.24,
+   0.2,
+   0.13
+  ]
+ },
+ {
+  "id": "queenswharf_kurilpa_2025",
+  "lat": -27.469519,
+  "lon": 153.017914,
+  "size": [
+   1280,
+   1707
+  ],
+  "target": [
+   -567.3,
+   -1227.7,
+   102.0
+  ],
+  "at": [
+   0.58,
+   0.465
+  ],
+  "z": 4.0,
+  "photo": "/mnt/user-data/uploads/PourDecisions-sites/showcase_refs/queenswharf/done/Queen_s_Wharf__Brisbane__2025__01.jpg",
+  "river": [
+   0.15,
+   0.155,
+   0.115
+  ],
+  "f35": 81.2
+ },
+ {
+  "id": "queenswharf_abutment_2023",
+  "lat": -27.473214,
+  "lon": 153.019924,
+  "size": [
+   1280,
+   721
+  ],
+  "target": [
+   -567.3,
+   -1227.7,
+   102.0
+  ],
+  "at": [
+   0.49,
+   0.47
+  ],
+  "z": 16.0,
+  "photo": "/mnt/user-data/uploads/PourDecisions-sites/showcase_refs/queenswharf/done/Queens_Wharf_from_Abutment.jpg",
+  "f35": 36.3,
+  "clip": 30
+ },
+ {
+  "id": "skytower_kp_2019",
+  "lat": -27.47658,
+  "lon": 153.03477,
+  "f35": 63,
+  "size": [
+   1536,
+   2088
+  ],
+  "target": [
+   -207.0,
+   -977.9,
+   274.0
+  ],
+  "at": [
+   0.5,
+   0.095
+  ],
+  "z": 33.0,
+  "clip": 70,
+  "dist": 740,
+  "river": [
+   0.24,
+   0.2,
+   0.13
+  ]
+ },
+ {
+  "id": "skytower_kp_dec2018",
+  "lat": -27.47776,
+  "lon": 153.03453,
+  "f35": 52,
+  "size": [
+   1536,
+   2366
+  ],
+  "target": [
+   -207.0,
+   -977.9,
+   274.0
+  ],
+  "at": [
+   0.5,
+   0.181
+  ],
+  "z": 29.0,
+  "clip": 60
+ },
+ {
+  "id": "skytower_kp_jan2019",
+  "lat": -27.47775,
+  "lon": 153.03461,
+  "f35": 65,
+  "size": [
+   1536,
+   2048
+  ],
+  "target": [
+   -207.0,
+   -977.9,
+   274.0
+  ],
+  "at": [
+   0.507,
+   0.116
+  ],
+  "z": 27.0,
+  "clip": 60
+ },
+ {
+  "id": "skytower_gardens_oct2019",
+  "lat": -27.47367,
+  "lon": 153.03041,
+  "f35": 30,
+  "size": [
+   1280,
+   2005
+  ],
+  "target": [
+   -207.0,
+   -977.9,
+   274.0
+  ],
+  "at": [
+   0.5,
+   0.125
+  ],
+  "photo": "/mnt/user-data/uploads/PourDecisions-sites/showcase_refs/skytower/done/Brisbane_Skytower_seen_from_Brisbane_City_Botanic_Gardens__October_2019.jpg",
+  "clear": 30,
+  "palms": 22
+ },
+ {
+  "id": "skytower_kp_apr2019",
+  "lat": -27.47799,
+  "lon": 153.03457,
+  "f35": 28.0,
+  "size": [
+   1280,
+   946
+  ],
+  "target": [
+   -207.0,
+   -977.9,
+   274.0
+  ],
+  "at": [
+   0.35,
+   0.29
+  ],
+  "photo": "/mnt/user-data/uploads/PourDecisions-sites/showcase_refs/skytower/done/Brisbane_Skytower_and_Skylines_of_Brisbane_CBD_from_Kangaroo_Point__Queensland_01.jpg",
+  "z": 24,
+  "clip": 2,
+  "pos": [
+   342.8,
+   -1627.8
+  ],
+  "river": [
+   0.24,
+   0.2,
+   0.13
+  ]
+ },
+ {
+  "id": "skytower_kp_2024",
+  "lat": -27.48088,
+  "lon": 153.03298,
+  "f35": 51.7,
+  "size": [
+   1280,
+   959
+  ],
+  "target": [
+   -207.0,
+   -977.9,
+   274.0
+  ],
+  "at": [
+   0.21,
+   0.14
+  ],
+  "photo": "/mnt/user-data/uploads/PourDecisions-sites/showcase_refs/skytower/done/Brisbane_CBD_seen_from_Kangaroo_Point__2024__02.jpg",
+  "z": 27.0,
+  "clip": 60,
+  "river": [
+   0.24,
+   0.2,
+   0.13
+  ]
+ },
+ {
+  "id": "william1_emporium_2019",
+  "lat": -27.48141,
+  "lon": 153.02322,
+  "f35": 57,
+  "size": [
+   1280,
+   960
+  ],
+  "target": [
+   -494.0,
+   -1344.6,
+   254.0
+  ],
+  "at": [
+   0.415,
+   0.15
+  ],
+  "photo": "/mnt/user-data/uploads/PourDecisions-sites/showcase_refs/skytower/done/1_William_Street_and_Brisbane_Skytower__June_2019.jpg",
+  "z": 75.0,
+  "clip": 40,
+  "river": [
+   0.24,
+   0.2,
+   0.13
+  ]
+ },
+ {
+  "id": "william1_southbank_2025",
+  "lat": -27.47751,
+  "lon": 153.0232,
+  "f35": 39.0,
+  "size": [
+   1280,
+   1454
+  ],
+  "target": [
+   -494.0,
+   -1344.6,
+   254.0
+  ],
+  "at": [
+   0.755,
+   0.05
+  ],
+  "photo": "/mnt/user-data/uploads/PourDecisions-sites/showcase_refs/queenswharf/done/Queen_s_Wharf__Brisbane_CBD_seen_from_South_Bank__2025__06.jpg",
+  "z": 3.0,
+  "level": true,
+  "river": [
+   0.15,
+   0.155,
+   0.115
+  ]
+ },
+ {
+  "id": "queenswharf_river_2025",
+  "lat": -27.47645,
+  "lon": 153.02252,
+  "f35": 31.0,
+  "size": [
+   1280,
+   1175
+  ],
+  "target": [
+   -567.3,
+   -1227.7,
+   102.0
+  ],
+  "at": [
+   0.44,
+   0.52
+  ],
+  "photo": "/mnt/user-data/uploads/PourDecisions-sites/showcase_refs/queenswharf/done/Queen_s_Wharf__Brisbane_CBD_seen_from_South_Bank__2025__05.jpg",
+  "z": 3.0,
+  "river": [
+   0.15,
+   0.155,
+   0.115
+  ],
+  "level": true
+ },
+ {
+  "id": "william1_sunset_2017",
+  "lat": -27.47331,
+  "lon": 153.02008,
+  "f35": 30.0,
+  "size": [
+   1280,
+   960
+  ],
+  "target": [
+   -494.0,
+   -1344.6,
+   254.0
+  ],
+  "at": [
+   0.865,
+   0.23
+  ],
+  "photo": "/mnt/user-data/uploads/PourDecisions-sites/showcase_refs/william1/done/Brisbane_CBD_Seen_from_South_Bank_Parklands_at_sunset_2017__01.jpg",
+  "z": 4.0,
+  "river": [
+   0.15,
+   0.155,
+   0.115
+  ]
+ },
+ {
+  "id": "william1_victoria_2019",
+  "lat": -27.46939,
+  "lon": 153.01855,
+  "f35": 35.0,
+  "size": [
+   1280,
+   960
+  ],
+  "target": [
+   -494.0,
+   -1344.6,
+   254.0
+  ],
+  "at": [
+   0.285,
+   0.165
+  ],
+  "photo": "/mnt/user-data/uploads/PourDecisions-sites/showcase_refs/william1/done/Victoria_bridge_and_1_William_Street_in_April_2019__Brisbane.jpg",
+  "z": 20.0,
+  "clip": 30,
+  "river": [
+   0.15,
+   0.155,
+   0.115
+  ]
+ },
+ {
+  "id": "william1_river_2016",
+  "lat": -27.4752,
+  "lon": 153.02451,
+  "f35": 35.5,
+  "size": [
+   1435,
+   2113
+  ],
+  "target": [
+   -494.0,
+   -1344.6,
+   254.0
+  ],
+  "at": [
+   0.5,
+   0.044
+  ],
+  "z": 3.0,
+  "pos": [
+   -692.0,
+   -1543.0
+  ],
+  "level": true,
+  "river": [
+   0.24,
+   0.2,
+   0.13
+  ]
+ }
+]
