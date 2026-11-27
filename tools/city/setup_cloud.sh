@@ -17,8 +17,8 @@ if [ ! -x "$VENV/bin/python" ]; then
   if command -v uv >/dev/null 2>&1; then uv venv --python "$PY" "$VENV"; else "python$PY" -m venv "$VENV"; fi
 fi
 if command -v uv >/dev/null 2>&1; then
-  uv pip install --python "$VENV/bin/python" "bpy==$BPY" numpy pillow
+  uv pip install --python "$VENV/bin/python" "bpy==$BPY" numpy pillow scipy
 else
-  "$VENV/bin/python" -m pip install -q "bpy==$BPY" numpy pillow
+  "$VENV/bin/python" -m pip install -q "bpy==$BPY" numpy pillow scipy
 fi
 "$VENV/bin/python" -c "import bpy; print('Blender', bpy.app.version_string, 'ready in', '$VENV')"

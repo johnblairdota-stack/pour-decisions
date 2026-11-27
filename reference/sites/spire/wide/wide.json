@@ -5,24 +5,24 @@
   6953.43,
   3720.95
  ],
- "lidar_tiles": 71,
+ "lidar_tiles": 96,
  "lidar_boxes": [
   [
    -5046.57,
    -4279.05,
-   1953.43,
+   6953.43,
    -3279.05
   ],
   [
    -5046.57,
    -3279.05,
-   1953.43,
+   6953.43,
    -2279.05
   ],
   [
    -5046.57,
    -2279.05,
-   1953.43,
+   6953.43,
    -1279.05
   ],
   [
@@ -44,20 +44,20 @@
    1720.95
   ],
   [
-   -46.57,
+   -5046.57,
    1720.95,
    6953.43,
    2720.95
   ],
   [
-   -46.57,
+   -5046.57,
    2720.95,
    6953.43,
    3720.95
   ]
  ],
- "buildings": 30937,
- "osm_only": 693,
+ "buildings": 72380,
+ "osm_only": 648,
  "osm_boxes": [
   [
    -2256.3,
@@ -100,33 +100,51 @@
    -1222.2,
    6893.6,
    1664.1
+  ],
+  [
+   -4986.7,
+   1781.1,
+   -106.2,
+   3664.3
+  ],
+  [
+   2012.5,
+   -4222.8,
+   6891.2,
+   -1338.8
   ]
  ],
- "already_in_scene": 995,
- "skipped": 68,
+ "lidar_outlines": {
+  "roof_ha": 2566.9,
+  "unmapped_roof_ha": 1149.9,
+  "traced_roof_ha": 1134.2,
+  "traced_buildings": 34557
+ },
+ "already_in_scene": 1350,
+ "skipped": 17,
  "families": {
-  "brick": 29323,
-  "concrete": 1219,
-  "heritage": 199,
-  "glass": 196
+  "brick": 69941,
+  "concrete": 1965,
+  "heritage": 216,
+  "glass": 258
  },
  "height_sources": {
-  "lidar 2019": 29498,
-  "usual height for the OSM type (not measured)": 582,
-  "osm levels x 3.2 m": 149,
+  "lidar 2019": 70802,
+  "usual height for the OSM type (not measured)": 753,
+  "osm levels x 3.2 m": 159,
   "osm height": 23,
-  "usual height for the OSM type (no LiDAR yet)": 685
+  "usual height for the OSM type (no LiDAR yet)": 643
  },
- "gables": 933,
- "multi_tier": 1719,
- "spires": 1356,
- "trees": 197754,
+ "gables": 1917,
+ "multi_tier": 3581,
+ "spires": 4341,
+ "trees": 284650,
  "trees_from_aerial": 0,
  "features": {
-  "traffic_signals": 1311,
-  "street_lamps": 1440,
+  "traffic_signals": 1489,
+  "street_lamps": 1462,
   "motorway_junctions": 42,
-  "areas": 2540
+  "areas": 3603
  },
  "credit": "2019 LiDAR (c) State of Queensland CC BY 4.0; OSM (c) OpenStreetMap contributors ODbL"
 }

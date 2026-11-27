@@ -92,6 +92,13 @@ the 71-tile model: peak memory 12.7 GB down to 8.9 GB, the same 129 tiles, and r
 single-process bake pixel for pixel. The bake takes 14 minutes instead of 8, because each strip rebuilds the
 centre. Memory no longer grows with the width of the city, so more tiles can be added.
 
+**96 tiles and traced houses (27 Nov 2026).** With the two corners in (a full 12 by 8 km block) and 34,557
+buildings traced from the LiDAR (see the plan, step 3), the strip bake takes 21 minutes, writes 140 tiles and
+peaks at 9.4 GB. The whole-river view now loads 107 tiles as 21,600 objects and takes 9.5 minutes, nearly all
+of it loading; a suburb view (50 tiles) takes 84 s. `clean_wide.py` takes 44 minutes instead of 11, because
+it shapes twice as many buildings in one pass. Joining objects per tile and shaping per tile are the next
+speed-ups, before the next ring of tiles.
+
 Still to do for step 2 of the plan: the centre tile (503_6962) holds a third of the city's triangles, so views
 of it stay heavy until it gets lighter middle-distance versions; strips away from the centre should skip the
 centre build; and each tile loads as hundreds of separate objects, which is most of the wait in wide views.
@@ -121,6 +128,14 @@ centre build; and each tile loads as hundreds of separate objects, which is most
    orders are in (39 tiles), the river is traced to Hamilton, 32,281 buildings and 211,298 trees. The raw
    LiDAR and the map data for every area are kept in the project files (`lidar-2019/`). The build now peaks at
    12.7 GB of the cloud machine's 15, which is why the bake now runs in strips (see Rendering from tiles).
+   **Squared off 27 Nov 2026**: 25 more tiles (the north-west and south-east corners) make a full 12 by 8 km
+   block of 96 measured tiles, 7.1 % of Brisbane City. The map turned out to have no outline for 45 % of the
+   roof area the LiDAR sees (suburban houses, and big buildings the map stores as multi-part shapes), so
+   `tools/sites/lidar_houses.py` now traces those roofs into rectangles and they are shaped like any other
+   building: 73,724 buildings (72,103 with a measured height) and 298,194 trees. Traced outlines are
+   rectangles, so a row of touching roofs can come out as one long bar; they carry `tags.outline`.
+   Map data for a 16 by 16 km block around the CBD is already downloaded on John's PC
+   (`PourDecisions-sites\data\g<E>_<N>`), ready for the next LiDAR ring.
 4. Observed detail: fitted roof shapes, aerial roof colour per building, walls from street-level photos. Done
    when under 30 % of centre-tile buildings are on a generic recipe (93 % city-wide today).
 5. Landmarks as a list, in the order a local would miss them: City Hall, Suncorp Stadium, the Gabba,
