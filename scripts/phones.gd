@@ -671,12 +671,37 @@ func wallet(p) -> Dictionary:
 func roster() -> Dictionary:
 	var out: Array = []
 	var sel = game.selector if is_instance_valid(game.selector) else null
+	var kind := _climb_kind()
 	for role in UI.PICK_ORDER:
 		var q = game.crew.crew[role]
-		out.append({"id": role, "name": UI.job_full(role), "trade": UI.trade(role), "seat": UI.ROLE_NAME[role], "col": UI.ROLE[role].to_html(false), "line": UI.ROLE_DO[role], "ask": UI.ROLE_ASK[role],
+		var e := {"id": role, "name": UI.job_full(role), "trade": UI.trade(role), "seat": UI.ROLE_NAME[role], "col": UI.ROLE[role].to_html(false), "line": UI.ROLE_DO[role], "ask": UI.ROLE_ASK[role]}
+		if kind != "":
+			# (a climb day: the swap list shows today's trades and seats, riggers and doggers, not the
+			# pour-day hats)
+			var tr := Trades.climb_trade(role, kind)
+			e["name"] = Trades.climb_full(role, kind)
+			e["trade"] = Trades.trade_name(tr) if tr != "" else ""
+			e["seat"] = String(((Trades.CLIMB_SEAT[kind] as Dictionary).get(role, ["", role]) as Array)[1])
+			if Trades.COL.has(tr):
+				e["col"] = (Trades.COL[tr] as Color).to_html(false)
+			var does := String(MastClimb.CLIMB_JOB.get(role, "")) if kind == "spire" else String(UI.ROLE_CLIMB.get(role, "")).trim_prefix("Climb days: ")
+			if does != "":
+				e["line"] = does
+		e.merge({
 			"p": 0 if q.bot else q.index, "pc": q.tag_color.to_html(false), "who": q.char_name,
 			"lock": (not q.bot) and sel != null and bool(sel._ready_p.get(q.index, false))})
+		out.append(e)
 	return {"t": "roster", "r": out}
+
+## Today's climb seats (trades.gd CLIMB_SEAT's key), or "" on a pour day.
+func _climb_kind() -> String:
+	if game.get("erect") != null and game.erect.active:
+		return game.erect.seat_kind()
+	if game.get("mast") != null and game.mast.active:
+		return "spire"
+	if game.climb != null and game.climb.active:
+		return "lattice"
+	return ""
 
 ## A job's ticket: its goal, its steps, what to watch for, climb days.
 func card(role: String) -> Dictionary:

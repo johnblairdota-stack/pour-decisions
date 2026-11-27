@@ -40,6 +40,8 @@ Total: **8 of 24.** The core-loop month aims for 16.
 
 **Still open.** Nobody has counted how often the bots actually slip in a pour, so "mostly" is a reading of the code, not a measurement. Tier 2 (gold) bots kill a spike in 0.45 s, faster than most people can.
 
+**27 Nov, John's playtest.** The bots' *method* was the complaint this time, not their luck: the line hand bot hopped about, over-poured and never took the hose in under the jump form, and the screeder couldn't keep up. A bot should show anyone watching how the job's done well, and still slip now and then. The line hand now fills a spot to level and steps to the next, under the form's edge first, and never pumps onto concrete that's over level (`hose_bot.gd`); the screeder takes whole strips before odd patches. All-bot top floors: concrete used 1.51x the slab down to 1.31x (Riverlight) and 1.39x (Spire). Slips, misreads and tier pace are untouched, so the score stays at 2.
+
 **The number.** Count per pour, by tier: slips that happened, wrong slump calls, spike kills slower than 1 s. Print one line per slab.
 **To reach 3.** The number is in range at every tier, and on a TV playtest nobody says "the bots are better than us".
 

@@ -403,9 +403,13 @@ func _build_starters() -> void:
 	_starters = Node3D.new()
 	_starters.name = "Starters"
 	add_child(_starters)
-	var rust := F.color_mat(Color("9a4a2c"))
+	# (lapped a metre up out of the slab for the next lift's cage, two ties round them, and a yellow
+	# safety cap on every bar: on the deck they're the tallest thing in the steel, so they read from
+	# the TV's camera before and during the pour)
+	var rust := F.color_mat(Color("7d3a22"))
+	var cap := F.mat("yellow")
 	var y0 := fh - 0.3
-	var y1 := fh + 0.8
+	var y1 := fh + 1.1
 	for c in columns(not odd):
 		var at: Vector2 = c[0]
 		var cl := float(c[2])
@@ -414,9 +418,20 @@ func _build_starters() -> void:
 		var bars := maxi(2, int(round(cl / 0.3)) + 1)
 		for i in bars:
 			for sd in [-1.0, 1.0]:
-				var bar := F.box(Vector3(0.03, y1 - y0, 0.03), rust, Vector3(lerpf(-cl * 0.5 + 0.09, cl * 0.5 - 0.09, float(i) / (bars - 1)), (y0 + y1) * 0.5, sd * (ct * 0.5 - 0.08)))
-				bar.transform = here * bar.transform
-				_starters.add_child(bar)
+				var bx := lerpf(-cl * 0.5 + 0.09, cl * 0.5 - 0.09, float(i) / (bars - 1))
+				var bz: float = sd * (ct * 0.5 - 0.08)
+				for part in [F.box(Vector3(0.045, y1 - y0, 0.045), rust, Vector3(bx, (y0 + y1) * 0.5, bz)),
+						F.box(Vector3(0.1, 0.07, 0.1), cap, Vector3(bx, y1 + 0.03, bz))]:
+					part.transform = here * part.transform
+					_starters.add_child(part)
+		for ty in [fh + 0.35, fh + 0.85]:
+			for sd in [-1.0, 1.0]:
+				var lig := F.box(Vector3(cl - 0.14, 0.03, 0.03), rust, Vector3(0, ty, sd * (ct * 0.5 - 0.08)))
+				lig.transform = here * lig.transform
+				_starters.add_child(lig)
+				var end := F.box(Vector3(0.03, 0.03, ct - 0.14), rust, Vector3(sd * (cl * 0.5 - 0.09), ty, 0))
+				end.transform = here * end.transform
+				_starters.add_child(end)
 	F.bake(_starters)
 
 ## Shows the cycle as it stands at `u` (0 nothing yet .. 1 ready for the deck's steel).
