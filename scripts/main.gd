@@ -3145,6 +3145,15 @@ func _spire_level() -> void:
 	if line != null:
 		line.rebuild_riser()
 
+## The height of the other crew's boom head. Theirs is its own rig: it never follows ours while ours
+## is on the crane's hook or lying on the deck on a climb day (it steps up once the day's done).
+func _spire_b_head() -> float:
+	if erect != null and erect.active:
+		return spire_mast_head(k)
+	if mast != null and mast.active and mast.get("from_head") != null:
+		return mast.from_head
+	return spire_mast_head(k - 1) if _mast_due else spire_mast_head(k)
+
 ## Spire's tower crane stood outside the tower on the Ann St side, tied to the building (John's
 ## fly-by photos, about the middle of that face): here it's on the footpath clear of the podium, along
 ## at the Clark Lane end so it isn't between the camera and the slab, its mast a few sections over the deck.
@@ -5507,7 +5516,7 @@ func _process(delta: float) -> void:
 			fb = _filled_ratio()
 		elif phase in ["screed", "cure", "sign", "report"]:
 			fb = 1.0
-		_spire_b.update(delta, fb, phase, level_y(k) if phase == "columns" else deck_top(), spire_mast_head(k) if erect != null and erect.active else head.position.y)
+		_spire_b.update(delta, fb, phase, level_y(k) if phase == "columns" else deck_top(), _spire_b_head())
 	perf.mark("climb")
 	line.update(delta, phase == "pour")
 	if spire:
@@ -8111,7 +8120,10 @@ func _update_boom() -> void:
 	# (the four-arm boom folds an arm at a time: it takes its time over it)
 	_park_f = move_toward(_park_f, climb.park_fold if climb != null else 0.0, dt * (0.2 if zboom != null else 0.6))
 	if _park_s > 0.0 or _park_f > 0.0:
-		yaw_node.rotation.y = lerp_angle(yaw_node.rotation.y, PARK_YAW, ease(_park_s, -1.6))
+		if spire and mast != null and mast.get("parking") == true:
+			yaw_node.rotation.y = mast.park_yaw(yaw_node.rotation.y, ease(_park_s, -1.6))   # (clear of the jump form)
+		else:
+			yaw_node.rotation.y = lerp_angle(yaw_node.rotation.y, PARK_YAW, ease(_park_s, -1.6))
 		var f := ease(_park_f, -1.6)
 		if zboom == null:
 			arm1.rotation.z = lerpf(arm1.rotation.z, PARK_A1, f)
