@@ -29,6 +29,12 @@ MODEL_HALF = 400.0    # the blockout covers the same square
 # 2019 LiDAR products cover a wider box (local metres x0, y0, x1, y1) so the Story Bridge, Howard Smith
 # Wharves and the Kangaroo Point cliffs are in: see prep_lidar.py and reference/sites/spire/lidar/.
 LIDAR_BOX = (-600, -900, 1000, 500)
+REGION = None         # (x0, y0, x1, y1): the tile bake builds the city-wide buildings and trees of one strip at a time
+
+
+def in_region(x, y):
+    r = REGION
+    return r is None or (r[0] <= x < r[2] and r[1] <= y < r[3])
 
 # ---------------------------------------------------------------- Spire itself
 SPIRE = {

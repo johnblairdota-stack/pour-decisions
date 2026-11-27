@@ -178,7 +178,7 @@ def build_trees(col):
     with open(os.path.join(WIDE, "tree_points_wide.csv"), encoding="utf-8") as f:
         for r in csv.DictReader(f):
             x, y, h, g = float(r["x_local"]), float(r["y_local"]), float(r["height_m"]), float(r["ground_ahd"])
-            if FR.on_road(x, y) or h < 4.0:
+            if not L.in_region(x, y) or FR.on_road(x, y) or h < 4.0:
                 continue
             if SB.in_zone(x, y):                          # South Bank plants its own (southbank.py)
                 continue
@@ -246,7 +246,7 @@ def build():
     import cbd_ext as CE
     m = json.load(open(os.path.join(WIDE, "wide.json")))
     recs = json.load(open(os.path.join(WIDE, "buildings_wide.json")))["buildings"]
-    recs = [b for b in recs if not bridge_outline(b)]
+    recs = [b for b in recs if not bridge_outline(b) and L.in_region(*b["tiers"][0]["ring"][0][:2])]
     guessed = guess_roofs(recs)
     global RECS
     RECS = recs

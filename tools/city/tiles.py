@@ -192,10 +192,23 @@ def _split_mesh(ob, np, bpy):
     return out
 
 
-def bake(out_dir, build=True):
+REGION_PAD = 150.0           # a strip builds this much past its edge, so a building on the line is whole in both
+
+
+def _inside(e, n, region):
+    b = tile_box(e, n)
+    cx, cy = (b[0] + b[2]) / 2, (b[1] + b[3]) / 2
+    return region is None or (region[0] <= cx < region[2] and region[1] <= cy < region[3])
+
+
+def bake(out_dir, build=True, region=None, part=None, full_box=None):
+    """Build and cut the city. With `region` (local box, edges may be infinite) only that strip's city-wide
+    buildings and trees are built and only its tiles are saved: bake_strips() runs one process per strip."""
     import bpy
     import numpy as np
     t0 = time.time()
+    if region:
+        L.REGION = (region[0] - REGION_PAD, region[1] - REGION_PAD, region[2] + REGION_PAD, region[3] + REGION_PAD)
     if build:
         import build_all as B
         B.build_all(None, write_meta=False)
@@ -218,6 +231,9 @@ def bake(out_dir, build=True):
             print("tiles: %s kept whole (very large faces)" % ob.name)
             continue
         for (e, n), me in pieces.items():
+            if not _inside(e, n, region):                   # another strip saves this tile
+                bpy.data.meshes.remove(me)
+                continue
             piece = bpy.data.objects.new("%s@%d_%d" % (ob.name, e, n), me)
             piece.hide_render = ob.hide_render
             piece.visible_shadow = ob.visible_shadow
@@ -235,7 +251,9 @@ def bake(out_dir, build=True):
              "collections_hidden": [c.name for c in bpy.data.collections if c.hide_render], "tiles": {}}
     for m in bpy.data.materials:
         m.use_fake_user = True
-    bpy.data.libraries.write(os.path.join(out_dir, "global.blend"), set(glob) | set(bpy.data.materials),
+    first = not part                                        # the first strip also keeps the objects that are not cut up
+    bpy.data.libraries.write(os.path.join(out_dir, "global.blend" if first else "global_%d.blend" % part),
+                             (set(glob) if first else set()) | set(bpy.data.materials),
                              path_remap="ABSOLUTE", fake_user=True, compress=True)
     for (e, n), obs in sorted(tiles.items()):
         name = "%d_%d" % (e, n)
@@ -250,9 +268,16 @@ def bake(out_dir, build=True):
                 me = o.data
                 bpy.data.objects.remove(o)
                 bpy.data.meshes.remove(me)
+    if part is not None:
+        index["part"], index["peak_gb"] = part, round(_peak_gb(), 2)
+        index["seconds"] = round(time.time() - t0)
+        json.dump(index, open(os.path.join(out_dir, "index_part%d.json" % part), "w"), indent=1)
+        print("tiles: strip %d: %d tiles in %d s, peak %.1f GB" % (part, len(index["tiles"]), index["seconds"], index["peak_gb"]), flush=True)
+        if not first:
+            return index
     # ground height sampler for cameras (8 m), so a tile render never needs the builders
     import render_pairs as RP
-    bx = [min(tile_box(*map(int, k.split("_")))[0] for k in index["tiles"]), min(tile_box(*map(int, k.split("_")))[1] for k in index["tiles"]),
+    bx = full_box or [min(tile_box(*map(int, k.split("_")))[0] for k in index["tiles"]), min(tile_box(*map(int, k.split("_")))[1] for k in index["tiles"]),
           max(tile_box(*map(int, k.split("_")))[2] for k in index["tiles"]), max(tile_box(*map(int, k.split("_")))[3] for k in index["tiles"])]
     step = 8.0
     cols_n, rows_n = int((bx[2] - bx[0]) / step) + 1, int((bx[3] - bx[1]) / step) + 1
@@ -267,8 +292,46 @@ def bake(out_dir, build=True):
     np.save(os.path.join(out_dir, "ground_8m.npy"), Z)
     index["ground"] = {"x0": bx[0], "y1": bx[3], "step": step, "rows": rows_n, "cols": cols_n}
     index["seconds"] = round(time.time() - t0)
-    json.dump(index, open(os.path.join(out_dir, "index.json"), "w"), indent=1)
+    json.dump(index, open(os.path.join(out_dir, "index.json" if part is None else "index_part%d.json" % part), "w"), indent=1)
     print("tiles: %d tiles saved to %s in %d s" % (len(index["tiles"]), out_dir, index["seconds"]))
+    return index
+
+
+def _peak_gb():
+    import resource
+    return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1048576.0
+
+
+def bake_strips(out_dir, strip_km=4):
+    """Bake in strips of `strip_km` tile columns, one process each, so memory does not grow with the city:
+    every process builds the centre and the roads, but only its own strip of city-wide buildings and trees."""
+    import subprocess
+    box = json.load(open(os.path.join(L.REF, "wide", "wide.json")))["box_local"]
+    e0, n0 = tile_key(box[0] + 1, box[1] + 1)
+    e1, n1 = tile_key(box[2] - 1, box[3] - 1)
+    full = [tile_box(e0, n0)[0], tile_box(e0, n0)[1], tile_box(e1, n1)[2], tile_box(e1, n1)[3]]
+    cuts = [tile_box(e, n0)[0] for e in range(e0 + strip_km, e1 + 1, strip_km)]
+    edges = [-1e9] + cuts + [1e9]
+    os.makedirs(out_dir, exist_ok=True)
+    t0, parts = time.time(), []
+    for k in range(len(edges) - 1):
+        reg = [edges[k], -1e9, edges[k + 1], 1e9]
+        r = subprocess.run([sys.executable, os.path.abspath(__file__), "bake-part", out_dir, str(k),
+                            json.dumps(reg), json.dumps(full)])
+        if r.returncode:
+            raise SystemExit("tiles: strip %d failed (exit %d)" % (k, r.returncode))
+        parts.append(json.load(open(os.path.join(out_dir, "index_part%d.json" % k))))
+    index = dict(parts[0])
+    index["tiles"] = {}
+    for p in parts:
+        index["tiles"].update(p["tiles"])
+    index["globals"] = ["global.blend"] + ["global_%d.blend" % k for k in range(1, len(parts))]
+    index["strips"] = [{"part": p["part"], "tiles": len(p["tiles"]), "seconds": p["seconds"], "peak_gb": p["peak_gb"]} for p in parts]
+    index["seconds"] = round(time.time() - t0)
+    index["peak_gb"] = max(p["peak_gb"] for p in parts)
+    index.pop("part", None)
+    json.dump(index, open(os.path.join(out_dir, "index.json"), "w"), indent=1)
+    print("tiles: %d tiles in %d strips, %d s, peak %.1f GB" % (len(index["tiles"]), len(parts), index["seconds"], index["peak_gb"]))
     return index
 
 
@@ -306,6 +369,9 @@ def load(out_dir, want):
     for m in list(bpy.data.materials):
         bpy.data.materials.remove(m)
     obs = _append(os.path.join(out_dir, "global.blend"), bpy, materials=True)
+    for g in index.get("globals", [])[1:]:                  # materials only the other strips made
+        with bpy.data.libraries.load(os.path.join(out_dir, g), link=False) as (src, dst):
+            dst.materials = [m for m in src.materials if m not in bpy.data.materials]
     mats = {m.name: m for m in bpy.data.materials}
     tris = 0
     for name, lod in sorted(want.items()):
@@ -349,7 +415,13 @@ def plan(out_dir, pairs, only=None):
 if __name__ == "__main__":
     a = sys.argv[1:]
     if a and a[0] == "bake":
-        bake(os.path.abspath(a[1]))
+        k = next((int(x[6:]) for x in a if x.startswith("strip=")), 4)
+        if k:
+            bake_strips(os.path.abspath(a[1]), k)
+        else:                                               # strip=0: the whole city in one process (needs the memory)
+            bake(os.path.abspath(a[1]))
+    elif a and a[0] == "bake-part":
+        bake(os.path.abspath(a[1]), region=json.loads(a[3]), part=int(a[2]), full_box=json.loads(a[4]))
     elif a and a[0] == "plan":
         only = next((x[5:].split(",") for x in a if x.startswith("only=")), None)
         rows, total, n = plan(os.path.abspath(a[1]), json.load(open(a[2])), only)
