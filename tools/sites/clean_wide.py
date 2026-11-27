@@ -33,6 +33,7 @@ sys.path.insert(0, os.path.join(REPO, "tools", "blender", "spire"))
 sys.path.insert(0, HERE)
 import layout as L  # noqa: E402
 import clean_ext as CE  # noqa: E402
+import lidar_houses as LH  # noqa: E402
 import prep_clean as PC  # noqa: E402
 import river_shape as RS  # noqa: E402
 import roads_wide as RW  # noqa: E402
@@ -223,6 +224,10 @@ def main():
                 tagged.append(el)
         elif el["type"] == "way":
             ways[el["id"]] = el
+    traced_ways, traced_nodes, traced = LH.trace(bld, gfill, cover, ways, nodes)   # roofs the map has no outline for
+    ways.update(traced_ways)
+    nodes.update(traced_nodes)
+    print("lidar outlines", traced)
     have = {b["osm"] for b in json.load(open(os.path.join(L.REF, "ext", "buildings_ext.json")))["buildings"]}
     lim = L.MODEL_HALF + CE.MODEL_PAD
     lx0, ly0, lx1, ly1 = L.LIDAR_BOX
@@ -233,7 +238,7 @@ def main():
 
     cand = {k: w for k, w in ways.items() if k not in have and k != L.SPIRE["osm_way"]}
     out, skipped, built = CE.shape_buildings(cand, nodes, ibox, gfill, dsm_f, cls, cover, already)
-    keep_tags = ("building", "name", "height", "building:levels", "roof:shape", "amenity", "leisure")
+    keep_tags = ("building", "name", "height", "building:levels", "roof:shape", "amenity", "leisure", "outline")
     for b in out:                                           # back to Spire local metres
         for t in b["tiers"]:
             t["ring"] = [(round(x + ox, 2), round(y + oy, 2)) for x, y in t["ring"]]
@@ -244,6 +249,20 @@ def main():
             sp["x"], sp["y"] = round(sp["x"] + ox, 2), round(sp["y"] + oy, 2)
         wt = ways[b["osm"]].get("tags", {})
         b["tags"] = {k: wt[k] for k in keep_tags if k in wt}
+    rj = json.load(open(os.path.join(L.REF, "river", "river.json")))
+    wat = np.frombuffer(gzip.open(os.path.join(L.REF, "river", "water_2m.u8.gz")).read(), "u1").reshape(rj["rows"], rj["cols"]) > 0
+    wb, ws = rj["box_local"], rj["step_m"]
+
+    def on_water(x, y):
+        wc, wr_ = int((x - wb[0]) / ws), int((wb[3] - y) / ws)
+        return 0 <= wr_ < rj["rows"] and 0 <= wc < rj["cols"] and bool(wat[wr_, wc])
+
+    def middle(b):
+        ring = b["tiers"][0]["ring"]
+        return sum(p[0] for p in ring) / len(ring), sum(p[1] for p in ring) / len(ring)
+
+    # a traced outline over the river is a bridge deck, a ferry or a moored boat, not a building
+    out = [b for b in out if not (b["osm"] < 0 and on_water(*middle(b)))]
     for b in out:                                           # the LiDAR could not measure it (over water, new since 2019)
         src = b.get("height_src", "")
         if src.startswith("lidar") or len(b["tiers"]) != 1:
@@ -278,13 +297,9 @@ def main():
     rr, cc = np.nonzero((can > 0) & (can >= m2))
     em = json.load(open(os.path.join(L.REF, "ext", "ext.json")))["box_local"]
     trees, seen = [], set()
-    rj = json.load(open(os.path.join(L.REF, "river", "river.json")))
-    wat = np.frombuffer(gzip.open(os.path.join(L.REF, "river", "water_2m.u8.gz")).read(), "u1").reshape(rj["rows"], rj["cols"]) > 0
-    wb, ws = rj["box_local"], rj["step_m"]
     for r, c in zip(rr.tolist(), cc.tolist()):
         x, y = box[0] + c + 0.5, box[3] - r - 0.5
-        wc, wr_ = int((x - wb[0]) / ws), int((wb[3] - y) / ws)
-        if 0 <= wr_ < rj["rows"] and 0 <= wc < rj["cols"] and wat[wr_, wc]:
+        if on_water(x, y):
             continue                                        # a canopy return over the river: a mast, a crane, a bridge
         if (lx0 <= x <= lx1 and ly0 <= y <= ly1) or (em[0] <= x <= em[2] and em[1] <= y <= em[3]):
             continue
@@ -335,6 +350,7 @@ def main():
         srcs[b["height_src"]] = srcs.get(b["height_src"], 0) + 1
     meta = {"box_local": [round(v, 2) for v in box], "lidar_tiles": len(tiles), "lidar_boxes": lidar_boxes(tiles), "buildings": len(out), "osm_only": len(osm_only),
             "osm_boxes": [[round(v, 1) for v in RS.box_local(RS.AREAS[k])] for k in RW.OSM_AREAS],
+            "lidar_outlines": traced,
             "already_in_scene": built + len(have), "skipped": skipped, "families": fams, "height_sources": srcs,
             "gables": sum(1 for b in out if b["gable"]), "multi_tier": sum(1 for b in out if len(b["tiers"]) > 1),
             "spires": sum(len(b["spires"]) for b in out), "trees": len(trees), "trees_from_aerial": len(trees) - lidar_trees,

@@ -1,5 +1,5 @@
 {
- "note": "Both orders arrived 26 Nov 2026 and are in the model (71 tiles). Kept as the record of what was ordered; add the next ring here.",
+ "note": "Orders 1 to 3 are in the model (96 tiles, a full 12 by 8 km block, 27 Nov 2026). Kept as the record of what was ordered; add the next ring here.",
  "orders": [
   {
    "id": "1-fill",
@@ -38,6 +38,25 @@
     ]
    ],
    "done": "2026-11-26"
+  },
+  {
+   "id": "3-corners",
+   "why": "Square the block off: Ashgrove, Kelvin Grove and Newmarket to the north-west; Norman Park, Morningside and Cannon Hill to the south-east",
+   "boxes": [
+    [
+     498,
+     6964,
+     503,
+     6966
+    ],
+    [
+     505,
+     6958,
+     510,
+     6961
+    ]
+   ],
+   "done": "2026-11-27"
   }
  ]
 }
