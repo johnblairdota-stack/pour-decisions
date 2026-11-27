@@ -28,8 +28,10 @@ const LEAVE_T := 0.6         # s: the film's city gives way to the game's own, o
 const SAME := 0.75          # m: nearer the floor pick's own camera than this, the film ends on it
 const EASE := 0.6           # s of film: it slows to a stop over the last this much (taking twice as long)
 const WIDE := preload("res://shaders/fly_wide.gdshader")
+const DOWN_KNEE := 45.0     # degrees down: steeper than this it is eased towards DOWN_MAX
 const DOWN_MAX := 66.0      # degrees: it never looks down more steeply than this (the wide frames end a little past it)
 const LOOK_BY := 0.85       # of the way from the run in to the stop: by then it is looking at the deck's own floor pick
+const SHOWN := 1.1          # film frames: the picture on the screen is this far ahead of the video's own clock (measured: tools note in `clock`)
 const CREEP := 0.12         # the slowest the film runs before it stops (so it always gets to its frame)
 
 ## The film of a flight ("film" in Flight.TOWERS): {"video", "cams"}.
@@ -109,8 +111,9 @@ static func aim(layer: CanvasLayer, ft: float, stop: float, at: Vector3, focus: 
 	var flat := Vector2(to.x, to.z).length()
 	var lim := deg_to_rad(DOWN_MAX)
 	var pitch := atan2(to.y, flat)
-	if pitch < 0.0:
-		pitch = -lim * tanh(-pitch / lim)
+	var knee := deg_to_rad(DOWN_KNEE)
+	if pitch < -knee:                 # (untouched down to the knee: the turn starts from exactly where the film's own look left off)
+		pitch = -(knee + (lim - knee) * tanh((-pitch - knee) / (lim - knee)))
 	return at + Vector3(to.x, tan(pitch) * flat, to.z)
 
 ## How long the film runs, s.
@@ -146,6 +149,23 @@ static func film_t(t: float, stop: float) -> float:
 	var u := minf(1.0, (t - (stop - EASE)) / (2.0 * EASE))
 	return stop - EASE + EASE * (2.0 * u - u * u)
 
+## The film's time, s, of the picture that is on the screen now: the game's camera is put where the
+## film's was then, so the game's own site sits on the film's. It is read off the video's own clock
+## (which starts a few frames after the flight's and is slowed to a stop by `draw`), not worked out
+## from the flight's: a twentieth of a second out is metres at the speed it comes down. Measured by
+## matching a filmed flight's frames to the film's: the picture shown is the video's clock plus SHOWN
+## frames, give or take half a frame. `gone` or not started yet: the flight's own clock (film_t).
+static func clock(layer: CanvasLayer, t: float, stop: float, gone := false) -> float:
+	var v := layer.get_child(0) as VideoStreamPlayer
+	if gone or not v.is_playing() or v.stream_position <= 0.0:
+		return film_t(t, stop)
+	var c := v.stream_position + SHOWN / float(layer.get_meta("cams")["fps"])
+	return c if stop < 0.0 else minf(c, stop)
+
+## The film's stopped on its frame (`draw`, with a stop).
+static func held(layer: CanvasLayer) -> bool:
+	return (layer.get_child(0) as VideoStreamPlayer).paused
+
 ## Lay the film out for this frame, t s in. `gone`: skipped, the film's off and the live flight runs on.
 ## `stop`: the film's time it stops at (stop_t), with `stay`.
 static func draw(layer: CanvasLayer, t: float, gone: bool, stay := false, stop := -1.0) -> void:
@@ -176,9 +196,11 @@ static func draw(layer: CanvasLayer, t: float, gone: bool, stay := false, stop :
 			if t >= d + 0.3:
 				v.paused = true           # (held on its last frame)
 		elif not v.paused:
-			# (slowed by the same rule the camera under it is, and stopped once its frame is up)
-			var rate := clampf(1.0 - (t - (stop - EASE)) / (2.0 * EASE), CREEP, 1.0)
-			if v.stream_position >= stop + 0.3 / fps:
+			# (slowed evenly over the last EASE s of film, by how much film is left on its own clock, and
+			# stopped once its frame is the one on the screen)
+			var left_t := stop - (v.stream_position + SHOWN / fps)
+			var rate := clampf(sqrt(maxf(0.0, left_t) / EASE), CREEP, 1.0)
+			if left_t <= 0.0:
 				v.paused = true
 			elif not is_equal_approx(v.speed_scale, rate):
 				v.speed_scale = rate

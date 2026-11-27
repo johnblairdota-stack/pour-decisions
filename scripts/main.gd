@@ -2961,10 +2961,11 @@ func _arrive_film(delta: float, fin: Vector3, a: Dictionary) -> void:
 	var t: float = a["t"]
 	TowerHand.uncover(smoothstep(0.0, 0.6, t), 0.03 * t)
 	FlyFilm.draw(_fall_layer, t, a.get("skip", false), same, stop)
-	if t < ft:
-		# (under the film: the same camera, so the live site's already there as the film fades)
+	if (t < ft) if not same else (not FlyFilm.held(_fall_layer) and t < ARRIVE_T):
+		# (under the film: the same camera, so the live site's already there as the film fades. It is
+		# where the film's was for the picture on the screen now, by the video's own clock.)
 		# (and from the end of the run in it looks down onto the deck it's going to stop at: FlyFilm.aim)
-		var film_t := FlyFilm.film_t(t, stop)
+		var film_t := FlyFilm.clock(_fall_layer, t, stop, a.get("skip", false))
 		camera.position = _spire_local(FlyFilm.cam(_fall_layer, film_t)[0])
 		camera.look_at(FlyFilm.aim(_fall_layer, film_t, stop, camera.position, cam_focus, _spire_local), Vector3.UP)
 	elif same:
