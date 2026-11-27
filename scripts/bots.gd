@@ -4,6 +4,8 @@
 ## pump operator kills the pump on a spike and climbs up to fix the line).
 extends Node
 
+const HoseBot := preload("res://scripts/hose_bot.gd")
+
 var game
 var _boom_goal := Vector3.ZERO
 var _boom_goal_t := 0.0
@@ -470,6 +472,9 @@ func _boom(p, delta: float) -> void:
 
 # ------------------------------------------------------------------ hose hand
 
+var hose_bot := HoseBot.new()
+var scr_t := {}          # the screeder bot's seconds in each mode (autotest)
+var _scr_log := 0.0
 var _hose_goal := Vector3.INF
 var stop_t := {}     # (test) s the boom bot held off pumping, by reason
 var _last_dl := Vector3.ZERO
@@ -524,10 +529,11 @@ func _hose(p, delta: float) -> void:
 	if g.ops.wants_bin():
 		tgt = g.ops.bin_world()
 	else:
+		# (hose_bot.gd: fill a spot to level, step to the next, under the form's edge first)
 		_hose_goal_t -= delta
 		if _hose_goal_t <= 0.0 or _hose_goal.x == INF:
-			_hose_goal_t = 0.4
-			_hose_goal = _hose_spot(anchor)
+			_hose_goal_t = 0.2
+			_hose_goal = hose_bot.spot(g, anchor, g.discharge(), 0.2)
 		tgt = _hose_goal
 	# Stand so the nozzle (just in front) is over the spot
 	var here: Vector3 = p.position
@@ -566,30 +572,13 @@ func _hose(p, delta: float) -> void:
 		ok = false
 	if op == null and not pour.on_slab(dl):
 		ok = false        # (nobody on the boom and the hose off the slab: don't pump it over the edge)
+	# (never onto concrete that's already up over level; and a person on the boom gets whistled over
+	# to the next low spot once there's nothing left under the tip)
+	if ok and not hose_bot.may_pump(g, dl):
+		ok = false
+	if op != null and not op.bot and not op.covering:
+		hose_bot.call_boom(g, p, delta)
 	p.ai_action = ok
-
-## The lowest spot within the end hose's reach that the pour plan wants now.
-func _hose_spot(anchor: Vector3) -> Vector3:
-	var g = game
-	var pour = g.pour
-	var best := 1e9
-	# (nothing wanted in reach: stay in the bay, by the anchor)
-	var al: Vector3 = g._pour_local(anchor)
-	var bxx: Vector2 = pour.bay_x(pour.cur_bay)
-	var out := anchor + Vector3(clampf(al.x, bxx.x - bxx.y * 0.5 + 0.4, bxx.x + bxx.y * 0.5 - 0.6) - al.x, 0, 0)
-	for k in 25:
-		# (it works close under the tip: where the boom aims still matters)
-		var r: float = 0.0 if k == 0 else g.HOSE_REACH * (0.22 if k <= 8 else 0.45)
-		var a := TAU * float(k % 8) / 8.0 + (0.4 if k > 16 else 0.0)
-		var q := anchor + Vector3(cos(a), 0, sin(a)) * r
-		var loc: Vector3 = g._pour_local(q)
-		if not pour.good_pour_spot(loc):
-			continue
-		var h: float = pour.height_at(loc)
-		if h < best:
-			best = h
-			out = q
-	return out
 
 # ------------------------------------------------------------------ truck hand and repairs
 
@@ -996,6 +985,13 @@ func _screed_inner(p, delta: float) -> void:
 	local.y = 0.0
 	var hose: Vector3 = g._pour_local(g.discharge())
 	var half_d: float = pour.bd * 0.5 - 0.5
+	if g.autotest:
+		# (where the screeder's time goes, for the autotest's log)
+		scr_t[_scr["mode"]] = float(scr_t.get(_scr["mode"], 0.0)) + delta
+		_scr_log -= delta
+		if _scr_log <= 0.0:
+			_scr_log = 30.0
+			print("[autotest]     screeder: %s | rough %d%%" % [str(scr_t), int(pour.rough_share() * 100.0) if pour.has_method("rough_share") else -1])
 	match _scr["mode"]:
 		"seek":
 			var full: bool = g._filled_ratio() >= 1.0
@@ -1011,12 +1007,21 @@ func _screed_inner(p, delta: float) -> void:
 			var room := _poker_room()
 			var tgt: Vector3 = pour.needs_screed(local, hose, 0.0 if full else 2.4, skip, room, POKER_ROOM + 0.6)
 			if tgt.x == INF:
+				if g.autotest:
+					scr_t["wait"] = float(scr_t.get("wait", 0.0)) + delta
 				# Nothing ready: wait behind the pokers, out from under the boom
 				var wait := Vector3(clampf(hose.x - 4.0, -pour.bw * 0.5 + 1.0, pour.bw * 0.5 - 1.0), 0, clampf(-hose.z * 0.5, -pour.bd * 0.5 + 1.5, pour.bd * 0.5 - 1.5))
 				wait = _on_slab(_out_of_room(wait, room), 1.0)
 				walk(p, pour.position + Vector3(wait.x, 0, wait.z) + Vector3(0, wy - pour.position.y, 0), 0.8)
 				return
 			var strip: float = scr.BOARD - 0.3
+			# Whole strips first, the nearest one with a good run of work on it: that's what covers a
+			# slab. (The oldest patch on its own had the board criss-crossing the deck for odd bits
+			# while full strips sat waiting.)
+			var sx := _best_strip(local, strip, half_d, room, hose, full)
+			if sx > -INF:
+				_scr = _strip_pull(sx, 1.0 if local.z < 0.0 else -1.0, half_d)
+				return
 			var x: float = clampf(roundf((tgt.x + pour.bw * 0.5 - strip * 0.5) / strip) * strip - pour.bw * 0.5 + strip * 0.5, -pour.bw * 0.5 + 1.2, pour.bw * 0.5 - 1.2)
 			var dir := 1.0 if tgt.z < 0.0 else -1.0
 			if pour.round_r > 0.0:
@@ -1044,7 +1049,18 @@ func _screed_inner(p, delta: float) -> void:
 			var stand := _on_slab(tgt2 + n * 0.85, 0.45)
 			_scr["t"] += delta
 			p.ai_action = false
-			if walk(p, pour.position + Vector3(stand.x, wy - pour.position.y, stand.z), 0.25) or _scr["t"] > 7.0 * sqrt(pour.vol_k):
+			# (a patch they can't walk to, behind the core or a box-out: don't stand pushing at it)
+			var was_at: Vector3 = _scr.get("at", local)
+			if local.distance_to(was_at) > 0.25:
+				_scr["at"] = local
+				_scr["still"] = 0.0
+			else:
+				_scr["at"] = was_at
+				_scr["still"] = float(_scr.get("still", 0.0)) + delta
+			var stuck: bool = float(_scr["still"]) > 1.2
+			if stuck:
+				tries = 2   # (and leave it a good while)
+			if walk(p, pour.position + Vector3(stand.x, wy - pour.position.y, stand.z), 0.25) or stuck or _scr["t"] > 7.0 * sqrt(pour.vol_k):
 				_spot_tries[key] = {"n": tries + 1, "at": g.phase_t, "p": tgt2}
 				p.model.rotation.y = atan2(-n.x, -n.z)   # facing the patch
 				_scr = {"mode": "spot_pull", "tgt": tgt2, "n": n, "from": stand, "t": 0.0}
@@ -1119,6 +1135,27 @@ func _screed_inner(p, delta: float) -> void:
 				else:
 					p.ai_action = false
 					_scr = {"mode": "seek", "x": 0.0, "dir": 1.0, "end": 0.0, "t": 0.0}
+
+## The strip (its middle x, pour-local) most worth pulling now: plenty of concrete ready for the
+## board, close to where the screeder stands, not worn out, not starting in a poker's room and not
+## under the hose while the pour's still going. -INF if there's none.
+func _best_strip(local: Vector3, strip: float, half_d: float, room: Array, hose: Vector3, full: bool) -> float:
+	var pour = game.pour
+	var lim: float = (pour.round_r if pour.round_r > 0.0 else pour.bw * 0.5) - 1.2
+	var best := -INF
+	var out := -INF
+	var x := -lim
+	while x <= lim:
+		var work: int = pour.strip_work(x - strip * 0.5, x + strip * 0.5)
+		if work >= 14 and not _strip_worn(x) and (full or absf(x - hose.x) > 2.4):
+			var dir := 1.0 if local.z < 0.0 else -1.0
+			if not _strip_start_in_room(x, dir, half_d, room):
+				var score := float(work) - 4.0 * absf(x - local.x)
+				if score > best:
+					best = score
+					out = x
+		x += strip
+	return out
 
 ## Where the people on the poker are (pour-local), when they're out on the
 ## slab during the pour: the screeder bot leaves them POKER_ROOM.

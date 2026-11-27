@@ -56,6 +56,8 @@ const SpireB := preload("res://scripts/spire_b.gd")
 const SpireInside := preload("res://scripts/spire_inside.gd")
 const SpireScaffold := preload("res://scripts/spire_scaffold.gd")
 const SpireFloorCycle := preload("res://scripts/spire_floor_cycle.gd")
+const SpireBoxOut := preload("res://scripts/spire_boxout.gd")
+const BoomBumpFx := preload("res://scripts/boom_bump_fx.gd")
 const ZBoom := preload("res://scripts/zboom.gd")
 const SpireStreet := preload("res://scripts/spire_street.gd")
 const TowerHand := preload("res://scripts/tower_hand.gd")
@@ -1850,7 +1852,8 @@ func _pen_rail() -> Node3D:
 		var a: Vector3 = e[0]
 		var b: Vector3 = e[1]
 		n.add_child(F.box(Vector3(maxf(0.04, absf(b.x - a.x)), 0.15, maxf(0.04, absf(b.z - a.z))), F.mat("yellow_dark"), (a + b) * 0.5))
-	var sign := F.label3d("PENETRATION · KEEP OUT", 24, Color("d3202f"))
+	n.add_child(SpireBoxOut.build(op, PourScript.SLAB))
+	var sign := F.label3d("PENETRATION · NO POUR", 24, Color("d3202f"))
 	sign.position = Vector3((x0 + x1) * 0.5, 1.2, z0)
 	sign.pixel_size = 0.006
 	n.add_child(sign)
@@ -7515,6 +7518,11 @@ func _draw_hose() -> void:
 			var seg := F.cylinder(0.16, 1.0, F.mat("hose"), Vector3.ZERO, 8)
 			add_child(seg)
 			_hose_segs.append(seg)
+	# (the stiff length hanging off the tip is the same hose with nobody on it: never both at once,
+	# even when the boom's been rebuilt or put back on its column since the hose was picked up)
+	var hang: Node3D = tip.get_node_or_null("Hose")
+	if hang != null and hang.visible:
+		hang.visible = false
 	var a: Vector3 = tip.global_position
 	# (the run ends in the back hand; the last two pieces go through the
 	# front hand and out to the nozzle)
@@ -8025,8 +8033,8 @@ func _rig_bump(delta: float) -> void:
 		var away := Vector3(tip_target.x - hp.x, 0, tip_target.z - hp.z).normalized()
 		tip_target += away * 0.35
 		tip_kick = away * 0.5
-		sfx.hit("clank")
 		var op = _boom_operator()
+		BoomBumpFx.hit(self, Vector3(was.x, maxf(was.y, work_y + 1.5), was.z), away, op)
 		if op != null and not op.bot and not op.covering:
 			op.say("jump form!")
 	tip_pos = rig_clear(tip_pos, head.global_position, l1, l2)[0]
