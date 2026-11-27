@@ -2941,15 +2941,18 @@ func _arrive_film(delta: float, fin: Vector3, a: Dictionary) -> void:
 	var fl := _arrive_fl
 	if _fall_layer == null:
 		_fall_layer = FlyFilm.make(self, fl)
+		FlyFilm.set_wide(_fall_layer, _spire_local)
 		if _spire_world != null:
 			FlyFilm.site(_fall_layer, _spire_world, camera, env)
-	var ft := FlyFilm.dur(_fall_layer)
+	# (the film runs down the tower's face past every deck's floor pick and is stopped on the frame of
+	# the one the crew is up to: the game just fades up over that held frame. Only a floor pick the
+	# film has no frame for is flown on to live as the film fades.)
+	var stop := FlyFilm.stop_t(_fall_layer, fin, _spire_local)
+	var same := stop >= 0.0
+	var ft := FlyFilm.end_t(_fall_layer, stop)
 	var last: Array = FlyFilm.cam(_fall_layer, ft)
 	var from := _spire_local(last[0])
 	var aim := _spire_local(last[1])
-	# (the film ends on the first deck's floor pick. On that deck the game just fades up over its held
-	# last frame; on any other the camera goes on to that deck's own view as it fades.)
-	var same := from.distance_to(fin) < FlyFilm.SAME
 	ARRIVE_T = ft + (FlyFilm.HAND_T if same else FlyFilm.LIVE_T)
 	if _human_a and float(a["t"]) > 0.4:
 		a["skip"] = true                 # (A: the film's dropped and the rest goes by at six times the speed)
@@ -2957,12 +2960,14 @@ func _arrive_film(delta: float, fin: Vector3, a: Dictionary) -> void:
 	a["t"] = minf(float(a["t"]) + dt, ARRIVE_T)
 	var t: float = a["t"]
 	TowerHand.uncover(smoothstep(0.0, 0.6, t), 0.03 * t)
-	FlyFilm.draw(_fall_layer, t, a.get("skip", false), same)
-	if t < ft:
-		# (under the film: the same camera, so the live site's already there as the film fades)
-		var c: Array = FlyFilm.cam(_fall_layer, t)
-		camera.position = _spire_local(c[0])
-		camera.look_at(_spire_local(c[1]), Vector3.UP)
+	FlyFilm.draw(_fall_layer, t, a.get("skip", false), same, stop)
+	if (t < ft) if not same else (not FlyFilm.held(_fall_layer) and t < ARRIVE_T):
+		# (under the film: the same camera, so the live site's already there as the film fades. It is
+		# where the film's was for the picture on the screen now, by the video's own clock.)
+		# (and from the end of the run in it looks down onto the deck it's going to stop at: FlyFilm.aim)
+		var film_t := FlyFilm.clock(_fall_layer, t, stop, a.get("skip", false))
+		camera.position = _spire_local(FlyFilm.cam(_fall_layer, film_t)[0])
+		camera.look_at(FlyFilm.aim(_fall_layer, film_t, stop, camera.position, cam_focus, _spire_local), Vector3.UP)
 	elif same:
 		camera.position = fin
 		camera.look_at(cam_focus, Vector3.UP)
