@@ -115,7 +115,7 @@ def main():
     cov = json.load(open(os.path.join(ROOT, "docs", "city", "coverage.json"))) if os.path.exists(os.path.join(ROOT, "docs", "city", "coverage.json")) else None
     if cov:
         for name, t in cov["tiles"].items():
-            if t["lidar"] and t["buildings"] == 0:
+            if t["lidar"] and t["buildings"] == 0 and name not in known.get("no_buildings_ok", []):
                 errors.append("measured tile %s has no buildings" % name)
             if t["lidar"] and t["trees"] == 0:
                 errors.append("measured tile %s has no trees" % name)

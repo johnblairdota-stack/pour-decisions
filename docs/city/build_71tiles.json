@@ -1,0 +1,123 @@
+{
+ "blender": "4.5.17 LTS",
+ "total_seconds": 273.8,
+ "tris": 34494176,
+ "objects": 1407,
+ "peak_gb": 12.73,
+ "modules": [
+  {
+   "module": "ground",
+   "seconds": 5.1,
+   "rss_gb": 0.52,
+   "tris_added": 1892990
+  },
+  {
+   "module": "streets",
+   "seconds": 9.6,
+   "rss_gb": 0.68,
+   "tris_added": 371012
+  },
+  {
+   "module": "buildings",
+   "seconds": 1.4,
+   "rss_gb": 0.68,
+   "tris_added": 345096
+  },
+  {
+   "module": "spire",
+   "seconds": 0.2,
+   "rss_gb": 0.68,
+   "tris_added": 51322
+  },
+  {
+   "module": "core",
+   "seconds": 0.0,
+   "rss_gb": 0.68,
+   "tris_added": 84
+  },
+  {
+   "module": "landmarks",
+   "seconds": 0.3,
+   "rss_gb": 0.68,
+   "tris_added": 79644
+  },
+  {
+   "module": "cathedral",
+   "seconds": 0.1,
+   "rss_gb": 0.68,
+   "tris_added": 6974
+  },
+  {
+   "module": "hsw",
+   "seconds": 13.1,
+   "rss_gb": 1.33,
+   "tris_added": 6135566
+  },
+  {
+   "module": "trees",
+   "seconds": 41.1,
+   "rss_gb": 2.97,
+   "tris_added": 8364538
+  },
+  {
+   "module": "logistics",
+   "seconds": 0.0,
+   "rss_gb": 2.96,
+   "tris_added": 0
+  },
+  {
+   "module": "site_plant",
+   "seconds": 0.0,
+   "rss_gb": 2.96,
+   "tris_added": 0
+  },
+  {
+   "module": "streetscape",
+   "seconds": 0.6,
+   "rss_gb": 2.96,
+   "tris_added": 40514
+  },
+  {
+   "module": "area_hero",
+   "seconds": 41.2,
+   "rss_gb": 5.76,
+   "tris_added": -777752
+  },
+  {
+   "module": "cbd_ext",
+   "seconds": 15.7,
+   "rss_gb": 6.17,
+   "tris_added": 3907220
+  },
+  {
+   "module": "city_wide",
+   "seconds": 92.5,
+   "rss_gb": 6.83,
+   "tris_added": 9886724
+  },
+  {
+   "module": "far_roads",
+   "seconds": 10.2,
+   "rss_gb": 6.84,
+   "tris_added": 1494936
+  },
+  {
+   "module": "far_paths",
+   "seconds": 9.9,
+   "rss_gb": 6.95,
+   "tris_added": 1307352
+  },
+  {
+   "module": "city_detail",
+   "seconds": 12.9,
+   "rss_gb": 6.91,
+   "tris_added": 556654
+  },
+  {
+   "module": "hero_towers",
+   "seconds": 19.8,
+   "rss_gb": 6.77,
+   "tris_added": 831302
+  }
+ ]
+}

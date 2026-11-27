@@ -1,36 +1,36 @@
 {
  "summary": {
-  "tiles_measured": 32,
-  "km2_measured": 32,
-  "share_of_brisbane_pct": 2.4,
+  "tiles_measured": 71,
+  "km2_measured": 71,
+  "share_of_brisbane_pct": 5.3,
   "tiles_with_heroes": 4,
-  "tiles_map_only": 67,
-  "buildings": 19782,
-  "buildings_measured": 19310,
-  "trees": 101177,
+  "tiles_map_only": 37,
+  "buildings": 32281,
+  "buildings_measured": 30799,
+  "trees": 211298,
   "photo_pairs": 66,
-  "wide_buildings_one_recipe_pct": 93,
+  "wide_buildings_one_recipe_pct": 95,
   "landmarks_hand_built": 10,
   "landmarks_waiting_inside": [
    "City Hall",
    "Roma Street Parkland",
-   "XXXX Brewery",
-   "RNA Showgrounds",
-   "UQ Great Court"
-  ],
-  "landmarks_outside": [
    "Suncorp Stadium",
+   "XXXX Brewery",
    "The Gabba",
+   "RNA Showgrounds",
    "Brisbane Powerhouse",
    "Breakfast Creek Hotel",
    "Portside Wharf (Alcyone)",
    "Riverlight",
-   "Mt Coot-tha lookout",
+   "UQ Great Court",
    "Gateway Bridge"
   ],
+  "landmarks_outside": [
+   "Mt Coot-tha lookout"
+  ],
   "tiles_to_order": {
-   "1-fill": 10,
-   "2-downriver": 29
+   "1-fill": 0,
+   "2-downriver": 0
   }
  },
  "tiles": {
@@ -75,7 +75,7 @@
    "aerial": true,
    "buildings": 326,
    "measured": 319,
-   "trees": 3679,
+   "trees": 3663,
    "heroes": [],
    "pairs": 0,
    "wanted": [],
@@ -83,28 +83,28 @@
    "grade": 2
   },
   "498_6962": {
-   "lidar": false,
+   "lidar": true,
    "aerial": true,
-   "buildings": 0,
-   "measured": 0,
-   "trees": 0,
+   "buildings": 726,
+   "measured": 719,
+   "trees": 3717,
    "heroes": [],
    "pairs": 0,
    "wanted": [],
-   "order": "1-fill",
-   "grade": 1
+   "order": null,
+   "grade": 2
   },
   "498_6963": {
-   "lidar": false,
+   "lidar": true,
    "aerial": true,
-   "buildings": 0,
-   "measured": 0,
-   "trees": 0,
+   "buildings": 25,
+   "measured": 24,
+   "trees": 3844,
    "heroes": [],
    "pairs": 0,
    "wanted": [],
-   "order": "1-fill",
-   "grade": 1
+   "order": null,
+   "grade": 2
   },
   "498_6964": {
    "lidar": false,
@@ -159,7 +159,7 @@
    "aerial": true,
    "buildings": 550,
    "measured": 529,
-   "trees": 2344,
+   "trees": 2323,
    "heroes": [],
    "pairs": 0,
    "wanted": [],
@@ -183,7 +183,7 @@
    "aerial": true,
    "buildings": 1178,
    "measured": 1173,
-   "trees": 4037,
+   "trees": 4018,
    "heroes": [],
    "pairs": 0,
    "wanted": [],
@@ -191,28 +191,28 @@
    "grade": 2
   },
   "499_6962": {
-   "lidar": false,
+   "lidar": true,
    "aerial": true,
-   "buildings": 0,
-   "measured": 0,
-   "trees": 0,
+   "buildings": 1060,
+   "measured": 1057,
+   "trees": 4152,
    "heroes": [],
    "pairs": 0,
    "wanted": [],
-   "order": "1-fill",
-   "grade": 1
+   "order": null,
+   "grade": 2
   },
   "499_6963": {
-   "lidar": false,
+   "lidar": true,
    "aerial": true,
-   "buildings": 0,
-   "measured": 0,
-   "trees": 0,
+   "buildings": 274,
+   "measured": 271,
+   "trees": 3764,
    "heroes": [],
    "pairs": 0,
    "wanted": [],
-   "order": "1-fill",
-   "grade": 1
+   "order": null,
+   "grade": 2
   },
   "499_6964": {
    "lidar": false,
@@ -267,7 +267,7 @@
    "aerial": true,
    "buildings": 1054,
    "measured": 1022,
-   "trees": 2949,
+   "trees": 2933,
    "heroes": [],
    "pairs": 0,
    "wanted": [],
@@ -279,7 +279,7 @@
    "aerial": true,
    "buildings": 781,
    "measured": 756,
-   "trees": 2402,
+   "trees": 2395,
    "heroes": [],
    "pairs": 0,
    "wanted": [],
@@ -289,9 +289,9 @@
   "500_6961": {
    "lidar": true,
    "aerial": true,
-   "buildings": 491,
-   "measured": 482,
-   "trees": 2283,
+   "buildings": 492,
+   "measured": 483,
+   "trees": 2271,
    "heroes": [],
    "pairs": 0,
    "wanted": [
@@ -301,30 +301,30 @@
    "grade": 2
   },
   "500_6962": {
-   "lidar": false,
+   "lidar": true,
    "aerial": true,
-   "buildings": 3,
-   "measured": 0,
-   "trees": 0,
+   "buildings": 1312,
+   "measured": 1301,
+   "trees": 3971,
    "heroes": [],
    "pairs": 0,
    "wanted": [
     "Suncorp Stadium"
    ],
-   "order": "1-fill",
-   "grade": 1
+   "order": null,
+   "grade": 2
   },
   "500_6963": {
-   "lidar": false,
+   "lidar": true,
    "aerial": true,
-   "buildings": 0,
-   "measured": 0,
-   "trees": 0,
+   "buildings": 774,
+   "measured": 771,
+   "trees": 4195,
    "heroes": [],
    "pairs": 0,
    "wanted": [],
-   "order": "1-fill",
-   "grade": 1
+   "order": null,
+   "grade": 2
   },
   "500_6964": {
    "lidar": false,
@@ -367,7 +367,7 @@
    "aerial": true,
    "buildings": 199,
    "measured": 179,
-   "trees": 2103,
+   "trees": 2101,
    "heroes": [],
    "pairs": 0,
    "wanted": [
@@ -381,7 +381,7 @@
    "aerial": true,
    "buildings": 1030,
    "measured": 1013,
-   "trees": 3536,
+   "trees": 3533,
    "heroes": [],
    "pairs": 0,
    "wanted": [],
@@ -405,7 +405,7 @@
    "aerial": true,
    "buildings": 243,
    "measured": 234,
-   "trees": 1789,
+   "trees": 1784,
    "heroes": [],
    "pairs": 0,
    "wanted": [],
@@ -415,9 +415,9 @@
   "501_6962": {
    "lidar": true,
    "aerial": true,
-   "buildings": 718,
-   "measured": 705,
-   "trees": 3244,
+   "buildings": 720,
+   "measured": 708,
+   "trees": 3232,
    "heroes": [],
    "pairs": 0,
    "wanted": [
@@ -431,7 +431,7 @@
    "aerial": true,
    "buildings": 238,
    "measured": 224,
-   "trees": 3029,
+   "trees": 3015,
    "heroes": [],
    "pairs": 0,
    "wanted": [],
@@ -479,7 +479,7 @@
    "aerial": true,
    "buildings": 315,
    "measured": 312,
-   "trees": 2798,
+   "trees": 2782,
    "heroes": [],
    "pairs": 0,
    "wanted": [],
@@ -489,9 +489,9 @@
   "502_6959": {
    "lidar": true,
    "aerial": true,
-   "buildings": 983,
-   "measured": 970,
-   "trees": 3391,
+   "buildings": 986,
+   "measured": 973,
+   "trees": 3383,
    "heroes": [],
    "pairs": 0,
    "wanted": [],
@@ -503,7 +503,7 @@
    "aerial": true,
    "buildings": 211,
    "measured": 179,
-   "trees": 3403,
+   "trees": 3351,
    "heroes": [
     "1 William St",
     "South Bank and BRISBANE sign",
@@ -519,7 +519,7 @@
    "aerial": true,
    "buildings": 455,
    "measured": 438,
-   "trees": 3052,
+   "trees": 3047,
    "heroes": [
     "Brisbane Skytower",
     "Queen's Wharf"
@@ -594,37 +594,37 @@
    "grade": 1
   },
   "503_6958": {
-   "lidar": false,
+   "lidar": true,
    "aerial": true,
-   "buildings": 0,
-   "measured": 0,
-   "trees": 0,
+   "buildings": 514,
+   "measured": 503,
+   "trees": 2794,
    "heroes": [],
    "pairs": 0,
    "wanted": [],
-   "order": "1-fill",
-   "grade": 1
+   "order": null,
+   "grade": 2
   },
   "503_6959": {
-   "lidar": false,
+   "lidar": true,
    "aerial": true,
-   "buildings": 14,
-   "measured": 0,
-   "trees": 0,
+   "buildings": 633,
+   "measured": 625,
+   "trees": 2939,
    "heroes": [],
    "pairs": 0,
    "wanted": [
     "The Gabba"
    ],
-   "order": "1-fill",
-   "grade": 1
+   "order": null,
+   "grade": 2
   },
   "503_6960": {
    "lidar": true,
    "aerial": true,
-   "buildings": 696,
-   "measured": 691,
-   "trees": 2984,
+   "buildings": 702,
+   "measured": 697,
+   "trees": 2971,
    "heroes": [],
    "pairs": 1,
    "wanted": [],
@@ -636,7 +636,7 @@
    "aerial": true,
    "buildings": 195,
    "measured": 174,
-   "trees": 3292,
+   "trees": 3278,
    "heroes": [],
    "pairs": 2,
    "wanted": [],
@@ -665,7 +665,7 @@
    "aerial": true,
    "buildings": 416,
    "measured": 403,
-   "trees": 2836,
+   "trees": 2826,
    "heroes": [],
    "pairs": 0,
    "wanted": [
@@ -675,28 +675,28 @@
    "grade": 2
   },
   "503_6964": {
-   "lidar": false,
+   "lidar": true,
    "aerial": true,
-   "buildings": 0,
-   "measured": 0,
-   "trees": 0,
+   "buildings": 264,
+   "measured": 229,
+   "trees": 2336,
    "heroes": [],
    "pairs": 0,
    "wanted": [],
-   "order": "2-downriver",
-   "grade": 1
+   "order": null,
+   "grade": 2
   },
   "503_6965": {
-   "lidar": false,
+   "lidar": true,
    "aerial": true,
-   "buildings": 0,
-   "measured": 0,
-   "trees": 0,
+   "buildings": 655,
+   "measured": 623,
+   "trees": 2730,
    "heroes": [],
    "pairs": 0,
    "wanted": [],
-   "order": "2-downriver",
-   "grade": 1
+   "order": null,
+   "grade": 2
   },
   "503_6966": {
    "lidar": false,
@@ -711,35 +711,35 @@
    "grade": 1
   },
   "504_6958": {
-   "lidar": false,
+   "lidar": true,
    "aerial": true,
-   "buildings": 0,
-   "measured": 0,
-   "trees": 0,
+   "buildings": 536,
+   "measured": 516,
+   "trees": 3532,
    "heroes": [],
    "pairs": 0,
    "wanted": [],
-   "order": "1-fill",
-   "grade": 1
+   "order": null,
+   "grade": 2
   },
   "504_6959": {
-   "lidar": false,
+   "lidar": true,
    "aerial": true,
-   "buildings": 9,
-   "measured": 0,
-   "trees": 0,
+   "buildings": 519,
+   "measured": 505,
+   "trees": 3742,
    "heroes": [],
    "pairs": 0,
    "wanted": [],
-   "order": "1-fill",
-   "grade": 1
+   "order": null,
+   "grade": 2
   },
   "504_6960": {
    "lidar": true,
    "aerial": true,
-   "buildings": 748,
-   "measured": 739,
-   "trees": 2970,
+   "buildings": 752,
+   "measured": 743,
+   "trees": 2936,
    "heroes": [],
    "pairs": 0,
    "wanted": [],
@@ -749,9 +749,9 @@
   "504_6961": {
    "lidar": true,
    "aerial": true,
-   "buildings": 952,
-   "measured": 932,
-   "trees": 3601,
+   "buildings": 954,
+   "measured": 934,
+   "trees": 3572,
    "heroes": [],
    "pairs": 0,
    "wanted": [],
@@ -763,7 +763,7 @@
    "aerial": true,
    "buildings": 1359,
    "measured": 1350,
-   "trees": 4060,
+   "trees": 4044,
    "heroes": [],
    "pairs": 0,
    "wanted": [],
@@ -775,7 +775,7 @@
    "aerial": true,
    "buildings": 422,
    "measured": 418,
-   "trees": 2704,
+   "trees": 2677,
    "heroes": [],
    "pairs": 0,
    "wanted": [],
@@ -783,30 +783,30 @@
    "grade": 2
   },
   "504_6964": {
-   "lidar": false,
+   "lidar": true,
    "aerial": true,
-   "buildings": 0,
-   "measured": 0,
-   "trees": 0,
+   "buildings": 341,
+   "measured": 327,
+   "trees": 2078,
    "heroes": [],
    "pairs": 0,
    "wanted": [
     "Breakfast Creek Hotel"
    ],
-   "order": "2-downriver",
-   "grade": 1
+   "order": null,
+   "grade": 2
   },
   "504_6965": {
-   "lidar": false,
+   "lidar": true,
    "aerial": true,
-   "buildings": 0,
-   "measured": 0,
-   "trees": 0,
+   "buildings": 666,
+   "measured": 647,
+   "trees": 2685,
    "heroes": [],
    "pairs": 0,
    "wanted": [],
-   "order": "2-downriver",
-   "grade": 1
+   "order": null,
+   "grade": 2
   },
   "504_6966": {
    "lidar": false,
@@ -835,7 +835,7 @@
   "505_6959": {
    "lidar": false,
    "aerial": true,
-   "buildings": 0,
+   "buildings": 14,
    "measured": 0,
    "trees": 0,
    "heroes": [],
@@ -847,7 +847,7 @@
   "505_6960": {
    "lidar": false,
    "aerial": true,
-   "buildings": 2,
+   "buildings": 31,
    "measured": 0,
    "trees": 0,
    "heroes": [],
@@ -857,71 +857,71 @@
    "grade": 1
   },
   "505_6961": {
-   "lidar": false,
+   "lidar": true,
    "aerial": true,
-   "buildings": 4,
-   "measured": 0,
-   "trees": 0,
+   "buildings": 126,
+   "measured": 108,
+   "trees": 2539,
    "heroes": [],
    "pairs": 0,
    "wanted": [
     "Brisbane Powerhouse"
    ],
-   "order": "2-downriver",
-   "grade": 1
+   "order": null,
+   "grade": 2
   },
   "505_6962": {
-   "lidar": false,
+   "lidar": true,
    "aerial": true,
-   "buildings": 2,
-   "measured": 0,
-   "trees": 0,
+   "buildings": 17,
+   "measured": 17,
+   "trees": 2902,
    "heroes": [],
    "pairs": 0,
    "wanted": [],
-   "order": "2-downriver",
-   "grade": 1
+   "order": null,
+   "grade": 2
   },
   "505_6963": {
-   "lidar": false,
+   "lidar": true,
    "aerial": true,
-   "buildings": 0,
-   "measured": 0,
-   "trees": 0,
+   "buildings": 190,
+   "measured": 187,
+   "trees": 2955,
    "heroes": [],
    "pairs": 0,
    "wanted": [],
-   "order": "2-downriver",
-   "grade": 1
+   "order": null,
+   "grade": 2
   },
   "505_6964": {
-   "lidar": false,
+   "lidar": true,
    "aerial": true,
-   "buildings": 0,
-   "measured": 0,
-   "trees": 0,
+   "buildings": 642,
+   "measured": 624,
+   "trees": 2408,
    "heroes": [],
    "pairs": 0,
    "wanted": [],
-   "order": "2-downriver",
-   "grade": 1
+   "order": null,
+   "grade": 2
   },
   "505_6965": {
-   "lidar": false,
+   "lidar": true,
    "aerial": true,
-   "buildings": 0,
-   "measured": 0,
-   "trees": 0,
+   "buildings": 1065,
+   "measured": 1020,
+   "trees": 4226,
    "heroes": [],
    "pairs": 0,
    "wanted": [],
-   "order": "2-downriver",
-   "grade": 1
+   "order": null,
+   "grade": 2
   },
   "505_6966": {
    "lidar": false,
    "aerial": true,
-   "buildings": 0,
+   "buildings": 360,
    "measured": 0,
    "trees": 0,
    "heroes": [],
@@ -967,71 +967,71 @@
    "grade": 1
   },
   "506_6961": {
-   "lidar": false,
+   "lidar": true,
    "aerial": true,
-   "buildings": 0,
-   "measured": 0,
-   "trees": 0,
+   "buildings": 27,
+   "measured": 27,
+   "trees": 3714,
    "heroes": [],
    "pairs": 0,
    "wanted": [],
-   "order": "2-downriver",
-   "grade": 1
+   "order": null,
+   "grade": 2
   },
   "506_6962": {
-   "lidar": false,
+   "lidar": true,
    "aerial": true,
-   "buildings": 0,
-   "measured": 0,
-   "trees": 0,
+   "buildings": 59,
+   "measured": 58,
+   "trees": 3817,
    "heroes": [],
    "pairs": 0,
    "wanted": [],
-   "order": "2-downriver",
-   "grade": 1
+   "order": null,
+   "grade": 2
   },
   "506_6963": {
-   "lidar": false,
+   "lidar": true,
    "aerial": true,
-   "buildings": 0,
-   "measured": 0,
-   "trees": 0,
+   "buildings": 88,
+   "measured": 87,
+   "trees": 3667,
    "heroes": [],
    "pairs": 0,
    "wanted": [],
-   "order": "2-downriver",
-   "grade": 1
+   "order": null,
+   "grade": 2
   },
   "506_6964": {
-   "lidar": false,
+   "lidar": true,
    "aerial": true,
-   "buildings": 0,
-   "measured": 0,
-   "trees": 0,
+   "buildings": 111,
+   "measured": 108,
+   "trees": 1759,
    "heroes": [],
    "pairs": 0,
    "wanted": [
     "Portside Wharf (Alcyone)"
    ],
-   "order": "2-downriver",
-   "grade": 1
+   "order": null,
+   "grade": 2
   },
   "506_6965": {
-   "lidar": false,
+   "lidar": true,
    "aerial": true,
-   "buildings": 0,
-   "measured": 0,
-   "trees": 0,
+   "buildings": 323,
+   "measured": 318,
+   "trees": 3342,
    "heroes": [],
    "pairs": 0,
    "wanted": [],
-   "order": "2-downriver",
-   "grade": 1
+   "order": null,
+   "grade": 2
   },
   "506_6966": {
    "lidar": false,
    "aerial": true,
-   "buildings": 0,
+   "buildings": 232,
    "measured": 0,
    "trees": 0,
    "heroes": [],
@@ -1077,69 +1077,69 @@
    "grade": 1
   },
   "507_6961": {
-   "lidar": false,
+   "lidar": true,
    "aerial": true,
-   "buildings": 0,
-   "measured": 0,
-   "trees": 0,
+   "buildings": 142,
+   "measured": 130,
+   "trees": 3352,
    "heroes": [],
    "pairs": 0,
    "wanted": [],
-   "order": "2-downriver",
-   "grade": 1
+   "order": null,
+   "grade": 2
   },
   "507_6962": {
-   "lidar": false,
+   "lidar": true,
    "aerial": true,
-   "buildings": 0,
-   "measured": 0,
-   "trees": 0,
+   "buildings": 54,
+   "measured": 53,
+   "trees": 2808,
    "heroes": [],
    "pairs": 0,
    "wanted": [],
-   "order": "2-downriver",
-   "grade": 1
+   "order": null,
+   "grade": 2
   },
   "507_6963": {
-   "lidar": false,
+   "lidar": true,
    "aerial": true,
-   "buildings": 0,
-   "measured": 0,
-   "trees": 0,
+   "buildings": 37,
+   "measured": 37,
+   "trees": 1757,
    "heroes": [],
    "pairs": 0,
    "wanted": [],
-   "order": "2-downriver",
-   "grade": 1
+   "order": null,
+   "grade": 2
   },
   "507_6964": {
-   "lidar": false,
+   "lidar": true,
    "aerial": true,
-   "buildings": 0,
-   "measured": 0,
-   "trees": 0,
+   "buildings": 133,
+   "measured": 112,
+   "trees": 950,
    "heroes": [],
    "pairs": 0,
    "wanted": [],
-   "order": "2-downriver",
-   "grade": 1
+   "order": null,
+   "grade": 2
   },
   "507_6965": {
-   "lidar": false,
+   "lidar": true,
    "aerial": true,
-   "buildings": 0,
-   "measured": 0,
-   "trees": 0,
+   "buildings": 54,
+   "measured": 37,
+   "trees": 2391,
    "heroes": [],
    "pairs": 0,
    "wanted": [],
-   "order": "2-downriver",
-   "grade": 1
+   "order": null,
+   "grade": 2
   },
   "507_6966": {
    "lidar": false,
    "aerial": true,
-   "buildings": 0,
+   "buildings": 47,
    "measured": 0,
    "trees": 0,
    "heroes": [],
@@ -1185,56 +1185,80 @@
    "grade": 1
   },
   "508_6961": {
-   "lidar": false,
+   "lidar": true,
    "aerial": true,
-   "buildings": 0,
-   "measured": 0,
-   "trees": 0,
+   "buildings": 81,
+   "measured": 80,
+   "trees": 3427,
    "heroes": [],
    "pairs": 0,
    "wanted": [],
-   "order": "2-downriver",
-   "grade": 1
+   "order": null,
+   "grade": 2
   },
   "508_6962": {
-   "lidar": false,
+   "lidar": true,
    "aerial": true,
-   "buildings": 0,
-   "measured": 0,
-   "trees": 0,
+   "buildings": 34,
+   "measured": 29,
+   "trees": 2821,
    "heroes": [],
    "pairs": 0,
    "wanted": [],
-   "order": "2-downriver",
-   "grade": 1
+   "order": null,
+   "grade": 2
   },
   "508_6963": {
-   "lidar": false,
+   "lidar": true,
    "aerial": true,
-   "buildings": 0,
-   "measured": 0,
-   "trees": 0,
+   "buildings": 28,
+   "measured": 21,
+   "trees": 1174,
    "heroes": [],
    "pairs": 0,
    "wanted": [],
-   "order": "2-downriver",
-   "grade": 1
+   "order": null,
+   "grade": 2
   },
   "508_6964": {
-   "lidar": false,
+   "lidar": true,
    "aerial": true,
-   "buildings": 0,
-   "measured": 0,
-   "trees": 0,
+   "buildings": 43,
+   "measured": 38,
+   "trees": 1512,
    "heroes": [],
    "pairs": 0,
    "wanted": [
     "Riverlight"
    ],
-   "order": "2-downriver",
-   "grade": 1
+   "order": null,
+   "grade": 2
   },
   "508_6965": {
+   "lidar": true,
+   "aerial": true,
+   "buildings": 114,
+   "measured": 107,
+   "trees": 1889,
+   "heroes": [],
+   "pairs": 0,
+   "wanted": [],
+   "order": null,
+   "grade": 2
+  },
+  "508_6966": {
+   "lidar": false,
+   "aerial": true,
+   "buildings": 9,
+   "measured": 0,
+   "trees": 0,
+   "heroes": [],
+   "pairs": 0,
+   "wanted": [],
+   "order": null,
+   "grade": 1
+  },
+  "509_6958": {
    "lidar": false,
    "aerial": true,
    "buildings": 0,
@@ -1243,10 +1267,22 @@
    "heroes": [],
    "pairs": 0,
    "wanted": [],
-   "order": "2-downriver",
+   "order": null,
    "grade": 1
   },
-  "508_6966": {
+  "509_6959": {
+   "lidar": false,
+   "aerial": true,
+   "buildings": 0,
+   "measured": 0,
+   "trees": 0,
+   "heroes": [],
+   "pairs": 0,
+   "wanted": [],
+   "order": null,
+   "grade": 1
+  },
+  "509_6960": {
    "lidar": false,
    "aerial": true,
    "buildings": 0,
@@ -1259,66 +1295,78 @@
    "grade": 1
   },
   "509_6961": {
-   "lidar": false,
-   "aerial": false,
-   "buildings": 0,
-   "measured": 0,
-   "trees": 0,
+   "lidar": true,
+   "aerial": true,
+   "buildings": 81,
+   "measured": 80,
+   "trees": 2862,
    "heroes": [],
    "pairs": 0,
    "wanted": [],
-   "order": "2-downriver",
-   "grade": 0
+   "order": null,
+   "grade": 2
   },
   "509_6962": {
-   "lidar": false,
-   "aerial": false,
+   "lidar": true,
+   "aerial": true,
    "buildings": 0,
    "measured": 0,
-   "trees": 0,
+   "trees": 3203,
    "heroes": [],
    "pairs": 0,
    "wanted": [],
-   "order": "2-downriver",
-   "grade": 0
+   "order": null,
+   "grade": 2
   },
   "509_6963": {
-   "lidar": false,
-   "aerial": false,
-   "buildings": 0,
-   "measured": 0,
-   "trees": 0,
+   "lidar": true,
+   "aerial": true,
+   "buildings": 29,
+   "measured": 29,
+   "trees": 2040,
    "heroes": [],
    "pairs": 0,
    "wanted": [],
-   "order": "2-downriver",
-   "grade": 0
+   "order": null,
+   "grade": 2
   },
   "509_6964": {
-   "lidar": false,
-   "aerial": false,
-   "buildings": 0,
-   "measured": 0,
-   "trees": 0,
+   "lidar": true,
+   "aerial": true,
+   "buildings": 9,
+   "measured": 9,
+   "trees": 630,
    "heroes": [],
    "pairs": 0,
    "wanted": [
     "Gateway Bridge"
    ],
-   "order": "2-downriver",
-   "grade": 0
+   "order": null,
+   "grade": 2
   },
   "509_6965": {
+   "lidar": true,
+   "aerial": true,
+   "buildings": 36,
+   "measured": 36,
+   "trees": 1848,
+   "heroes": [],
+   "pairs": 0,
+   "wanted": [],
+   "order": null,
+   "grade": 2
+  },
+  "509_6966": {
    "lidar": false,
-   "aerial": false,
+   "aerial": true,
    "buildings": 0,
    "measured": 0,
    "trees": 0,
    "heroes": [],
    "pairs": 0,
    "wanted": [],
-   "order": "2-downriver",
-   "grade": 0
+   "order": null,
+   "grade": 1
   }
  }
 }

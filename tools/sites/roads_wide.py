@@ -2,7 +2,7 @@
 
     python3 tools/sites/roads_wide.py <PourDecisions-sites>/data
 
-Input: <data>/{cbd,westend}/osm/osm_all.json.gz (OSM, CBD + inner suburbs, merged) and <data>/cbd/elvis/grid2019 (LiDAR DSM).
+Input: <data>/<each of OSM_AREAS>/osm/osm_all.json.gz (OSM, CBD + inner suburbs, merged) and <data>/cbd/elvis/grid2019 (LiDAR DSM).
 Box: reference/sites/spire/river/river.json (river_shape.py). Writes reference/sites/spire/roads/roads.json:
 
     ways     [{id, kind, cls, name, width, lanes, oneway, bridge, layer, pts: [[x, y], ...] (local, every <= 4 m),
@@ -26,7 +26,8 @@ sys.path.insert(0, os.path.join(REPO, "tools", "blender", "spire"))
 import layout as L  # noqa: E402
 
 OUT = os.path.join(L.REF, "roads")
-OSM_AREAS = ("cbd", "westend")                              # fetch_sites.py areas whose extracts are merged
+OSM_AREAS = ("cbd", "westend", "portside", "paddington", "gabba", "downriver_n", "downriver_s",
+             "northwest", "southeast")   # fetch_sites.py areas whose extracts are merged
 
 
 def load_osm(data):

@@ -2,7 +2,7 @@
 
     python3 tools/sites/paths_wide.py <PourDecisions-sites>/data
 
-Input: <data>/{cbd,westend}/osm/osm_all.json.gz (the same extracts roads_wide.py reads). Writes
+Input: <data>/<every area in roads_wide.OSM_AREAS>/osm/osm_all.json.gz (the same extracts roads_wide.py reads). Writes
 reference/sites/spire/roads/paths.json:
 
     ways   [{id, cls, name, width, pts: [[x, y], ...] (local, every <= 4 m)}]

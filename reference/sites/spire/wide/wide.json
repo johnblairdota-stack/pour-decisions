@@ -2,21 +2,21 @@
  "box_local": [
   -5046.57,
   -4279.05,
-  1953.43,
-  1720.95
+  6953.43,
+  3720.95
  ],
- "lidar_tiles": 32,
+ "lidar_tiles": 71,
  "lidar_boxes": [
   [
    -5046.57,
    -4279.05,
-   -46.57,
+   1953.43,
    -3279.05
   ],
   [
    -5046.57,
    -3279.05,
-   -46.57,
+   1953.43,
    -2279.05
   ],
   [
@@ -28,24 +28,36 @@
   [
    -5046.57,
    -1279.05,
-   1953.43,
+   6953.43,
    -279.05
   ],
   [
-   -2046.57,
+   -5046.57,
    -279.05,
-   1953.43,
+   6953.43,
    720.95
   ],
   [
-   -2046.57,
+   -5046.57,
    720.95,
-   1953.43,
+   6953.43,
    1720.95
+  ],
+  [
+   -46.57,
+   1720.95,
+   6953.43,
+   2720.95
+  ],
+  [
+   -46.57,
+   2720.95,
+   6953.43,
+   3720.95
   ]
  ],
- "buildings": 18438,
- "osm_only": 35,
+ "buildings": 30937,
+ "osm_only": 693,
  "osm_boxes": [
   [
    -2256.3,
@@ -58,33 +70,63 @@
    -4206.9,
    -280.1,
    -329.9
+  ],
+  [
+   2289.4,
+   1107.2,
+   5453.6,
+   4210.5
+  ],
+  [
+   -4986.4,
+   -219.2,
+   -2106.8,
+   1660.6
+  ],
+  [
+   13.4,
+   -4219.8,
+   1893.8,
+   -2338.4
+  ],
+  [
+   13.9,
+   1777.4,
+   6893.3,
+   3664.1
+  ],
+  [
+   2013.8,
+   -1222.2,
+   6893.6,
+   1664.1
   ]
  ],
  "already_in_scene": 995,
- "skipped": 791,
+ "skipped": 68,
  "families": {
-  "brick": 17136,
-  "concrete": 986,
-  "heritage": 143,
-  "glass": 173
+  "brick": 29323,
+  "concrete": 1219,
+  "heritage": 199,
+  "glass": 196
  },
  "height_sources": {
-  "lidar 2019": 18009,
-  "default (no tag)": 278,
-  "osm levels x 3.2 m": 121,
-  "osm height": 3,
-  "usual height for the OSM type (no LiDAR yet)": 27
+  "lidar 2019": 29498,
+  "usual height for the OSM type (not measured)": 582,
+  "osm levels x 3.2 m": 149,
+  "osm height": 23,
+  "usual height for the OSM type (no LiDAR yet)": 685
  },
- "gables": 545,
- "multi_tier": 1198,
- "spires": 905,
- "trees": 87633,
+ "gables": 933,
+ "multi_tier": 1719,
+ "spires": 1356,
+ "trees": 197754,
  "trees_from_aerial": 0,
  "features": {
-  "traffic_signals": 917,
-  "street_lamps": 206,
-  "motorway_junctions": 19,
-  "areas": 1830
+  "traffic_signals": 1311,
+  "street_lamps": 1440,
+  "motorway_junctions": 42,
+  "areas": 2540
  },
  "credit": "2019 LiDAR (c) State of Queensland CC BY 4.0; OSM (c) OpenStreetMap contributors ODbL"
 }

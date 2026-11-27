@@ -71,9 +71,30 @@ First results (26 Nov 2026, same pictures to within render noise):
 | still_riverside_expressway | not timed | 26 s, 2.6 GB |
 | sa_aerial_ne_dusk (looks down on the centre) | not timed | 95 s, 9.6 GB |
 
+After the model grew to 71 tiles (26 Nov 2026): the whole city builds in 274 s into 34.5 million triangles
+and peaks at 12.7 GB ([build_71tiles.json](build_71tiles.json)), the bake takes 8 minutes and writes 129 tiles,
+and new views from the air render like this:
+
+| View | Tiles loaded | Time | Render memory |
+| --- | --- | --- | --- |
+| Hamilton Reach, low over the river | 28 | 49 s | 0.6 GB |
+| Riverlight from the air | 18 | 42 s | under 1 GB |
+| The Gabba from the air | 75 | 184 s | 2.5 GB |
+| The whole river from 2.6 km up | 99 | 284 s | 2.6 GB |
+
+Most of the time in the wide views is loading about 10,000 separate objects, not rendering. Joining each
+tile's pieces into a few objects per material is the next speed-up.
+
+**Bake in strips (27 Nov 2026).** `tiles.py bake <dir>` now runs one process per strip of 4 tile columns
+(`strip=N` to change, `strip=0` for the old single process). Every process builds the centre and the roads but
+only its own strip of city-wide buildings and trees, plus 150 m past its edge, and saves only its own tiles. On
+the 71-tile model: peak memory 12.7 GB down to 8.9 GB, the same 129 tiles, and renders that match the
+single-process bake pixel for pixel. The bake takes 14 minutes instead of 8, because each strip rebuilds the
+centre. Memory no longer grows with the width of the city, so more tiles can be added.
+
 Still to do for step 2 of the plan: the centre tile (503_6962) holds a third of the city's triangles, so views
-of it stay heavy until it gets lighter middle-distance versions; and the bake still builds the whole city in
-one go (9.6 GB), so the builders need to run per tile before the model can grow much past today's area.
+of it stay heavy until it gets lighter middle-distance versions; strips away from the centre should skip the
+centre build; and each tile loads as hundreds of separate objects, which is most of the wait in wide views.
 
 ## What is where
 
@@ -96,7 +117,10 @@ one go (9.6 GB), so the builders need to run per tile before the model can grow 
    render loads only what its camera sees. Done when the whole model builds under 8 GB, a single view starts
    rendering in under 2 minutes, and adding a tile changes no other tile.
 3. Grow along the river: LiDAR order 1 (fill the holes: Suncorp, Milton, the Gabba), then order 2 (down the
-   river to Riverlight). Done at 71 measured tiles with Riverlight inside.
+   river to Riverlight). Done at 71 measured tiles with Riverlight inside. **Reached 26 Nov 2026**: both
+   orders are in (39 tiles), the river is traced to Hamilton, 32,281 buildings and 211,298 trees. The raw
+   LiDAR and the map data for every area are kept in the project files (`lidar-2019/`). The build now peaks at
+   12.7 GB of the cloud machine's 15, which is why the bake now runs in strips (see Rendering from tiles).
 4. Observed detail: fitted roof shapes, aerial roof colour per building, walls from street-level photos. Done
    when under 30 % of centre-tile buildings are on a generic recipe (93 % city-wide today).
 5. Landmarks as a list, in the order a local would miss them: City Hall, Suncorp Stadium, the Gabba,

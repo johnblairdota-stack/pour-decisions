@@ -78,6 +78,33 @@ AREAS = {
         "box": (152.9870, -27.5010, 153.0280, -27.4660),
         "sites": [],
     },
+    # The 39 LiDAR tiles ordered 26 Nov 2026 (docs/city/METHOD.md step 3). Boxes sit 60 m inside the 1 km
+    # tile squares so the dem layer fetches exactly those tiles. No sites: --skip=geocode,commons
+    "paddington": {   # tiles E498-500 x N6962-6963: Paddington, Milton, Suncorp Stadium
+        "box": (152.98037, -27.46500, 153.00951, -27.44803),
+        "sites": [],
+    },
+    "gabba": {        # tiles E503-504 x N6958-6959: Woolloongabba, the Gabba
+        "box": (153.03098, -27.50111, 153.05001, -27.48413),
+        "sites": [],
+    },
+    "downriver_n": {  # tiles E503-509 x N6964-6965: Newstead, Hamilton, Portside, Riverlight
+        "box": (153.03097, -27.44694, 153.10057, -27.42994),
+        "sites": [],
+    },
+    # Ordered 27 Nov 2026: the two corners that make the model one 12 x 8 km block
+    "northwest": {    # tiles E498-502 x N6964-6965: Ashgrove, Newmarket, Kelvin Grove, Herston, Wilston
+        "box": (152.98037, -27.44694, 153.02975, -27.42994),
+        "sites": [],
+    },
+    "southeast": {    # tiles E505-509 x N6958-6960: Coorparoo, Camp Hill, Norman Park, Morningside south
+        "box": (153.05122, -27.50111, 153.10059, -27.47510),
+        "sites": [],
+    },
+    "downriver_s": {  # tiles E505-509 x N6961-6963: New Farm, Teneriffe, Bulimba
+        "box": (153.05122, -27.47402, 153.10059, -27.44799),
+        "sites": [],
+    },
 }
 
 COUNCIL = [
@@ -367,7 +394,8 @@ def layer_aerial(area, a, out):
     x1, y1 = to_merc(e, n)
     for label, lock in (("newest", None),):
         p = os.path.join(d, "area_%s_wide.jpg" % label)
-        size = (4000, int(4000 * (y1 - y0) / (x1 - x0)))
+        k = min(4000.0 / (x1 - x0), 2000.0 / (y1 - y0))   # the service allows 4096 px wide, 2048 px high
+        size = (int((x1 - x0) * k), int((y1 - y0) * k))
         ok = arc_export(AERIAL, (x0, y0, x1, y1), size, p, fmt="jpg", lock=lock)
         log("  aerial wide %s %s" % (label, "ok" if ok else "FAILED"))
     save_json(os.path.join(d, "README.json"), {

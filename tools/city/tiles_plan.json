@@ -1,9 +1,43 @@
 {
- "note": "LiDAR tiles to order next from ELVIS (Brisbane 2019 project), as [E_km, N_km] of each tile's south-west corner on the MGA56 grid. Order 1 fills the holes in today's block; order 2 follows the river down to Riverlight.",
+ "note": "Both orders arrived 26 Nov 2026 and are in the model (71 tiles). Kept as the record of what was ordered; add the next ring here.",
  "orders": [
-  {"id": "1-fill", "why": "Fill the holes: Paddington, Milton and Suncorp Stadium to the west; Woolloongabba and the Gabba to the south",
-   "boxes": [[498, 6962, 501, 6964], [503, 6958, 505, 6960]]},
-  {"id": "2-downriver", "why": "Down the river to Riverlight: Newstead, Teneriffe, New Farm, Bulimba, Hamilton, Portside",
-   "boxes": [[503, 6964, 510, 6966], [505, 6961, 510, 6964]]}
+  {
+   "id": "1-fill",
+   "why": "Fill the holes: Paddington, Milton and Suncorp Stadium to the west; Woolloongabba and the Gabba to the south",
+   "boxes": [
+    [
+     498,
+     6962,
+     501,
+     6964
+    ],
+    [
+     503,
+     6958,
+     505,
+     6960
+    ]
+   ],
+   "done": "2026-11-26"
+  },
+  {
+   "id": "2-downriver",
+   "why": "Down the river to Riverlight: Newstead, Teneriffe, New Farm, Bulimba, Hamilton, Portside",
+   "boxes": [
+    [
+     503,
+     6964,
+     510,
+     6966
+    ],
+    [
+     505,
+     6961,
+     510,
+     6964
+    ]
+   ],
+   "done": "2026-11-26"
+  }
  ]
 }
