@@ -39,7 +39,9 @@ AREAS = {"cbd": (153.0080, -27.4870, 153.0520, -27.4500),          # fetch_sites
          "paddington": (152.98037, -27.46500, 153.00951, -27.44803),
          "gabba": (153.03098, -27.50111, 153.05001, -27.48413),
          "downriver_n": (153.03097, -27.44694, 153.10057, -27.42994),
-         "downriver_s": (153.05122, -27.47402, 153.10059, -27.44799)}
+         "downriver_s": (153.05122, -27.47402, 153.10059, -27.44799),
+         "northwest": (152.98037, -27.44694, 153.02975, -27.42994),
+         "southeast": (153.05122, -27.50111, 153.10059, -27.47510)}
 MUD = {"westend": (93, 85, 67)}                             # that aerial's river is brown flood water, not dark
 STEP = 2.0
 OUT = os.path.join(L.REF, "river")
@@ -132,7 +134,10 @@ def main():
     have = np.zeros((H, W), bool)
     muddy = np.zeros((H, W), bool)                          # pixels from an aerial flown with the river in flood
     for area, box in AREAS.items():
-        im = np.asarray(Image.open(os.path.join(data, area, "aerial", "area_newest_wide.jpg")).convert("RGB"))
+        jpg = os.path.join(data, area, "aerial", "area_newest_wide.jpg")
+        if not os.path.exists(jpg):                         # an area listed before its data is fetched
+            continue
+        im = np.asarray(Image.open(jpg).convert("RGB"))
         h, w = im.shape[:2]
         mx0, my0 = L.to_merc(box[0], box[1])
         mx1, my1 = L.to_merc(box[2], box[3])

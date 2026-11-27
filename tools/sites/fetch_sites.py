@@ -92,6 +92,15 @@ AREAS = {
         "box": (153.03097, -27.44694, 153.10057, -27.42994),
         "sites": [],
     },
+    # Ordered 27 Nov 2026: the two corners that make the model one 12 x 8 km block
+    "northwest": {    # tiles E498-502 x N6964-6965: Ashgrove, Newmarket, Kelvin Grove, Herston, Wilston
+        "box": (152.98037, -27.44694, 153.02975, -27.42994),
+        "sites": [],
+    },
+    "southeast": {    # tiles E505-509 x N6958-6960: Coorparoo, Camp Hill, Norman Park, Morningside south
+        "box": (153.05122, -27.50111, 153.10059, -27.47510),
+        "sites": [],
+    },
     "downriver_s": {  # tiles E505-509 x N6961-6963: New Farm, Teneriffe, Bulimba
         "box": (153.05122, -27.47402, 153.10059, -27.44799),
         "sites": [],

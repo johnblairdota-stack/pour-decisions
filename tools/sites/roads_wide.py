@@ -26,7 +26,8 @@ sys.path.insert(0, os.path.join(REPO, "tools", "blender", "spire"))
 import layout as L  # noqa: E402
 
 OUT = os.path.join(L.REF, "roads")
-OSM_AREAS = ("cbd", "westend", "portside", "paddington", "gabba", "downriver_n", "downriver_s")   # fetch_sites.py areas whose extracts are merged
+OSM_AREAS = ("cbd", "westend", "portside", "paddington", "gabba", "downriver_n", "downriver_s",
+             "northwest", "southeast")   # fetch_sites.py areas whose extracts are merged
 
 
 def load_osm(data):
