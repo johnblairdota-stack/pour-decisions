@@ -32,6 +32,7 @@ const LineScript := preload("res://scripts/line.gd")
 const SpireSite := preload("res://scripts/spire_site.gd")
 const UI := preload("res://scripts/ui.gd")
 const Trades := preload("res://scripts/trades.gd")
+const ClimbPhone := preload("res://scripts/climb_phone.gd")
 
 const PIPES := 5
 const HOIST_V := 0.32       # m/s the crane lifts the column
@@ -170,8 +171,8 @@ func start() -> void:
 	var lines: Array = []
 	for role in ["boom", "pump", "poker", "hose", "line", "screed"]:
 		if g.crew.crew.get(role) != null:
-			lines.append("%s · %s" % [who_text(role), CLIMB_JOB[role]])
-	g.hud.job_intro("CLIMB DAY · WHO DOES WHAT", "\n".join(lines), UI.GOLD, 14.0)
+			lines.append(ClimbPhone.roll_line(g, role, "spire"))
+	g.hud.job_intro("CLIMB DAY · WHO'S WHERE", "\n".join(lines) + ClimbPhone.TV_FOOT, UI.GOLD, 8.0)
 
 func _place_column() -> void:
 	var g = game
@@ -1113,10 +1114,36 @@ func next_role() -> String:
 			return STEP_ROLE[STEP_ORDER[n]]
 	return ""
 
-## Over each person: it's their turn and where to go, or who everyone's waiting on (and "you're next").
-func _draw_who(j: Dictionary) -> void:
+## Whose turn it is, said to person `p`: [text, is it theirs]. Over their head on the TV, and on their phone.
+func turn_text(p, j: Dictionary) -> Array:
 	var now := String(STEP_ROLE.get(step, ""))
 	var nxt := next_role()
+	var text := ""
+	var mine: bool = p.role == now      # (theirs even while the leading hand's covering them)
+	if mine:
+		if j.is_empty():
+			text = ""
+		elif _at(p, j):
+			text = ""
+		elif String(j["zone"]) == "ladder":
+			var up: bool = float(j["y"]) > p.position.y
+			text = "YOUR TURN\n%s THE LADDER" % ("UP" if up else "DOWN")
+		elif String(j["zone"]) == "ground":
+			text = "YOUR TURN\nDOWN TO THE HAUL ROPE"
+		else:
+			text = "YOUR TURN\nOFF THE LADDER: USE THE REMOTE"
+	else:
+		var on := "THE CRANE'S MOVE" if now == "" else "WAITING ON %s" % who_text(now).get_slice(" · ", 0)
+		if p.role == nxt:
+			text = "%s\nYOU'RE NEXT" % on
+		elif not STEP_ROLE.values().has(p.role):
+			text = "%s\nNO JOB TODAY · STAND CLEAR" % on
+		else:
+			text = on
+	return [text, mine]
+
+## Over each person: it's their turn and where to go, or who everyone's waiting on (and "you're next").
+func _draw_who(j: Dictionary) -> void:
 	for p in game.crew.humans():
 		var l: Label3D = _who.get(p)
 		if l == null or not is_instance_valid(l):
@@ -1124,28 +1151,9 @@ func _draw_who(j: Dictionary) -> void:
 			l.no_depth_test = true
 			add_child(l)
 			_who[p] = l
-		var text := ""
-		var mine: bool = p.role == now and not p.covering
-		if mine:
-			if j.is_empty():
-				text = ""
-			elif _at(p, j):
-				text = ""
-			elif String(j["zone"]) == "ladder":
-				var up: bool = float(j["y"]) > p.position.y
-				text = "YOUR TURN\n%s THE LADDER" % ("UP" if up else "DOWN")
-			elif String(j["zone"]) == "ground":
-				text = "YOUR TURN\nDOWN TO THE HAUL ROPE"
-			else:
-				text = "YOUR TURN\nOFF THE LADDER: USE THE REMOTE"
-		else:
-			var on := "THE CRANE'S MOVE" if now == "" else "WAITING ON %s" % who_text(now).get_slice(" · ", 0)
-			if p.role == nxt:
-				text = "%s\nYOU'RE NEXT" % on
-			elif not STEP_ROLE.values().has(p.role):
-				text = "%s\nNO JOB TODAY · STAND CLEAR" % on
-			else:
-				text = on
+		var tt := turn_text(p, j)
+		var text := String(tt[0])
+		var mine: bool = tt[1]
 		l.visible = text != ""
 		l.text = text
 		l.modulate = Color("ffc72c") if mine else Color("e9e4d6")

@@ -41,6 +41,7 @@ const Wallet := preload("res://scripts/wallet.gd")
 const CashArt := preload("res://scripts/cash_art.gd")
 const Trades := preload("res://scripts/trades.gd")
 const MastClimb := preload("res://scripts/mast_climb.gd")
+const ClimbPhone := preload("res://scripts/climb_phone.gd")
 const ClimbHats := preload("res://scripts/climb_hats.gd")
 const UtePreview := preload("res://scripts/ute_preview.gd")
 ## Phones with the wallet shop's turning ute at once (each is a small
@@ -585,12 +586,18 @@ func _send_state(c: Dictionary) -> void:
 		"go": game.where_to(p) if game.has_method("where_to") and scr == "play" else "",
 		"brief": game.brief_hold() if game.has_method("brief_hold") and scr == "play" else -1.0,
 		"boom": p.busy == "boom" and scr == "play"}
+	# A Spire crane day: their own step by step, and whose turn it is (climb_phone.gd)
+	var cday: Dictionary = ClimbPhone.state(game, p) if scr == "play" else {}
 	if not p.cues.is_empty():
 		var cu: Array = p.cues[0]
 		now["btn"] = cu[0]
 		now["verb"] = str(cu[1])
-		if not climb_day:
+		if not climb_day and cday.is_empty():
 			now["i"] = UI.step_for(p.role, cu[0], str(cu[1]))
+	if not cday.is_empty():
+		now["climb"] = true
+		now["i"] = int(cday["i"])
+		now["go"] = String(cday["go"])
 	_json(c, "now", now)
 	# The truck hand's docket: the paper in their hand, big, whenever a
 	# truck's at the bay (line.phone_docket)
@@ -765,9 +772,16 @@ func card(role: String, who = null) -> Dictionary:
 		# (a climb day: today's trade and seat, not the pour-day hat)
 		var tr := Trades.climb_trade(role, kind)
 		var does := String(MastClimb.CLIMB_JOB.get(role, "")) if kind == "spire" else String(UI.ROLE_CLIMB.get(role, "")).trim_prefix("Climb days: ")
+		if kind in ["pen", "erect"] and game.get("erect") != null:
+			does = String((game.erect.JOBS_PEN if kind == "pen" else game.erect.JOBS).get(role, does))
+		var mine: Dictionary = ClimbPhone.state(game, who) if who != null else {}
+		if not mine.is_empty():
+			return {"t": "card", "role": role, "icon": tr if tr in ["rigger", "dogger", "crane"] else role, "name": Trades.climb_full(role, kind),
+				"trade": Trades.trade_name(tr) if tr != "" else "", "col": (Trades.COL[tr] as Color).to_html(false) if Trades.COL.has(tr) else UI.ROLE.get(role, Color.WHITE).to_html(false),
+				"goal": does.left(1).to_upper() + does.substr(1), "steps": mine["steps"], "watch": "", "climb": "", "climbsteps": []}
 		return {"t": "card", "role": role, "icon": tr if tr in ["rigger", "dogger", "crane"] else role, "name": Trades.climb_full(role, kind),
 			"trade": Trades.trade_name(tr) if tr != "" else "", "col": (Trades.COL[tr] as Color).to_html(false) if Trades.COL.has(tr) else UI.ROLE.get(role, Color.WHITE).to_html(false),
-			"goal": does.capitalize() if does != "" else jc.get("goal", ""), "steps": UI.how(role, "climb") if kind == "lattice" else [], "watch": "",
+			"goal": (does.left(1).to_upper() + does.substr(1)) if does != "" else jc.get("goal", ""), "steps": UI.how(role, "climb") if kind == "lattice" else [], "watch": "",
 			"climb": "", "climbsteps": []}
 	return {"t": "card", "role": role, "name": UI.job_full(role), "trade": UI.trade(role), "col": UI.ROLE.get(role, Color.WHITE).to_html(false),
 		"goal": jc.get("goal", ""), "steps": UI.how(role), "watch": jc.get("watch", ""),
