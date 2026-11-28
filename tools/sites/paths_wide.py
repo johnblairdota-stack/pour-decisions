@@ -3,13 +3,13 @@
     python3 tools/sites/paths_wide.py <PourDecisions-sites>/data
 
 Input: <data>/<every area in roads_wide.OSM_AREAS>/osm/osm_all.json.gz (the same extracts roads_wide.py reads). Writes
-reference/sites/spire/roads/paths.json:
+reference/sites/spire/roads/paths.json.gz:
 
     ways   [{id, cls, name, width, pts: [[x, y], ...] (local, every <= 4 m)}]
     areas  [{id, cls, name, ring: [[x, y], ...]}]   paved squares and malls (area=yes)
 
 cls: sidewalk (footway=sidewalk), crossing, island (footway=traffic_island), footway (park and link paths),
-cycleway, pedestrian (malls and promenades), steps. Bridges are roads.json's (roads_wide.py); tunnels, arcades
+cycleway, pedestrian (malls and promenades), steps. Bridges are roads.json.gz's (roads_wide.py); tunnels, arcades
 and upper levels are left out. far_paths.py builds them outside the Spire LiDAR box (streets.py covers inside).
 """
 import json
@@ -68,7 +68,7 @@ def main():
         ways.append({"id": w["id"], "cls": cls, "name": t.get("name", ""), "width": round(wd, 1),
                      "pts": [[round(x, 2), round(y, 2)] for x, y in densify(pts)]})
     os.makedirs(OUT, exist_ok=True)
-    with open(os.path.join(OUT, "paths.json"), "w") as f:
+    with L.wopen(os.path.join(OUT, "paths.json.gz")) as f:
         json.dump({"note": "tools/sites/paths_wide.py: OSM ground paths over the river box", "box_local": rv["box_local"],
                    "ways": ways, "areas": areas}, f, separators=(",", ":"))
     print(counts, "ways", len(ways), "areas", len(areas), "points", sum(len(w["pts"]) for w in ways))

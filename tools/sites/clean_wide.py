@@ -8,10 +8,10 @@ facade family) over every OSM building in <data>/cbd/osm/osm_all.json.gz that th
 (buildings_clean.json inside the +-700 m square, ext/buildings_ext.json). Writes reference/sites/spire/wide/:
 
     wide.json             box, counts, sources
-    buildings_wide.json   buildings_clean-format records + tags (building, name, height, levels, roof:shape);
+    buildings_wide.json.gz   buildings_clean-format records + tags (building, name, height, levels, roof:shape);
                           outside the LiDAR (wide.json osm_boxes, e.g. West End) the OSM footprint at OSM's
                           own height on the QldDem ground, until those LiDAR tiles are ordered
-    tree_points_wide.csv  LiDAR tree tops (9 m local maxima of the canopy) outside LIDAR_BOX and the ext box;
+    tree_points_wide.csv.gz  LiDAR tree tops (9 m local maxima of the canopy) outside LIDAR_BOX and the ext box;
                           outside the LiDAR, dark green 16 m cells of the aerial at a usual height
     features.json         OSM traffic signals, street lamps, motorway junctions (nodes) and parks, pitches,
                           car parks, stadiums (rings), local metres
@@ -183,6 +183,94 @@ def aerial_trees(data, recs, covered, zone):
     return out
 
 
+BLOCK = 2000         # m: the mosaic is shaped in blocks this size, four at a time, so memory stays flat as it grows
+PAD = 300            # m of neighbouring data around a block (a building is shaped by the block its middle is in)
+COVER_CELL = 50
+_G = {}              # what main() shares with the block workers
+
+
+def block(job):
+    """Buildings (map outlines and traced ones) and tree tops whose middle is in one block of the mosaic.
+    job: the block in mosaic metres (x east from the west edge, y north from the south edge)."""
+    bx0, by0, bx1, by1 = job
+    G = _G
+    px0, py0, px1, py1 = max(0, bx0 - PAD), max(0, by0 - PAD), min(G["W"], bx1 + PAD), min(G["H"], by1 + PAD)
+    w, h = px1 - px0, py1 - py0
+    dsm, gnd, bld, veg = (np.full((h, w), np.nan, "f4") for _ in range(4))
+    cover = np.zeros((h, w), bool)
+    for g, d, tx0, ty0 in G["tiles"]:
+        ty1 = ty0 + g["H"]
+        ix0, ix1, iy0, iy1 = max(px0, tx0), min(px1, tx0 + g["W"]), max(py0, ty0), min(py1, ty1)
+        if ix0 >= ix1 or iy0 >= iy1:
+            continue
+        src = (slice(ty1 - iy1, ty1 - iy0), slice(ix0 - tx0, ix1 - tx0))
+        dst = (slice(py1 - iy1, py1 - iy0), slice(ix0 - px0, ix1 - px0))
+        for arr, nm in ((dsm, "dsm"), (gnd, "gnd"), (bld, "bld"), (veg, "veg")):
+            arr[dst] = np.memmap(os.path.join(d, nm + ".f32"), "<f4", "r", shape=(g["H"], g["W"]))[src]
+        cover[dst] = True
+    core = (slice(py1 - by1, py1 - by0), slice(bx0 - px0, bx1 - px0))
+    none = ([], [], 0, 0, {})
+    if not cover[core].any() or np.isnan(gnd).all():
+        return none
+    gfill = fill_nan(gnd)
+    cls = np.where(~np.isnan(bld), 3, np.where(~np.isnan(veg), 2, np.where(~np.isnan(gnd), 1, 0))).astype("u1")
+    dsm_f = np.where(np.isnan(dsm), gfill, dsm)
+
+    bb = G["bbox"]
+    near = (bb[:, 2] > px0) & (bb[:, 0] < px1) & (bb[:, 3] > py0) & (bb[:, 1] < py1) if len(bb) else []
+    ways = {int(k): G["ways"][int(k)] for k in G["bids"][near]}
+    nodes = {n: (G["nodes"][n][0] - px0, G["nodes"][n][1] - py0) for wy in ways.values() for n in wy["nodes"] if n in G["nodes"]}
+    traced_ways, traced_nodes, st = LH.trace(bld, gfill, cover, ways, nodes, core)     # roofs the map has no outline for
+    ways.update(traced_ways)
+    nodes.update(traced_nodes)
+    ox, oy = G["ox"] + px0, G["oy"] + py0                    # this block's corner in Spire local metres
+    lim = L.MODEL_HALF + CE.MODEL_PAD
+    lx0, ly0, lx1, ly1 = L.LIDAR_BOX
+    built = [0]
+
+    def already(cx, cy):
+        if not (bx0 <= cx + px0 < bx1 and by0 <= cy + py0 < by1):
+            return True                                     # the neighbouring block shapes it
+        x, y = cx + ox, cy + oy
+        if lx0 + 5 < x < lx1 - 5 and ly0 + 5 < y < ly1 - 5 and abs(x) <= lim and abs(y) <= lim:
+            built[0] += 1
+            return True
+        return False
+
+    cand = {k: wy for k, wy in ways.items() if k not in G["have"] and k != L.SPIRE["osm_way"]}
+    out, skipped, _ = CE.shape_buildings(cand, nodes, (0, 0, w, h), gfill, dsm_f, cls, cover, already)
+    for b in out:                                           # back to Spire local metres
+        for t in b["tiers"]:
+            t["ring"] = [(round(x + ox, 2), round(y + oy, 2)) for x, y in t["ring"]]
+        if b["gable"]:
+            b["gable"]["cx"] = round(b["gable"]["cx"] + ox, 2)
+            b["gable"]["cy"] = round(b["gable"]["cy"] + oy, 2)
+        for sp in b["spires"]:
+            sp["x"], sp["y"] = round(sp["x"] + ox, 2), round(sp["y"] + oy, 2)
+        wt = ways[b["osm"]].get("tags", {})
+        b["tags"] = {k: wt[k] for k in G["keep_tags"] if k in wt}
+
+    # tree tops: 9 m local maxima of the canopy height
+    can = np.where(np.isnan(veg), 0, veg - gfill)
+    can = np.where((can > 3.0) & (can < 45.0), can, 0).astype("f4")
+    k = 4
+    mx = can.copy()
+    for d in range(1, k + 1):                               # separable max filter
+        mx[:, d:] = np.maximum(mx[:, d:], can[:, :-d])
+        mx[:, :-d] = np.maximum(mx[:, :-d], can[:, d:])
+    m2 = mx.copy()
+    for d in range(1, k + 1):
+        m2[d:, :] = np.maximum(m2[d:, :], mx[:-d, :])
+        m2[:-d, :] = np.maximum(m2[:-d, :], mx[d:, :])
+    top = (can > 0) & (can >= m2)
+    keep = np.zeros_like(top)
+    keep[core] = top[core]
+    rr, cc = np.nonzero(keep)
+    trees = [(round(ox + c + 0.5, 1), round(oy + h - r - 0.5, 1), round(float(can[r, c]), 1), round(float(gfill[r, c]), 2))
+             for r, c in zip(rr.tolist(), cc.tolist())]
+    return out, trees, skipped, built[0], st
+
+
 def main():
     data = sys.argv[1]
     gdir = os.path.join(data, "cbd", "elvis", "grid2019")
@@ -195,24 +283,13 @@ def main():
     N1 = max(g["Y1"] for g, _ in tiles)
     N0 = min(g["Y1"] - g["H"] for g, _ in tiles)
     W, H = E1 - E0, N1 - N0
-    dsm = np.full((H, W), np.nan, "f4")
-    gnd = np.full((H, W), np.nan, "f4")
-    bld = np.full((H, W), np.nan, "f4")
-    veg = np.full((H, W), np.nan, "f4")
-    cover = np.zeros((H, W), bool)
-    for g, d in tiles:
-        r0, c0 = N1 - g["Y1"], g["X0"] - E0
-        sl = (slice(r0, r0 + g["H"]), slice(c0, c0 + g["W"]))
-        for arr, nm in ((dsm, "dsm"), (gnd, "gnd"), (bld, "bld"), (veg, "veg")):
-            arr[sl] = np.fromfile(os.path.join(d, nm + ".f32"), "<f4").reshape(g["H"], g["W"])
-        cover[sl] = True
     # the mosaic is on whole MGA metres; local = MGA - origin, so the box has a fractional corner
     box = (E0 - L.ORIGIN_MGA56[0], N0 - L.ORIGIN_MGA56[1], E1 - L.ORIGIN_MGA56[0], N1 - L.ORIGIN_MGA56[1])
-    ibox = (0, 0, W, H)                                     # shape_buildings works in whole cells: shift the rings
     ox, oy = box[0], box[1]
-    gfill = fill_nan(gnd)
-    cls = np.where(~np.isnan(bld), 3, np.where(~np.isnan(veg), 2, np.where(~np.isnan(gnd), 1, 0))).astype("u1")
-    dsm_f = np.where(np.isnan(dsm), gfill, dsm)
+    cover = np.zeros((-(-H // COVER_CELL), -(-W // COVER_CELL)), bool)     # which 50 m cells a tile covers
+    for g, _ in tiles:
+        c0, r0 = (g["X0"] - E0) // COVER_CELL, (N1 - g["Y1"]) // COVER_CELL
+        cover[r0:r0 + g["H"] // COVER_CELL, c0:c0 + g["W"] // COVER_CELL] = True
 
     raw = RW.load_osm(data)
     nodes, ways, tagged = {}, {}, []
@@ -224,31 +301,38 @@ def main():
                 tagged.append(el)
         elif el["type"] == "way":
             ways[el["id"]] = el
-    traced_ways, traced_nodes, traced = LH.trace(bld, gfill, cover, ways, nodes)   # roofs the map has no outline for
-    ways.update(traced_ways)
-    nodes.update(traced_nodes)
-    print("lidar outlines", traced)
+    del raw
     have = {b["osm"] for b in json.load(open(os.path.join(L.REF, "ext", "buildings_ext.json")))["buildings"]}
-    lim = L.MODEL_HALF + CE.MODEL_PAD
-    lx0, ly0, lx1, ly1 = L.LIDAR_BOX
-
-    def already(cx, cy):
-        x, y = cx + ox, cy + oy
-        return lx0 + 5 < x < lx1 - 5 and ly0 + 5 < y < ly1 - 5 and abs(x) <= lim and abs(y) <= lim
-
-    cand = {k: w for k, w in ways.items() if k not in have and k != L.SPIRE["osm_way"]}
-    out, skipped, built = CE.shape_buildings(cand, nodes, ibox, gfill, dsm_f, cls, cover, already)
     keep_tags = ("building", "name", "height", "building:levels", "roof:shape", "amenity", "leisure", "outline")
-    for b in out:                                           # back to Spire local metres
-        for t in b["tiers"]:
-            t["ring"] = [(round(x + ox, 2), round(y + oy, 2)) for x, y in t["ring"]]
-        if b["gable"]:
-            b["gable"]["cx"] = round(b["gable"]["cx"] + ox, 2)
-            b["gable"]["cy"] = round(b["gable"]["cy"] + oy, 2)
-        for sp in b["spires"]:
-            sp["x"], sp["y"] = round(sp["x"] + ox, 2), round(sp["y"] + oy, 2)
-        wt = ways[b["osm"]].get("tags", {})
-        b["tags"] = {k: wt[k] for k in keep_tags if k in wt}
+    bids, bbox = [], []                                     # every map building and the box around it (mosaic metres)
+    for k, w in ways.items():
+        if "building" not in w.get("tags", {}):
+            continue
+        pts = [nodes[n] for n in w["nodes"] if n in nodes]
+        if len(pts) >= 3:
+            bids.append(k)
+            bbox.append((min(p[0] for p in pts), min(p[1] for p in pts), max(p[0] for p in pts), max(p[1] for p in pts)))
+    _G.update(tiles=[(g, d, g["X0"] - E0, g["Y1"] - g["H"] - N0) for g, d in tiles], W=W, H=H, ox=ox, oy=oy, ways=ways,
+              nodes=nodes, have=have, keep_tags=keep_tags, bids=np.array(bids), bbox=np.array(bbox, "f4"))
+    jobs = [(x, y, min(x + BLOCK, W), min(y + BLOCK, H)) for y in range(0, H, BLOCK) for x in range(0, W, BLOCK)]
+    import multiprocessing as mp
+    out, raw_trees, skipped, built, next_id = [], [], 0, 0, LH.FIRST_ID
+    traced = {"roof_ha": 0.0, "unmapped_roof_ha": 0.0, "traced_roof_ha": 0.0, "traced_buildings": 0}
+    with mp.get_context("fork").Pool(min(4, os.cpu_count() or 1)) as pool:      # the workers share the map by fork
+        for i, (recs, tr, sk, bu, st) in enumerate(pool.imap(block, jobs)):
+            for b in recs:
+                if b["osm"] < 0:                            # traced outlines are numbered per block: renumber
+                    b["osm"], next_id = next_id, next_id - 1
+            out += recs
+            raw_trees += tr
+            skipped, built = skipped + sk, built + bu
+            for k in st:
+                traced[k] = round(traced[k] + st[k], 1)
+            print("block %d of %d: %d buildings, %d tree tops" % (i + 1, len(jobs), len(out), len(raw_trees)), flush=True)
+    _G.clear()
+    print("lidar outlines", traced)
+    lx0, ly0, lx1, ly1 = L.LIDAR_BOX
+    cand = {k: w for k, w in ways.items() if k not in have and k != L.SPIRE["osm_way"]}
     rj = json.load(open(os.path.join(L.REF, "river", "river.json")))
     wat = np.frombuffer(gzip.open(os.path.join(L.REF, "river", "water_2m.u8.gz")).read(), "u1").reshape(rj["rows"], rj["cols"]) > 0
     wb, ws = rj["box_local"], rj["step_m"]
@@ -263,6 +347,9 @@ def main():
 
     # a traced outline over the river is a bridge deck, a ferry or a moored boat, not a building
     out = [b for b in out if not (b["osm"] < 0 and on_water(*middle(b)))]
+    # ... and one that measures lower than a roof can be (a tank, a stack of pallets, a clipped tree) is not one either
+    out = [b for b in out if not (b["osm"] < 0 and max(t["top_ahd"] for t in b["tiers"]) - b["base_ahd"] < LH.MIN_HEIGHT)]
+    traced["traced_buildings"] = sum(1 for b in out if b["osm"] < 0)
     for b in out:                                           # the LiDAR could not measure it (over water, new since 2019)
         src = b.get("height_src", "")
         if src.startswith("lidar") or len(b["tiers"]) != 1:
@@ -273,32 +360,20 @@ def main():
             b["height_src"] = "usual height for the OSM type (not measured)"
 
     def covered(x, y):                                      # inside a LiDAR tile (the mosaic need not be a rectangle)
-        c, r = int(x - box[0]), int(box[3] - y)
-        return 0 <= r < H and 0 <= c < W and bool(cover[r, c])
+        c, r = int((x - box[0]) // COVER_CELL), int((box[3] - y) // COVER_CELL)
+        return 0 <= r < cover.shape[0] and 0 <= c < cover.shape[1] and bool(cover[r, c])
 
     osm_only = osm_buildings(data, cand, nodes, ox, oy, covered, keep_tags)
     out += osm_only
     os.makedirs(OUT, exist_ok=True)
-    json.dump({"note": "Every OSM building over the 2019 LiDAR download (tools/sites/clean_wide.py), Spire local metres.",
-               "buildings": out}, open(os.path.join(OUT, "buildings_wide.json"), "w"), separators=(",", ":"))
+    with L.wopen(os.path.join(OUT, "buildings_wide.json.gz")) as f:
+        json.dump({"note": "Every OSM building over the 2019 LiDAR download (tools/sites/clean_wide.py), Spire local metres.",
+                   "buildings": out}, f, separators=(",", ":"))
 
-    # ---- tree tops: 9 m local maxima of the canopy height, outside the areas that already have trees
-    can = np.where(np.isnan(veg), 0, veg - gfill)
-    can = np.where((can > 3.0) & (can < 45.0), can, 0).astype("f4")
-    k = 4
-    mx = can.copy()
-    for d in range(1, k + 1):                               # separable max filter
-        mx[:, d:] = np.maximum(mx[:, d:], can[:, :-d])
-        mx[:, :-d] = np.maximum(mx[:, :-d], can[:, d:])
-    m2 = mx.copy()
-    for d in range(1, k + 1):
-        m2[d:, :] = np.maximum(m2[d:, :], mx[:-d, :])
-        m2[:-d, :] = np.maximum(m2[:-d, :], mx[d:, :])
-    rr, cc = np.nonzero((can > 0) & (can >= m2))
+    # ---- tree tops (block() found them): outside the areas that already have trees, one per 6 m cell
     em = json.load(open(os.path.join(L.REF, "ext", "ext.json")))["box_local"]
     trees, seen = [], set()
-    for r, c in zip(rr.tolist(), cc.tolist()):
-        x, y = box[0] + c + 0.5, box[3] - r - 0.5
+    for x, y, hgt, gz in raw_trees:
         if on_water(x, y):
             continue                                        # a canopy return over the river: a mast, a crane, a bridge
         if (lx0 <= x <= lx1 and ly0 <= y <= ly1) or (em[0] <= x <= em[2] and em[1] <= y <= em[3]):
@@ -307,10 +382,10 @@ def main():
         if key in seen:
             continue
         seen.add(key)
-        trees.append((round(x, 1), round(y, 1), round(float(can[r, c]), 1), round(float(gfill[r, c]), 2)))
+        trees.append((x, y, hgt, gz))
     lidar_trees = len(trees)
     trees += aerial_trees(data, out, covered, RS.box_local(RS.AREAS["westend"]))
-    with open(os.path.join(OUT, "tree_points_wide.csv"), "w", newline="", encoding="utf-8") as f:
+    with L.wopen(os.path.join(OUT, "tree_points_wide.csv.gz")) as f:
         wr = csv.writer(f)
         wr.writerow(["x_local", "y_local", "height_m", "ground_ahd"])
         wr.writerows(trees)

@@ -78,17 +78,21 @@ def _pieces(xs, ys, depth=0):
     return _pieces(xs[a], ys[a], depth + 1) + _pieces(xs[~a], ys[~a], depth + 1)
 
 
-def trace(bld, gnd, cover, ways, nodes):
+def trace(bld, gnd, cover, ways, nodes, core=None):
     """bld/gnd/cover: the 1 m mosaic (rows north to south). ways/nodes: the map, nodes in mosaic metres
-    (x east from the west edge, y north from the south edge). Returns (new_ways, new_nodes, stats)."""
+    (x east from the west edge, y north from the south edge). core: (row slice, column slice); when the mosaic
+    is one padded block of a bigger one, only outlines whose middle is inside it are returned and counted.
+    Returns (new_ways, new_nodes, stats)."""
     h, w = bld.shape
     roof = ~np.isnan(bld) & cover & ((bld - gnd) >= MIN_HEIGHT)
-    roof_cells = int(roof.sum())
+    if core is None:
+        core = (slice(0, h), slice(0, w))
+    roof_cells = int(roof[core].sum())
     free = roof & ~_map_mask(ways, nodes, (h, w))
     free = ndimage.binary_opening(free, np.ones((3, 3), bool))
     lab, n = ndimage.label(free)
     new_ways, new_nodes, nid, wid = {}, {}, FIRST_ID, FIRST_ID
-    kept_cells = 0
+    kept = np.zeros((h, w), bool)
     for i, sl in enumerate(ndimage.find_objects(lab), 1):
         m = lab[sl] == i
         if m.sum() < MIN_AREA:
@@ -97,6 +101,9 @@ def trace(bld, gnd, cover, ways, nodes):
         xs = cc + sl[1].start + 0.5
         ys = h - (rr + sl[0].start) - 0.5
         for corners in _pieces(xs, ys):
+            mx, my = sum(c[0] for c in corners) / 4, sum(c[1] for c in corners) / 4
+            if not (core[1].start <= mx < core[1].stop and core[0].start <= h - my < core[0].stop):
+                continue                                    # the neighbouring block traces it
             side = sorted((np.hypot(corners[1][0] - corners[0][0], corners[1][1] - corners[0][1]),
                            np.hypot(corners[2][0] - corners[1][0], corners[2][1] - corners[1][1])))
             if side[0] < MIN_SIDE:
@@ -110,6 +117,6 @@ def trace(bld, gnd, cover, ways, nodes):
             new_ways[wid] = {"type": "way", "id": wid, "nodes": ids + ids[:1],
                              "tags": {"building": kind, "outline": "lidar 2019"}}
             wid -= 1
-        kept_cells += int(m.sum())
-    return new_ways, new_nodes, {"roof_ha": round(roof_cells / 1e4, 1), "unmapped_roof_ha": round(int(free.sum()) / 1e4, 1),
-                                 "traced_roof_ha": round(kept_cells / 1e4, 1), "traced_buildings": len(new_ways)}
+        kept[sl] |= m
+    return new_ways, new_nodes, {"roof_ha": round(roof_cells / 1e4, 1), "unmapped_roof_ha": round(int(free[core].sum()) / 1e4, 1),
+                                 "traced_roof_ha": round(int(kept[core].sum()) / 1e4, 1), "traced_buildings": len(new_ways)}

@@ -175,7 +175,7 @@ def build_trees(col):
     import southbank as SB
     trunks, crowns = C.MeshBuf(), C.MeshBuf()
     n = 0
-    with open(os.path.join(WIDE, "tree_points_wide.csv"), encoding="utf-8") as f:
+    with L.ropen(os.path.join(WIDE, "tree_points_wide.csv.gz")) as f:
         for r in csv.DictReader(f):
             x, y, h, g = float(r["x_local"]), float(r["y_local"]), float(r["height_m"]), float(r["ground_ahd"])
             if not L.in_region(x, y) or FR.on_road(x, y) or h < 4.0:
@@ -222,7 +222,7 @@ def bridge_outline(b):
         return False
     if _BRIDGE_PTS is None:
         W = FR.Water()
-        named = [w for w in json.load(open(FR.ROADS))["ways"] if w["bridge"] and w["name"] in FR.RIVER_SPANS]
+        named = [w for w in json.load(L.ropen(FR.ROADS))["ways"] if w["bridge"] and w["name"] in FR.RIVER_SPANS]
         _BRIDGE_PTS = (W, [(p[0], p[1]) for w in named for p in w["pts"] if W.at(p[0], p[1])],
                        [(p[0], p[1]) for w in named for p in w["pts"]])
     W, pts, line = _BRIDGE_PTS
@@ -245,7 +245,7 @@ def build():
         return {"module": "city_wide", "objects": [], "note": "skipped (game export, stage build or no data)"}
     import cbd_ext as CE
     m = json.load(open(os.path.join(WIDE, "wide.json")))
-    recs = json.load(open(os.path.join(WIDE, "buildings_wide.json")))["buildings"]
+    recs = json.load(L.ropen(os.path.join(WIDE, "buildings_wide.json.gz")))["buildings"]
     recs = [b for b in recs if not bridge_outline(b) and L.in_region(*b["tiers"][0]["ring"][0][:2])]
     guessed = guess_roofs(recs)
     global RECS

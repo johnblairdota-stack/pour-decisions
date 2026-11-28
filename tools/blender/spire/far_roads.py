@@ -1,5 +1,5 @@
 """Roads, rail and bridges outside the LiDAR box (17 Nov 2026), from OSM with bridge decks at their LiDAR
-heights. Data: reference/sites/spire/roads/roads.json (tools/sites/roads_wide.py). Built after cbd_ext
+heights. Data: reference/sites/spire/roads/roads.json.gz (tools/sites/roads_wide.py). Built after cbd_ext
 (it lays the ground these sit on).
 
 - roads / rail on the ground: ribbons at the OSM width (width tag, else lanes, else class default),
@@ -22,7 +22,7 @@ import numpy as np
 import layout as L
 import common as C
 
-ROADS = os.path.join(L.REF, "roads", "roads.json")
+ROADS = os.path.join(L.REF, "roads", "roads.json.gz")
 SKIP_NAMES = {"Bradfield Highway", "Story Bridge"}
 PIER_EVERY = 35.0
 COL = {"asphalt": (0.085, 0.085, 0.09), "motorway": (0.13, 0.13, 0.135), "rail": (0.27, 0.24, 0.21),
@@ -38,12 +38,12 @@ GROUND = None                                               # the far ground sam
 
 
 def on_road(x, y):
-    """True within a road, rail line or bridge deck (plus 1.5 m) of roads.json: trees keep off them."""
+    """True within a road, rail line or bridge deck (plus 1.5 m) of roads.json.gz: trees keep off them."""
     global _ROAD_CELLS
     if _ROAD_CELLS is None:
         _ROAD_CELLS = set()
         if os.path.exists(ROADS):
-            for w in json.load(open(ROADS))["ways"]:
+            for w in json.load(L.ropen(ROADS))["ways"]:
                 if w["kind"] == "path" and not w["bridge"]:
                     continue
                 h = w["width"] / 2 + 1.5
@@ -601,7 +601,7 @@ def build():
     import bpy
     if L.GAME_EXPORT or getattr(L, "ACTIVE_STAGE", None) or not os.path.exists(ROADS):
         return {"module": "far_roads", "objects": [], "note": "skipped (game export, stage build or no data)"}
-    d = json.load(open(ROADS))
+    d = json.load(L.ropen(ROADS))
     G, W = Ground(), Water()
     col = C.collection("far_roads")
     global GROUND

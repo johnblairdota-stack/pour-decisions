@@ -4,9 +4,10 @@
   740689091,
   508673079,
   525502970,
-  525503026
+  525503026,
+  307720860
  ],
- "on_water_note": "740689091 The Boathouse (South Bank); 508673079 on the CBD river edge near Eagle St. Both found 26 Nov 2026 and not yet checked against a photo. 525502970 and 525503026 are shipping containers (one a bar) on the Hamilton Northshore wharf, added 26 Nov 2026 with the downriver tiles.",
+ "on_water_note": "740689091 The Boathouse (South Bank); 508673079 on the CBD river edge near Eagle St. Both found 26 Nov 2026 and not yet checked against a photo. 525502970 and 525503026 are shipping containers (one a bar) on the Hamilton Northshore wharf, added 26 Nov 2026 with the downriver tiles. 307720860 Pier South stands over the river, added 28 Nov 2026 when the river was traced again for the 16 km block.",
  "flat_ok": [
   589533605
  ],
@@ -14,7 +15,9 @@
  "max_trees_in_river": 40,
  "max_in_two_sets": 351,
  "no_buildings_ok": [
-  "509_6962"
+  "509_6962",
+  "508_6968",
+  "511_6968"
  ],
- "no_buildings_note": "509_6962 is river, Colmslie Beach Reserve and sports fields at Murarrie: the map has one building on its edge."
+ "no_buildings_note": "509_6962 is river, Colmslie Beach Reserve and sports fields at Murarrie: the map has one building on its edge. 508_6968 and 511_6968 (28 Nov 2026) are wetland and airport land beside Kedron Brook: the LiDAR has 2 and 401 roof cells in them, too few for any building."
 }

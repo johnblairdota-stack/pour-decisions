@@ -1,5 +1,5 @@
 """Footpaths, walkways, bikeways, steps, crossings and paved squares outside the Spire LiDAR box, from OSM
-(reference/sites/spire/roads/paths.json, tools/sites/paths_wide.py). Built straight after far_roads, on its ground.
+(reference/sites/spire/roads/paths.json.gz, tools/sites/paths_wide.py). Built straight after far_roads, on its ground.
 
 Kerbside footpaths and traffic islands sit a kerb above far_roads' carriageways and have a kerb face down each side;
 park paths, bikeways and steps lie on the ground; crossings are two painted lines over the road; squares and malls
@@ -15,7 +15,7 @@ import layout as L
 import common as C
 import far_roads as FR
 
-PATHS = os.path.join(L.REF, "roads", "paths.json")
+PATHS = os.path.join(L.REF, "roads", "paths.json.gz")
 #        lift over the ground, kerb skirt (m), colour
 STYLE = {"sidewalk": (0.55, 0.7, "path_paving"), "island": (0.55, 0.7, "path_paving"),
          "pedestrian": (0.5, 0.7, "path_plaza"), "footway": (0.3, 0.0, "path_park"),
@@ -106,7 +106,7 @@ def build():
         return {"module": "far_paths", "objects": [], "note": "skipped (game export, stage build or no data)"}
     from mathutils import Vector
     from mathutils.geometry import tessellate_polygon
-    d = json.load(open(PATHS))
+    d = json.load(L.ropen(PATHS))
     G, W = FR.GROUND, FR.Water()
     col = C.collection("far_paths")
     bufs = {k: C.MeshBuf() for k in COL}
@@ -135,7 +135,7 @@ def build():
         bufs["path_plaza"].add(verts, faces)
         squares += 1
     north_quay_terrace(bufs)
-    treasury_corner(bufs, json.load(open(FR.ROADS))["ways"], G)
+    treasury_corner(bufs, json.load(L.ropen(FR.ROADS))["ways"], G)
     objs = []
     for k, buf in bufs.items():
         ob = buf.object("far_" + k, col, "road")
