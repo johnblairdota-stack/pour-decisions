@@ -41,6 +41,7 @@ const Wallet := preload("res://scripts/wallet.gd")
 const CashArt := preload("res://scripts/cash_art.gd")
 const Trades := preload("res://scripts/trades.gd")
 const MastClimb := preload("res://scripts/mast_climb.gd")
+const ClimbHats := preload("res://scripts/climb_hats.gd")
 const UtePreview := preload("res://scripts/ute_preview.gd")
 ## Phones with the wallet shop's turning ute at once (each is a small
 ## off-screen render)
@@ -690,11 +691,55 @@ func roster() -> Dictionary:
 		e.merge({
 			"p": 0 if q.bot else q.index, "pc": q.tag_color.to_html(false), "who": q.char_name,
 			"lock": (not q.bot) and sel != null and bool(sel._ready_p.get(q.index, false))})
+		if kind != "":
+			var ctr := Trades.climb_trade(role, kind)
+			e["icon"] = ctr if ctr in ["rigger", "dogger", "crane"] else role
 		out.append(e)
+	if _cab_open():
+		# (Spire's column climb: the crane cab's a seat too, and it isn't a chibi. Whoever's in it
+		# leaves their own job to a trade-mate bot)
+		var op = _cab_holder()
+		if op != null:
+			for e in out:
+				if int(e["p"]) == op.index:
+					e["p"] = 0
+					e["who"] = "covering for P%d" % op.index
+		out.append({"id": "cab", "name": "Crane op · Cab", "trade": Trades.trade_name("crane"), "seat": "Cab", "icon": "crane",
+			"col": (Trades.COL["crane"] as Color).to_html(false), "line": "Drive the tower crane on the doggers' radio calls",
+			"ask": "", "p": op.index if op != null else 0, "pc": op.tag_color.to_html(false) if op != null else "ffffff",
+			"who": op.char_name if op != null else "the crane's own driver", "lock": false})
 	return {"t": "roster", "r": out}
+
+## Whether the crane cab's a seat a person can take right now (Spire's column climb, and the crews'
+## change-over before it), and who's in it.
+func _cab_open() -> bool:
+	var co = game.get("_changeover")
+	if co != null and is_instance_valid(co):
+		return co._cab_open()
+	return game.get("mast") != null and game.mast.active and game.mast.has_method("take_cab")
+
+func _cab_holder():
+	var co = game.get("_changeover")
+	var op = co.cab if co != null and is_instance_valid(co) else game.mast.cab
+	return op if op != null and is_instance_valid(op) else null
+
+## A phone takes the cab (`on`) or gives it up, on the change-over page or during the climb.
+func _set_cab(p, on: bool) -> void:
+	var co = game.get("_changeover")
+	if co != null and is_instance_valid(co):
+		co.cab = p if on else null
+		return
+	if on:
+		game.mast.take_cab(p)
+	else:
+		game.mast.leave_cab()
+	ClimbHats.apply(game, "spire", game.mast.cab)
 
 ## Today's climb seats (trades.gd CLIMB_SEAT's key), or "" on a pour day.
 func _climb_kind() -> String:
+	var co = game.get("_changeover")
+	if co != null and is_instance_valid(co):
+		return String(co.kind)   # (the crews' change-over page is up: the day's seats already)
 	if game.get("erect") != null and game.erect.active:
 		return game.erect.seat_kind()
 	if game.get("mast") != null and game.mast.active:
@@ -751,7 +796,25 @@ func _on_pick(c: Dictionary, parts: PackedStringArray) -> void:
 				crew.cycle_char(p.index, 1 if role != "-1" else -1)
 				game.sfx.hit("tink")
 		"swap":
-			if screen() != "play" or not crew.crew.has(role):
+			if screen() != "play":
+				return
+			if _cab_open():
+				var op = _cab_holder()
+				if role == "cab":
+					if op != null and op != p:
+						_toast(c, "P%d's in the cab" % op.index)
+					elif op == null:
+						_set_cab(p, true)
+						game.sfx.hit("tink")
+						vibrate(p, UI.BUZZ["done"])
+					return
+				if op == p:
+					# (out of the cab: back on their own chibi's job, or across to another one)
+					_set_cab(p, false)
+					if crew.crew.has(role) and crew.crew[role] == p:
+						game.sfx.hit("tink")
+						return
+			if not crew.crew.has(role):
 				return
 			if not crew.crew[role].bot:
 				_toast(c, "%s's taken" % UI.job_full(role))
