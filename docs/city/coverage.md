@@ -21,7 +21,7 @@ building counts. Black dots are landmarks built by hand, white dots are landmark
 | City-wide buildings sharing one facade recipe | 98 % |
 | Landmarks inside the model but still plain blocks | City Hall, Roma Street Parkland, Suncorp Stadium, XXXX Brewery, The Gabba, RNA Showgrounds, Brisbane Powerhouse, Breakfast Creek Hotel, Portside Wharf (Alcyone), Riverlight, UQ Great Court, Gateway Bridge |
 | Landmarks outside the measured model | Mt Coot-tha lookout |
-| Tiles in the next LiDAR orders | 1-fill: 0, 2-downriver: 0, 3-corners: 0 |
+| Tiles in the next LiDAR orders | 1-fill: 0, 2-downriver: 0, 3-corners: 0, 4-ring3: 0 |
 
 ## Measured tiles
 
