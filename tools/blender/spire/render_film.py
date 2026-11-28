@@ -1,7 +1,7 @@
 """The Spire fly-in as a film: one camera flight through the Brisbane model, frame by frame, from high
 in the cloud in the cloud down to the floor pick's own view, where the game takes over standing still.
 
-    python tools/blender/spire/render_film.py <out_dir> [tower=spire] [from=0] [to=N] [w=1280] [fps=24] [--cams]
+    python tools/blender/spire/render_film.py <out_dir> [tower=spire] [from=0] [to=N] [w=1280] [fps=24] [tiles=<dir>] [--cams]
 
 The camera swings round the tower as it comes down (so the city really moves past: near things faster
 than far ones), always looking at the tower, and closes on it at a steady rate: every second takes
@@ -267,7 +267,25 @@ def main():
     import preview as P
     import render_cbd as R
     from PIL import Image
-    cut_tower(build_all.build_all(None, write_meta=False))
+    tiles_dir = next((a[6:] for a in argv if a.startswith("tiles=")), None)
+    if tiles_dir:
+        # (the whole city no longer builds in one go: load only the 1 km tiles these frames can see,
+        # from tools/city/tiles.py bake. Run a few dozen frames a process (from= to=) so the high
+        # frames' many tiles are not held for the low ones.)
+        sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "city"))
+        import tiles as TL
+        index = json.load(open(os.path.join(tiles_dir, "index.json")))
+        half = math.pi if 0 <= wide_from() <= f1 - 1 else math.atan(18.0 / LENS)
+        cams = []
+        for i in range(f0, f1):
+            (x, y, _z), look = cam_at(i / fps)
+            cams.append((x, y, math.atan2(look[1] - y, look[0] - x), half))
+        st = TL.load(tiles_dir, TL.tiles_for(index, cams))
+        st.pop("ground")
+        print("tiles loaded:", json.dumps(st), flush=True)
+        cut_tower(None)
+    else:
+        cut_tower(build_all.build_all(None, write_meta=False))
     P.setup_morning()
     P.apply_light(78.0, 12.0)
     R.setup_cycles(int(os.environ.get("CYC_SAMPLES", "40")))
