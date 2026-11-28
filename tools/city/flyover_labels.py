@@ -8,8 +8,8 @@ Places are in tools/city/flyover_places.json. Each one is pinned to its real spo
 camera (flyover.py plan) projects the roof point into the picture, so the tag stays on the place as the camera
 moves. A place plays through five states (design board "Fly-over location pop-ups", look A, site tag):
 far (a dot and a small name), lock on (a ring lands on the roof and a line climbs), pop (the tag squashes in,
-gold sparks for game towers), hold, and pass (it shrinks and fades near the frame edge). At most MAX_OPEN tags
-are open at once: game towers first, then the nearest. fonts_dir holds BarlowCondensed-ExtraBold.ttf (OFL).
+gold sparks for game towers), hold, and pass (it shrinks and fades near the frame edge or when the camera is
+on top of it). At most MAX_GAME game tags and MAX_PLACE place tags are open at once, the nearest first. fonts_dir holds BarlowCondensed-ExtraBold.ttf (OFL).
 """
 import json
 import math
@@ -22,7 +22,8 @@ PLACES = os.path.join(HERE, "flyover_places.json")
 ORIGIN = (503046.57, 6962279.05)        # layout.ORIGIN_MGA56
 OPEN_M = 3000.0                         # a tag opens when the camera is this close
 FAR_M = 9000.0                          # further than this a place is not named at all
-MAX_OPEN = 4
+MAX_GAME, MAX_PLACE = 3, 3                # open tags at once: game towers, and Brisbane places
+NEAR_M = 500.0                          # closer than this the camera is passing it: the tag fades
 SS = 2                                  # drawn at twice the size, then shrunk: smooth edges
 GOLD, DARK, WHITE = (255, 210, 63), (26, 29, 36), (255, 255, 255)
 
@@ -125,7 +126,9 @@ def draw(frames_json, frames_dir, out_dir, fonts_dir, only=None, every=1):
         ok = [s for s in seen if s[1][2] < OPEN_M and 70 < s[0 + 1][0] < W - 70 and s[1][1] > 90]
         # who gets a tag: game towers first, then tags that are already open (so they do not flicker), then the nearest
         ok.sort(key=lambda s: (places[s[0]]["kind"] != "game", s[0] not in opened, s[1][2]))
-        keep = {s[0] for s in ok[:MAX_OPEN]}
+        ok = [s for s in ok if s[1][2] > NEAR_M]
+        keep = ({s[0] for s in [s for s in ok if places[s[0]]["kind"] == "game"][:MAX_GAME]}
+                | {s[0] for s in [s for s in ok if places[s[0]]["kind"] != "game"][:MAX_PLACE]})
         for i in list(opened):
             if i not in keep:
                 del opened[i]
@@ -150,9 +153,9 @@ def draw(frames_json, frames_dir, out_dir, fonts_dir, only=None, every=1):
             col = GOLD if game else WHITE
             x, y = q[0] * SS, q[1] * SS
             edge = min(q[0] - 40, W - 40 - q[0], q[1] - 60) / 90.0          # 0 at the frame edge, 1 well inside
-            fade = min(max(edge, 0.0), 1.0)
+            fade = min(max(min(edge, (q[2] - NEAR_M + 250.0) / 250.0), 0.0), 1.0)
             if i not in opened:
-                a = int(255 * fade * min(1.0, (FAR_M - q[2]) / 1500.0))
+                a = int(255 * fade * (q[2] > NEAR_M + 250.0) * min(1.0, (FAR_M - q[2]) / 1500.0))
                 if a <= 8:
                     continue
                 name = p["name"].upper()
@@ -185,10 +188,10 @@ def draw(frames_json, frames_dir, out_dir, fonts_dir, only=None, every=1):
             base = 46 * SS
             cur = lift.get(i, 0.0)
             want_lift = 0.0
-            while any(abs((x) - bx) < (bw + bw2) / 2 + 6 * SS and abs((y - base - want_lift - bh / 2) - by) < (bh + bh2) / 2 + 6 * SS
+            while any(abs((x) - bx) < (bw + bw2) / 2 + 10 * SS and abs((y - base - want_lift - bh / 2) - by) < (bh + bh2) / 2 + 8 * SS
                       for bx, by, bw2, bh2 in boxes) and want_lift < 400 * SS:
                 want_lift += 14 * SS
-            cur += (want_lift - cur) * (1.0 if i not in lift else 0.18)
+            cur += (want_lift - cur) * (1.0 if i not in lift else 0.35)
             lift[i] = cur
             line = min(max((t - 0.1) / 0.25, 0.0), 1.0)
             top = y - (base + cur) * line

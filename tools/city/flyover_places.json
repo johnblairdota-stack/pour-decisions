@@ -11,9 +11,10 @@
   {
    "name": "Howard Smith Wharves",
    "kind": "game",
-   "lat": -27.4612,
-   "lon": 153.0352,
-   "z": 55.4
+   "lat": -27.46285,
+   "lon": 153.0372,
+   "z": 14,
+   "z_fixed": true
   },
   {
    "name": "Brisbane Skytower",
@@ -90,13 +91,6 @@
    "z": 31.8
   },
   {
-   "name": "Wheel of Brisbane",
-   "kind": "place",
-   "lat": -27.4754,
-   "lon": 153.02102,
-   "z": 52.9
-  },
-  {
    "name": "City Hall",
    "kind": "place",
    "lat": -27.4689,
@@ -161,6 +155,49 @@
    "lon": 153.1,
    "z": 65,
    "z_fixed": true
+  },
+  {
+   "name": "South Bank",
+   "kind": "place",
+   "lat": -27.4775,
+   "lon": 153.0222,
+   "z": 15,
+   "z_fixed": true
+  },
+  {
+   "name": "Queensland Museum",
+   "kind": "place",
+   "lat": -27.4727,
+   "lon": 153.0181,
+   "z": 34.1
+  },
+  {
+   "name": "QPAC",
+   "kind": "place",
+   "lat": -27.4747,
+   "lon": 153.0197,
+   "z": 39.7
+  },
+  {
+   "name": "Urban Climb West End",
+   "kind": "place",
+   "lat": -27.47714,
+   "lon": 153.0083,
+   "z": 17.0
+  },
+  {
+   "name": "Urban Climb Milton",
+   "kind": "place",
+   "lat": -27.47306,
+   "lon": 153.00016,
+   "z": 13.5
+  },
+  {
+   "name": "Urban Climb Newstead",
+   "kind": "place",
+   "lat": -27.45501,
+   "lon": 153.04048,
+   "z": 17.8
   }
  ]
 }
