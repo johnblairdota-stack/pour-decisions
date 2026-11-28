@@ -23,6 +23,7 @@ const Settings := preload("res://scripts/settings.gd")
 const QR := preload("res://scripts/qr.gd")
 const Story := preload("res://scripts/story.gd")
 const TowerHand := preload("res://scripts/tower_hand.gd")
+const ComingSoon := preload("res://scripts/coming_soon.gd")
 const Trades := preload("res://scripts/trades.gd")
 
 const KITS := [
@@ -142,6 +143,15 @@ func _ready() -> void:
 ## The card's been played: its picture fills the screen. On the other site the game comes back up
 ## there behind the picture; main.gd then flies up the river to it, and arrived() opens the crew page.
 func _card_played(c: Dictionary) -> void:
+	if ComingSoon.is_soon(c):
+		# (not built yet: its film, then the hoarding over its level select. No site, no flight.)
+		TowerHand.arrival = {}
+		TowerHand.cover(get_tree(), c)
+		_soon = ComingSoon.new()
+		_soon.open(c, game)
+		add_child(_soon)
+		_show_page("soon")
+		return
 	if String(c["site"]) != String(game.site):
 		Settings.put("site", c["site"])
 		TowerHand.cover(get_tree(), c)
@@ -151,6 +161,8 @@ func _card_played(c: Dictionary) -> void:
 		return
 	TowerHand.cover(get_tree(), c)
 	_show_page("arrive")
+
+var _soon: ComingSoon
 
 ## The flight in: the floor pick is set up as it starts (main.gd lands its camera on it), its page
 ## held back, nothing pressed, no clock running, until the camera is nearly there.
@@ -1053,6 +1065,7 @@ func _pickshots(delta: float) -> void:
 static var _pp_id := ""
 static var _pp_played := false
 static var _pp_floor := -1
+static var _pp_back := false
 var _pp_t := 0.0
 
 func _pickplay(delta: float) -> void:
@@ -1061,6 +1074,7 @@ func _pickplay(delta: float) -> void:
 		for a in OS.get_cmdline_user_args():
 			if a.begins_with("--pickplay="):
 				_pp_id = a.substr(11)
+			_pp_back = _pp_back or a == "--soonback"
 			if a.begins_with("--pickfloor="):
 				_pp_floor = int(a.substr(12))       # (as if the tower were built to that floor, from 0)
 	if _pp_id == "-":
@@ -1080,6 +1094,11 @@ func _pickplay(delta: float) -> void:
 	elif page == "site" and not arriving and _pp_played:
 		_pp_t += delta
 		if _pp_t > 2.5:
+			get_tree().quit()
+	elif _pp_played and ((page == "soon" and _soon.up_t > 3.5) or (page == "tower" and _pp_back)):
+		# (a tower that isn't open yet: a look at its hoarding; with `--soonback`, B and the hand again)
+		_pp_t += delta
+		if page == "soon" or _pp_t > 3.0:
 			get_tree().quit()
 
 func _process(delta: float) -> void:
@@ -1124,6 +1143,13 @@ func _process(delta: float) -> void:
 		_tower_page.step(delta, v, pressed)
 	elif page == "crew":
 		_process_crew(delta)
+	elif page == "soon":
+		if _soon.step(delta, game.crew.humans()) or (_pp_back and _soon.up_t > 2.5):
+			_soon.queue_free()
+			_soon = null
+			TowerHand.uncover(1.0)
+			_tower_page.back()
+			_show_page("tower")
 	else:
 		_process_site(delta)
 
