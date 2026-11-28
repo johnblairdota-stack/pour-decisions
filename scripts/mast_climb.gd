@@ -1130,6 +1130,8 @@ func turn_text(p, j: Dictionary) -> Array:
 			text = "YOUR TURN\n%s THE LADDER" % ("UP" if up else "DOWN")
 		elif String(j["zone"]) == "ground":
 			text = "YOUR TURN\nDOWN TO THE HAUL ROPE"
+		elif j.get("radio", false):
+			text = "YOUR TURN\nTO THE RADIO SPOT ON THE DECK"
 		else:
 			text = "YOUR TURN\nOFF THE LADDER: USE THE REMOTE"
 	else:
