@@ -35,6 +35,7 @@ const RATE := [0.22, 0.30, 0.36, 0.45]
 var arms: Array[Node3D] = []
 var tip: Node3D
 var hose_end: Node3D
+var hose_held := false                             # the line hand has the end hose (main sets it)
 var ang: Array = [1.0, 1.0, -0.5, 1.0]             # the joints as they stand
 var _at: Array = [1.0, 1.0, -0.5, 1.0]             # ...less the shake
 var _off: Array = [0.0, 0.0, 0.0, 0.0]             # each pivot's step off the arm before's centre line
@@ -336,6 +337,65 @@ func _curl(c: float) -> Vector2:
 ## bends the same way, so it's one arch from the pedestal over to the hose. Stretched out the arch is
 ## shallow; drawn in, arm 1 stands up and the others curl over and down under it.
 func _solve(d: float, ty: float) -> Array:
+	var md := min_d(ty)
+	if d >= md:
+		return _roll(d, ty)
+	# (close in to its own column: the tucked fold, between the two nearest it's worked out)
+	var f := clampf(d, TUCK_IN, md) / TUCK_STEP
+	var qa := _tuck(int(floor(f)), ty)
+	var qb := _tuck(int(floor(f)) + 1, ty)
+	var q := []
+	for i in 4:
+		q.append(lerpf(float(qa[i]), float(qb[i]), f - floor(f)))
+	return q
+
+## The tucked fold for a tip close in to the boom's own column (`n` steps of TUCK_STEP out): arms 1
+## and 2 arch up and over as ever, arm 3 hangs down out beyond the spot and arm 4 comes back in
+## under them to it, nearly level, so no knuckle drops to the deck and nothing swings in at the
+## column. The nearest such pose to the rolled one at min_d, so the boom slides from one to the other.
+const TUCK_IN := 1.5        # m: the nearest the tip comes in to the column's centre line
+const TUCK_STEP := 0.25
+var _tucks := {}
+
+func _tuck(n: int, ty: float) -> Array:
+	var key := Vector2i(n, int(round(ty * 4.0)))
+	if _tucks.has(key):
+		return _tucks[key]
+	var md := min_d(ty)
+	var d := n * TUCK_STEP
+	var ref := _roll(md, ty)
+	var best := ref
+	if d < md:
+		var cost := INF
+		for i in 21:
+			var a1 := lerpf(0.5, float(LIM[0][1]), i / 20.0)
+			var e1 := Vector2(cos(a1), sin(a1)) * float(L[0])
+			for j in 41:
+				var a2 := a1 - lerpf(0.3, 2.9, j / 40.0)
+				var e2 := e1 + Vector2(cos(a2), sin(a2)) * float(L[1])
+				var v := Vector2(d, ty) - e2
+				var r := v.length()
+				if r > float(L[2]) + float(L[3]) - 0.05 or r < absf(float(L[2]) - float(L[3])) + 0.05:
+					continue
+				var al := acos(clampf((float(L[2]) * float(L[2]) + r * r - float(L[3]) * float(L[3])) / (2.0 * float(L[2]) * r), -1.0, 1.0))
+				for sgn in [1.0, -1.0]:
+					var a3: float = v.angle() + sgn * al
+					var k := e2 + Vector2(cos(a3), sin(a3)) * float(L[2])
+					var a4 := (Vector2(d, ty) - k).angle()
+					var q := [a1, wrapf(a1 - a2, -PI, PI), wrapf(a2 - a3, -PI, PI), wrapf(a3 - a4, -PI, PI)]
+					var okq := true
+					var c := 0.0
+					for m in 4:
+						if float(q[m]) < float(LIM[m][0]) or float(q[m]) > float(LIM[m][1]):
+							okq = false
+						c += pow(float(q[m]) - float(ref[m]), 2.0)
+					if okq and c < cost and _tidy(q, ty):
+						cost = c
+						best = q
+	_tucks[key] = best
+	return best
+
+func _roll(d: float, ty: float) -> Array:
 	var dist := clampf(sqrt(d * d + ty * ty), _curl(CURL_MAX).x, reach() - 0.05)
 	var phi := atan2(ty, d)
 	var lo := 0.0
@@ -350,6 +410,39 @@ func _solve(d: float, ty: float) -> Array:
 	for i in 4:
 		q[i] = clampf(q[i], LIM[i][0], LIM[i][1])
 	return q
+
+## The nearest the tip can come in at height `ty` on the one rolled arch before the boom would have
+## to curl back under itself: wound in tighter than this, arms 3 and 4 come round under arm 1 and
+## their knuckles drop metres below the tip, through the deck and back at the boom's own column.
+## Nearer than this it's the tucked fold (_tuck).
+const DIP := 2.2            # m a knuckle may hang below the tip (the tip rides 4.3 m over the deck)
+const KEEP_OFF := 1.6       # m arms 2 to 4 keep out from the column's centre line below the head
+var _min_d := {}
+
+func min_d(ty: float) -> float:
+	var key := int(round(ty * 4.0))
+	if _min_d.has(key):
+		return _min_d[key]
+	var d := 1.0
+	while d < 14.0 and not _tidy(_roll(d, ty), ty):
+		d += 0.2
+	_min_d[key] = d
+	return d
+
+## Is the pose `q` clear of the deck and of the boom's own column?
+func _tidy(q: Array, ty: float) -> bool:
+	var p := Vector2.ZERO
+	var dir := 0.0
+	for i in 4:
+		dir = float(q[0]) if i == 0 else dir - float(q[i])
+		var e := p + Vector2(cos(dir), sin(dir)) * float(L[i])
+		if i > 0:
+			for n in 9:
+				var pt := p.lerp(e, n / 8.0)
+				if pt.y < ty - DIP or (pt.x < KEEP_OFF and pt.y < 0.5 and not (i == 3 and n >= 6)):
+					return false   # (the last of arm 4 is the tip itself, wherever it's been asked in to)
+		p = e
+	return true
 
 ## With the tip `d` out and `ty` up, do all four arms pass clear of something standing from `r0` to
 ## `r` m out and `top` high (from arm 1's pivot)? The jump form, for main.rig_arms_clear: a Z boom
@@ -403,7 +496,9 @@ func pose(d: float, ty: float, fold := 0.0, shake := 0.0, dt := 0.0) -> void:
 	else:
 		_at = q.duplicate()
 	# (folded for a lift, its end hose is off)
-	(tip.get_node("Hose") as Node3D).visible = fold < 0.5
+	# (...and when the line hand's got the hose it's the flexible one in their hands that's drawn,
+	# main._draw_hose: never the stiff one hanging here as well)
+	(tip.get_node("Hose") as Node3D).visible = fold < 0.5 and not hose_held
 	ang = _at.duplicate()
 	ang[0] += shake
 	ang[1] -= shake * 0.6

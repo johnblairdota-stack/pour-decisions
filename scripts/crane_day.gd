@@ -61,7 +61,11 @@ const FACES := [{"skin": "e8b48a", "hair": "2b1d14", "look": "beard"}, {"skin": 
 
 ## The loading platform: out from the east face (game +x) at the Clark Lane end.
 const PLAT_EDGE := Vector2(18.4, -19.0)   # where it meets the slab edge
-const PLAT_SIZE := Vector2(3.2, 4.0)      # out from the face, along it
+const PLAT_SIZE := Vector2(5.6, 4.0)      # out from the face, along it
+## How far in from the platform's outer end a load lands: well out past the hung scaffold's outside
+## face (1.55 m off the slab) and its mesh, so the hook and its load come down in clear air and
+## never through the scaffold or the deck's edge.
+const PLAT_LAND := 1.5
 ## Where the steelies land things on the jump form's top deck (inside its ring).
 const CORE_SPOTS := [Vector2(-4.2, -16.4), Vector2(2.2, -21.6)]
 ## The laydown: on the deck of the gantry over Ann St's footpath, east of
@@ -210,7 +214,7 @@ func _plat_y() -> float:
 	return game.level_y(level - 2)
 
 func _plat_spot(along: float) -> Vector3:
-	return Vector3(PLAT_EDGE.x + PLAT_SIZE.x * 0.5, _plat_y(), PLAT_EDGE.y + (along - 0.5) * PLAT_SIZE.y * 0.7)
+	return Vector3(PLAT_EDGE.x + PLAT_SIZE.x - PLAT_LAND, _plat_y(), PLAT_EDGE.y + (along - 0.5) * PLAT_SIZE.y * 0.7)
 
 ## The jump form's top deck (spire_site.set_core: 0.2 over the walls' top).
 func _core_y() -> float:

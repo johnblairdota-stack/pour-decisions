@@ -17,6 +17,9 @@ const CALL_EVERY := 7.0      # s between "boom over here" calls to a person on t
 var goal := Vector3.INF      # world, on the deck
 var _call_t := 2.0
 var _idle_t := 0.0           # s with nothing wanted in reach
+const GIVE_UP := 4.0         # s held off over full concrete before it pumps where it stands
+var _held_t := 0.0
+var _give_at := Vector3.INF  # pour-local: where it gave up waiting
 
 ## Where the nozzle should be now. `anchor`: the deck under the boom tip. `nozzle`: where it is.
 func spot(g, anchor: Vector3, nozzle: Vector3, delta: float) -> Vector3:
@@ -60,10 +63,21 @@ func spot(g, anchor: Vector3, nozzle: Vector3, delta: float) -> Vector3:
 
 ## May the pump run with the nozzle at `dl` (pour-local)? Not onto concrete that's already over level,
 ## unless there's still a hollow in the splash to fill.
-func may_pump(g, dl: Vector3) -> bool:
+func may_pump(g, dl: Vector3, delta := 0.0) -> bool:
 	var pour = g.pour
 	if pour.height_at(dl) <= pour.SLAB * OVER:
+		_held_t = 0.0
 		return true
+	# (held off a good while with a goal it never gets the nozzle to, the boom's leash stopping it
+	# short, say: the pump sat idle on a full hopper for good. Pump where it stands till it's moved on)
+	_held_t += delta
+	if _held_t > GIVE_UP:
+		_held_t = 0.0
+		_give_at = dl
+	if _give_at.x != INF:
+		if Vector2(dl.x - _give_at.x, dl.z - _give_at.z).length() < 1.0:
+			return true
+		_give_at = Vector3.INF
 	# (nothing it can find to fill, and the boom hasn't moved on either: pump where the boom's put
 	# it, as the hose always did, before a full hopper sits waiting on a hollow the hose can't see)
 	if _idle_t > 2.0:
