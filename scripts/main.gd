@@ -55,6 +55,7 @@ const SpireSite := preload("res://scripts/spire_site.gd")
 const SpireB := preload("res://scripts/spire_b.gd")
 const SpireInside := preload("res://scripts/spire_inside.gd")
 const SpireScaffold := preload("res://scripts/spire_scaffold.gd")
+const DeckSection := preload("res://scripts/deck_section.gd")
 const SpireFloorCycle := preload("res://scripts/spire_floor_cycle.gd")
 const SpireBoxOut := preload("res://scripts/spire_boxout.gd")
 const BoomBumpFx := preload("res://scripts/boom_bump_fx.gd")
@@ -2207,9 +2208,10 @@ func _build_walkway() -> void:
 	if spire:
 		# (round the plate's real edge, open at the hoist's landing and the ladder tower's platform)
 		_rect_rails = SpireScaffold.build(rig, WALK_GAP, WALK_W, FH, [[hoist_x - 1.1, hoist_x + 1.1], [12.5, 15.6]])
-		for sm in SpireScaffold.mesh_mats:   # (its mesh takes the see-through circle as it is)
+		for sm in SpireScaffold.mesh_mats:   # (its mesh takes the see-through circle as it is, and the section cut)
 			_cut_mats[sm] = sm
 			_cut_made[sm] = true
+			(sm as ShaderMaterial).set_shader_parameter("near_on", true)
 		return
 	var grate := F.mat("steel")
 	var rail := F.mat("orange")
@@ -8631,10 +8633,7 @@ func _update_see_through(delta: float) -> void:
 			for c in get_children():
 				if String(c.name).begins_with("PodiumFace"):
 					roots.append(c)
-			for f in floor_nodes:
-				roots.append(f)
-			# (and the perimeter scaffold with its blue edge screens, hanging down over the floors below the deck)
-			roots += _rect_rails
+			# (the floors and the perimeter scaffold take the deck's section cut as well: below)
 		if _spire_b != null:
 			roots += [_spire_b.mast, _spire_b.yaw.get_child(0), _spire_b.arm1]
 		if _spire_street != null:
@@ -8656,6 +8655,12 @@ func _update_see_through(delta: float) -> void:
 		for r in roots:
 			if r != null and is_instance_valid(r):
 				_give_cut(r)
+		if spire:
+			# (the deck's section cut, DeckSection: the perimeter scaffold with its blue edge screens, and
+			# the floors under the deck)
+			for r in _rect_rails + floor_nodes:
+				if r != null and is_instance_valid(r):
+					_give_cut(r, true)
 		# (and the boom's first arm and the ball at its foot; the outer arm
 		# stays solid, it's what's being steered)
 		if arm1 != null and is_instance_valid(arm1):
@@ -8722,17 +8727,20 @@ func _update_see_through(delta: float) -> void:
 		ps.append(Vector4.ZERO)
 	# (only when the circles have moved, or there are new parts to tell)
 	var slot := _section_slot()
-	var sent := [n, ps, _cut_made.size(), slot]
+	var near: Array = DeckSection.params(spire and not skyline and phase != "roles" and phase != "select", cam_yaw, rig.position.y, FH)
+	var sent := [n, ps, _cut_made.size(), slot, near]
 	if sent == _cut_sent:
 		return
 	_cut_sent = sent
-	for m in _cut_mats.values():
+	for m in _cut_mats.values() + _near_mats.values():
 		if _bar_mats.has(m):
 			continue      # (the barriers keep their own circles)
 		(m as ShaderMaterial).set_shader_parameter("cut_n", n)
 		(m as ShaderMaterial).set_shader_parameter("cut_p", ps)
 		(m as ShaderMaterial).set_shader_parameter("cut_slot", slot[0])
 		(m as ShaderMaterial).set_shader_parameter("cut_slot_y", slot[1])
+		(m as ShaderMaterial).set_shader_parameter("cut_near", near[0])
+		(m as ShaderMaterial).set_shader_parameter("cut_near2", near[1])
 
 ## Spire's section view: the building's floors, columns, face and edge screens are cut away in a slot
 ## from the Ann St face in to the boom's column, so the column, its ladder and the line up beside it
@@ -8838,12 +8846,13 @@ func _cut_mats_of(n: Node, out: Array) -> void:
 		_cut_mats_of(ch, out)
 var _bar_mats := {}
 
-func _give_cut(n: Node) -> void:
+var _near_mats := {}          # a part's own material -> its copy that also takes the deck's section cut
+func _give_cut(n: Node, near := false) -> void:
 	if n is MeshInstance3D and (n as MeshInstance3D).material_override == null and (n as MeshInstance3D).mesh != null:
 		var mi := n as MeshInstance3D
 		for i in mi.mesh.get_surface_count():
 			var s := mi.get_surface_override_material(i)
-			var cut := _cut_of(s if s != null else mi.mesh.surface_get_material(i))
+			var cut := _cut_of(s if s != null else mi.mesh.surface_get_material(i), near)
 			if cut != null:
 				mi.set_surface_override_material(i, cut)
 	elif n is GeometryInstance3D:
@@ -8857,19 +8866,20 @@ func _give_cut(n: Node) -> void:
 				mesh = (gi as MultiMeshInstance3D).multimesh.mesh
 			if mesh != null and mesh.get_surface_count() > 0:
 				src = mesh.surface_get_material(0)
-		var cut := _cut_of(src)
+		var cut := _cut_of(src, near)
 		if cut != null:
 			gi.material_override = cut
 	for ch in n.get_children():
-		_give_cut(ch)
+		_give_cut(ch, near)
 
-func _cut_of(src: Material) -> Material:
+func _cut_of(src: Material, near := false) -> Material:
 	if src == null:
 		return null
 	if _cut_made.has(src):
 		return src
-	if _cut_mats.has(src):
-		return _cut_mats[src]
+	var made: Dictionary = _near_mats if near else _cut_mats
+	if made.has(src):
+		return made[src]
 	if not (src is ShaderMaterial and (src as ShaderMaterial).shader == F.TOON):
 		return null
 	var m := ShaderMaterial.new()
@@ -8887,9 +8897,13 @@ func _cut_of(src: Material) -> Material:
 			if v != null:
 				o.set_shader_parameter(k, v)
 		m.next_pass = o
-		_cut_mats[nxt] = o
+		made[nxt] = o
 		_cut_made[o] = true
-	_cut_mats[src] = m
+	if near:
+		m.set_shader_parameter("near_on", true)
+		if m.next_pass != null:
+			(m.next_pass as ShaderMaterial).set_shader_parameter("near_on", true)
+	made[src] = m
 	_cut_made[m] = true
 	return m
 
@@ -9336,6 +9350,9 @@ func _update_camera_views(delta: float) -> void:
 		focus = ink_centre()
 		dist = 9.0
 	var pitch := cam_pitch
+	if spire and not skyline:
+		# (mid-pour, the section tilt: lower, looking in across the deck's section cut. DeckSection)
+		pitch = DeckSection.pitch(cam_pitch, _tight)
 	if phase == "select" and is_instance_valid(selector) and selector.floor_pick() >= 0:
 		# (side on, so the floors read one above the other)
 		pitch = lerpf(cam_pitch, 0.07, ease(_menu_shift, -1.8))
