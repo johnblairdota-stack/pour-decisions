@@ -4556,8 +4556,8 @@ func _toolbox(wait: bool) -> Dictionary:
 		chips.append(["%d°C" % t, ""])
 	chips.append(["EDGE WET ~%ds" % int(cfg["open"]), ""])
 	if cfg["rain"]:
-		chips.append(["SHOWER DUE", "warn"])
-		notes.append("Shower mid-pour: stop pumping while it's heavy, or the surface gets marked.")
+		chips.append(["SHOWER DUE · DOUBLE PAY", ""])
+		notes.append("Shower mid-pour: keep pouring. Everything earned in the heavy rain pays double.")
 	if cfg["traffic"] > 1.0:
 		chips.append(["TRAFFIC", "warn"])
 		notes.append("Kingsford Smith Drive's jammed: trucks spaced out, some running old. Check every docket.")
@@ -5067,8 +5067,6 @@ func _grade() -> void:
 	pen.call("%d bad load accepted" % st["bad_loads"], st["bad_loads"] * 10.0)
 	if pour.out_of_seq > 0.5:
 		pen.call("Poured out of sequence: %.0f m³" % pour.out_of_seq, minf(15.0, maxf(0.0, pour.out_of_seq - 4.0) * 1.5))
-	if cfg["rain"]:
-		pen.call("Poured in heavy rain: %.0f m³" % pour.rain_m3, minf(20.0, pour.rain_m3 * 1.5))
 	var safety := []
 	var spts := 0.0
 	if st["unpinned"] > 0:
@@ -5693,9 +5691,20 @@ func _process(delta: float) -> void:
 			var tp0: Vector3 = tip_target if which == 0 else tip_pos
 			var off := Vector2(tp0.x - hp0.x, tp0.z - hp0.z)
 			if off.length() < near:
+				var deep := near - off.length()
 				off = (off.normalized() if off.length() > 0.01 else Vector2(0, 1)) * near
 				if which == 0:
 					tip_target = Vector3(hp0.x + off.x, tp0.y, hp0.z + off.y)
+					# (a person's steered it into its own mast: a knock, the same as on the jump form.
+					# A bot just works round it)
+					var mop = _boom_operator()
+					if phase == "pour" and deep > 0.04 and _rig_hit_t <= 0.0 and mop != null and not mop.bot and not mop.covering:
+						_rig_hit_t = 1.2
+						var maway := Vector3(off.x, 0, off.y).normalized()
+						tip_target += maway * 0.6
+						tip_kick = maway * 0.5
+						BoomBumpFx.hit(self, Vector3(hp0.x + maway.x * 0.6, maxf(tp0.y, work_y + 1.5), hp0.z + maway.z * 0.6), maway, mop)
+						mop.say("the mast!")
 				else:
 					tip_pos = Vector3(hp0.x + off.x, tp0.y, hp0.z + off.y)
 	tip_kick = tip_kick.lerp(Vector3.ZERO, minf(1.0, delta * 3.0))
@@ -5919,6 +5928,9 @@ func _update_pour(delta: float) -> void:
 			line.start_failure()
 	# Weather from the briefing
 	var raining: bool = cfg["rain"] and pour_clock > cfg["rain_at"] and pour_clock < cfg["rain_at"] + cfg["rain_len"]
+	if raining and not pour.raining:
+		# (work goes on in the rain now, and it pays double while it lasts: John, 28 Nov)
+		hud.toast("Heavy rain. Keep pouring: double pay while it lasts", 3.0)
 	pour.raining = raining
 	rain.emitting = raining
 	rain.position = Vector3(SC.x + 8.0, work_y + 18.0, SC.z + 6.0)
@@ -8238,7 +8250,7 @@ func _tickets() -> Array:
 	# (trucks waiting in the queue are on the pump panel's count: a ticket is
 	# only for something someone has to do)
 	if pour.raining:
-		out.append({"icon": "R", "text": "Heavy rain: hold the pump", "frac": 0.5, "color": Color("4fa3ff"), "urgent": true})
+		out.append({"icon": "R", "text": "Heavy rain: double pay", "frac": 1.0, "color": Color("4fa3ff"), "urgent": false})
 	if climb.wind_gust >= BOOM_WIND:
 		out.append({"icon": "W", "text": "Boom parked in the wind", "frac": 0.3, "color": Color("9fb3c8"), "urgent": true})
 	# Most urgent first, and never more than three: a to-do list, not a log

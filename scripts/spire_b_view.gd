@@ -93,6 +93,8 @@ class Ops:
 		return false
 	func wants_bin() -> bool:
 		return false
+	func bin_soon() -> bool:
+		return false
 	func role() -> String:
 		return ""
 	func radio(_p) -> bool:

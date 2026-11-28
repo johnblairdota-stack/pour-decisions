@@ -5,6 +5,8 @@ extends RefCounted
 
 const F := preload("res://scripts/factory.gd")
 
+const FINE := 10             # points off a knock (score.gd turns points into dollars)
+
 ## `at`: where it touched (world). `away`: the way it bounced off (unit, on plan). `op`: the boom
 ## operator, or null.
 static func hit(game, at: Vector3, away: Vector3, op) -> void:
@@ -14,6 +16,9 @@ static func hit(game, at: Vector3, away: Vector3, op) -> void:
 	game.pop("CLANG!", at + Vector3(0, 0.9, 0), Color("ff5a4a"))
 	if op != null:
 		game.haptic(op, "bad")
+	# (a knock costs: it's the boom op's money, bot or person)
+	if game.get("score") != null and game.score != null:
+		game.score.award(op, -FINE, "Boom collision")
 	var burst := Node3D.new()
 	game.add_child(burst)
 	burst.global_position = at

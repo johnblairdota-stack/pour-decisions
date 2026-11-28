@@ -80,7 +80,7 @@ var role_rows := {}            # role -> {label -> points} this slab
 var costs: Array = []          # everything that cost money this slab: {why, pts, role, t}
 
 ## The job that owns a crew-wide cost (a burst is the pump operator's to stop)
-const COST_OWNER := {"Clamp burst": "pump", "Line blocked": "pump", "Hose whip": "boom", "Finished by hand": "boom",
+const COST_OWNER := {"Boom collision": "boom", "Clamp burst": "pump", "Line blocked": "pump", "Hose whip": "boom", "Finished by hand": "boom",
 	"Start-up and washout held up": "pump"}
 ## One line on how not to do it again, for the slab report's WHAT WENT WRONG
 const COST_HINT := {
@@ -88,6 +88,7 @@ const COST_HINT := {
 	"Line blocked": "A stiff or old load on HIGH packs the line. Drop to LOW while the gauge creeps.",
 	"Pumped into a blockage": "When A goes red and shakes, let go and wait for the fix.",
 	"Hose whip": "The boom swung too fast. Small pushes near the line hand.",
+	"Boom collision": "The boom knocked the jump form or its own mast. Ease off as the tip comes in close.",
 	"Bad load accepted": "Slump test every truck. Too wet or too old goes back with B.",
 	"Bad concrete in before the call": "Make the load call before that truck's concrete goes in.",
 	"Driver had to make the call": "The truck sat waiting. Test it before the driver gives up.",
@@ -223,6 +224,9 @@ static func to_notes(dollars: int) -> int:
 ## "+N" rising off them. `why` groups it on the slab report.
 func award(who, pts: int, why: String, at := Vector3.INF) -> void:
 	var base := why.split(" (")[0]
+	# (heavy rain doesn't stop the job any more: everything earned while it's coming down pays double)
+	if pts > 0 and game != null and game.get("pour") != null and game.pour != null and game.pour.raining and game.get("phase") == "pour":
+		pts *= 2
 	pts = to_notes(int(roundf(float(pts) * float(RATE.get(base, 1.0)) * Wallet.CASH)))
 	if pts == 0:
 		return

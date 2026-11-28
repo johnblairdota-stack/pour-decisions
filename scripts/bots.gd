@@ -409,7 +409,7 @@ func _boom(p, delta: float) -> void:
 	# (high or low output is the pump operator's now)
 	var ok: bool = line.hopper > 0.25 or feeding and line.hopper > 0.08
 	var why := "" if ok else "hopper"
-	if pour.raining or g.climb.wind_gust >= g.BOOM_WIND or line.line_down() or line.blocked:
+	if g.climb.wind_gust >= g.BOOM_WIND or line.line_down() or line.blocked:
 		ok = false
 		why = "line"
 	if line.hopper < 0.08 and not feeding:
@@ -556,13 +556,13 @@ func _hose(p, delta: float) -> void:
 		return   # (the slurry and the washout: the boom pumps into the bin)
 	# Call the pump on (hold A) when it's worth it, the way the boom bot did
 	# before the call was the hose hand's: not into an empty hopper, a weeping
-	# clamp or a blocked line, not in the rain or a gust, not while walking off
+	# clamp or a blocked line, not in a gust, not while walking off
 	# a spot that's full, and never ahead of the bay being poured
 	var line = g.line
 	var feeding: bool = line.hud_info()["bay"] == "discharging"
 	var ok: bool = line.hopper > 0.25 or feeding and line.hopper > 0.08
 	var why := "" if ok else "hopper"
-	if pour.raining or g.climb.wind_gust >= g.BOOM_WIND or line.line_down() or line.blocked or line.tripped:
+	if g.climb.wind_gust >= g.BOOM_WIND or line.line_down() or line.blocked or line.tripped:
 		ok = false
 		why = "line"
 	if line.fail_i >= 0 and line.wear > 0.25 and not g.let_burst:
