@@ -3,7 +3,7 @@
     python3 tools/sites/roads_wide.py <PourDecisions-sites>/data
 
 Input: <data>/<each of OSM_AREAS>/osm/osm_all.json.gz (OSM, CBD + inner suburbs, merged) and <data>/cbd/elvis/grid2019 (LiDAR DSM).
-Box: reference/sites/spire/river/river.json (river_shape.py). Writes reference/sites/spire/roads/roads.json:
+Box: reference/sites/spire/river/river.json (river_shape.py). Writes reference/sites/spire/roads/roads.json.gz:
 
     ways     [{id, kind, cls, name, width, lanes, oneway, bridge, layer, pts: [[x, y], ...] (local, every <= 4 m),
                deck: [z AHD per point] for bridges (LiDAR, else ramped between the ends)}]
@@ -233,10 +233,10 @@ def main():
         out.append(rec)
         counts[kind + (" bridge" if rec["bridge"] else "")] = counts.get(kind + (" bridge" if rec["bridge"] else ""), 0) + 1
     os.makedirs(OUT, exist_ok=True)
-    json.dump({"note": "OSM roads/rail/paths + bridge decks (LiDAR heights), Spire local metres. tools/sites/roads_wide.py",
-               "box_local": [bx0, by0, bx1, by1], "ways": out, "bridges": bridges},
-              open(os.path.join(OUT, "roads.json"), "w"), separators=(",", ":"))
-    print(counts, "bridge outlines", len(bridges), "MB %.1f" % (os.path.getsize(os.path.join(OUT, "roads.json")) / 1e6))
+    with L.wopen(os.path.join(OUT, "roads.json.gz")) as f:
+        json.dump({"note": "OSM roads/rail/paths + bridge decks (LiDAR heights), Spire local metres. tools/sites/roads_wide.py",
+                   "box_local": [bx0, by0, bx1, by1], "ways": out, "bridges": bridges}, f, separators=(",", ":"))
+    print(counts, "bridge outlines", len(bridges), "MB %.1f" % (os.path.getsize(os.path.join(OUT, "roads.json.gz")) / 1e6))
     named = {}
     for r in out:
         if r["bridge"] and r["name"]:

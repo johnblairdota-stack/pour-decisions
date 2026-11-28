@@ -498,7 +498,7 @@ def clear_column(jobs):
 
 def landmarks(bufs):
     """Critic rounds 19 to 23: Victoria Bridge as the white haunched box girder on two blade piers (the road layer only
-    gives a thin deck), and the Wheel of Brisbane on the South Bank side. Positions from roads.json and the 2022 aerial;
+    gives a thin deck), and the Wheel of Brisbane on the South Bank side. Positions from roads.json.gz and the 2022 aerial;
     girder depths and the 60 m wheel are read off photos."""
     a, b = (-822.0, -955.0), (-1090.0, -1118.0)
     ln = math.hypot(b[0] - a[0], b[1] - a[1])
@@ -562,8 +562,8 @@ def fill_tree_gaps(col):
     wat = np.frombuffer(gzip.open(os.path.join(L.REF, "river", "water_2m.u8.gz")).read(), "u1").reshape(rv["rows"], rv["cols"])
     rx0, ry0, rx1, ry1 = rv["box_local"]
     polys = []
-    for fp in (("wide", "buildings_wide.json"), ("ext", "buildings_ext.json"), ("lidar", "buildings_clean.json")):
-        for bd in json.load(open(os.path.join(L.REF, *fp)))["buildings"]:
+    for fp in (("wide", "buildings_wide.json.gz"), ("ext", "buildings_ext.json"), ("lidar", "buildings_clean.json")):
+        for bd in json.load(L.ropen(os.path.join(L.REF, *fp)))["buildings"]:
             for t in bd["tiers"]:
                 rg = t["ring"]
                 bx = (min(q[0] for q in rg) - 5.0, min(q[1] for q in rg) - 5.0, max(q[0] for q in rg) + 5.0, max(q[1] for q in rg) + 5.0)

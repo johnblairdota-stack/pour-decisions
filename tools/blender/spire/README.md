@@ -162,7 +162,7 @@ the river). Gap: the Newstead reach between the two aerials (no imagery) is stil
 and bridge over the river box (3,900 ways) and measures each bridge deck from the 2019 LiDAR DSM (lowest of
 three lines across the deck, rolling 30th percentile along it). Bridges built after 2019 (Neville Bonner,
 Kangaroo Point) use the published river clearance; decks under a canopy or arch bracing (Kurilpa, Merivale)
-are capped. Output: `reference/sites/spire/roads/roads.json`.
+are capped. Output: `reference/sites/spire/roads/roads.json.gz`.
 
 `far_roads.py` (after `cbd_ext` in `build_all.MODULES`) drapes the roads and rail on the far ground at
 their OSM widths, builds every bridge deck with parapets and piers, and adds the main structures of the
