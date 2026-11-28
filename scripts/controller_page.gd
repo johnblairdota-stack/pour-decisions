@@ -175,6 +175,8 @@ body.boomsp #B{left:22%;top:12%}
 .st .k{min-width:5.6vmin;height:5.6vmin;padding:0 1vmin;border-radius:99px;display:flex;align-items:center;justify-content:center;font-family:"Barlow Condensed",sans-serif;font-weight:800;font-size:3.4vmin;flex-shrink:0}
 .st.now{background:#fff6d6;border-color:var(--gold);font-weight:700;animation:nowpulse 1.4s ease-in-out infinite}
 .st.past{color:#8c887d}
+.st.arw{font-size:5vmin;font-weight:800;align-items:center;gap:3vmin}
+.st.arw b{font-size:11vmin;line-height:1}
 .st.go{background:color-mix(in srgb,var(--job) 22%,#fff);border-color:var(--job);font-weight:800;font-size:4vmin;align-items:center}
 .st.go svg{width:5.6vmin;height:5.6vmin;flex-shrink:0}
 .st.brief{flex-direction:column;align-items:stretch;gap:1.4vmin}
@@ -244,6 +246,7 @@ body.boomsp #B{left:22%;top:12%}
 #B .verb{left:auto;right:-2vmin;transform:translate(0,-1.5vmin) scale(.85)}
 #B.cue .verb{transform:translate(0,0) scale(1)}
 #X .verb{left:0;transform:translate(0,-1.5vmin) scale(.85)}
+#X.cue{z-index:6}
 #X.cue .verb{transform:translate(0,0) scale(1)}
 /* a hint of a thumb, tapping the button the game's waiting on */
 #ghost{position:fixed;width:16vmin;height:16vmin;pointer-events:none;z-index:26;display:none}
@@ -734,7 +737,7 @@ function drawSteps() {
     if (pump && now.i >= 0 && !on && i !== now.i + 1) return;
     html += '<div class="st' + (on ? ' now' : '') + (s[2] ? ' past' : '') + '">' + chip(s[0]) + '<span>' + esc(s[1]) + (on && now.verb ? '<span class="v">Now: ' + esc(now.verb) + '</span>' : '') + '</span></div>';
   });
-  if (now.i < 0 && now.verb) html = '<div class="st now">' + chip(now.btn || 'A') + '<span>' + esc(now.verb) + '</span></div>' + (pump ? '' : html);
+  if (now.i < 0 && now.verb) html = '<div class="st now' + (now.arrow ? ' arw' : '') + '">' + (now.arrow ? '<b>' + now.arrow + '</b>' : chip(now.btn || 'A')) + '<span>' + esc(now.verb) + '</span></div>' + (pump ? '' : html);
   // Nothing to press yet, but the job wants you somewhere: say where
   if (now.go) html = '<div class="st go">' + PIN + '<span>' + esc(now.go) + '</span></div>' + html;
   // The toolbox talk's up on the TV: hold A here to start, the same as there

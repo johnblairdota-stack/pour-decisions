@@ -594,6 +594,13 @@ func _send_state(c: Dictionary) -> void:
 		now["verb"] = str(cu[1])
 		if not climb_day and cday.is_empty():
 			now["i"] = UI.step_for(p.role, cu[0], str(cu[1]))
+	# In the crane cab: the dogger's call as an arrow, the way to push (cab_signal.gd)
+	if scr == "play" and _cab_open() and _cab_holder() == p and game.mast.signal_fx != null:
+		var sg: Dictionary = game.mast.signal_fx.phone()
+		if not sg.is_empty():
+			now["arrow"] = String(sg["arrow"])
+			now["verb"] = "%s · %s" % [sg["call"], sg["how"]]
+			now["i"] = -1
 	if not cday.is_empty():
 		now["climb"] = true
 		now["i"] = int(cday["i"])
@@ -776,10 +783,10 @@ func card(role: String, who = null) -> Dictionary:
 			does = String((game.erect.JOBS_PEN if kind == "pen" else game.erect.JOBS).get(role, does))
 		var mine: Dictionary = ClimbPhone.state(game, who) if who != null else {}
 		if not mine.is_empty():
-			return {"t": "card", "role": role, "icon": tr if tr in ["rigger", "dogger", "crane"] else role, "name": Trades.climb_full(role, kind),
+			return {"t": "card", "role": role, "icon": tr if tr in ["rigger", "dogger", "crane"] else role, "name": String(((Trades.CLIMB_SEAT.get(kind, {}) as Dictionary).get(role, ["", Trades.climb_full(role, kind)]) as Array)[1]),
 				"trade": Trades.trade_name(tr) if tr != "" else "", "col": (Trades.COL[tr] as Color).to_html(false) if Trades.COL.has(tr) else UI.ROLE.get(role, Color.WHITE).to_html(false),
 				"goal": does.left(1).to_upper() + does.substr(1), "steps": mine["steps"], "watch": "", "climb": "", "climbsteps": []}
-		return {"t": "card", "role": role, "icon": tr if tr in ["rigger", "dogger", "crane"] else role, "name": Trades.climb_full(role, kind),
+		return {"t": "card", "role": role, "icon": tr if tr in ["rigger", "dogger", "crane"] else role, "name": String(((Trades.CLIMB_SEAT.get(kind, {}) as Dictionary).get(role, ["", Trades.climb_full(role, kind)]) as Array)[1]),
 			"trade": Trades.trade_name(tr) if tr != "" else "", "col": (Trades.COL[tr] as Color).to_html(false) if Trades.COL.has(tr) else UI.ROLE.get(role, Color.WHITE).to_html(false),
 			"goal": (does.left(1).to_upper() + does.substr(1)) if does != "" else jc.get("goal", ""), "steps": UI.how(role, "climb") if kind == "lattice" else [], "watch": "",
 			"climb": "", "climbsteps": []}
