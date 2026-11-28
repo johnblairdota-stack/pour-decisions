@@ -2,7 +2,7 @@
 """Pop-up name tags on the fly-over frames: game towers in gold, Brisbane places in white (no Blender).
 
     python3 tools/city/flyover_labels.py heights <data>          fill in each place's roof height from the LiDAR
-    python3 tools/city/flyover_labels.py draw <frames.json> <frames_dir> <out_dir> <fonts_dir> [only=f00380]
+    python3 tools/city/flyover_labels.py draw <frames.json> <frames_dir> <out_dir> <fonts_dir> [only=f00380] [every=2]
 
 Places are in tools/city/flyover_places.json. Each one is pinned to its real spot in the model: the frame's
 camera (flyover.py plan) projects the roof point into the picture, so the tag stays on the place as the camera
@@ -99,9 +99,10 @@ def star(dr, cx, cy, s, col):
                 (cx - s, cy), (cx - k, cy - k)], fill=col)
 
 
-def draw(frames_json, frames_dir, out_dir, fonts_dir, only=None):
+def draw(frames_json, frames_dir, out_dir, fonts_dir, only=None, every=1):
     from PIL import Image, ImageDraw, ImageFont
-    frames = [f for f in json.load(open(frames_json)) if os.path.exists(os.path.join(frames_dir, f["id"] + ".png"))]
+    frames = [f for f in json.load(open(frames_json))
+              if int(f["id"][1:]) % every == 0 and os.path.exists(os.path.join(frames_dir, f["id"] + ".png"))]
     places = json.load(open(PLACES))["places"]
     for p in places:
         p["x"], p["y"] = local(p["lat"], p["lon"])
@@ -121,13 +122,10 @@ def draw(frames_json, frames_dir, out_dir, fonts_dir, only=None):
             q = project(f, p["x"], p["y"], p["z"])
             if q and -40 < q[0] < W + 40 and 20 < q[1] < H + 40 and q[2] < FAR_M:
                 seen.append((i, q))
-        want = sorted((s for s in seen if s[1][2] < OPEN_M and 70 < s[1][0] < W - 70 and s[1][1] > 90),
-                      key=lambda s: (places[s[0]]["kind"] != "game", s[1][2]))
-        keep = {i for i in opened if any(s[0] == i for s in want)}          # an open tag stays open while it can
-        for s in want:
-            if len(keep) >= MAX_OPEN:
-                break
-            keep.add(s[0])
+        ok = [s for s in seen if s[1][2] < OPEN_M and 70 < s[0 + 1][0] < W - 70 and s[1][1] > 90]
+        # who gets a tag: game towers first, then tags that are already open (so they do not flicker), then the nearest
+        ok.sort(key=lambda s: (places[s[0]]["kind"] != "game", s[0] not in opened, s[1][2]))
+        keep = {s[0] for s in ok[:MAX_OPEN]}
         for i in list(opened):
             if i not in keep:
                 del opened[i]
@@ -140,8 +138,13 @@ def draw(frames_json, frames_dir, out_dir, fonts_dir, only=None):
         im = Image.open(os.path.join(frames_dir, f["id"] + ".png")).convert("RGBA")
         ov = Image.new("RGBA", (W * SS, H * SS), (0, 0, 0, 0))
         dr = ImageDraw.Draw(ov)
-        boxes = []
-        for i, q in sorted(seen, key=lambda s: -s[1][2]):                   # far ones first, near ones on top
+        boxes, far_boxes = [], []
+        for i, q in seen:                                   # where the open tags' roofs are: far names keep clear of them
+            if i in opened:
+                far_boxes.append((q[0] * SS, q[1] * SS - 40 * SS, 230 * SS, 110 * SS))
+        # far names: game towers first, then the nearest; one that would sit on another is left out for now
+        far = sorted((s for s in seen if s[0] not in opened), key=lambda s: (places[s[0]]["kind"] != "game", s[1][2]))
+        for i, q in far + sorted((s for s in seen if s[0] in opened), key=lambda s: -s[1][2]):
             p = places[i]
             game = p["kind"] == "game"
             col = GOLD if game else WHITE
@@ -152,10 +155,13 @@ def draw(frames_json, frames_dir, out_dir, fonts_dir, only=None):
                 a = int(255 * fade * min(1.0, (FAR_M - q[2]) / 1500.0))
                 if a <= 8:
                     continue
-                r = 5 * SS
-                dr.ellipse([x - r, y - r, x + r, y + r], fill=col + (a,), outline=DARK + (a,), width=2 * SS)
                 name = p["name"].upper()
                 tw = dr.textlength(name, font=small)
+                if any(abs(x - bx) < (tw + bw2) / 2 + 8 * SS and abs(y - 14 * SS - by) < (34 * SS + bh2) / 2 for bx, by, bw2, bh2 in far_boxes):
+                    continue
+                far_boxes.append((x, y - 14 * SS, tw, 34 * SS))
+                r = 5 * SS
+                dr.ellipse([x - r, y - r, x + r, y + r], fill=col + (a,), outline=DARK + (a,), width=2 * SS)
                 dr.text((x - tw / 2, y - 26 * SS), name, font=small, fill=col + (a,), stroke_width=2 * SS, stroke_fill=DARK + (a,))
                 continue
             t = (n - opened[i]) / fps                       # seconds since it opened
@@ -235,6 +241,6 @@ if __name__ == "__main__":
     if pos and pos[0] == "heights":
         heights(pos[1])
     elif pos and pos[0] == "draw":
-        draw(pos[1], pos[2], pos[3], pos[4], opt.get("only"))
+        draw(pos[1], pos[2], pos[3], pos[4], opt.get("only"), int(opt.get("every", 1)))
     else:
         print(__doc__)

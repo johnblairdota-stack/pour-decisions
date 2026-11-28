@@ -34,14 +34,16 @@
    "kind": "game",
    "lat": -27.4735,
    "lon": 153.0253,
-   "z": 6.6
+   "z": 95,
+   "z_fixed": true
   },
   {
    "name": "Portside Wharf",
    "kind": "game",
    "lat": -27.4418,
    "lon": 153.0672,
-   "z": 5.0
+   "z": 30,
+   "z_fixed": true
   },
   {
    "name": "Riverlight",
@@ -62,14 +64,16 @@
    "kind": "place",
    "lat": -27.4985,
    "lon": 153.0205,
-   "z": 5.0
+   "z": 20,
+   "z_fixed": true
   },
   {
    "name": "Suncorp Stadium",
    "kind": "place",
    "lat": -27.4648,
    "lon": 153.0095,
-   "z": 4.8
+   "z": 35,
+   "z_fixed": true
   },
   {
    "name": "XXXX Brewery",
@@ -88,8 +92,8 @@
   {
    "name": "Wheel of Brisbane",
    "kind": "place",
-   "lat": -27.4753,
-   "lon": 153.0209,
+   "lat": -27.4754,
+   "lon": 153.02102,
    "z": 52.9
   },
   {
@@ -118,7 +122,8 @@
    "kind": "place",
    "lat": -27.4858,
    "lon": 153.0381,
-   "z": 5.8
+   "z": 30,
+   "z_fixed": true
   },
   {
    "name": "Story Bridge",
@@ -132,7 +137,8 @@
    "kind": "place",
    "lat": -27.4695,
    "lon": 153.0515,
-   "z": 2.6
+   "z": 15,
+   "z_fixed": true
   },
   {
    "name": "Brisbane Powerhouse",
@@ -153,7 +159,8 @@
    "kind": "place",
    "lat": -27.445,
    "lon": 153.1,
-   "z": 5.0
+   "z": 65,
+   "z_fixed": true
   }
  ]
 }
