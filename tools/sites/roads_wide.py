@@ -27,7 +27,10 @@ import layout as L  # noqa: E402
 
 OUT = os.path.join(L.REF, "roads")
 OSM_AREAS = ("cbd", "westend", "portside", "paddington", "gabba", "downriver_n", "downriver_s",
-             "northwest", "southeast")   # fetch_sites.py areas whose extracts are merged
+             "northwest", "southeast",   # fetch_sites.py areas whose extracts are merged
+             "g496_6955", "g496_6959", "g496_6963", "g496_6967", "g500_6955",
+             "g500_6963", "g500_6967", "g504_6955", "g504_6959", "g504_6963",
+             "g504_6967", "g508_6955", "g508_6959", "g508_6963", "g508_6967")   # the 16 km grid blocks
 
 
 def load_osm(data):
