@@ -4583,6 +4583,8 @@ func _toolbox(wait: bool) -> Dictionary:
 func _set_phase(p: String) -> void:
 	if autotest and phase != "":
 		print("[autotest]   (%s took %.1fs)" % [phase, phase_t])
+	if not p in ["changeover", "climb", "mastclimb"]:
+		ClimbHats.restore(self)
 	if not _pour_seats.is_empty() and not p in ["changeover", "climb", "mastclimb"]:
 		# (the climb's done: everyone back on their pour-day hats)
 		Changeover.restore(crew, _pour_seats)
@@ -4605,11 +4607,13 @@ func _set_phase(p: String) -> void:
 ## The crews change over before a climb day (changeover.gd): the people playing take their climb
 ## seats (the cab too, on Spire), then `go` starts the climb. Bots-only crews go straight on.
 const Changeover := preload("res://scripts/changeover.gd")
+const ClimbHats := preload("res://scripts/climb_hats.gd")
 var _changeover = null
 var _pour_seats := {}        # person index -> pour-day job, while they're on climb seats
 
 func _change_over(climb_kind: String, go: Callable) -> void:
 	if not Changeover.wanted(self):
+		ClimbHats.apply(self, climb_kind)
 		go.call()
 		return
 	_pour_seats = Changeover.seats_now(crew)
@@ -4622,6 +4626,8 @@ func _change_over(climb_kind: String, go: Callable) -> void:
 		_changeover = null
 		if cab != null and mast != null and mast.has_method("take_cab"):
 			mast.take_cab(cab)
+		# (everyone into the day's hats: rigger blue, dogger purple, the crane op's white)
+		ClimbHats.apply(self, climb_kind, cab)
 		go.call())
 
 func _start_floor() -> void:
