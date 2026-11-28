@@ -477,6 +477,7 @@ var scr_t := {}          # the screeder bot's seconds in each mode (autotest)
 var _scr_log := 0.0
 var _hose_goal := Vector3.INF
 var stop_t := {}     # (test) s the boom bot held off pumping, by reason
+var hose_stop_t := {}   # (test) the same for the hose bot's own call
 var _last_dl := Vector3.ZERO
 var _hose_goal_t := 0.0
 
@@ -551,10 +552,13 @@ func _hose(p, delta: float) -> void:
 	var line = g.line
 	var feeding: bool = line.hud_info()["bay"] == "discharging"
 	var ok: bool = line.hopper > 0.25 or feeding and line.hopper > 0.08
+	var why := "" if ok else "hopper"
 	if pour.raining or g.climb.wind_gust >= g.BOOM_WIND or line.line_down() or line.blocked or line.tripped:
 		ok = false
+		why = "line"
 	if line.fail_i >= 0 and line.wear > 0.25 and not g.let_burst:
 		ok = false
+		why = "clamp"
 	# Don't pile it up while the boom's still swinging over to its next spot
 	# (as the boom bot judged it when the trigger was its own)
 	var dl: Vector3 = g._pour_local(g.discharge())
@@ -562,20 +566,28 @@ func _hose(p, delta: float) -> void:
 	if op != null and op.bot:
 		# (the boom bot still judges the swing, the pile-ups and, on a big
 		# slab, the heaps: it moves on from them, the hose hand holds off)
+		if ok and not _boom_ok:
+			why = "boom"
 		ok = ok and _boom_ok
 	elif pour.vol_k > 1.0 and pour.height_at(dl) > pour.SLAB * 1.5:
 		ok = false
+		why = "heap"
 	# (a nozzle's width over the line doesn't count: with the bay's last low spot right by it, the
 	# hose hand stood just across the line, never called the pump on, and the bay never finished:
 	# the pump sat idle on a full hopper for good)
 	if pour.bay_of_x(dl.x) > pour.cur_bay and pour.bay_of_x(dl.x - 0.9) > pour.cur_bay:
 		ok = false
+		why = "ahead"
 	if op == null and not pour.on_slab(dl):
+		why = "off slab"
 		ok = false        # (nobody on the boom and the hose off the slab: don't pump it over the edge)
 	# (never onto concrete that's already up over level; and a person on the boom gets whistled over
 	# to the next low spot once there's nothing left under the tip)
-	if ok and not hose_bot.may_pump(g, dl):
+	if ok and not hose_bot.may_pump(g, dl, delta):
 		ok = false
+		why = "full"
+	if why != "" and g.autotest:
+		hose_stop_t[why] = float(hose_stop_t.get(why, 0.0)) + delta
 	if op != null and not op.bot and not op.covering:
 		hose_bot.call_boom(g, p, delta)
 	p.ai_action = ok

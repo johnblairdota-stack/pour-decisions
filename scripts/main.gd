@@ -5695,6 +5695,19 @@ func _process(delta: float) -> void:
 	tip_pos = tip_pos.lerp(tip_target, minf(1.0, delta * 4.0))
 	if spire and not _spire_core.is_empty():
 		_rig_bump(delta)
+	if zboom != null and head != null:
+		# (no nearer its own column than the boom's tucked fold brings the tip: zboom._tuck)
+		var hp0 := head.global_position
+		var near: float = zboom.TUCK_IN
+		for which in 2:
+			var tp0: Vector3 = tip_target if which == 0 else tip_pos
+			var off := Vector2(tp0.x - hp0.x, tp0.z - hp0.z)
+			if off.length() < near:
+				off = (off.normalized() if off.length() > 0.01 else Vector2(0, 1)) * near
+				if which == 0:
+					tip_target = Vector3(hp0.x + off.x, tp0.y, hp0.z + off.y)
+				else:
+					tip_pos = Vector3(hp0.x + off.x, tp0.y, hp0.z + off.y)
 	tip_kick = tip_kick.lerp(Vector3.ZERO, minf(1.0, delta * 3.0))
 	_update_whip(delta)
 	_update_boom()
@@ -5884,11 +5897,12 @@ func _update_pour(delta: float) -> void:
 		# (progress, and how long a frame takes, for long pours)
 		print("[autotest]   pour t=%.0f clock=%.0f fill=%.2f poured=%.1f/%.1f bay=%d/%d edge=%.0f risk=%.2f wall=%ds step=%.1fms frame=%.1fms" % [phase_t, pour_clock, _filled_ratio(), pour.poured, pour.needed(), pour.cur_bay + 1, pour.BAYS, pour.edge_left, pour.at_risk, Time.get_ticks_msec() / 1000, _step_ms, _frame_ms])
 		var dv: Vector2 = pour.debug_volume()
-		print("[autotest]     on slab %.1f, spilled %.1f, p90 depth %.2f m, boom held off %s, pumping %.0fs" % [dv.x, pour.spilled, dv.y, str(bots.stop_t), _pump_t])
+		print("[autotest]     on slab %.1f, spilled %.1f, p90 depth %.2f m, boom held off %s, hose held off %s, pumping %.0fs" % [dv.x, pour.spilled, dv.y, str(bots.stop_t), str(bots.hose_stop_t), _pump_t])
 		if OS.get_cmdline_user_args().has("--dbg"):
 			var dl := _pour_local(discharge())
 			print("[autotest]     goal %s tip %s disch %s under %.2f strip %s hoser %s" % [str(bots._boom_goal), str(_pour_local(tip_target)), str(dl), pour.height_at(dl), str(pour.leading_strip(pour.cur_bay)), str(hose_holder.position) if hose_holder != null else "-"])
 		bots.stop_t = {}
+		bots.hose_stop_t = {}
 		_pump_t = 0.0
 	if autotest and _dbg and fmod(pour_clock, 5.0) < delta and ops.primed:
 		var ts := []
@@ -8151,6 +8165,7 @@ func _update_boom() -> void:
 			arm2.rotation.z = lerpf(arm2.rotation.z, PARK_A2, f)
 	if zboom != null:
 		# (the real fold: up to the carry, arms 4, 3, 2 in turn, then arm 1 down onto the stack)
+		zboom.hose_held = hose_holder != null and is_instance_valid(hose_holder) and hose_holder.busy == "hose"
 		zboom.pose(d, ty, _park_f, sin(phase_t * 11.0) * jit * 0.15 + breathe, dt)
 	else:
 		tip.rotation.z = -(arm1.rotation.z + arm2.rotation.z)
@@ -8626,9 +8641,10 @@ func _update_see_through(delta: float) -> void:
 	_cut_t -= delta
 	if _cut_t <= 0.0:
 		_cut_t = 0.5
-		var roots: Array = [hoist_mast, hoist_cage, lattice, yaw_node.get_child(0)] + head_deco
+		# (not the boom or the tower it stands on: John, 28 Nov. They stay solid.)
+		var roots: Array = [hoist_mast, hoist_cage]
 		if _spire_mast != null:
-			roots += [_spire_mast, _spire_fixings, _spire_pen_rail]
+			roots += [_spire_fixings, _spire_pen_rail]
 		if spire and LineScript.STACK:
 			# (the line and its ladder go up through the building: the podium's slabs and columns, its
 			# Ann St face and the finished floors over it are all cut away round anyone working on them)
@@ -8640,8 +8656,6 @@ func _update_see_through(delta: float) -> void:
 				if String(c.name).begins_with("PodiumFace"):
 					roots.append(c)
 			# (the floors and the perimeter scaffold take the deck's section cut as well: below)
-		if _spire_b != null:
-			roots += [_spire_b.mast, _spire_b.yaw.get_child(0), _spire_b.arm1]
 		if _spire_street != null:
 			# (the water-filled barriers stand between the camera and the truck bay)
 			roots += _spire_street.barriers
@@ -8667,12 +8681,6 @@ func _update_see_through(delta: float) -> void:
 			for r in _rect_rails + floor_nodes:
 				if r != null and is_instance_valid(r):
 					_give_cut(r, true)
-		# (and the boom's first arm and the ball at its foot; the outer arm
-		# stays solid, it's what's being steered)
-		if arm1 != null and is_instance_valid(arm1):
-			for ch in arm1.get_children():
-				if ch != arm2:
-					_give_cut(ch)
 	# The work: whatever the close-ups are on (a small circle: they're right
 	# up close), then anyone on the deck and where the concrete's going in
 	# (those not on a climb day, when the climbing frame and riser are the work)
