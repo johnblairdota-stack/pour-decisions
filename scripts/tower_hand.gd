@@ -10,6 +10,7 @@ extends Control
 
 const UI := preload("res://scripts/ui.gd")
 const Settings := preload("res://scripts/settings.gd")
+const ComingSoon := preload("res://scripts/coming_soon.gd")
 
 const CARD_W := 1.0
 const CARD_H := 1.4
@@ -335,6 +336,8 @@ func _face_viewport(c: Dictionary) -> SubViewport:
 	art.size = Vector2(268, 176) * s
 	art.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	pic.add_child(art)
+	if ComingSoon.is_soon(c):
+		ComingSoon.mark_card(pic, art, s)       # (not built yet: greyed, the hoarding across it)
 	_pics.append(pic)
 	# name, place, chips
 	var nm := UI.head(c["name"], int(40 * s), Color("1d2023"))
@@ -373,6 +376,8 @@ func _face_viewport(c: Dictionary) -> SubViewport:
 
 ## [the best three medals (2 gold, 1 silver, 0 bronze, -1 none), the stamp's text, its colour]
 func _progress(c: Dictionary) -> Array:
+	if ComingSoon.is_soon(c):
+		return [[-1, -1, -1], "COMING SOON", Color("8a8d97")]
 	if c["id"] == "water":
 		var done: bool = Settings.value("tut_done")
 		return [[-1, -1, -1], "DONE" if done else "NOT STARTED", Color("2e8f5a") if done else Color("8a8d97")]
@@ -534,6 +539,14 @@ func play() -> void:
 	last_focus = focus
 	if game != null:
 		game.sfx.hit("thunk")
+
+## Back in the hand from a tower that isn't open yet (coming_soon.gd): the played card drops back in.
+func back() -> void:
+	_busy = false
+	_play_t = -1.0
+	_cool = 0.3
+	_box.modulate.a = 1.0
+	arrival = {}
 
 func _play_step() -> void:
 	var c: Dictionary = TOWERS[focus]
