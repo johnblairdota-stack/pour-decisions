@@ -140,6 +140,12 @@ func start() -> void:
 	# (dev: `--cab` puts the first person in the crane cab, driven by cab_ai())
 	if g.autotest and OS.get_cmdline_user_args().has("--cab") and cab == null and not g.crew.humans().is_empty():
 		take_cab(g.crew.humans()[0])
+	# (the riggers start the day up on the deck, by the column: John, 28 Nov)
+	for role in g.crew.crew:
+		var rp = g.crew.crew[role]
+		if Trades.climb_trade(role, "spire") == "rigger" and rp != cab and rp.busy == "" and rp.held == null:
+			rp.zone = "deck"
+			rp.position = _deck_wait(role)
 	from_head = g.spire_mast_head(k - 1)
 	to_head = g.spire_mast_head(k)
 	rise = to_head - from_head
@@ -376,6 +382,7 @@ func update(delta: float) -> void:
 	step_t += delta
 	if cab != null and is_instance_valid(cab) and cab.ai:
 		cab_ai(cab)
+	_cab_ride()
 	if _shot_next != "" and step_t > 8.0:
 		game.mast_shot = _shot_next
 		_shot_next = ""
@@ -862,7 +869,31 @@ func take_cab(p) -> void:
 		print("[autotest]   P%d (%s) takes the crane cab" % [p.index, p.role])
 	game.hud.toast("P%d's in the crane cab. You can't see the load: go on the doggers' radio calls" % p.index, 3.0)
 
+## The person in the cab isn't on the ground any more: their chibi's out of sight up in the cab, and
+## their P tag and buttons ride on the crane's hook, which is what the camera's on and what they're
+## driving. Back where they stood when they leave the cab.
+var _cab_was: Array = []      # [position, zone] before they went up
+
+func _cab_ride() -> void:
+	if cab == null or not is_instance_valid(cab):
+		return
+	if _cab_was.is_empty():
+		_cab_was = [cab.position, cab.zone]
+	if cab.model != null:
+		cab.model.visible = false
+	cab.position = hook_pos + Vector3(0, 0.4, 0)
+
+func _cab_down(p) -> void:
+	if p != null and is_instance_valid(p):
+		if p.model != null:
+			p.model.visible = true
+		if not _cab_was.is_empty():
+			p.position = _cab_was[0]
+			p.zone = _cab_was[1]
+	_cab_was = []
+
 func leave_cab() -> void:
+	_cab_down(cab)
 	if game.autotest and cab != null:
 		print("[autotest]   P%d leaves the crane cab (step %s)" % [cab.index, step])
 	if cab != null and is_instance_valid(cab):

@@ -707,7 +707,7 @@ function drawTicket() {
   if (!card) return;
   const col = '#' + card.col;
   document.documentElement.style.setProperty('--job', col);
-  if ($('thhat').dataset.role !== card.role) { $('thhat').dataset.role = card.role; $('thhat').innerHTML = hatInner(card.role, col, false); }
+  if ($('thhat').dataset.role !== (card.icon || card.role)) { $('thhat').dataset.role = card.icon || card.role; $('thhat').innerHTML = hatInner(card.icon || card.role, col, false); }
   const t = $('ticket');
   let name = card.name, goal = card.goal, foot = '';
   t.classList.toggle('pump', card.role === 'pump' && screen === 'play' && !now.climb);

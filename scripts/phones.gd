@@ -577,7 +577,7 @@ func _send_state(c: Dictionary) -> void:
 		st["done"] = bool(game._ink_done.get(p, false))
 	_json(c, "state", st)
 	_json(c, "roster", roster())
-	_json(c, "card", card(p.role))
+	_json(c, "card", card(p.role, p))
 	var climb_day: bool = game.climb != null and game.climb.active
 	var now := {"t": "now", "i": -1, "verb": "", "btn": "", "climb": climb_day,
 		"go": game.where_to(p) if game.has_method("where_to") and scr == "play" else "",
@@ -749,8 +749,24 @@ func _climb_kind() -> String:
 	return ""
 
 ## A job's ticket: its goal, its steps, what to watch for, climb days.
-func card(role: String) -> Dictionary:
+func card(role: String, who = null) -> Dictionary:
 	var jc: Dictionary = UI.JOB_CARD.get(role, {})
+	var kind := _climb_kind()
+	if who != null and _cab_open() and _cab_holder() == who:
+		# (in the crane cab: not the job their chibi's left to a bot)
+		return {"t": "card", "role": "cab", "icon": "crane", "name": "Crane op · Cab", "trade": Trades.trade_name("crane"),
+			"col": (Trades.COL["crane"] as Color).to_html(false), "goal": "Drive the tower crane on the doggers' radio calls.",
+			"steps": [["X", "hold: HOIST UP, on the dogger's call"], ["A", "hold: LOWER, on the call"],
+				["stick", "push: SLEW LEFT / RIGHT, TROLLEY OUT / IN, on the call"]],
+			"watch": "ALL STOP means let go, now. No call, no move.", "climb": "", "climbsteps": []}
+	if kind != "":
+		# (a climb day: today's trade and seat, not the pour-day hat)
+		var tr := Trades.climb_trade(role, kind)
+		var does := String(MastClimb.CLIMB_JOB.get(role, "")) if kind == "spire" else String(UI.ROLE_CLIMB.get(role, "")).trim_prefix("Climb days: ")
+		return {"t": "card", "role": role, "icon": tr if tr in ["rigger", "dogger", "crane"] else role, "name": Trades.climb_full(role, kind),
+			"trade": Trades.trade_name(tr) if tr != "" else "", "col": (Trades.COL[tr] as Color).to_html(false) if Trades.COL.has(tr) else UI.ROLE.get(role, Color.WHITE).to_html(false),
+			"goal": does.capitalize() if does != "" else jc.get("goal", ""), "steps": UI.how(role, "climb") if kind == "lattice" else [], "watch": "",
+			"climb": "", "climbsteps": []}
 	return {"t": "card", "role": role, "name": UI.job_full(role), "trade": UI.trade(role), "col": UI.ROLE.get(role, Color.WHITE).to_html(false),
 		"goal": jc.get("goal", ""), "steps": UI.how(role), "watch": jc.get("watch", ""),
 		"climb": ("Climb days: %s, %s" % [Trades.climb_full(role, "spire"), MastClimb.CLIMB_JOB.get(role, "")]) if game.spire else UI.ROLE_CLIMB.get(role, ""),

@@ -480,6 +480,11 @@ func bin_progress() -> float:
 func wants_bin() -> bool:
 	return stage in ["slurry_out", "push"]
 
+## The bin's next: from starting the pump till the slurry's out, and from the water going in till the
+## last of the line's pushed out. A good hand has the hose over the bin and waiting by then.
+func bin_soon() -> bool:
+	return stage in ["start", "air", "slurry_in", "slurry_go", "slurry_out", "water_in", "ball_in", "push"]
+
 func bin_world() -> Vector3:
 	return bin.global_position + Vector3(0, 0.9, 0)
 
