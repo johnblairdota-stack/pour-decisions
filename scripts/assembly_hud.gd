@@ -22,6 +22,7 @@ const PerfClock := preload("res://scripts/perf.gd")
 ## flat fills, a dark outline.
 
 const UI := preload("res://scripts/ui.gd")
+const ClimbHats := preload("res://scripts/climb_hats.gd")
 const Icons := preload("res://scripts/icons.gd")
 const LineScript := preload("res://scripts/line.gd")
 
@@ -767,14 +768,15 @@ func _draw_hats() -> void:
 				at = Vector2(_riser_x() - 44.0, _tower_y(float(h["at"])))
 			_:
 				continue
-		var col: Color = UI.ROLE.get(h["role"], Color.WHITE)
+		# (on a climb day they're in the day's trade hats: climb_hats.gd)
+		var col: Color = ClimbHats.color_of(h["role"])
 		var nudge: int = h.get("nudge", 0)
 		if nudge > 0:
 			var a := _pulse(1.6)
 			_c.draw_arc(at, (23.0 if String(h["where"]) == "deck" else 27.0) + 3.0 * a, 0.0, TAU, 32, Color(UI.ALARM, 0.6 + 0.4 * a), 4.0, true)
 		var hr := 18.0 if String(h["where"]) == "deck" else 22.0
 		_disc(at, hr, col)
-		_c.draw_texture_rect(Icons.texture(h["role"], 64), Rect2(at - Vector2(hr, hr) * 0.68, Vector2(hr, hr) * 1.36), false, INK)
+		_c.draw_texture_rect(Icons.texture(ClimbHats.icon_of(h["role"]), 64), Rect2(at - Vector2(hr, hr) * 0.68, Vector2(hr, hr) * 1.36), false, INK)
 		if not h.get("bot", true):
 			var tag := "P%d" % int(h["p"])
 			var tw := _tw(tag, 20) + 12.0

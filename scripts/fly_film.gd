@@ -31,7 +31,9 @@ const WIDE := preload("res://shaders/fly_wide.gdshader")
 const DOWN_KNEE := 45.0     # degrees down: steeper than this it is eased towards DOWN_MAX
 const DOWN_MAX := 66.0      # degrees: it never looks down more steeply than this (the wide frames end a little past it)
 const LOOK_BY := 0.85       # of the way from the run in to the stop: by then it is looking at the deck's own floor pick
-const SHOWN := 1.1          # film frames: the picture on the screen is this far ahead of the video's own clock (measured: tools note in `clock`)
+const SHOWN := 0.4          # film frames: the picture on the screen is about this far ahead of the video's own clock, until it's been read (`clock`)
+const SLIP := 0.004         # s: readings of the picture's lead that differ by less than this are the same lead
+const CODE := preload("res://shaders/fly_code.gdshader")
 const CREEP := 0.12         # the slowest the film runs before it stops (so it always gets to its frame)
 
 ## The film of a flight ("film" in Flight.TOWERS): {"video", "cams"}.
@@ -78,6 +80,26 @@ static func make(parent: Node, fl: Dictionary) -> CanvasLayer:
 		wm.set_shader_parameter("rect", Vector4(rc[0] / sz.x, rc[1] / sz.y, rc[2] / sz.x, rc[3] / sz.y))
 		wm.set_shader_parameter("rect_aspect", float(rc[2]) / float(rc[3]))
 		v.material = wm
+	if d.has("code"):
+		# (every frame of the film has its number stamped on it, and this reads the one on the screen: `clock`)
+		var pv := SubViewport.new()
+		pv.size = Vector2i(int(d["code"]["bits"]), 1)
+		pv.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+		pv.disable_3d = true
+		layer.add_child(pv)
+		var pr := ColorRect.new()
+		pr.size = Vector2(pv.size)
+		var pm := ShaderMaterial.new()
+		pm.shader = CODE
+		pm.set_shader_parameter("film", v.get_video_texture())
+		pm.set_shader_parameter("block", float(d["code"]["block"]))
+		pm.set_shader_parameter("bits", float(d["code"]["bits"]))
+		if _wide(d):
+			pm.set_shader_parameter("tex_size", Vector2(d["wide"]["size"][0], d["wide"]["size"][1]))
+		pr.material = pm
+		pv.add_child(pr)
+		layer.set_meta("probe", pv)
+		layer.set_meta("sync", {"pos": -1.0, "lo": -1e9, "hi": 1e9})
 	v.play()
 	return layer
 
@@ -149,18 +171,49 @@ static func film_t(t: float, stop: float) -> float:
 	var u := minf(1.0, (t - (stop - EASE)) / (2.0 * EASE))
 	return stop - EASE + EASE * (2.0 * u - u * u)
 
-## The film's time, s, of the picture that is on the screen now: the game's camera is put where the
-## film's was then, so the game's own site sits on the film's. It is read off the video's own clock
-## (which starts a few frames after the flight's and is slowed to a stop by `draw`), not worked out
-## from the flight's: a twentieth of a second out is metres at the speed it comes down. Measured by
-## matching a filmed flight's frames to the film's: the picture shown is the video's clock plus SHOWN
-## frames, give or take half a frame. `gone` or not started yet: the flight's own clock (film_t).
-static func clock(layer: CanvasLayer, t: float, stop: float, gone := false) -> float:
+## The film's time, s, of the picture that is on the screen now: [of the very frame, to the moment].
+## The game's camera is put where the film's was for that frame, so the game's own site sits on the
+## film's: a twentieth of a second out is metres at the speed it comes down. The video's own clock
+## doesn't say which frame is up (the picture runs a little ahead of it, by an amount that changes
+## with the screen's frame rate), so every frame of the film has its number stamped on it
+## (film_pack.py) and the one that was on the screen last frame is read back here. Each reading
+## narrows down how far the picture is ahead of the clock (`lo`..`hi`), and that says which frame is
+## up now. `gone` or not started yet: the flight's own clock (film_t). Call once a frame, before `draw`.
+static func clock(layer: CanvasLayer, t: float, stop: float, gone := false) -> Array:
 	var v := layer.get_child(0) as VideoStreamPlayer
+	var fps := float(layer.get_meta("cams")["fps"])
 	if gone or not v.is_playing() or v.stream_position <= 0.0:
-		return film_t(t, stop)
-	var c := v.stream_position + SHOWN / float(layer.get_meta("cams")["fps"])
-	return c if stop < 0.0 else minf(c, stop)
+		var ft := film_t(t, stop)
+		return [ft, ft]
+	var lead := SHOWN / fps
+	if layer.has_meta("probe"):
+		var sy: Dictionary = layer.get_meta("sync")
+		var pv := layer.get_meta("probe") as SubViewport
+		if not layer.has_meta("probe_on") and v.get_video_texture() != null:
+			((pv.get_child(0) as ColorRect).material as ShaderMaterial).set_shader_parameter("film", v.get_video_texture())
+			layer.set_meta("probe_on", true)
+		var img := pv.get_texture().get_image()
+		if img != null and not img.is_empty() and float(sy["pos"]) > 0.0 and not v.paused:
+			var f := 0
+			for i in img.get_width():
+				f = f * 2 + (1 if img.get_pixel(i, 0).g > 0.5 else 0)
+			# (the frame that was up when the clock said sy.pos: so the lead is between these two)
+			var lo := float(f) / fps - float(sy["pos"])
+			var hi := float(f + 1) / fps - float(sy["pos"])
+			if absf(lo) < 0.5:                      # (a reading that makes sense)
+				if lo > float(sy["hi"]) + SLIP or hi < float(sy["lo"]) - SLIP:      # (it has shifted: a stall. Start again from this one.)
+					sy["lo"] = lo
+					sy["hi"] = hi
+				else:
+					sy["lo"] = maxf(float(sy["lo"]), minf(lo, float(sy["hi"])))
+					sy["hi"] = minf(float(sy["hi"]), maxf(hi, float(sy["lo"])))
+		sy["pos"] = v.stream_position
+		if float(sy["hi"]) < 1e8:
+			lead = (float(sy["lo"]) + float(sy["hi"])) * 0.5
+	layer.set_meta("lead", lead)
+	var c := v.stream_position + lead
+	var fr := floorf(c * fps) / fps
+	return [fr, c] if stop < 0.0 else [minf(fr, stop), minf(c, stop)]
 
 ## The film's stopped on its frame (`draw`, with a stop).
 static func held(layer: CanvasLayer) -> bool:
@@ -198,9 +251,10 @@ static func draw(layer: CanvasLayer, t: float, gone: bool, stay := false, stop :
 		elif not v.paused:
 			# (slowed evenly over the last EASE s of film, by how much film is left on its own clock, and
 			# stopped once its frame is the one on the screen)
-			var left_t := stop - (v.stream_position + SHOWN / fps)
+			var shown: float = v.stream_position + float(layer.get_meta("lead", SHOWN / fps))
+			var left_t := stop - shown
 			var rate := clampf(sqrt(maxf(0.0, left_t) / EASE), CREEP, 1.0)
-			if left_t <= 0.0:
+			if floorf(shown * fps + 0.001) >= roundf(stop * fps):
 				v.paused = true
 			elif not is_equal_approx(v.speed_scale, rate):
 				v.speed_scale = rate

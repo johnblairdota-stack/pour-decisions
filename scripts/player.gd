@@ -348,6 +348,8 @@ func refresh_tag() -> void:
 		ring.visible = true
 		(ring.material_override as StandardMaterial3D).albedo_color = tag_color
 
+var hat_icon := ""        # a climb-day trade's icon instead of the job's (climb_hats.gd), or ""
+
 ## The job's icon on the front of the hard hat, so the job reads even where
 ## the hat's colour doesn't.
 func _hat_icon() -> void:
@@ -371,7 +373,7 @@ func _hat_icon() -> void:
 		s.shaded = false
 		s.double_sided = false
 		head.add_child(s)
-	s.texture = Icons.outlined(role, 96)
+	s.texture = Icons.outlined(hat_icon if hat_icon != "" else role, 96)
 	s.modulate = Color.WHITE
 ## Said out loud, as a hand sign (hand_signs.gd): a round sign over their
 ## head with a picture and a word, its colour by how much it matters, and
