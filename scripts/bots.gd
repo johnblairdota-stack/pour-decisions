@@ -343,6 +343,13 @@ func _station(key: String) -> Vector3:
 func _boom(p, delta: float) -> void:
 	var g = game
 	var wy: float = g.work_y
+	# A clamp nearer the deck than the pump: the boom op's the pumpy who goes (repair_goer)
+	if repair_goer() == "boom":
+		if p.busy != "" and p.zone == "deck":
+			p.ai_leave = _tap()   # (off the remote first)
+			return
+		if _repair(p, delta):
+			return
 	if g.climb.active:
 		# Dogman: stand where the load and the crane driver can both be seen
 		if go(p, "deck", _deck("dogman"), 0.5):
@@ -363,14 +370,15 @@ func _boom(p, delta: float) -> void:
 	var line = g.line
 	var pour = g.pour
 	# Start-up and washout: the slurry and the last of the line into the bin
-	if g.ops.wants_bin():
+	# (and before it's called for: the tip's over the bin and waiting by the time the slurry's up)
+	if g.ops.bin_soon():
 		var bl: Vector3 = g._pour_local(g.ops.bin_world())
 		var tb: Vector3 = bl - g._pour_local(g.tip_target)
 		tb.y = 0.0
 		if tb.length() > 0.08:
 			var lb := (tb.normalized() * minf(1.0, tb.length() / 1.2)).rotated(Vector3.UP, -g.cam_yaw)
 			p.ai_move = Vector2(lb.x, lb.z)
-		p.ai_action = g.ops.over_bin(g.discharge())
+		p.ai_action = g.ops.wants_bin() and g.ops.over_bin(g.discharge())
 		return
 	if not g.ops.primed or g.ops.busy():
 		return
@@ -401,7 +409,7 @@ func _boom(p, delta: float) -> void:
 	# (high or low output is the pump operator's now)
 	var ok: bool = line.hopper > 0.25 or feeding and line.hopper > 0.08
 	var why := "" if ok else "hopper"
-	if pour.raining or g.climb.wind_gust >= g.BOOM_WIND or line.line_down() or line.blocked:
+	if g.climb.wind_gust >= g.BOOM_WIND or line.line_down() or line.blocked:
 		ok = false
 		why = "line"
 	if line.hopper < 0.08 and not feeding:
@@ -527,7 +535,8 @@ func _hose(p, delta: float) -> void:
 		return
 	var anchor: Vector3 = g.hose_anchor()
 	var tgt := anchor
-	if g.ops.wants_bin():
+	if g.ops.bin_soon():
+		# (the slurry's next: stood at the bin with the hose over it, not off to the pour and back)
 		tgt = g.ops.bin_world()
 	else:
 		# (hose_bot.gd: fill a spot to level, step to the next, under the form's edge first)
@@ -543,17 +552,17 @@ func _hose(p, delta: float) -> void:
 		walk(p, Vector3(tgt.x, g.work_y, tgt.z) - d.normalized() * 0.5, 0.25)
 	else:
 		p.face(Vector3(tgt.x, here.y, tgt.z))
-	if g.ops.wants_bin():
+	if g.ops.bin_soon():
 		return   # (the slurry and the washout: the boom pumps into the bin)
 	# Call the pump on (hold A) when it's worth it, the way the boom bot did
 	# before the call was the hose hand's: not into an empty hopper, a weeping
-	# clamp or a blocked line, not in the rain or a gust, not while walking off
+	# clamp or a blocked line, not in a gust, not while walking off
 	# a spot that's full, and never ahead of the bay being poured
 	var line = g.line
 	var feeding: bool = line.hud_info()["bay"] == "discharging"
 	var ok: bool = line.hopper > 0.25 or feeding and line.hopper > 0.08
 	var why := "" if ok else "hopper"
-	if pour.raining or g.climb.wind_gust >= g.BOOM_WIND or line.line_down() or line.blocked or line.tripped:
+	if g.climb.wind_gust >= g.BOOM_WIND or line.line_down() or line.blocked or line.tripped:
 		ok = false
 		why = "line"
 	if line.fail_i >= 0 and line.wear > 0.25 and not g.let_burst:
@@ -655,6 +664,44 @@ func _line(p, delta: float) -> void:
 ## The pump operator up the riser: grab the part, climb to the joint and fix
 ## it (the spike they killed has already taken the pressure off). True while
 ## there's a repair.
+## Which bot goes to a clamp that's weeping or gone: "pump" as ever, or "boom" when both are bots,
+## nobody's called Mine!, and the joint's nearer the deck than the pump (the boom's stopped anyway
+## while the line's down). Decided once a job; back to the pump op if the boom op's taking too long.
+const GOER_MARGIN := 3.0     # m nearer the boom op has to be
+const GOER_LIMIT := 75.0     # s before the pump op goes after all
+var _goer := ""
+var _goer_job := -1
+var _goer_t := 0.0
+
+func repair_goer() -> String:
+	var g = game
+	var line = g.line
+	# (the other crew's view of the game, spire_b_view.gd, has no line to mend)
+	if line == null or line.get("fix_i") == null or g.get("crew") == null:
+		return "pump"
+	if g.phase != "pour" or g.kit != "tower" or not (line.fail_i >= 0 or line.fix_i >= 0):
+		_goer_job = -1
+		return "pump"
+	var job: int = int(line.stats.get("jobs", 0)) * 100 + maxi(line.fail_i, line.fix_i)
+	if job != _goer_job:
+		_goer_job = job
+		_goer_t = g.phase_t
+		_goer = "pump"
+		var bo = g.crew.crew.get("boom")
+		var po = g.crew.crew.get("pump")
+		var j: int = line.fix_i if line.fix_i >= 0 else line.fail_i
+		if bo != null and po != null and bo.bot and po.bot and not bo.covering and bo.zone == "deck" and po.zone == "ground" \
+				and part_needed() in ["", "clamp"] and line.job_kind in ["", "clamp", "burst"] and not g.climb.active \
+				and (g.trade_swap == null or g.trade_swap.claimed_by("repair") == null):
+			var jy: float = line.clamps[j]["pos"].y
+			if bo.position.y - jy + GOER_MARGIN < jy:
+				_goer = "boom"
+				if g.autotest:
+					print("[autotest]   clamp %d at %.0f m: the boom op's nearer (deck %.0f m) and goes" % [j + 1, jy, bo.position.y])
+	if _goer == "boom" and (g.phase_t - _goer_t > GOER_LIMIT or (g.trade_swap != null and g.trade_swap.claimed_by("repair") != null)):
+		_goer = "pump"
+	return _goer
+
 func _repair(p, delta: float) -> bool:
 	var g = game
 	var line = g.line
@@ -671,7 +718,8 @@ func _repair(p, delta: float) -> bool:
 	_bark_once(p, "job%d" % line.stats.get("jobs", 0), "On it!")
 	match p.zone:
 		"deck":
-			if g.kit == "tower" and not need_fetch:
+			# (a clamp kit hangs at the ladder head: line.gd hands it over as they step on)
+			if g.kit == "tower" and (not need_fetch or part == "clamp"):
 				if walk(p, _deck("ladder"), 0.5):
 					p.ai_action = _tap()
 			else:
@@ -791,6 +839,14 @@ func _pump(p, delta: float) -> void:
 	if g.trade_swap != null and g.trade_swap.repair_held():
 		if g.trade_swap.claimed_by("repair") != null:
 			_bark_once(p, "held%d" % line.stats.get("jobs", 0), "I'll mind the panel.")
+		if p.zone != "ground":
+			go(p, "ground", _gnd("panel"))
+		else:
+			walk(p, g.GROUND_STATIONS["panel"]["pos"], 0.6)
+		return
+	if repair_goer() == "boom":
+		# (the boom op's nearer that clamp and has gone down to it: mind the panel)
+		_bark_once(p, "near%d" % line.stats.get("jobs", 0), "You're nearer. I'll mind the panel.")
 		if p.zone != "ground":
 			go(p, "ground", _gnd("panel"))
 		else:

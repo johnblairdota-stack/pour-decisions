@@ -25,7 +25,7 @@ static var _icon_uris := {}
 ## mask), the same ones the TV draws on the hats.
 static func _icons() -> Dictionary:
 	if _icon_uris.is_empty():
-		for role in Icons.ROLES:
+		for role in Icons.ROLES + ["rigger", "dogger", "crane"]:   # (and the climb-day trades' hats)
 			var png: PackedByteArray = Icons.texture(role, 96).get_image().save_png_to_buffer()
 			_icon_uris[role] = "data:image/png;base64," + Marshalls.raw_to_base64(png)
 	return _icon_uris
@@ -707,7 +707,7 @@ function drawTicket() {
   if (!card) return;
   const col = '#' + card.col;
   document.documentElement.style.setProperty('--job', col);
-  if ($('thhat').dataset.role !== card.role) { $('thhat').dataset.role = card.role; $('thhat').innerHTML = hatInner(card.role, col, false); }
+  if ($('thhat').dataset.role !== (card.icon || card.role)) { $('thhat').dataset.role = card.icon || card.role; $('thhat').innerHTML = hatInner(card.icon || card.role, col, false); }
   const t = $('ticket');
   let name = card.name, goal = card.goal, foot = '';
   t.classList.toggle('pump', card.role === 'pump' && screen === 'play' && !now.climb);
@@ -1152,9 +1152,9 @@ function closeSwap() { swapOpen = false; $('swap').classList.remove('on'); $('zo
 function drawSwap() {
   if (!swapOpen) return;
   $('jobs').innerHTML = roster.map(r => {
-    if (r.p === me.p) return '<div class="job mine" style="--c:#' + r.col + '"><span class="n">' + hat(r.id, '#' + r.col, true) + esc(r.name) + '</span><span class="w">you, P' + r.p + '</span></div>';
+    if (r.p === me.p) return '<div class="job mine" style="--c:#' + r.col + '"><span class="n">' + hat(r.icon || r.id, '#' + r.col, true) + esc(r.name) + '</span><span class="w">you, P' + r.p + '</span></div>';
     if (r.p > 0) return '<div class="job taken" style="--c:#' + r.col + '"><span class="n">' + LOCK + esc(r.name) + '<span class="ptag" style="background:#' + r.pc + '">P' + r.p + '</span></span><span class="w">' + esc(r.who) + '</span></div>';
-    return '<button class="job' + (r.id === swapPick ? ' pick' : '') + '" data-id="' + r.id + '" style="--c:#' + r.col + '"><span class="n">' + hat(r.id, '#' + r.col, true) + esc(r.name) + '</span><span class="w">bot ' + esc(r.who) + ' · ' + esc(r.line) + '</span></button>';
+    return '<button class="job' + (r.id === swapPick ? ' pick' : '') + '" data-id="' + r.id + '" style="--c:#' + r.col + '"><span class="n">' + hat(r.icon || r.id, '#' + r.col, true) + esc(r.name) + '</span><span class="w">bot ' + esc(r.who) + ' · ' + esc(r.line) + '</span></button>';
   }).join('');
   const free = roster.filter(r => !r.p).length;
   $('swapgo').disabled = !swapPick;

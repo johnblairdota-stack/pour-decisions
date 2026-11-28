@@ -28,6 +28,7 @@ extends Node3D
 
 signal whip
 
+const Trades := preload("res://scripts/trades.gd")
 const F := preload("res://scripts/factory.gd")
 const Terrain := preload("res://scripts/terrain.gd")
 const LookFx := preload("res://scripts/look_fx.gd")
@@ -3267,8 +3268,15 @@ func handle_player(p, delta: float, near: String) -> bool:
 		"ladder":
 			if kit != "tower":
 				return false
-			p.cue("action", "climb")
+			# (a pumpy going down from the deck to a clamp takes a kit off the hook at the ladder head:
+			# the spares on the ground are the pump op's way up)
+			var kit_here: bool = p.zone == "deck" and game.bots != null and game.bots.part_needed() == "clamp" and p.held == null \
+				and p.tool == "" and not p.grabbing() and Trades.of_role(p.role) == "pumpy" and not part_coming("clamp", p)
+			p.cue("action", "climb · take the clamp kit" if kit_here else "climb")
 			if p.action_pressed():
+				if kit_here:
+					p.grab(make_item("clamp"), "clamp", "high", p.global_position + Vector3(0.3, 1.5, 0))
+					game.sfx.hit("clank")
 				p.zone = "ladder"
 				p.position = climb_at(p.position.y)
 				p.face(riser_at(p.position.y))

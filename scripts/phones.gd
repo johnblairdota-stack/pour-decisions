@@ -41,6 +41,7 @@ const Wallet := preload("res://scripts/wallet.gd")
 const CashArt := preload("res://scripts/cash_art.gd")
 const Trades := preload("res://scripts/trades.gd")
 const MastClimb := preload("res://scripts/mast_climb.gd")
+const ClimbHats := preload("res://scripts/climb_hats.gd")
 const UtePreview := preload("res://scripts/ute_preview.gd")
 ## Phones with the wallet shop's turning ute at once (each is a small
 ## off-screen render)
@@ -578,7 +579,7 @@ func _send_state(c: Dictionary) -> void:
 		st["done"] = bool(game._ink_done.get(p, false))
 	_json(c, "state", st)
 	_json(c, "roster", roster())
-	_json(c, "card", card(p.role))
+	_json(c, "card", card(p.role, p))
 	var climb_day: bool = game.climb != null and game.climb.active
 	var now := {"t": "now", "i": -1, "verb": "", "btn": "", "climb": climb_day,
 		"go": game.where_to(p) if game.has_method("where_to") and scr == "play" else "",
@@ -692,11 +693,55 @@ func roster() -> Dictionary:
 		e.merge({
 			"p": 0 if q.bot else q.index, "pc": q.tag_color.to_html(false), "who": q.char_name,
 			"lock": (not q.bot) and sel != null and bool(sel._ready_p.get(q.index, false))})
+		if kind != "":
+			var ctr := Trades.climb_trade(role, kind)
+			e["icon"] = ctr if ctr in ["rigger", "dogger", "crane"] else role
 		out.append(e)
+	if _cab_open():
+		# (Spire's column climb: the crane cab's a seat too, and it isn't a chibi. Whoever's in it
+		# leaves their own job to a trade-mate bot)
+		var op = _cab_holder()
+		if op != null:
+			for e in out:
+				if int(e["p"]) == op.index:
+					e["p"] = 0
+					e["who"] = "covering for P%d" % op.index
+		out.append({"id": "cab", "name": "Crane op · Cab", "trade": Trades.trade_name("crane"), "seat": "Cab", "icon": "crane",
+			"col": (Trades.COL["crane"] as Color).to_html(false), "line": "Drive the tower crane on the doggers' radio calls",
+			"ask": "", "p": op.index if op != null else 0, "pc": op.tag_color.to_html(false) if op != null else "ffffff",
+			"who": op.char_name if op != null else "the crane's own driver", "lock": false})
 	return {"t": "roster", "r": out}
+
+## Whether the crane cab's a seat a person can take right now (Spire's column climb, and the crews'
+## change-over before it), and who's in it.
+func _cab_open() -> bool:
+	var co = game.get("_changeover")
+	if co != null and is_instance_valid(co):
+		return co._cab_open()
+	return game.get("mast") != null and game.mast.active and game.mast.has_method("take_cab")
+
+func _cab_holder():
+	var co = game.get("_changeover")
+	var op = co.cab if co != null and is_instance_valid(co) else game.mast.cab
+	return op if op != null and is_instance_valid(op) else null
+
+## A phone takes the cab (`on`) or gives it up, on the change-over page or during the climb.
+func _set_cab(p, on: bool) -> void:
+	var co = game.get("_changeover")
+	if co != null and is_instance_valid(co):
+		co.cab = p if on else null
+		return
+	if on:
+		game.mast.take_cab(p)
+	else:
+		game.mast.leave_cab()
+	ClimbHats.apply(game, "spire", game.mast.cab)
 
 ## Today's climb seats (trades.gd CLIMB_SEAT's key), or "" on a pour day.
 func _climb_kind() -> String:
+	var co = game.get("_changeover")
+	if co != null and is_instance_valid(co):
+		return String(co.kind)   # (the crews' change-over page is up: the day's seats already)
 	if game.get("erect") != null and game.erect.active:
 		return game.erect.seat_kind()
 	if game.get("mast") != null and game.mast.active:
@@ -706,8 +751,24 @@ func _climb_kind() -> String:
 	return ""
 
 ## A job's ticket: its goal, its steps, what to watch for, climb days.
-func card(role: String) -> Dictionary:
+func card(role: String, who = null) -> Dictionary:
 	var jc: Dictionary = UI.JOB_CARD.get(role, {})
+	var kind := _climb_kind()
+	if who != null and _cab_open() and _cab_holder() == who:
+		# (in the crane cab: not the job their chibi's left to a bot)
+		return {"t": "card", "role": "cab", "icon": "crane", "name": "Crane op · Cab", "trade": Trades.trade_name("crane"),
+			"col": (Trades.COL["crane"] as Color).to_html(false), "goal": "Drive the tower crane on the doggers' radio calls.",
+			"steps": [["X", "hold: HOIST UP, on the dogger's call"], ["A", "hold: LOWER, on the call"],
+				["stick", "push: SLEW LEFT / RIGHT, TROLLEY OUT / IN, on the call"]],
+			"watch": "ALL STOP means let go, now. No call, no move.", "climb": "", "climbsteps": []}
+	if kind != "":
+		# (a climb day: today's trade and seat, not the pour-day hat)
+		var tr := Trades.climb_trade(role, kind)
+		var does := String(MastClimb.CLIMB_JOB.get(role, "")) if kind == "spire" else String(UI.ROLE_CLIMB.get(role, "")).trim_prefix("Climb days: ")
+		return {"t": "card", "role": role, "icon": tr if tr in ["rigger", "dogger", "crane"] else role, "name": Trades.climb_full(role, kind),
+			"trade": Trades.trade_name(tr) if tr != "" else "", "col": (Trades.COL[tr] as Color).to_html(false) if Trades.COL.has(tr) else UI.ROLE.get(role, Color.WHITE).to_html(false),
+			"goal": does.capitalize() if does != "" else jc.get("goal", ""), "steps": UI.how(role, "climb") if kind == "lattice" else [], "watch": "",
+			"climb": "", "climbsteps": []}
 	return {"t": "card", "role": role, "name": UI.job_full(role), "trade": UI.trade(role), "col": UI.ROLE.get(role, Color.WHITE).to_html(false),
 		"goal": jc.get("goal", ""), "steps": UI.how(role), "watch": jc.get("watch", ""),
 		"climb": ("Climb days: %s, %s" % [Trades.climb_full(role, "spire"), MastClimb.CLIMB_JOB.get(role, "")]) if game.spire else UI.ROLE_CLIMB.get(role, ""),
@@ -753,7 +814,25 @@ func _on_pick(c: Dictionary, parts: PackedStringArray) -> void:
 				crew.cycle_char(p.index, 1 if role != "-1" else -1)
 				game.sfx.hit("tink")
 		"swap":
-			if screen() != "play" or not crew.crew.has(role):
+			if screen() != "play":
+				return
+			if _cab_open():
+				var op = _cab_holder()
+				if role == "cab":
+					if op != null and op != p:
+						_toast(c, "P%d's in the cab" % op.index)
+					elif op == null:
+						_set_cab(p, true)
+						game.sfx.hit("tink")
+						vibrate(p, UI.BUZZ["done"])
+					return
+				if op == p:
+					# (out of the cab: back on their own chibi's job, or across to another one)
+					_set_cab(p, false)
+					if crew.crew.has(role) and crew.crew[role] == p:
+						game.sfx.hit("tink")
+						return
+			if not crew.crew.has(role):
 				return
 			if not crew.crew[role].bot:
 				_toast(c, "%s's taken" % UI.job_full(role))

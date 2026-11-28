@@ -4365,9 +4365,6 @@ func deck_open() -> bool:
 	return phase != "select" and phase != "roles"
 
 func _walkable(p: Vector3, zone: String, who = null) -> bool:
-	if zone == "deck" and who != null and who.role == "boom" and on_pad(p) and not (erect != null and erect.active):
-		# The boom operator works off the scaffold, never on the pad
-		return false
 	if zone == "ground":
 		var ok := (p.x >= 9.4 and p.x <= 33.5 and p.z >= -4.0 and p.z <= 12.5) or (p.x >= -9.5 and p.x <= 9.4 and p.z >= 6.9 and p.z <= 12.5)
 		if spire:
@@ -4559,8 +4556,8 @@ func _toolbox(wait: bool) -> Dictionary:
 		chips.append(["%d°C" % t, ""])
 	chips.append(["EDGE WET ~%ds" % int(cfg["open"]), ""])
 	if cfg["rain"]:
-		chips.append(["SHOWER DUE", "warn"])
-		notes.append("Shower mid-pour: stop pumping while it's heavy, or the surface gets marked.")
+		chips.append(["SHOWER DUE · DOUBLE PAY", ""])
+		notes.append("Shower mid-pour: keep pouring. Everything earned in the heavy rain pays double.")
 	if cfg["traffic"] > 1.0:
 		chips.append(["TRAFFIC", "warn"])
 		notes.append("Kingsford Smith Drive's jammed: trucks spaced out, some running old. Check every docket.")
@@ -5070,8 +5067,6 @@ func _grade() -> void:
 	pen.call("%d bad load accepted" % st["bad_loads"], st["bad_loads"] * 10.0)
 	if pour.out_of_seq > 0.5:
 		pen.call("Poured out of sequence: %.0f m³" % pour.out_of_seq, minf(15.0, maxf(0.0, pour.out_of_seq - 4.0) * 1.5))
-	if cfg["rain"]:
-		pen.call("Poured in heavy rain: %.0f m³" % pour.rain_m3, minf(20.0, pour.rain_m3 * 1.5))
 	var safety := []
 	var spts := 0.0
 	if st["unpinned"] > 0:
@@ -5158,8 +5153,9 @@ func _slab_report(quality: float, verdict: String, medal: int, note: String, los
 	elif tutorial:
 		nxt = "The roof slab"
 	else:
-		nxt = "Level %d" % (k + 2) + (" · climb day first" if (k + 1) in climb_levels() else "")
-	return {"title": ("WATER TOWER" if tutorial else "LEVEL %d" % (k + 1)) + " · SLAB REPORT", "points": score.level,
+		nxt = ("Level %s" % level_label(k + 1).trim_prefix("L") if spire else "Level %d" % (k + 2)) + (" · climb day first" if (k + 1) in climb_levels() else "")
+	var lvl_title := ("%s · POUR %d OF %d" % [level_label(k), k + 1, floors()]) if spire else "LEVEL %d" % (k + 1)
+	return {"title": ("WATER TOWER" if tutorial else lvl_title) + " · SLAB REPORT", "points": score.level,
 		"quality": quality, "verdict": verdict, "medal": medal, "medal_note": note, "crew": crew_rows,
 		"trades": _trade_totals(crew_rows),
 		"star": star, "losses": losses, "wrong": score.worst(3), "next": nxt, "last": k + 1 >= floors()}
@@ -5479,14 +5475,6 @@ func _process(delta: float) -> void:
 				flat = flat.limit_length(lim)
 				p.position.x = flat.x
 				p.position.z = flat.y
-		if p.role == "boom" and p.zone == "deck" and p.busy == "" and not (erect != null and erect.active):
-			# Off the pad, onto the scaffold (Spire: and off the joint strip behind our U, which only
-			# leads back across the wet slab)
-			var wq := walkway_point(walkway_param(Vector2(p.position.x, p.position.z)))
-			var strand: bool = spire and wq.distance_to(Vector2(p.position.x, p.position.z)) > 1.6 and Geometry2D.is_point_in_polygon(Vector2(p.position.x, p.position.z), SpireSite.poly("walk"))
-			if on_pad(p.position) or strand:
-				p.position.x = wq.x
-				p.position.z = wq.y
 		_footprints(p)
 		_cover(p, delta)
 		if not p.bot and not p.covering and p.action_pressed():
@@ -5703,9 +5691,20 @@ func _process(delta: float) -> void:
 			var tp0: Vector3 = tip_target if which == 0 else tip_pos
 			var off := Vector2(tp0.x - hp0.x, tp0.z - hp0.z)
 			if off.length() < near:
+				var deep := near - off.length()
 				off = (off.normalized() if off.length() > 0.01 else Vector2(0, 1)) * near
 				if which == 0:
 					tip_target = Vector3(hp0.x + off.x, tp0.y, hp0.z + off.y)
+					# (a person's steered it into its own mast: a knock, the same as on the jump form.
+					# A bot just works round it)
+					var mop = _boom_operator()
+					if phase == "pour" and deep > 0.04 and _rig_hit_t <= 0.0 and mop != null and not mop.bot and not mop.covering:
+						_rig_hit_t = 1.2
+						var maway := Vector3(off.x, 0, off.y).normalized()
+						tip_target += maway * 0.6
+						tip_kick = maway * 0.5
+						BoomBumpFx.hit(self, Vector3(hp0.x + maway.x * 0.6, maxf(tp0.y, work_y + 1.5), hp0.z + maway.z * 0.6), maway, mop)
+						mop.say("the mast!")
 				else:
 					tip_pos = Vector3(hp0.x + off.x, tp0.y, hp0.z + off.y)
 	tip_kick = tip_kick.lerp(Vector3.ZERO, minf(1.0, delta * 3.0))
@@ -5929,6 +5928,9 @@ func _update_pour(delta: float) -> void:
 			line.start_failure()
 	# Weather from the briefing
 	var raining: bool = cfg["rain"] and pour_clock > cfg["rain_at"] and pour_clock < cfg["rain_at"] + cfg["rain_len"]
+	if raining and not pour.raining:
+		# (work goes on in the rain now, and it pays double while it lasts: John, 28 Nov)
+		hud.toast("Heavy rain. Keep pouring: double pay while it lasts", 3.0)
 	pour.raining = raining
 	rain.emitting = raining
 	rain.position = Vector3(SC.x + 8.0, work_y + 18.0, SC.z + 6.0)
@@ -6264,7 +6266,7 @@ func _dev_skip(target: int) -> void:
 	for p in players:
 		if p.zone == "deck":
 			p.position.y = work_y
-	hud.toast("Level %d: the floors below are poured" % (k + 1), 2.0)
+	hud.toast("%s: the floors below are poured" % (level_label(k) if spire else "Level %d" % (k + 1)), 2.0)
 
 ## Climb day: the truck hand (slinging, dogging) and the pump operator
 ## (rigging up the tower) harness up.
@@ -8248,7 +8250,7 @@ func _tickets() -> Array:
 	# (trucks waiting in the queue are on the pump panel's count: a ticket is
 	# only for something someone has to do)
 	if pour.raining:
-		out.append({"icon": "R", "text": "Heavy rain: hold the pump", "frac": 0.5, "color": Color("4fa3ff"), "urgent": true})
+		out.append({"icon": "R", "text": "Heavy rain: double pay", "frac": 1.0, "color": Color("4fa3ff"), "urgent": false})
 	if climb.wind_gust >= BOOM_WIND:
 		out.append({"icon": "W", "text": "Boom parked in the wind", "frac": 0.3, "color": Color("9fb3c8"), "urgent": true})
 	# Most urgent first, and never more than three: a to-do list, not a log
@@ -8282,7 +8284,9 @@ func _update_hud() -> void:
 	else:
 		hud.set_floor(k if phase != "topout" else floors() - 1, floors())
 		if spire:
-			hud.level_label.text = "%s/%d" % [level_label(mini(k, floors() - 1)), floors()]
+			# (the level's real number, then which pour of the job it is: "L36 of 34" read as if the
+			# job had run past its end)
+			hud.level_label.text = "%s · POUR %d/%d" % [level_label(mini(k, floors() - 1)), mini(k + 1, floors()), floors()]
 	hud.set_score(score.total, score.rank_name(), score.next_rank(), score.rank_frac(), score.bump)
 	var climbing: bool = phase == "mastclimb" and mast != null and mast.active
 	hud.set_steps(mast.stages() if climbing else [], mast.stage_i() if climbing else 0, climbing)
@@ -8387,7 +8391,7 @@ func assembly_state() -> Dictionary:
 		# (no tower to count sections on: the riser's up the building's face, to just over the deck)
 		tall = maxf(1.0, work_y + 2.0)
 	var d := {"sections": maxi(1, section_count), "deck": work_y / tall,
-			"deck_tag": "" if phase == "topout" else ("DECK" if tutorial else "L%d DECK" % (k + 1)),
+			"deck_tag": "" if phase == "topout" else ("DECK" if tutorial else "%s DECK" % level_label(k)),
 			"wind": climb.wind_gust, "wind_stop": climb.WIND_STOP if climb.active else BOOM_WIND,
 			"band": line.HOP_BAND, "clamps": [], "bad": -1, "flow": false, "down": false, "alarm": false,
 			"fault": {}, "trucks": [], "hats": [], "next": _next_up()}
@@ -9204,7 +9208,7 @@ func _update_camera_views(delta: float) -> void:
 		# (with the split turned off, one camera pulls back over everyone)
 		main_follow = up + down if (not apart or not split_on) else up
 		for p in humans():
-			if not main_follow.has(p):
+			if not main_follow.has(p) and p != cab_p:
 				away.append(p)
 		if main_follow.is_empty() and not away.is_empty():
 			main_follow = [away[0]]
