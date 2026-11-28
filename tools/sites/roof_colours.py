@@ -2,7 +2,7 @@
 
     python3 tools/sites/roof_colours.py
 
-Reads reference/sites/spire/wide/buildings_wide.json and reference/sites/spire/river/aerial_wide.jpg
+Reads reference/sites/spire/wide/buildings_wide.json.gz and reference/sites/spire/river/aerial_wide.jpg
 (2 m, river_shape.py). Writes reference/sites/spire/wide/roof_colours.json: {osm: [r, g, b] sRGB 0-255},
 the median aerial pixel inside the top roof tier. Buildings outside the aerial (black) are left out.
 """
@@ -27,7 +27,7 @@ def main():
     st = rv["step_m"]
     im = np.asarray(Image.open(os.path.join(L.REF, "river", "aerial_wide.jpg")).convert("RGB"))
     sx, sy = im.shape[1] / ((x1 - x0) / st), im.shape[0] / ((y1 - y0) / st)
-    recs = json.load(open(os.path.join(L.REF, "wide", "buildings_wide.json")))["buildings"]
+    recs = json.load(L.ropen(os.path.join(L.REF, "wide", "buildings_wide.json.gz")))["buildings"]
     out = {}
     for b in recs:
         ring = b["tiers"][0]["ring"]

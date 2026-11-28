@@ -201,11 +201,11 @@ def classify_zone(ring, beach=None):
     zone = np.asarray(mk) > 0
     bd = Image.new("L", (W, H), 0)
     d = ImageDraw.Draw(bd)
-    for fp in (("wide", "buildings_wide.json"), ("ext", "buildings_ext.json"), ("lidar", "buildings_clean.json")):
+    for fp in (("wide", "buildings_wide.json.gz"), ("ext", "buildings_ext.json"), ("lidar", "buildings_clean.json")):
         p = os.path.join(L.REF, *fp)
         if not os.path.exists(p):
             continue
-        for rec in json.load(open(p))["buildings"]:
+        for rec in json.load(L.ropen(p))["buildings"]:
             for t in rec["tiers"]:
                 rg = t["ring"]
                 if max(q[0] for q in rg) < bx0 or min(q[0] for q in rg) > bx1 or max(q[1] for q in rg) < by0 or min(q[1] for q in rg) > by1:
@@ -289,11 +289,11 @@ def trees(cls, org, built, ring=None, fill=False, land=None, line=None):
         land = ~_near(~land, 2)                                    # two metres back from the water
     x0, y0 = min(p[0] for p in ring), min(p[1] for p in ring)
     x1, y1 = max(p[0] for p in ring), max(p[1] for p in ring)
-    for fp in (os.path.join(L.REF, "wide", "tree_points_wide.csv"), os.path.join(L.REF, "ext", "tree_points_ext.csv")):
+    for fp in (os.path.join(L.REF, "wide", "tree_points_wide.csv.gz"), os.path.join(L.REF, "ext", "tree_points_ext.csv")):
         if not os.path.exists(fp):
             continue
         ext = "ext" in os.path.basename(fp)
-        with open(fp, encoding="utf-8") as f:
+        with L.ropen(fp) as f:
             for r in csv.DictReader(f):
                 x, y = float(r["x_local"]), float(r["y_local"])
                 if not (x0 < x < x1 and y0 < y < y1):

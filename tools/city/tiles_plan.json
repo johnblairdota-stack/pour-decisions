@@ -1,5 +1,5 @@
 {
- "note": "Orders 1 to 3 are in the model (96 tiles, a full 12 by 8 km block, 27 Nov 2026). Kept as the record of what was ordered; add the next ring here.",
+ "note": "Orders 1 to 4 are in the model (256 tiles, a full 16 by 16 km block, 28 Nov 2026). Kept as the record of what was ordered; add the next ring here.",
  "orders": [
   {
    "id": "1-fill",
@@ -57,6 +57,37 @@
     ]
    ],
    "done": "2026-11-27"
+  },
+  {
+   "id": "4-ring3",
+   "why": "The ring around the 12 by 8 km block, out to 16 by 16 km: Indooroopilly, St Lucia and Mt Coot-tha to the west; Chermside, Nundah and the airport edge to the north; Carindale and Tingalpa to the east; Moorooka and Holland Park to the south",
+   "boxes": [
+    [
+     496,
+     6955,
+     512,
+     6958
+    ],
+    [
+     496,
+     6966,
+     512,
+     6971
+    ],
+    [
+     496,
+     6958,
+     498,
+     6966
+    ],
+    [
+     510,
+     6958,
+     512,
+     6966
+    ]
+   ],
+   "done": "2026-11-28"
   }
  ]
 }

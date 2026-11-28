@@ -1,25 +1,25 @@
 {
  "box_local": [
-  -4992,
-  -4224,
-  6896,
-  4216
+  -7056,
+  -7288,
+  8960,
+  8728
  ],
  "step_m": 2.0,
- "rows": 4220,
- "cols": 5944,
+ "rows": 8008,
+ "cols": 8008,
  "ground_8m": {
-  "rows": 1055,
-  "cols": 1486,
+  "rows": 2002,
+  "cols": 2002,
   "step_m": 8.0,
   "order": "rows north to south from y1, cell centres (x0 + (4c+0.5)*2, y1 - (4r+0.5)*2)"
  },
  "order": "rows north to south, cell centres at (x0+(c+0.5)*step, y1-(r+0.5)*step)",
- "river_area_ha": 640.7,
- "reaches_kept": 9,
- "loops": 5,
- "aerial_cover": 0.888,
- "lidar_cover": 0.941,
+ "river_area_ha": 1055.0,
+ "reaches_kept": 16,
+ "loops": 11,
+ "aerial_cover": 0.997,
+ "lidar_cover": 0.998,
  "sources": {
   "aerial": "Qld AerialOrtho newest (area_newest_wide.jpg, every area in AREAS)",
   "lidar": "Brisbane 2019 LiDAR grid2019 (dsm NaN = water)",

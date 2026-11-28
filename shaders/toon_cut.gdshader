@@ -23,6 +23,7 @@ void fragment() {
 	if (vc_ao > 0.0) {
 		ALBEDO *= mix(vec3(1.0), sqrt(COLOR.rgb), vc_ao);
 	}
+	ALBEDO = cut_section(ALBEDO, VERTEX, INV_VIEW_MATRIX, FRAGCOORD.xy);
 	EMISSION = emission_color.rgb;
 	LOOK_END
 }

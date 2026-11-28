@@ -1,0 +1,203 @@
+{
+ "note": "Places the fly-over names (tools/city/flyover_labels.py). kind: game = a tower from the game, place = a Brisbane place. lat/lon is the spot the pop-up is pinned over; z (m AHD, the roof or deck) is filled in by `flyover_labels.py heights <data>` from the 2019 LiDAR, and a z typed here with \"z_fixed\": true is kept.",
+ "places": [
+  {
+   "name": "Spire Residences",
+   "kind": "game",
+   "lat": -27.46304,
+   "lon": 153.03083,
+   "z": 141.1
+  },
+  {
+   "name": "Howard Smith Wharves",
+   "kind": "game",
+   "lat": -27.46285,
+   "lon": 153.0372,
+   "z": 14,
+   "z_fixed": true
+  },
+  {
+   "name": "Brisbane Skytower",
+   "kind": "game",
+   "lat": -27.4718,
+   "lon": 153.0287,
+   "z": 273.9
+  },
+  {
+   "name": "1 William St",
+   "kind": "game",
+   "lat": -27.4751,
+   "lon": 153.0258,
+   "z": 227.4
+  },
+  {
+   "name": "Queen's Wharf",
+   "kind": "game",
+   "lat": -27.4735,
+   "lon": 153.0253,
+   "z": 95,
+   "z_fixed": true
+  },
+  {
+   "name": "Portside Wharf",
+   "kind": "game",
+   "lat": -27.4418,
+   "lon": 153.0672,
+   "z": 30,
+   "z_fixed": true
+  },
+  {
+   "name": "Riverlight",
+   "kind": "game",
+   "lat": -27.4398,
+   "lon": 153.0712,
+   "z": 47.9
+  },
+  {
+   "name": "UQ St Lucia",
+   "kind": "place",
+   "lat": -27.4975,
+   "lon": 153.013,
+   "z": 39.7
+  },
+  {
+   "name": "Eleanor Schonell Bridge",
+   "kind": "place",
+   "lat": -27.4985,
+   "lon": 153.0205,
+   "z": 20,
+   "z_fixed": true
+  },
+  {
+   "name": "Suncorp Stadium",
+   "kind": "place",
+   "lat": -27.4648,
+   "lon": 153.0095,
+   "z": 35,
+   "z_fixed": true
+  },
+  {
+   "name": "XXXX Brewery",
+   "kind": "place",
+   "lat": -27.4697,
+   "lon": 153.0036,
+   "z": 18.3
+  },
+  {
+   "name": "GOMA",
+   "kind": "place",
+   "lat": -27.4705,
+   "lon": 153.017,
+   "z": 31.8
+  },
+  {
+   "name": "City Hall",
+   "kind": "place",
+   "lat": -27.4689,
+   "lon": 153.0235,
+   "z": 37.5
+  },
+  {
+   "name": "City Botanic Gardens",
+   "kind": "place",
+   "lat": -27.476,
+   "lon": 153.03,
+   "z": 22.6
+  },
+  {
+   "name": "Kangaroo Point Cliffs",
+   "kind": "place",
+   "lat": -27.477,
+   "lon": 153.0345,
+   "z": 20.8
+  },
+  {
+   "name": "The Gabba",
+   "kind": "place",
+   "lat": -27.4858,
+   "lon": 153.0381,
+   "z": 30,
+   "z_fixed": true
+  },
+  {
+   "name": "Story Bridge",
+   "kind": "place",
+   "lat": -27.4638,
+   "lon": 153.0358,
+   "z": 49.4
+  },
+  {
+   "name": "New Farm Park",
+   "kind": "place",
+   "lat": -27.4695,
+   "lon": 153.0515,
+   "z": 15,
+   "z_fixed": true
+  },
+  {
+   "name": "Brisbane Powerhouse",
+   "kind": "place",
+   "lat": -27.4683,
+   "lon": 153.0535,
+   "z": 19.8
+  },
+  {
+   "name": "Breakfast Creek Hotel",
+   "kind": "place",
+   "lat": -27.44,
+   "lon": 153.0457,
+   "z": 11.9
+  },
+  {
+   "name": "Gateway Bridge",
+   "kind": "place",
+   "lat": -27.445,
+   "lon": 153.1,
+   "z": 65,
+   "z_fixed": true
+  },
+  {
+   "name": "South Bank",
+   "kind": "place",
+   "lat": -27.4775,
+   "lon": 153.0222,
+   "z": 15,
+   "z_fixed": true
+  },
+  {
+   "name": "Queensland Museum",
+   "kind": "place",
+   "lat": -27.4727,
+   "lon": 153.0181,
+   "z": 34.1
+  },
+  {
+   "name": "QPAC",
+   "kind": "place",
+   "lat": -27.4747,
+   "lon": 153.0197,
+   "z": 39.7
+  },
+  {
+   "name": "Urban Climb West End",
+   "kind": "place",
+   "lat": -27.47714,
+   "lon": 153.0083,
+   "z": 17.0
+  },
+  {
+   "name": "Urban Climb Milton",
+   "kind": "place",
+   "lat": -27.47306,
+   "lon": 153.00016,
+   "z": 13.5
+  },
+  {
+   "name": "Urban Climb Newstead",
+   "kind": "place",
+   "lat": -27.45501,
+   "lon": 153.04048,
+   "z": 17.8
+  }
+ ]
+}

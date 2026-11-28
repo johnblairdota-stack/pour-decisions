@@ -343,7 +343,7 @@ def speed_signs(bufs, n):
     G = FR.GROUND
     if not os.path.exists(FR.ROADS):
         return
-    for w in json.load(open(FR.ROADS))["ways"]:
+    for w in json.load(L.ropen(FR.ROADS))["ways"]:
         if w["kind"] != "road" or w["bridge"] or w["cls"] not in ("primary", "secondary", "tertiary", "trunk"):
             continue
         pts = w["pts"]

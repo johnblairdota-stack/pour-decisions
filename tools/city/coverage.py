@@ -15,6 +15,7 @@ Grade of a tile (how real it is, not how busy it looks):
 Photo pairs (render matched to a real photo) are counted per tile on top of the grade.
 """
 import csv
+import gzip
 import json
 import os
 import sys
@@ -30,6 +31,11 @@ E0, N0 = L.ORIGIN_MGA56
 VIEW = (495, 6954, 511, 6968)          # km window drawn on the map: W, S, E, N
 BRISBANE_KM2 = 1343                    # Brisbane City Council area, for scale
 
+
+
+def ropen(path):
+    """A reference file as text; the big generated ones are gzipped."""
+    return gzip.open(path, "rt", encoding="utf-8", newline="") if path.endswith(".gz") else open(path, encoding="utf-8")
 
 def tile_of(x, y):
     """Local Spire-frame metres -> (E_km, N_km) of the 1 km tile."""
@@ -57,14 +63,14 @@ def load():
     for e in range(int((x0 + E0) // 1000), int((x1 + E0) // 1000) + 1):
         for n in range(int((y0 + N0) // 1000), int((y1 + N0) // 1000) + 1):
             t((e, n))["aerial"] = True
-    for path in ("wide/buildings_wide.json", "lidar/buildings_clean.json", "ext/buildings_ext.json"):
-        for b in json.load(open(os.path.join(REF, path)))["buildings"]:
+    for path in ("wide/buildings_wide.json.gz", "lidar/buildings_clean.json", "ext/buildings_ext.json"):
+        for b in json.load(ropen(os.path.join(REF, path)))["buildings"]:
             k = t(tile_of(*ring_centre(b["tiers"][0]["ring"])))
             k["buildings"] += 1
             if b.get("height_src", "lidar 2019").startswith("lidar"):
                 k["measured"] += 1
-    for path in ("wide/tree_points_wide.csv", "lidar/tree_points.csv", "ext/tree_points_ext.csv"):
-        rows = csv.reader(open(os.path.join(REF, path)))
+    for path in ("wide/tree_points_wide.csv.gz", "lidar/tree_points.csv", "ext/tree_points_ext.csv"):
+        rows = csv.reader(ropen(os.path.join(REF, path)))
         next(rows)
         for r in rows:
             t(tile_of(float(r[0]), float(r[1])))["trees"] += 1

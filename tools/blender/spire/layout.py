@@ -12,6 +12,7 @@ holds the frame, the loaders and the few things a person placed by hand
 Pure Python + numpy. No bpy here, so it also runs outside Blender.
 """
 import gzip
+import io
 import json
 import math
 import os
@@ -580,6 +581,16 @@ _cache = {}
 
 def ref(name):
     return os.path.join(REF, name)
+
+
+def ropen(path):
+    """Open a reference file as text; the big generated ones are kept gzipped (name ends .gz)."""
+    return gzip.open(path, "rt", encoding="utf-8", newline="") if path.endswith(".gz") else open(path, encoding="utf-8")
+
+
+def wopen(path):
+    """Write a gzipped text file whose bytes depend only on its contents (no time stamp), so git sees real changes only."""
+    return io.TextIOWrapper(gzip.GzipFile(path, "wb", 6, mtime=0), encoding="utf-8", newline="")
 
 
 # Carriageways OSM under-counts (measured kerb to kerb on the 2018 0.1 m aerial). The leg north of the Ann St /

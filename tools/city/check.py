@@ -48,6 +48,11 @@ class Water:
         return all(self.cell(x + dx, y + dy) for dx, dy in ((0, 0), (d, 0), (-d, 0), (0, d), (0, -d)))
 
 
+
+def ropen(path):
+    """A reference file as text; the big generated ones are gzipped."""
+    return gzip.open(path, "rt", encoding="utf-8", newline="") if path.endswith(".gz") else open(path, encoding="utf-8")
+
 def area(ring):
     return abs(sum(ring[i][0] * ring[i - 1][1] - ring[i - 1][0] * ring[i][1] for i in range(len(ring)))) / 2.0
 
@@ -58,12 +63,12 @@ def main():
     seen = collections.Counter()
     known = json.load(open(os.path.join(HERE, "known.json")))
     n_b = n_t = on_water = 0
-    roofs = {b.get("osm") for b in json.load(open(os.path.join(REF, "wide", "buildings_wide.json")))["buildings"]
+    roofs = {b.get("osm") for b in json.load(ropen(os.path.join(REF, "wide", "buildings_wide.json.gz")))["buildings"]
              if b.get("tags", {}).get("building") == "roof"}
-    for path in ("wide/buildings_wide.json", "lidar/buildings_clean.json", "ext/buildings_ext.json"):
+    for path in ("wide/buildings_wide.json.gz", "lidar/buildings_clean.json", "ext/buildings_ext.json"):
         box = json.load(open(os.path.join(REF, "wide", "wide.json")))["box_local"]
         river_hits = []
-        for b in json.load(open(os.path.join(REF, path)))["buildings"]:
+        for b in json.load(ropen(os.path.join(REF, path)))["buildings"]:
             n_b += 1
             tag = "%s building osm %s" % (path.split("/")[0], b.get("osm"))
             seen[(path, b.get("osm"))] += 1
@@ -101,8 +106,8 @@ def main():
     if on_water:
         warns.append("%d ferry covers, pontoons and piers stand on the water (allowed)" % on_water)
     wet = 0
-    for path in ("wide/tree_points_wide.csv", "lidar/tree_points.csv", "ext/tree_points_ext.csv"):
-        rows = csv.reader(open(os.path.join(REF, path)))
+    for path in ("wide/tree_points_wide.csv.gz", "lidar/tree_points.csv", "ext/tree_points_ext.csv"):
+        rows = csv.reader(ropen(os.path.join(REF, path)))
         next(rows)
         for r in rows:
             n_t += 1
