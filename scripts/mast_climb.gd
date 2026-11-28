@@ -33,6 +33,7 @@ const SpireSite := preload("res://scripts/spire_site.gd")
 const UI := preload("res://scripts/ui.gd")
 const Trades := preload("res://scripts/trades.gd")
 const ClimbPhone := preload("res://scripts/climb_phone.gd")
+const CabSignal := preload("res://scripts/cab_signal.gd")
 
 const PIPES := 5
 const HOIST_V := 0.32       # m/s the crane lifts the column
@@ -92,6 +93,7 @@ var _radio_ok := false      # the top dogger's called this crane lift (the crane
 ## see the load; they go on the doggers' radio calls: X hoists, A lowers, the stick slews, left and
 ## right as the op sees it, sat facing out along the jib.
 var cab = null
+var signal_fx              # the crane op's arrow on the hook (cab_signal.gd)
 var _cab_idle := 0.0        # s the cab's had a call and no hand on the controls
 var _cab_call := ""         # the call the op's on now (for the radio line when it changes)
 const CAB_IDLE := 20.0      # s before the crane's own driver takes back an idle cab
@@ -118,6 +120,9 @@ func _ready() -> void:
 	_tag.visible = false
 	_tag.no_depth_test = true
 	add_child(_tag)
+	signal_fx = CabSignal.new()
+	add_child(signal_fx)
+	signal_fx.setup(self)
 
 ## Today's a climb day: the column stands where it was for the last three levels.
 func start() -> void:
@@ -802,6 +807,7 @@ func _draw(_delta: float) -> void:
 		_tag.text = "%s\n%s" % [String(j["verb"]).trim_prefix("hold: ").to_upper(), who_text(String(j["role"]))]
 		_tag.position = ja + Vector3(0, 1.6 + 0.08 * sin(step_t * 3.0), 0)
 	_draw_who(j)
+	signal_fx.update(step_t)
 	# The dogman's mark: how far the column's foot is off the pipe length
 	_mark.visible = step == "lift"
 	if _mark.visible:
@@ -1116,6 +1122,8 @@ func next_role() -> String:
 
 ## Whose turn it is, said to person `p`: [text, is it theirs]. Over their head on the TV, and on their phone.
 func turn_text(p, j: Dictionary) -> Array:
+	if p == cab:
+		return ["", true]   # (in the cab: the arrow on the hook says it)
 	var now := String(STEP_ROLE.get(step, ""))
 	var nxt := next_role()
 	var text := ""
