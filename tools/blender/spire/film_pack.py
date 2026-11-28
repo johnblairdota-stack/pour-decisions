@@ -27,6 +27,17 @@ def edge_row(a):
     return (rows.max() + 1) / a.shape[0] if len(rows) else 0.0
 
 
+CODE_BITS, CODE_BLOCK = 9, 16   # every frame's number, in black or white squares down its top left corner (the game reads it: fly_film.gd `clock`)
+
+
+def stamp(im, i):
+    """Frame i's number on it. The corner is black on an ordinary frame and outside what the game ever shows of a wide one."""
+    a = np.asarray(im).copy()
+    for b in range(CODE_BITS):
+        a[b * CODE_BLOCK:(b + 1) * CODE_BLOCK, :CODE_BLOCK] = 255 if (i >> (CODE_BITS - 1 - b)) & 1 else 0
+    return Image.fromarray(a)
+
+
 HOLD = 1.5   # s: the last frame held on the end of the film, while the game fades up over it
 
 
@@ -54,7 +65,7 @@ def main():
             im = Image.open(os.path.join(src, "film_%04d.png" % j)).convert("RGB")
             if j < wfrom:                                # (none rendered yet: black)
                 im = Image.new("RGB", tuple(wide["size"]))
-            im.save(os.path.join(tmp, "f%04d.png" % i))
+            stamp(im, i).save(os.path.join(tmp, "f%04d.png" % i))
             continue
         a = np.asarray(Image.open(os.path.join(src, "film_%04d.png" % j)).convert("RGB"), float) / 255.0
         # (the edge only ever goes up the frame as the camera comes down: no flicker from a missed row)
@@ -72,7 +83,8 @@ def main():
             full = Image.new("RGB", tuple(wide["size"]))
             wide["rect"] = [(full.width - im.width) // 2, (full.height - im.height) // 2, im.width, im.height]
             full.paste(im, tuple(wide["rect"][:2]))
-            im = full
+            im = stamp(full, i)
+            cams["code"] = {"bits": CODE_BITS, "block": CODE_BLOCK}
         im.save(os.path.join(tmp, "f%04d.png" % i))
     ogv = os.path.join(out, tower + ".ogv")
     subprocess.check_call(["ffmpeg", "-y", "-loglevel", "error", "-framerate", str(cams["fps"]), "-i", os.path.join(tmp, "f%04d.png"),
