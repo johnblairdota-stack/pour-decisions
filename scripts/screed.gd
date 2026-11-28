@@ -338,11 +338,29 @@ func speed_k(p) -> float:
 		return SPEED_K if _working else 1.0
 	return PERSON_K if _working else CARRY_K
 
+## The phases where nobody carries the board.
+const RACKED := ["changeover", "climb", "mastclimb"]
+
 func update(delta: float) -> void:
 	# The screeder always has the board, whoever's playing them
 	var sc = game.crew.crew.get("screed") if game.crew else null
+	# Climb days: the screeder's a dogman or a rigger, so the board stays on its rack
+	if String(game.phase) in RACKED:
+		if holder != null and is_instance_valid(holder):
+			if holder.tool == "screed":
+				holder.tool = ""
+			_put_float_away()
+			_working = false
+			board.visible = false
+			roll.visible = false
+			_crumbs.emitting = false
+		holder = null
+		_spin_t = -1.0
+		_idle_t = 0.0
+		return
 	if sc != null and holder != sc:
 		pick_up(sc)
+		board.visible = true
 	if holder == null or not is_instance_valid(holder):
 		roll.visible = false
 		_crumbs.emitting = false

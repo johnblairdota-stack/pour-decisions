@@ -21,6 +21,7 @@ const LineScript := preload("res://scripts/line.gd")
 const SpireSite := preload("res://scripts/spire_site.gd")
 const UI := preload("res://scripts/ui.gd")
 const Trades := preload("res://scripts/trades.gd")
+const ClimbPhone := preload("res://scripts/climb_phone.gd")
 const ZBoom := preload("res://scripts/zboom.gd")
 
 const HELP_T := 25.0        # s before a bot takes over a job a person's left
@@ -253,8 +254,8 @@ func start() -> void:
 	var lines: Array = []
 	for role in ["boom", "pump", "poker", "hose", "line", "screed"]:
 		if g.crew.crew.get(role) != null:
-			lines.append("%s · %s" % [who_text(role), JOBS[role]])
-	g.hud.job_intro("ERECTION DAY · WHO DOES WHAT", "\n".join(lines), UI.GOLD, 14.0)
+			lines.append(ClimbPhone.roll_line(g, role, "erect"))
+	g.hud.job_intro("ERECTION DAY · WHO'S WHERE", "\n".join(lines) + ClimbPhone.TV_FOOT, UI.GOLD, 8.0)
 
 # ------------------------------------------------------------------ Spire: into the penetration
 
@@ -346,8 +347,8 @@ func _start_pen(length: float) -> void:
 	var lines: Array = []
 	for role in ["boom", "pump", "poker", "hose", "line", "screed"]:
 		if g.crew.crew.get(role) != null:
-			lines.append("%s · %s" % [who_text(role), JOBS_PEN[role]])
-	g.hud.job_intro("INSTALL DAY · WHO DOES WHAT", "\n".join(lines), UI.GOLD, 14.0)
+			lines.append(ClimbPhone.roll_line(g, role, "pen"))
+	g.hud.job_intro("INSTALL DAY · WHO'S WHERE", "\n".join(lines) + ClimbPhone.TV_FOOT, UI.GOLD, 8.0)
 
 const JOBS_PEN := {
 	"boom": "tests the boom on the remote: unfold, swing, emergency stop",
@@ -870,9 +871,30 @@ func next_role() -> String:
 			return steps[i]["role"]
 	return ""
 
-func _draw_who(j: Dictionary) -> void:
+## Whose turn it is, said to person `p`: [text, is it theirs]. Over their head on the TV, and on their phone.
+func turn_text(p, j: Dictionary) -> Array:
 	var now := String(j.get("role", ""))
 	var nxt := next_role()
+	var text := ""
+	var mine: bool = p.role == now      # (theirs even while the leading hand's covering them)
+	if mine:
+		if _at(p, j):
+			text = ""
+		elif String(j["zone"]) == "ladder":
+			text = "YOUR TURN\n%s THE COLUMN'S LADDER" % ("UP" if float(j["y"]) > p.position.y else "DOWN")
+		else:
+			text = "YOUR TURN\n%s" % String(j["verb"]).trim_prefix("hold: ").to_upper()
+	else:
+		var on := "THE CRANE'S MOVE" if now == "" else "WAITING ON %s" % who_text(now).get_slice(" · ", 0)
+		if p.role == nxt:
+			text = "%s\nYOU'RE NEXT" % on
+		elif not JOBS.has(p.role):
+			text = "%s\nNO JOB TODAY · STAND CLEAR" % on
+		else:
+			text = on
+	return [text, mine]
+
+func _draw_who(j: Dictionary) -> void:
 	for p in game.crew.humans():
 		var l: Label3D = _who.get(p)
 		if l == null or not is_instance_valid(l):
@@ -880,23 +902,9 @@ func _draw_who(j: Dictionary) -> void:
 			l.no_depth_test = true
 			add_child(l)
 			_who[p] = l
-		var text := ""
-		var mine: bool = p.role == now and not p.covering
-		if mine:
-			if _at(p, j):
-				text = ""
-			elif String(j["zone"]) == "ladder":
-				text = "YOUR TURN\n%s THE COLUMN'S LADDER" % ("UP" if float(j["y"]) > p.position.y else "DOWN")
-			else:
-				text = "YOUR TURN\n%s" % String(j["verb"]).trim_prefix("hold: ").to_upper()
-		else:
-			var on := "THE CRANE'S MOVE" if now == "" else "WAITING ON %s" % who_text(now).get_slice(" · ", 0)
-			if p.role == nxt:
-				text = "%s\nYOU'RE NEXT" % on
-			elif not JOBS.has(p.role):
-				text = "%s\nNO JOB TODAY · STAND CLEAR" % on
-			else:
-				text = on
+		var tt := turn_text(p, j)
+		var text := String(tt[0])
+		var mine: bool = tt[1]
 		l.visible = text != ""
 		l.text = text
 		l.modulate = Color("ffc72c") if mine else Color("e9e4d6")

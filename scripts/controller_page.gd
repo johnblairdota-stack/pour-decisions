@@ -732,7 +732,7 @@ function drawSteps() {
   steps.forEach((s, i) => {
     const on = i === now.i;
     if (pump && now.i >= 0 && !on && i !== now.i + 1) return;
-    html += '<div class="st' + (on ? ' now' : '') + '">' + chip(s[0]) + '<span>' + esc(s[1]) + (on && now.verb ? '<span class="v">Now: ' + esc(now.verb) + '</span>' : '') + '</span></div>';
+    html += '<div class="st' + (on ? ' now' : '') + (s[2] ? ' past' : '') + '">' + chip(s[0]) + '<span>' + esc(s[1]) + (on && now.verb ? '<span class="v">Now: ' + esc(now.verb) + '</span>' : '') + '</span></div>';
   });
   if (now.i < 0 && now.verb) html = '<div class="st now">' + chip(now.btn || 'A') + '<span>' + esc(now.verb) + '</span></div>' + (pump ? '' : html);
   // Nothing to press yet, but the job wants you somewhere: say where
@@ -740,7 +740,7 @@ function drawSteps() {
   // The toolbox talk's up on the TV: hold A here to start, the same as there
   if (now.brief >= 0) html = '<div class="st now brief"><div style="display:flex;gap:1.8vmin;align-items:center">' + chip('A') + '<span>Hold A to start the pour</span></div><div class="bar"><i style="width:' + Math.round(now.brief * 100) + '%"></i></div><span class="v" style="color:#5f5a4c">Toolbox talk on the TV. Anyone holding A starts it.</span></div>';
   el.innerHTML = html;
-  if (now.go && now.go !== lastGo) buzz(BUZZ.turn);
+  if (now.go && now.go !== lastGo && (!now.climb || now.go.startsWith('YOUR TURN'))) buzz(BUZZ.turn);
   lastGo = now.go || '';
   if (now.i !== lastStep && now.i >= 0) buzz(BUZZ.press);
   lastStep = now.i;
