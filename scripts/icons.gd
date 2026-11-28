@@ -119,6 +119,34 @@ static func _sdf(role: String, p: Vector2) -> float:
 			d = minf(d, (p - Vector2(98, 120)).length() - 4.5)
 			d = minf(d, (p - Vector2(89, 126)).length() - 3.5)
 			return d
+		"rigger":
+			# a podger spanner: an open jaw at the top, the handle tapering to a spike
+			var d := _seg(p, Vector2(44, 44), Vector2(96, 116), 7.0)           # handle
+			d = minf(d, (p - Vector2(38, 34)).length() - 24.0)                 # head
+			d = maxf(d, -_seg(p, Vector2(30, 24), Vector2(12, 6), 9.0))        # the jaw's gap
+			d = minf(d, _seg(p, Vector2(96, 116), Vector2(106, 124), 3.5))     # the spike
+			return d
+		"dogger":
+			# a two-way radio: body, aerial, speaker slots, and two calls coming off it
+			var d := _box(p, Vector2(52, 78), Vector2(22, 36), 6.0)
+			d = minf(d, _seg(p, Vector2(40, 42), Vector2(40, 12), 4.5))        # aerial
+			for k in 3:
+				d = maxf(d, -_box(p, Vector2(52, 66 + k * 12), Vector2(12, 2.5), 1.0))
+			for k in 2:
+				var arc := absf((p - Vector2(74, 40)).length() - 22.0 - k * 16.0) - 3.5
+				arc = maxf(arc, -(p.x - 78.0))
+				arc = maxf(arc, p.y - 48.0)
+				d = minf(d, arc)
+			return d
+		"crane":
+			# a crane hook: the block, the shank and the hook's curl, open to the left
+			var d := _box(p, Vector2(64, 22), Vector2(20, 12), 4.0)
+			d = minf(d, _seg(p, Vector2(64, 30), Vector2(64, 62), 6.5))
+			var ring := absf((p - Vector2(64, 86)).length() - 24.0) - 7.5
+			ring = maxf(ring, -_box(p, Vector2(40, 72), Vector2(20, 14), 0.0))
+			d = minf(d, ring)
+			d = minf(d, (p - Vector2(41, 90)).length() - 7.5)                  # the hook's tip
+			return d
 		"beer":
 			# the glass, narrowing to the base, with a line under the head
 			var t := clampf((p.y - 40.0) / 80.0, 0.0, 1.0)
