@@ -23,11 +23,13 @@ void fragment() {
 		discard;
 	}
 	lk_rim = 0.0;
+	// (the section cut's edge is solid and hatched, so the cut reads as a cut, not a hole)
+	bool edge = near_on && cut_near_zone(wpos) == 2;
 	float h = abs(fract(wpos.y / hem) - 0.5) * hem;
-	if (h > hem_w * 0.5 && cut_bayer(FRAGCOORD.xy + vec2(2.0, 1.0)) > cover) {
+	if (!edge && h > hem_w * 0.5 && cut_bayer(FRAGCOORD.xy + vec2(2.0, 1.0)) > cover) {
 		discard;
 	}
-	ALBEDO = albedo.rgb;
+	ALBEDO = cut_section(albedo.rgb, VERTEX, INV_VIEW_MATRIX, FRAGCOORD.xy);
 	ROUGHNESS = 0.8;
 	LOOK_END
 }
