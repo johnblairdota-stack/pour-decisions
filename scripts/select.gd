@@ -148,8 +148,8 @@ func _card_played(c: Dictionary) -> void:
 		TowerHand.arrival = {}
 		TowerHand.cover(get_tree(), c)
 		_soon = ComingSoon.new()
+		add_child(_soon)              # (in the tree first: its film only plays there)
 		_soon.open(c, game)
-		add_child(_soon)
 		_show_page("soon")
 		return
 	if String(c["site"]) != String(game.site):
